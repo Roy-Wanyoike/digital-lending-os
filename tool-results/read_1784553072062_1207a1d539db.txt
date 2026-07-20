@@ -1,0 +1,905 @@
+   800→available_width = doc.width  # or page_width - left_margin - right_margin
+   801→table_width = sum(col_widths)
+   802→if table_width < available_width * 0.85:
+   803→    # Scale up columns proportionally to fill space
+   804→    scale = (available_width * 0.90) / table_width
+   805→    col_widths = [w * scale for w in col_widths]
+   806→
+   807→# ❌ WRONG — no hAlign (defaults to LEFT, table drifts left)
+   808→table = Table(data, colWidths=[100, 200, 150])
+   809→
+   810→# ✅ RIGHT — explicit centering
+   811→table = Table(data, colWidths=[100, 200, 150], hAlign='CENTER')
+   812→```
+   813→
+   814→**LaTeX equivalent:**
+   815→```latex
+   816→\begin{table}[htbp]
+   817→  \centering  % MANDATORY
+   818→  \begin{tabular}{...}
+   819→  ...
+   820→  \end{tabular}
+   821→\end{table}
+   822→```
+   823→
+   824→### Table Cell Content Rule (MANDATORY - NON-NEGOTIABLE)
+   825→
+   826→**ALL text content in table cells MUST be wrapped in `Paragraph()`. NO EXCEPTIONS.**
+   827→
+   828→❌ **PROHIBITED** - Plain strings:
+   829→```python
+   830→data = [
+   831→    ['<b>Header</b>', 'Value'],           # Bold won't render!
+   832→    ['Pressure', '1.01 × 10<super>5</super>'],  # Superscript won't work!
+   833→]
+   834→```
+   835→
+   836→✅ **REQUIRED** - All text in Paragraph:
+   837→```python
+   838→data = [
+   839→    [Paragraph('<b>Header</b>', header_style), Paragraph('Value', header_style)],
+   840→    [Paragraph('Pressure', cell_style), Paragraph('1.01 × 10<super>5</super>', cell_style)],
+   841→]
+   842→```
+   843→
+   844→**The ONLY exception**: `Image()` objects can be placed directly in table cells.
+   845→
+   846→### Units with Exponents (CRITICAL)
+   847→- PROHIBITED: `W/m2`, `kg/m3`, `m/s2` (plain text exponents)
+   848→- RIGHT: `Paragraph('W/m<super>2</super>', style)`, `Paragraph('kg/m<super>3</super>', style)`
+   849→
+   850→### Numeric Values in Tables (CRITICAL)
+   851→- Large numbers MUST use scientific notation: `Paragraph('-1.246 × 10<super>8</super>', style)` not `-124600000`
+   852→- Small decimals MUST use scientific notation: `Paragraph('2.5 × 10<super>-3</super>', style)` not `0.0025`
+   853→- Threshold: Use scientific notation when |value| ≥ 10000 or |value| ≤ 0.001
+   854→
+   855→### Complete Table Example
+   856→```python
+   857→from reportlab.platypus import Table, TableStyle, Paragraph, Image
+   858→from reportlab.lib.styles import ParagraphStyle
+   859→from reportlab.lib import colors
+   860→from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
+   861→
+   862→header_style = ParagraphStyle(
+   863→    name='TableHeader', fontName='FreeSerif', fontSize=11,
+   864→    textColor=colors.white, alignment=TA_CENTER
+   865→)
+   866→cell_style = ParagraphStyle(
+   867→    name='TableCell', fontName='FreeSerif', fontSize=10,
+   868→    textColor=colors.black, alignment=TA_CENTER
+   869→)
+   870→
+   871→data = [
+   872→    [Paragraph('<b>Parameter</b>', header_style),
+   873→     Paragraph('<b>Unit</b>', header_style),
+   874→     Paragraph('<b>Value</b>', header_style)],
+   875→    [Paragraph('Temperature', cell_style),
+   876→     Paragraph('°C', cell_style),
+   877→     Paragraph('25.5', cell_style)],
+   878→    [Paragraph('Pressure', cell_style),
+   879→     Paragraph('Pa', cell_style),
+   880→     Paragraph('1.01 × 10<super>5</super>', cell_style)],
+   881→    [Paragraph('Density', cell_style),
+   882→     Paragraph('kg/m<super>3</super>', cell_style),
+   883→     Paragraph('1.225', cell_style)],
+   884→]
+   885→
+   886→table = Table(data, colWidths=[120, 80, 100])
+   887→# ⚠️ Above uses hardcoded widths - OK for this 3-col example (120+80+100=300 < available ~460pt).
+   888→# For real tables, ALWAYS calculate from available_width. See "Table Width Management" below.
+   889→table.setStyle(TableStyle([
+   890→    ('BACKGROUND', (0, 0), (-1, 0), ACCENT),           # Header: palette accent
+   891→    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+   892→    ('BACKGROUND', (0, 1), (-1, 1), colors.white),
+   893→    ('BACKGROUND', (0, 2), (-1, 2), BG_SURFACE),       # Odd row: palette surface
+   894→    ('BACKGROUND', (0, 3), (-1, 3), colors.white),
+   895→    ('GRID', (0, 0), (-1, -1), 0.5, TEXT_MUTED),       # Grid: palette muted
+   896→    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+   897→    ('LEFTPADDING', (0, 0), (-1, -1), 8),
+   898→    ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+   899→    ('TOPPADDING', (0, 0), (-1, -1), 6),
+   900→    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+   901→]))
+   902→```
+   903→
+   904→### Table Width Management (⚠️ Prevent Table Overflow)
+   905→
+   906→**Most common table bug: columns overflow the right page margin because colWidths are hardcoded without checking available space.**
+   907→
+   908→**Iron Rule: The sum of all colWidths MUST NOT exceed `available_width`.**
+   909→
+   910→```python
+   911→from reportlab.lib.pagesizes import A4
+   912→from reportlab.lib.units import inch
+   913→
+   914→page_width = A4[0]  # 595.28pt
+   915→left_margin = 1.0 * inch   # 72pt (adjust to your doc's actual margins)
+   916→right_margin = 1.0 * inch  # 72pt
+   917→available_width = page_width - left_margin - right_margin  # ≈ 451pt
+   918→
+   919→# ─── Method 1: Proportional widths (RECOMMENDED) ───
+   920→# Define column ratios, auto-scale to fit available_width
+   921→col_ratios = [0.25, 0.40, 0.20, 0.15]  # must sum to 1.0
+   922→col_widths = [r * available_width for r in col_ratios]
+   923→table = Table(data, colWidths=col_widths)
+   924→
+   925→# ─── Method 2: Fixed + flex columns ───
+   926→# Some columns have fixed width (numbers, dates), rest fills remaining space
+   927→fixed_cols = {0: 80, 3: 60}  # col 0 = 80pt, col 3 = 60pt
+   928→fixed_total = sum(fixed_cols.values())
+   929→flex_count = 4 - len(fixed_cols)  # total columns minus fixed
+   930→flex_width = (available_width - fixed_total) / flex_count
+   931→col_widths = []
+   932→for i in range(4):
+   933→    col_widths.append(fixed_cols.get(i, flex_width))
+   934→table = Table(data, colWidths=col_widths)
+   935→
+   936→# ─── Method 3: Let ReportLab auto-calculate (simplest, less control) ───
+   937→# Pass colWidths=None - ReportLab auto-sizes based on content
+   938→# ⚠️ Risk: may still overflow if content is too wide
+   939→table = Table(data)  # no colWidths
+   940→```
+   941→
+   942→**Checklist before adding any table:**
+   943→1. Calculate `available_width` from your actual page size and margins
+   944→2. Sum all colWidths - must be ≤ `available_width`
+   945→3. For CJK text: characters are wider than Latin - budget ~12pt per CJK char at 10pt font
+   946→4. If a column has long text (descriptions, policies), use Paragraph() wrapping inside cells (not plain strings) - plain strings don't wrap and will overflow
+   947→5. Test with the longest expected content in each column
+   948→
+   949→**Common mistake - plain strings don't wrap:**
+   950→```python
+   951→# ❌ Plain string: will overflow if text is long
+   952→data = [['Policy Name', 'Very long description that keeps going and going']]
+   953→# ✅ Paragraph: wraps within column width
+   954→from reportlab.platypus import Paragraph
+   955→from reportlab.lib.styles import getSampleStyleSheet
+   956→styles = getSampleStyleSheet()
+   957→cell_style = styles['Normal']
+   958→data = [[Paragraph('Policy Name', cell_style),
+   959→         Paragraph('Very long description that keeps going and going', cell_style)]]
+   960→```
+   961→
+   962→```
+   963→Do you need auto-TOC?
+   964→├─ YES → Use TocDocTemplate + doc.multiBuild(story)
+   965→└─ NO → Use SimpleDocTemplate + doc.build(story)
+   966→```
+   967→
+   968→| Requirement | DocTemplate | Build Method |
+   969→|-------------|-------------|--------------|
+   970→| Multi-page with TOC | `TocDocTemplate` | `multiBuild()` |
+   971→| Single-page or no TOC | `SimpleDocTemplate` | `build()` |
+   972→| With Cross-References (no TOC) | `SimpleDocTemplate` | `build()` |
+   973→| Both TOC + Cross-References | `TocDocTemplate` | `multiBuild()` |
+   974→
+   975→**⚠️ CRITICAL**:
+   976→- `multiBuild()` is ONLY needed when using `TableOfContents`
+   977→- Using `build()` with `TocDocTemplate` = TOC won't work
+   978→- Using `multiBuild()` without `TocDocTemplate` = unnecessary overhead
+   979→
+   980→---
+   981→
+   982→## Rich Text Formatting
+   983→
+   984→### Prerequisites
+   985→To use `<b>`, `<super>`, `<sub>` tags, you **must**:
+   986→1. Register fonts via `registerFont()`
+   987→2. Call `registerFontFamily()` to link normal/bold/italic variants
+   988→3. Wrap all tagged text in `Paragraph()` objects
+   989→
+   990→**CRITICAL**: These tags ONLY work inside `Paragraph()` objects. Plain strings will NOT render them.
+   991→
+   992→### Preventing Unwanted Line Breaks
+   993→
+   994→```python
+   995→# Use non-breaking space to prevent breaking
+   996→text = Paragraph("Professors (K.G.\u00A0Palepu) proposed...", style)
+   997→
+   998→# Use wordWrap='CJK' for proper Chinese typography
+   999→styles.add(ParagraphStyle(name='BodyStyle', fontName='Noto Sans SC', fontSize=10.5,
+  1000→    leading=18, alignment=TA_LEFT, wordWrap='CJK'))
+  1001→
+  1002→# Use <br/> for intentional line breaks (NOT \n)
+  1003→text = Paragraph("Line 1<br/>Line 2<br/>Line 3", style)
+  1004→```
+  1005→
+  1006→---
+  1007→
+  1008→## Auto-Generated Table of Contents
+  1009→
+  1010→### ❌ FORBIDDEN: Manual Table of Contents
+  1011→**NEVER manually create TOC with hardcoded page numbers.**
+  1012→
+  1013→### ⚠️ MANDATORY: TOC requires a cover page
+  1014→**Unless the user explicitly requests no cover, if a document has a Table of Contents, it MUST have a cover page.** Structure: Cover (page 1) → TOC (page 2) → Content (page 3+). Do not generate a TOC without a preceding cover page.
+  1015→
+  1016→### ✅ ALWAYS use auto-generated TOC:
+  1017→
+  1018→```python
+  1019→from reportlab.platypus import SimpleDocTemplate, Paragraph, PageBreak, Spacer
+  1020→from reportlab.platypus.tableofcontents import TableOfContents
+  1021→from reportlab.lib.utils import simpleSplit
+  1022→import hashlib
+  1023→
+  1024→class TocDocTemplate(SimpleDocTemplate):
+  1025→    def afterFlowable(self, flowable):
+  1026→        if hasattr(flowable, 'bookmark_name'):
+  1027→            level = getattr(flowable, 'bookmark_level', 0)
+  1028→            text = getattr(flowable, 'bookmark_text', '')
+  1029→            key = getattr(flowable, 'bookmark_key', '')
+  1030→            # MUST pass key as 4th element - without it, TOC entries won't have clickable links
+  1031→            self.notify('TOCEntry', (level, text, self.page, key))
+  1032→
+  1033→doc = TocDocTemplate("document.pdf", pagesize=letter)
+  1034→story = []
+  1035→
+  1036→toc = TableOfContents()
+  1037→toc.levelStyles = [
+  1038→    ParagraphStyle(name='TOCHeading1', fontSize=14, leftIndent=20, fontName='FreeSerif'),
+  1039→    ParagraphStyle(name='TOCHeading2', fontSize=12, leftIndent=40, fontName='FreeSerif'),
+  1040→]
+  1041→story.append(Paragraph("<b>Table of Contents</b>", styles['Title']))
+  1042→story.append(toc)
+  1043→story.append(PageBreak())
+  1044→
+  1045→def add_heading(text, style, level=0):
+  1046→    # Generate a unique bookmark key for this heading
+  1047→    key = 'h_%s' % hashlib.md5(text.encode()).hexdigest()[:8]
+  1048→    p = Paragraph('<a name="%s"/>%s' % (key, text), style)
+  1049→    p.bookmark_name = text
+  1050→    p.bookmark_level = level
+  1051→    p.bookmark_text = text
+  1052→    p.bookmark_key = key  # This key enables clickable TOC links
+  1053→    return p
+  1054→
+  1055→# ⚠️ Orphan Heading Prevention (NOT a page break rule)
+  1056→# If an H1 heading would appear in the bottom 15% of the page with no room
+  1057→# for at least a few lines of content, push it to the next page.
+  1058→# This is NOT "every H1 starts a new page" — it only triggers when the heading
+  1059→# would be orphaned at the very bottom.
+  1060→available_height = A4[1] - top_margin - bottom_margin
+  1061→H1_ORPHAN_THRESHOLD = available_height * 0.15  # ~100pt ≈ 3.5cm — enough for heading + 2 lines
+  1062→
+  1063→def add_major_section(text, style):
+  1064→    """Add an H1-level heading with orphan prevention (NOT forced page break)."""
+  1065→    return [
+  1066→        CondPageBreak(H1_ORPHAN_THRESHOLD),  # Only break if heading would be orphaned at page bottom
+  1067→        add_heading(text, style, level=0),
+  1068→    ]
+  1069→
+  1070→story.extend(add_major_section("Chapter 1: Introduction", styles['Heading1']))
+  1071→# ... content ...
+  1072→
+  1073→doc.multiBuild(story)  # MUST use multiBuild for TOC
+  1074→```
+  1075→
+  1076→**⚠️ CRITICAL TOC LINK RULES:**
+  1077→1. `afterFlowable` MUST pass `key` as the 4th element in the notify tuple - without it, TOC entries have no clickable links
+  1078→2. `add_heading` MUST set `bookmark_key` AND embed `<a name="key"/>` in the Paragraph text - this creates the link destination
+  1079→3. The key must be unique per heading - use a hash of the heading text
+  1080→
+  1081→### TOC with Leader Dots (Copy-Paste Ready)
+  1082→
+  1083→**⚠️ WARNING**: This manual approach creates a visual-only TOC. It has **NO clickable links** and **NO auto-updated page numbers**. Use the auto-generated TOC above (TocDocTemplate + multiBuild) whenever possible. Only use this leader-dots approach if you need very specific visual styling that the auto TOC cannot provide - and even then, prefer the auto approach.
+  1084→
+  1085→For a professional TOC with leader dots connecting titles to page numbers:
+  1086→
+  1087→```python
+  1088→from reportlab.lib.pagesizes import A4
+  1089→from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, PageBreak
+  1090→from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+  1091→from reportlab.lib import colors
+  1092→from reportlab.lib.units import inch
+  1093→
+  1094→# Setup
+  1095→doc = SimpleDocTemplate("report.pdf", pagesize=A4,
+  1096→                       leftMargin=0.75*inch, rightMargin=0.75*inch)
+  1097→styles = getSampleStyleSheet()
+  1098→styles['Heading1'].fontName = 'FreeSerif'
+  1099→styles['Heading1'].textColor = colors.black
+  1100→
+  1101→story = []
+  1102→
+  1103→# Calculate dimensions
+  1104→page_width = A4[0]
+  1105→available_width = page_width - 1.5*inch
+  1106→page_num_width = 50  # Fixed width for page numbers
+  1107→dots_column_width = available_width - 200 - page_num_width
+  1108→optimal_dot_count = int(dots_column_width / 4.5)  # ~4.5pt per dot at 7pt font
+  1109→
+  1110→# Define styles
+  1111→toc_style = ParagraphStyle('TOCEntry', parent=styles['Normal'],
+  1112→                          fontName='FreeSerif', fontSize=11, leading=16)
+  1113→dots_style = ParagraphStyle('LeaderDots', parent=styles['Normal'],
+  1114→                           fontName='FreeSerif', fontSize=7, leading=16)
+  1115→
+  1116→# Build TOC
+  1117→toc_data = [
+  1118→    [Paragraph('<b>Table of Contents</b>', styles['Heading1']), '', ''],
+  1119→    ['', '', ''],
+  1120→]
+  1121→
+  1122→entries = [('Section 1', '5'), ('Section 2', '10')]
+  1123→for title, page in entries:
+  1124→    toc_data.append([
+  1125→        Paragraph(title, toc_style),
+  1126→        Paragraph('.' * optimal_dot_count, dots_style),
+  1127→        Paragraph(page, toc_style)
+  1128→    ])
+  1129→
+  1130→toc_table = Table(toc_data, colWidths=[None, dots_column_width, page_num_width])
+  1131→toc_table.setStyle(TableStyle([
+  1132→    ('GRID', (0, 0), (-1, -1), 0, colors.white),
+  1133→    ('LINEBELOW', (0, 0), (0, 0), 1.5, colors.black),
+  1134→    ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+  1135→    ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+  1136→    ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
+  1137→    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+  1138→    ('LEFTPADDING', (0, 0), (-1, -1), 0),
+  1139→    ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+  1140→    ('TOPPADDING', (0, 2), (-1, -1), 3),
+  1141→    ('BOTTOMPADDING', (0, 2), (-1, -1), 3),
+  1142→    ('TEXTCOLOR', (1, 2), (1, -1), TEXT_MUTED),  # From palette --c-muted
+  1143→]))
+  1144→
+  1145→story.append(toc_table)
+  1146→story.append(PageBreak())
+  1147→doc.build(story)
+  1148→```
+  1149→
+  1150→**MANDATORY Leader Dots Rules:**
+  1151→
+  1152→| Rule | Requirement |
+  1153→|------|-------------|
+  1154→| Column widths | ✅ MUST use fixed values. Percentage-based widths are **STRICTLY FORBIDDEN**. |
+  1155→| Dot count | ✅ MUST calculate dynamically: `int(dots_column_width / 4.5)`. Hard-coded counts are **STRICTLY FORBIDDEN**. |
+  1156→| Page number column | ✅ MUST be at least 40pt wide. |
+  1157→| Dot font size | ✅ MUST NOT exceed 8pt. |
+  1158→| Dot alignment | ✅ MUST be LEFT-aligned (visual flow from title). |
+  1159→| Padding | ✅ MUST be exactly 0 between columns. |
+  1160→| Bold text | ✅ MUST use `Paragraph('<b>Text</b>', style)`. Plain strings like `'<b>Text</b>'` are **STRICTLY FORBIDDEN**. |
+  1161→| Indentation | Use leading spaces for hierarchy (e.g., `"    1.1 Subsection"`). |
+  1162→
+  1163→### TOC Post-Generation Validation (MANDATORY)
+  1164→
+  1165→After generating any PDF with a Table of Contents, run:
+  1166→
+  1167→```bash
+  1168→python3 "$PDF_SKILL_DIR/scripts/toc_validate.py" check-pdf output.pdf
+  1169→```
+  1170→
+  1171→If any errors are returned, fix the code and regenerate. Common issues:
+  1172→- `TOC_ALL_SAME_PAGE` → You used `build()` instead of `multiBuild()`, so all page numbers are stuck at 1.
+  1173→- `TOC_NO_ENTRIES` → Headings are missing `bookmark_name`/`bookmark_level` attributes.
+  1174→- `TOC_PAGES_INVALID` → A TOC entry references a page beyond the document's total page count.
+  1175→
+  1176→---
+  1177→
+  1178→## Cross-References (Figures, Tables, Bibliography)
+  1179→
+  1180→Pre-register all figures, tables, and references BEFORE using them in text.
+  1181→
+  1182→```python
+  1183→class CrossReferenceDocument:
+  1184→    def __init__(self):
+  1185→        self.figures = {}
+  1186→        self.tables = {}
+  1187→        self.refs = {}
+  1188→        self.figure_counter = 0
+  1189→        self.table_counter = 0
+  1190→        self.ref_counter = 0
+  1191→
+  1192→    def add_figure(self, name):
+  1193→        if name not in self.figures:
+  1194→            self.figure_counter += 1
+  1195→            self.figures[name] = self.figure_counter
+  1196→        return self.figures[name]
+  1197→
+  1198→    def add_table(self, name):
+  1199→        if name not in self.tables:
+  1200→            self.table_counter += 1
+  1201→            self.tables[name] = self.table_counter
+  1202→        return self.tables[name]
+  1203→
+  1204→    def add_reference(self, name):
+  1205→        if name not in self.refs:
+  1206→            self.ref_counter += 1
+  1207→            self.refs[name] = self.ref_counter
+  1208→        return self.refs[name]
+  1209→```
+  1210→
+  1211→---
+  1212→
+  1213→## Image Handling
+  1214→
+  1215→### Diagram Embedding Rules (MANDATORY)
+  1216→
+  1217→**Figures are block-level Flowables.** Every image/diagram in ReportLab MUST be appended to `story` as a standalone `Image()` or wrapped in `KeepTogether([image, caption])`. Never simulate floating layouts by placing images inside Paragraph text or multi-column Table cells alongside body text.
+  1218→
+  1219→**Complex diagrams (>12 nodes)**: Decompose into a ReportLab Table (details) + a simplified diagram image (overview). The diagram gives the big picture; the table carries precision. See SKILL.md "Complex Diagram Strategy".
+  1220→
+  1221→**Diagram quality**: When generating flowcharts/diagrams for PDF embedding (via Playwright screenshot or ReportLab Drawing), follow the diagram content quality rules in SKILL.md § "Diagram Content Quality Rules". Key points: connectors must not pass through nodes, no high-saturation large fills, multi-arrow convergence must use merge pattern, font sizes must be legible at final embedded size (see context-specific minimums in SKILL.md).
+  1222→
+  1223→**Cross-brief diagram pipeline**: For flowcharts/architecture diagrams, generate via **Playwright+CSS** (HTML nodes + CSS layout + SVG connectors), screenshot at 2× device scale factor for 300dpi print quality, then embed with `Image()`. See SKILL.md § "Diagram Generation Strategy" for the full pipeline.
+  1224→
+  1225→**🚫 FORBIDDEN: TikZ standalone → PNG pipeline in Report brief.** Report uses ReportLab, not LaTeX. Going through TikZ requires a LaTeX compiler, adds compilation steps, and models frequently produce broken TikZ code. Use Playwright+CSS instead - it's native to the existing cover rendering engine.
+  1226→
+  1227→```python
+  1228→# Playwright+CSS diagram → PNG → ReportLab embedding
+  1229→# 1. LLM generates diagram.html (CSS grid/flexbox nodes + SVG arrows)
+  1230→# 2. Playwright screenshots at 2× scale (300dpi equivalent)
+  1231→# 3. Embed:
+  1232→from reportlab.platypus import Image
+  1233→img = Image('diagram.png', width=450)  # auto height via aspect ratio
+  1234→story.append(img)                       # block-level Flowable
+  1235→```
+  1236→
+  1237→**⚠️ CRITICAL: Preserve aspect ratio - NEVER hardcode both width and height without reading actual image dimensions.**
+  1238→
+  1239→**⚠️ CRITICAL: Always constrain to available space - NEVER insert at original size if it exceeds container width/height.**
+  1240→
+  1241→Pie charts become ellipses, radar charts become diamonds, photos get stretched if you set arbitrary width/height.
+  1242→
+  1243→**→ MUST READ: `typesetting/overflow.md`** — read the complete bounding box system before writing layout code.
+  1244→
+  1245→```python
+  1246→from PIL import Image as PILImage
+  1247→from reportlab.platypus import Image
+  1248→from reportlab.lib.pagesizes import A4
+  1249→from reportlab.lib.units import inch
+  1250→
+  1251→def embed_image(path: str, max_width: float = None, max_height: float = None) -> Image:
+  1252→    """Embed image with preserved aspect ratio, constrained to container.
+  1253→
+  1254→    ALWAYS use this pattern. Never hardcode both width and height.
+  1255→    If max_width is None, defaults to available_width (page - margins).
+  1256→    """
+  1257→    if max_width is None:
+  1258→        max_width = A4[0] - 2.0 * inch  # Default: A4 width minus 1" margins each side
+  1259→    if max_height is None:
+  1260→        max_height = A4[1] * 0.35  # ~294pt ≈ 10cm — leaves room for caption + surrounding text on same page
+  1261→
+  1262→    pil_img = PILImage.open(path)
+  1263→    orig_w, orig_h = pil_img.size
+  1264→
+  1265→    # Scale to fit within BOTH max_width and max_height
+  1266→    ratio_w = max_width / orig_w if orig_w > max_width else 1.0
+  1267→    ratio_h = max_height / orig_h if orig_h > max_height else 1.0
+  1268→    ratio = min(ratio_w, ratio_h)
+  1269→
+  1270→    return Image(path, width=orig_w * ratio, height=orig_h * ratio)
+  1271→
+  1272→# Usage:
+  1273→available_width = A4[0] - left_margin - right_margin
+  1274→img = embed_image('chart.png', max_width=available_width, max_height=300)
+  1275→story.append(img)
+  1276→```
+  1277→
+  1278→```python
+  1279→# ❌ NEVER do this - distorts the image:
+  1280→img = Image('chart.png', width=400, height=250)  # arbitrary height breaks aspect ratio
+  1281→```
+  1282→
+  1283→---
+  1284→
+  1285→## PDF Metadata
+  1286→
+  1287→```python
+  1288→doc = SimpleDocTemplate(
+  1289→    pdf_filename,
+  1290→    pagesize=letter,
+  1291→    title=os.path.splitext(pdf_filename)[0],
+  1292→    author='Z.ai',
+  1293→    creator='Z.ai',
+  1294→    subject='Document purpose description'
+  1295→)
+  1296→```
+  1297→
+  1298→### ⚠️ MANDATORY: Post-Generation Metadata
+  1299→
+  1300→After `doc.build(story)` completes:
+  1301→```bash
+  1302→python3 "$PDF_SKILL_DIR/scripts/pdf.py" meta.brand output.pdf
+  1303→```
+  1304→
+  1305→### ⚠️ MANDATORY: Post-Generation Blank Page Cleanup
+  1306→
+  1307→After metadata branding, remove any accidental blank pages:
+  1308→```bash
+  1309→python3 "$PDF_SKILL_DIR/scripts/pdf.py" pages.clean output.pdf -o output_clean.pdf
+  1310→```
+  1311→If blank pages were found, rename `output_clean.pdf` → `output.pdf`.
+  1312→
+  1313→---
+  1314→
+  1315→## MANDATORY: Post-Generation Code Sanitization
+  1316→
+  1317→**After writing PDF generation code and BEFORE executing it**, sanitize using:
+  1318→
+  1319→```bash
+  1320→# Step 0: Set skill root path (see SKILL.md § Script Path Setup)
+  1321→PDF_SKILL_DIR="<skill_directory>"
+  1322→
+  1323→# Step 1: Write code to .py file
+  1324→cat > generate_pdf.py << 'PYEOF'
+  1325→# ... your PDF generation code ...
+  1326→PYEOF
+  1327→
+  1328→# Step 2: Sanitize (MUST run before execution)
+  1329→python3 "$PDF_SKILL_DIR/scripts/pdf.py" code.sanitize generate_pdf.py
+  1330→
+  1331→# Step 3: Execute
+  1332→python3 generate_pdf.py
+  1333→
+  1334→# Step 4: Add metadata (MUST run after PDF creation)
+  1335→python3 "$PDF_SKILL_DIR/scripts/pdf.py" meta.brand output.pdf
+  1336→
+  1337→# Step 5: Check for missing glyphs (RECOMMENDED)
+  1338→python3 "$PDF_SKILL_DIR/scripts/pdf.py" font.check output.pdf
+  1339→
+  1340→# Step 6: Check TOC quality (if document has TOC)
+  1341→python3 "$PDF_SKILL_DIR/scripts/pdf.py" toc.check output.pdf
+  1342→
+  1343→# Step 7: PDF quality assurance scan (MUST run after all other checks)
+  1344→python3 "$PDF_SKILL_DIR/scripts/pdf_qa.py" output.pdf
+  1345→```
+  1346→
+  1347→**FORBIDDEN patterns:**
+  1348→```bash
+  1349→# ❌ PROHIBITED: python -c with inline code
+  1350→python -c "from reportlab... doc.build(story)"
+  1351→
+  1352→# ❌ PROHIBITED: heredoc without saving to file first
+  1353→python3 << 'EOF'
+  1354→from reportlab...
+  1355→EOF
+  1356→
+  1357→# ❌ PROHIBITED: executing .py without sanitizing
+  1358→python generate_pdf.py  # Missing sanitization!
+  1359→```
+  1360→
+  1361→---
+  1362→
+  1363→## Debug Tips for Layout Issues
+  1364→
+  1365→**→ MUST READ: `typesetting/overflow.md`** — read the complete bounding box system, two-pass rendering, fallback strategies, and all three route implementations.
+  1366→
+  1367→```python
+  1368→from reportlab.platypus import HRFlowable
+  1369→from reportlab.lib.colors import red
+  1370→
+  1371→# Visualize spacing during development - insert between elements
+  1372→story.append(table)
+  1373→story.append(HRFlowable(width="100%", color=red, thickness=0.5, spaceBefore=0, spaceAfter=0))
+  1374→story.append(Spacer(1, 6))
+  1375→story.append(HRFlowable(width="100%", color=red, thickness=0.5, spaceBefore=0, spaceAfter=0))
+  1376→story.append(caption)
+  1377→# Red lines create visual markers to see actual spacing - remove before final build
+  1378→```
+  1379→
+  1380→---
+  1381→
+  1382→## Resume / CV
+  1383→
+  1384→Resume/CV content has been moved to a dedicated brief: **`briefs/resume.md`**
+  1385→
+  1386→This brief is automatically loaded when the triage routes to Resume. For ATS-friendly single-column resumes, see that file.
+  1387→
+  1388→---
+  1389→
+  1390→## Component Reference
+  1391→
+  1392→### Block types:
+  1393→| Type | Description | Notes |
+  1394→|------|-------------|-------|
+  1395→| h1 | 22pt + accent underline rule | KeepTogether with rule |
+  1396→| h2 | 15pt, dark | No rule, no accent |
+  1397→| h3 | 11.5pt bold | No accent |
+  1398→| body | 10.5pt justified, 17pt leading | Supports `<b>` `<i>` `<font>` |
+  1399→| bullet | Body size with `•` prefix | Unordered list |
+  1400→| numbered | Body size with N. prefix | Counter auto-resets |
+  1401→| callout | Accent left border 4px + light tint bg | Max one per section |
+  1402→| table | Accent header + alternating rows + outer box only | Supports fractional col_widths |
+  1403→| code | Courier 8.5pt + accent left border | Optional language label |
+  1404→| divider | Accent 1.2pt rule | Use sparingly |
+  1405→| caption | 8.5pt muted, centered | Below images/tables |
+  1406→| chart | matplotlib figure saved as PNG → `Image()` flowable | Generate chart in-script, `fig.savefig()` → embed. Set `plt.rcParams['font.sans-serif']=['Noto Sans SC', 'DejaVu Sans']` for CJK + symbol fallback. Always `tight_layout()`. **Must follow `typesetting/charts.md` rules**: delete top/right spines, dashed grid 20% opacity, donut default for pie, anti-stacking labels. |
+  1407→| quote | Body italic + left indent 24pt + muted accent left border 2px | For blockquotes / testimonials |
+  1408→| bibliography | Hanging indent (firstLineIndent=-24pt, leftIndent=24pt) | GB/T 7714 or APA format per language |
+  1409→| math | Rendered via `<super>` `<sub>` tags in Paragraph | For inline math; complex equations → use academic brief instead |
+  1410→
+  1411→### Header / footer:
+  1412→- Header: document title (left, 7.5pt, muted) + accent rule (1.5pt, full width)
+  1413→- Footer: author (left, 7.5pt, muted) + page number (right, 7.5pt, muted) + light rule above
+  1414→
+  1415→### Custom flowables (preferred over Table hacks):
+  1416→- **CalloutBox**: accent 4px left border + light tint background - cleaner than Table simulation
+  1417→- **BibliographyItem**: hanging indent reference entry
+  1418→
+  1419→---
+  1420→
+  1421→## Quick Reference
+  1422→
+  1423→| Task | Best Tool | Command/Code |
+  1424→|------|-----------|--------------|
+  1425→| Create PDF (ReportLab) | reportlab | Canvas or Platypus |
+  1426→| Fill PDF forms | Process brief | `python3 "$PDF_SKILL_DIR/scripts/pdf.py" form.fill` or annotation workflow |
+  1427→| Merge PDFs | Process brief | `python3 "$PDF_SKILL_DIR/scripts/pdf.py" pages.merge` |
+  1428→| Extract text | Process brief | `python3 "$PDF_SKILL_DIR/scripts/pdf.py" extract.text` |
+  1429→| Extract tables | Process brief | `python3 "$PDF_SKILL_DIR/scripts/pdf.py" extract.table` |
+  1430→
+  1431→---
+  1432→
+  1433→## Document-Type Quick Reference
+  1434→
+  1435→### 📋 Invoice / Receipt
+  1436→
+  1437→Key elements:
+  1438→- Company logo/name at top
+  1439→- Invoice number + date (right-aligned)
+  1440→- Seller/buyer info block (2-column layout)
+  1441→- Line items table: Item, Quantity, Unit Price, Amount
+  1442→- Total row with bold font
+  1443→- Tax info + payment terms at bottom
+  1444→- Stamp/seal placeholder (empty circle or rect with "Seal Here" text)
+  1445→
+  1446→```python
+  1447→# Invoice table pattern
+  1448→data = [['Item', 'Qty', 'Unit Price', 'Amount']]
+  1449→data += [[item['name'], item['qty'], item['price'], item['total']] for item in items]
+  1450→data.append(['', '', 'Total:', f'¥{total}'])
+  1451→```
+  1452→
+  1453→### 📝 Contract / Legal Document
+  1454→
+  1455→Key elements:
+  1456→- Title centered, bold, 18pt
+  1457→- Numbered clauses with auto-increment
+  1458→- Signature block at bottom: Party A / Party B with date line
+  1459→- Page numbers mandatory
+  1460→
+  1461→```python
+  1462→# Signature block pattern
+  1463→sig_data = [
+  1464→    ['Party A (Seal): ________________', 'Party B (Seal): ________________'],
+  1465→    ['Date: ____/____/________', 'Date: ____/____/________'],
+  1466→]
+  1467→sig_table = Table(sig_data, colWidths=[250, 250])
+  1468→```
+  1469→
+  1470→### 📊 Book / Long Document
+  1471→
+  1472→For documents with 10+ pages:
+  1473→1. Generate TOC with `TableOfContents()` from reportlab.platypus
+  1474→2. Use `CondPageBreak(H1_ORPHAN_THRESHOLD)` before H1 headings (NOT `PageBreak()` — never force page breaks between chapters)
+  1475→3. Add running headers/footers with chapter title + page number
+  1476→4. Run `python3 "$PDF_SKILL_DIR/scripts/toc_validate.py" output.pdf` to verify TOC links
+  1477→5. Consider using `bookmarks=True` for PDF outline navigation
+  1478→
+  1479→---
+  1480→
+  1481→### 📝 Exam / Quiz / Test Paper / Worksheet
+  1482→
+  1483→**Exam papers have unique layout requirements. These rules are MANDATORY when generating any test/quiz/exam document.**
+  1484→
+  1485→#### Numbering & Structure
+  1486→```
+  1487→一、选择题（每小题 3 分，共 30 分）          ← Section header (宋体/黑体 14pt Bold)
+  1488→
+  1489→1. 以下哪个不是 Python 内置数据类型？     ← Question stem (12pt)
+  1490→   A. int                                   ← Options: indented 24pt (2em)
+  1491→   B. float                                 ← Each option on new line or 2×2 grid
+  1492→   C. array
+  1493→   D. str
+  1494→
+  1495→2. 以下表达式的值为？                     ← Next question
+  1496→   A. True    B. False                      ← Short options: inline 2×2 grid OK
+  1497→   C. None    D. Error
+  1498→```
+  1499→
+  1500→#### Option Indentation (MANDATORY)
+  1501→```python
+  1502→# ReportLab styles for exam papers
+  1503→question_style = ParagraphStyle(
+  1504→    'Question', fontSize=12, leading=16,
+  1505→    leftIndent=0, firstLineIndent=0,
+  1506→    spaceBefore=12, spaceAfter=4,
+  1507→)
+  1508→option_style = ParagraphStyle(
+  1509→    'Option', fontSize=12, leading=16,
+  1510→    leftIndent=24,   # ← MANDATORY: 24pt indent from question stem
+  1511→    firstLineIndent=0,
+  1512→    spaceBefore=2, spaceAfter=2,
+  1513→)
+  1514→```
+  1515→
+  1516→#### Option Layout Decision
+  1517→```python
+  1518→def format_options(options):
+  1519→    """
+  1520→    Decide option layout based on content length.
+  1521→    Short options (≤4 chars each, ≤4 options) → 2×2 grid table
+  1522→    Long options or >4 options → vertical list, one per line
+  1523→    """
+  1524→    max_len = max(len(opt) for opt in options)
+  1525→    if len(options) <= 4 and max_len <= 6:  # CJK: 4 chars; Latin: 6 chars
+  1526→        # 2×2 grid using Table
+  1527→        grid = Table(
+  1528→            [[options[0], options[1]], [options[2], options[3]]],
+  1529→            colWidths=[200, 200], hAlign='LEFT'
+  1530→        )
+  1531→        grid.setStyle(TableStyle([
+  1532→            ('LEFTPADDING', (0,0), (-1,-1), 24),  # Match option indent
+  1533→            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+  1534→        ]))
+  1535→        return grid
+  1536→    else:
+  1537→        # Vertical list
+  1538→        return [Paragraph(f'{opt}', option_style) for opt in options]
+  1539→```
+  1540→
+  1541→#### Answer Space Reservation (MANDATORY)
+  1542→
+  1543→**Every question MUST have adequate answer space. No exceptions.**
+  1544→
+  1545→| Question Type | Minimum Space | Implementation |
+  1546→|--------------|---------------|----------------|
+  1547→| Multiple choice | 0 extra (options are the answer) | Just question + options |
+  1548→| Fill-in-the-blank | Inline underline, min 80pt width | `<u>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</u>` or ReportLab `HRFlowable` |
+  1549→| Short answer | 40-60pt (2-3 lines) | `Spacer(1, 50)` |
+  1550→| Calculation / math work | 120-200pt (6-10 lines) | `Spacer(1, 160)` with light guide lines |
+  1551→| Essay / long answer | 200-400pt (10-20 lines) | `Spacer(1, 300)` with light guide lines |
+  1552→| Proof / derivation | 160-250pt (8-12 lines) | `Spacer(1, 200)` |
+  1553→
+  1554→```python
+  1555→# Answer line helper — light dashed lines for handwriting
+  1556→def add_answer_lines(story, num_lines=8, line_spacing=20):
+  1557→    """Add light guide lines for handwritten answers."""
+  1558→    for i in range(num_lines):
+  1559→        story.append(Spacer(1, line_spacing))
+  1560→        story.append(HRFlowable(
+  1561→            width='90%', thickness=0.3,
+  1562→            color=colors.Color(0.8, 0.8, 0.8),  # Light gray
+  1563→            dash=[4, 4],  # Dashed
+  1564→            spaceAfter=0, spaceBefore=0
+  1565→        ))
+  1566→```
+  1567→
+  1568→#### Page Density
+  1569→- `spaceBefore=12pt` between questions minimum
+  1570→- `spaceBefore=24pt` before section headers (一、二、三)
+  1571→- Score indicator after question number: `1. (分值: 5分)` or `1. [5 pts]`
+  1572→- Page header: exam title + time limit + total score
+  1573→- No cover page unless explicitly requested
+  1574→
+  1575→---
+  1576→
+  1577→## Data-to-Ink Ratio Rules (MANDATORY for Reports)
+  1578→
+  1579→**CRITICAL: Do NOT write long paragraphs to describe data trends.** You MUST extract metrics and trends into structured visual elements.
+  1580→
+  1581→### Pattern Detection Table
+  1582→
+  1583→Before writing ANY body paragraph, scan the text. If you find any of these patterns, extract them:
+  1584→
+  1585→| Raw text pattern | ❌ FORBIDDEN | ✅ REQUIRED visual form |
+  1586→|-----------------|-------------|----------------------|
+  1587→| "revenue grew 12% to $4.2M" | Bury in paragraph prose | CalloutBox with bold `+12%` + `$4.2M` |
+  1588→| "latency dropped from 120ms to 75ms" | Long explanatory sentence | CalloutBox or metrics table row |
+  1589→| "Q1→Q2→Q3: 10%→25%→40%" | Inline numbers in text | Chart (matplotlib PNG → `Image()`) |
+  1590→| "first...second...third..." steps | Paragraph with ordinal words | Numbered Table or process list |
+  1591→| "compared to last year / vs Q2" | Nested comparisons in prose | Side-by-side comparison table |
+  1592→| "accounted for 60% of total" | Percentage in paragraph | Pie chart or stacked bar chart |
+  1593→
+  1594→### ReportLab CalloutBox Template
+  1595→
+  1596→Use this pattern for extracted metrics - it's visually clean and takes only 5 lines:
+  1597→
+  1598→```python
+  1599→stat_style = ParagraphStyle(
+  1600→    name='StatBig', fontName='FreeSerif', fontSize=22,
+  1601→    leading=26, textColor=ACCENT, alignment=TA_CENTER  # From palette
+  1602→)
+  1603→label_style = ParagraphStyle(
+  1604→    name='StatLabel', fontName='FreeSerif', fontSize=9,
+  1605→    leading=12, textColor=TEXT_MUTED, alignment=TA_CENTER  # From palette
+  1606→)
+  1607→
+  1608→callout = Table(
+  1609→    [[Paragraph('<b>+12%</b>', stat_style)],
+  1610→     [Paragraph('Revenue Growth vs Q2', label_style)]],
+  1611→    colWidths=[160]
+  1612→)
+  1613→callout.setStyle(TableStyle([
+  1614→    ('BACKGROUND', (0,0), (-1,-1), BG_SURFACE),      # From palette --c-mid
+  1615→    ('BOX', (0,0), (-1,-1), 1, ACCENT),               # From palette --c-accent
+  1616→    ('TOPPADDING', (0,0), (-1,-1), 10),
+  1617→    ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+  1618→    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+  1619→]))
+  1620→story.append(KeepTogether(callout))
+  1621→```
+  1622→
+  1623→---
+  1624→
+  1625→## Final Checklist (Mandatory before delivery)
+  1626→
+  1627→### Code & Build
+  1628→
+  1629→- [ ] **Font restriction**: Only 6 registered fonts used
+  1630→- [ ] **Font family registered**: `registerFontFamily()` called for all used fonts
+  1631→- [ ] **⚠️ MANDATORY font fallback**: `install_font_fallback()` called after font registration — **#1 cause of Helvetica garbled text (乱码)**
+  1632→- [ ] **Rich text tags**: Only inside `Paragraph()` objects
+  1633→- [ ] **Table cells**: ALL text wrapped in `Paragraph()` — no plain strings
+  1634→- [ ] **Scientific notation**: Large/small numbers use `<super>` tags
+  1635→- [ ] **Chinese text**: `wordWrap='CJK'` in ParagraphStyle
+  1636→- [ ] **Line breaks**: Using `<br/>` not `\n`
+  1637→- [ ] **Headings**: Bold with `<b>` tags
+  1638→- [ ] **Sanitization**: Code sanitized before execution
+  1639→
+  1640→### Pagination & Overflow
+  1641→
+  1642→- [ ] **Last page fill ratio ≥ 40%**: No large blank areas on final page
+  1643→- [ ] **Major section 3/4 threshold**: H1 headings must NOT start in bottom 25% of page. Use `CondPageBreak(available_height * 0.25)`
+  1644→- [ ] **Tables don't split**: Small tables `break-inside: avoid`. Large tables `thead { display: table-header-group }`
+  1645→- [ ] **No orphan headings**: Use `break-after: avoid` / KeepTogether
+  1646→- [ ] **sum(colWidths) ≤ available_width**: Verified in code
+  1647→- [ ] **Images/charts scaled**: Always `fit_image()` or `max-width: 100%`
+  1648→- [ ] **Long tables repeatRows=1**
+  1649→- [ ] **CJK wordWrap='CJK'**
+  1650→- [ ] **URLs word-break**: `overflow-wrap: break-word`
+  1651→
+  1652→### Color & Design
+  1653→
+  1654→- [ ] **Entire document ≤ 5 colors**: Primary + secondary + accent + neutral + background
+  1655→- [ ] **All colors from palette**: Secondary/accent derived via lightness/saturation shift
+  1656→- [ ] **Table headers use `HEADER_FILL`** (M tier, S ≤ 0.30) — NOT `ACCENT`
+  1657→- [ ] **Table stripes use `TABLE_STRIPE`** (L tier, S ≤ 0.15)
+  1658→- [ ] **Decorative elements ≤ 3 per page** (cover exempt)
+  1659→- [ ] **No rainbow/multi-color schemes**: Single-family palette only
+  1660→- [ ] **No decorative borders/textures on body pages**
+  1661→- [ ] **2-typeface maximum**
+  1662→- [ ] **🚫 NO stock images / clipart / AI decorations**
+  1663→
+  1664→### Cover
+  1665→
+  1666→- [ ] **正文编号从 1 开始**: 封面/目录不是章节，Step 3.5 映射表已输出
+  1667→- [ ] **Cover default ON** for reports/proposals/analysis ≥ 3 pages
+  1668→- [ ] **Single PDF output**: Cover merged as page 0 via pypdf
+  1669→- [ ] **Page isolation**: Cover never shares page with TOC/body
+  1670→- [ ] **🚫 NEVER use ReportLab for covers** — HTML/Playwright only
+  1671→- [ ] **Z-Index Layers**: Layer 0 (bg) → 1 (decorative, CLIPPED) → 2 (lines) → 3 (text)
+  1672→- [ ] **No dark/gradient backgrounds**
+  1673→- [ ] **Cover whitespace ≥ 60%**
+  1674→- [ ] **Cover colors from palette.cascade** `:root` CSS variables
+  1675→
+  1676→### Tables
+  1677→
+  1678→- [ ] **ALL tables horizontally centered** (`hAlign='CENTER'`)
+  1679→- [ ] **Table width 85-100%** of content area
+  1680→- [ ] **Table headers**: White bold text on `HEADER_FILL`
+  1681→
+  1682→### Charts
+  1683→
+  1684→- [ ] **No text overlap**: Labels, values, legends collision-free
+  1685→- [ ] **Chart-to-text separation**: 24pt above/below, 8pt to caption
+  1686→- [ ] **Legend outside chart area**: `bbox_to_anchor`
+  1687→- [ ] **Pie → Donut** by default (hole_ratio 60-70%)
+  1688→- [ ] **Axis cleanup**: Top/right spines deleted
+  1689→
+  1690→### Layout
+  1691→
+  1692→- [ ] **Margin symmetry**: `left_margin == right_margin`
+  1693→- [ ] **Full-bleed (Playwright)**: `@page { margin: 0 }`
+  1694→- [ ] **Content centering**: No left/right drift
+  1695→- [ ] **Anti-void edges**: Content fills ≥ 60%
+  1696→
+  1697→### Post-Build
+  1698→
+  1699→- [ ] **Metadata**: `pdf.py meta.brand` — Title matches filename, Author/Creator = "Z.ai"
+  1700→- [ ] **Blank page cleanup**: `pdf.py pages.clean`
+  1701→- [ ] **Glyph check**: `pdf.py font.check`
+  1702→- [ ] **TOC check**: `pdf.py toc.check` (if document has TOC)
+  1703→- [ ] **PDF QA scan**: `pdf_qa.py`
+  1704→

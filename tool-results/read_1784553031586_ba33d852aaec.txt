@@ -1,0 +1,502 @@
+     1→     1→# Brief: Report Production
+     2→     2→
+     3→     3→Structured documents via ReportLab: reports, proposals, contracts, white papers, financial analysis, data tables. Also covers ATS-friendly resumes.
+     4→     4→
+     5→     5→---
+     6→     6→
+     7→     7→> ###  EMOJI CHECK - STOP HERE IF CONTENT HAS EMOJI
+     8→     8→>
+     9→     9→> ReportLab renders emoji (📊🎯🔥💡 etc.) as **□ tofu squares**. This is unfixable.
+    10→    10→>
+    11→    11→> **If the user's content contains intentional emoji** → **STOP. Do NOT use this brief.**
+    12→    12→> Route to `briefs/creative-fixed-canvas.md` instead (Playwright renders emoji natively).
+    13→    13→>
+    14→    14→> This applies even if the document is a "report" - emoji + ReportLab = broken output.
+    15→    15→
+    16→    16→---
+    17→    17→
+    18→    18→## Production Workflow
+    19→    19→
+    20→    20→```
+    21→    21→1. BRIEF    → Confirm document type, audience, page count, outline
+    22→    22→2. DESIGN   → Run `pdf.py palette.cascade --title "..."` → copy-paste output into script
+    23→    23→3. EDIT     → Content transformation (extract data, define typographic roles)
+    24→    24→3.5 NUMBERING → ⚠️ Chapter Numbering Plan (see below) — MUST output mapping table before writing code
+    25→    25→4. COVER    → ⚠️ MANDATORY READ: `typesetting/cover.md` — MUST read BEFORE writing any cover HTML
+    26→    26→5. BUILD    → ⚠️ TOC GATE first (see below) → Write ReportLab code
+    27→    27→6. PREFLIGHT → code.sanitize → execute → meta.brand → font.check → toc.check → pages.clean → pdf_qa.py
+    28→    28→7. DELIVER  → Merge cover + body → final PDF
+    29→    29→```
+    30→    30→
+    31→    31→> **⚠️ Word (.docx) dual-delivery rule:** If the user also requests a Word version, you MUST generate it through the **docx skill** (load `docx/SKILL.md` → read `references/design-system.md` → use a validated cover recipe R1-R7). Do NOT hand-write a python-docx script with freehand cover code — freehand covers produce blank pages, wrong heights, and broken layouts in MS Office/WPS. The docx skill's cover system exists to prevent these exact problems.
+    32→    32→
+    33→    33→**Typesetting assets** (load when you reach that step):
+    34→    34→- `typesetting/palette.md` - color system, typography rules, anti-patterns
+    35→    35→- `typesetting/cover.md` - 5 cover layouts with variants, typography scale, bounding box rules
+    36→    36→- `typesetting/charts.md` - chart styling, anti-stacking rules, axis/grid/legend treatment
+    37→    37→
+    38→    38→**Cover is DEFAULT ON for reports.** Skip cover only for: resumes, letters, memos, forms, checklists, or documents ≤ 2 pages.
+    39→    39→
+    40→    40→---
+    41→    41→
+    42→    42→### ⚠️ Step 4 COVER — MANDATORY Pre-Read Gate
+    43→    43→
+    44→    44→**You MUST read `typesetting/cover.md` BEFORE writing any cover HTML.** Do NOT write cover HTML from memory or from pre-trained knowledge. The cover system has 5 specific templates with precise zone coordinates, layer structure, and bounding box rules that change over time.
+    45→    45→
+    46→    46→```bash
+    47→    47→# MANDATORY: Read cover.md first. Do NOT skip this.
+    48→    48→cat "$PDF_SKILL_DIR/typesetting/cover.md"
+    49→    49→```
+    50→    50→
+    51→    51→After reading cover.md:
+    52→    52→1. Select a template (01-07) based on document tone and type
+    53→    53→2. Follow the template's HTML structure exactly
+    54→    54→3. Run `poster_validate.py check-html` on the result
+    55→    55→4. Run `cover_validate.js` on the result (checks text-text overlap + text-line overlap)
+    56→    56→5. Only then render via `html2poster.js --width 794px`
+    57→    57→
+    58→    58→**Common failure mode:** Model reads report.md, skips cover.md, writes freehand HTML → broken layout, missing zones, overflow issues, decorative elements outside page bounds. The cover templates exist to prevent these exact problems.
+    59→    59→
+    60→    60→---
+    61→    61→
+    62→    62→### ⚠️ Step 5 BUILD — MANDATORY TOC Gate
+    63→    63→
+    64→    64→**Before writing ANY ReportLab code, answer this question:**
+    65→    65→
+    66→    66→> **Does this document have a Table of Contents?**
+    67→    67→
+    68→    68→| Answer | DocTemplate | Build Method | TOC Implementation |
+    69→    69→|--------|-------------|--------------|--------------------|
+    70→    70→| **YES** | `TocDocTemplate` | `doc.multiBuild(story)` | `TableOfContents()` + heading `bookmark_name/level/text/key` attributes |
+    71→    71→| **NO** | `SimpleDocTemplate` | `doc.build(story)` | N/A |
+    72→    72→
+    73→    73→**⚠️ If you answered YES, these are ALL mandatory — missing any one = broken TOC:**
+    74→    74→
+    75→    75→```python
+    76→    76→# 1. MUST define TocDocTemplate (NOT SimpleDocTemplate)
+    77→    77→class TocDocTemplate(SimpleDocTemplate):
+    78→    78→    def afterFlowable(self, flowable):
+    79→    79→        if hasattr(flowable, 'bookmark_name'):
+    80→    80→            level = getattr(flowable, 'bookmark_level', 0)
+    81→    81→            text = getattr(flowable, 'bookmark_text', '')
+    82→    82→            key = getattr(flowable, 'bookmark_key', '')
+    83→    83→            self.notify('TOCEntry', (level, text, self.page, key))
+    84→    84→
+    85→    85→# 2. MUST add TableOfContents to story
+    86→    86→toc = TableOfContents()
+    87→    87→toc.levelStyles = [toc_level0, toc_level1]  # define your styles
+    88→    88→story.append(toc)
+    89→    89→story.append(PageBreak())
+    90→    90→
+    91→    91→# 3. MUST set bookmark attributes on every heading
+    92→    92→def add_heading(text, style, level=0):
+    93→    93→    key = f'h_{hashlib.md5(text.encode()).hexdigest()[:8]}'
+    94→    94→    p = Paragraph(f'<a name="{key}"/>{text}', style)
+    95→    95→    p.bookmark_name = key
+    96→    96→    p.bookmark_level = level
+    97→    97→    p.bookmark_text = text
+    98→    98→    p.bookmark_key = key
+    99→    99→    return p
+   100→   100→
+   101→   101→# 4. MUST use multiBuild (NOT build)
+   102→   102→doc = TocDocTemplate(output_path, pagesize=A4, ...)
+   103→   103→doc.multiBuild(story)
+   104→   104→```
+   105→   105→
+   106→   106→**🚫 FORBIDDEN patterns (these produce broken/fake TOC):**
+   107→   107→```python
+   108→   108→# ❌ Hard-coded TOC items with manual page numbers
+   109→   109→toc_items = [('Chapter 1', '3'), ('Chapter 2', '5')]  # WRONG - not clickable, page numbers will be wrong
+   110→   110→
+   111→   111→# ❌ SimpleDocTemplate + build() with TOC
+   112→   112→doc = SimpleDocTemplate(...)  # WRONG if you have TOC
+   113→   113→doc.build(story)              # WRONG - TOC entries won't populate
+   114→   114→
+   115→   115→# ❌ TableOfContents without TocDocTemplate
+   116→   116→toc = TableOfContents()
+   117→   117→story.append(toc)
+   118→   118→doc = SimpleDocTemplate(...)  # WRONG - no afterFlowable to feed TOC
+   119→   119→```
+   120→   120→
+   121→   121→---
+   122→   122→
+   123→   123→## Step 2: DESIGN - Palette & Font Plan
+   124→   124→
+   125→   125→**Before writing any ReportLab code, you MUST generate the color palette via the `palette.generate` command.** This is not optional. Do NOT hardcode hex colors. Do NOT pick colors by feel.
+   126→   126→
+   127→   127→### 2a. Generate Palette (MANDATORY)
+   128→   128→
+   129→   129→**Run this command FIRST. Copy-paste its output directly into your Python script:**
+   130→   130→
+   131→   131→```bash
+   132→   132→python3 "$PDF_SKILL_DIR/scripts/pdf.py" palette.cascade --title "<document title>" --mode minimal --format reportlab
+   133→   133→```
+   134→   134→
+   135→   135→> ⚠️ **Use `palette.cascade` (V2), NOT the old `palette.generate`.** Cascade palette outputs unified color roles for cover, body, charts, and tables from one base hue.
+   136→   136→
+   137→   137→The command auto-derives the design intent from the document title, computes a mathematically harmonious palette, and outputs ready-to-paste ReportLab Python code:
+   138→   138→
+   139→   139→```python
+   140→   140→# ━━ Cascade Palette (auto-generated by design_engine.py palette-cascade) ━━
+   141→   141→from reportlab.lib import colors
+   142→   142→
+   143→   143→# XL tier: backgrounds (area > 50%, S ≤ 0.08)
+   144→   144→PAGE_BG       = colors.HexColor('#f5f4f3')
+   145→   145→SECTION_BG    = colors.HexColor('#f0efed')
+   146→   146→
+   147→   147→# L tier: surfaces (area 20-50%, S ≤ 0.15)
+   148→   148→CARD_BG       = colors.HexColor('#eae8e4')
+   149→   149→TABLE_STRIPE  = colors.HexColor('#edebe8')
+   150→   150→
+   151→   151→# M tier: structural fills (area 5-20%, S ≤ 0.30)
+   152→   152→HEADER_FILL   = colors.HexColor('#3d5a6e')
+   153→   153→COVER_BLOCK   = colors.HexColor('#4a6575')
+   154→   154→
+   155→   155→# S tier: edges & icons (area 1-5%, S ≤ 0.50)
+   156→   156→BORDER        = colors.HexColor('#b8c0c7')
+   157→   157→ICON          = colors.HexColor('#4e6d7a')
+   158→   158→
+   159→   159→# XS tier: emphasis (area < 1%, S ≤ 0.75)
+   160→   160→ACCENT        = colors.HexColor('#2f97b9')
+   161→   161→ACCENT_2      = colors.HexColor('#3a8a7d')
+   162→   162→
+   163→   163→# Typography
+   164→   164→TEXT_PRIMARY  = colors.HexColor('#252422')
+   165→   165→TEXT_MUTED    = colors.HexColor('#8d8981')
+   166→   166→
+   167→   167→# Table colors (derived from cascade tiers — NOT from ACCENT)
+   168→   168→TABLE_HEADER_COLOR = HEADER_FILL          # M tier, low-sat — harmonious with body
+   169→   169→TABLE_HEADER_TEXT  = colors.white          # White text on dark header
+   170→   170→TABLE_ROW_EVEN     = colors.white          # Clean white
+   171→   171→TABLE_ROW_ODD      = TABLE_STRIPE          # L tier, very subtle stripe
+   172→   172→```
+   173→   173→
+   174→   174→**Options:**
+   175→   175→- `--mode minimal` (default, recommended for 50%+ of documents) | `dark` | `pastel` | `jewel` | `light`
+   176→   176→- `--harmony auto` (default, recommended) | `complementary` | `split_complementary` | `analogous` | `triadic` | `monochrome`
+   177→   177→- `--format reportlab` (recommended) | `json` | `css` | `summary`
+   178→   178→- `--seed <int>` - for reproducible palettes across regenerations
+   179→   179→
+   180→   180→**⚠️ FORBIDDEN:**
+   181→   181→- ❌ Writing `colors.HexColor('#xxxxxx')` with any hex value you chose yourself
+   182→   182→- ❌ Using `colors.red`, `colors.blue`, or any ReportLab named color for design elements
+   183→   183→- ❌ Skipping this step and picking colors "that look good"
+   184→   184→- ❌ Using different palettes for different sections of the same document
+   185→   185→- ❌ Using `ACCENT` (XS tier, high saturation) for table headers — use `HEADER_FILL` (M tier)
+   186→   186→- ❌ Using the old `palette.generate` — always use `palette.cascade`
+   187→   187→
+   188→   188→**✅ The ONLY acceptable way to get colors:** Run `palette.cascade`, copy the output.
+   189→   189→
+   190→   190→### 2b. Color Application Rules
+   191→   191→
+   192→   192→| Element | Color Source | Tier | Notes |
+   193→   193→|---------|-------------|------|-------|
+   194→   194→| Table headers | `HEADER_FILL` (bg) + white (text) | M | Low-sat, harmonious with body |
+   195→   195→| Table odd rows | `TABLE_STRIPE` | L | Very subtle same-hue stripe |
+   196→   196→| Table even rows | `colors.white` | — | Clean white |
+   197→   197→| Section titles | `HEADER_FILL` or `TEXT_PRIMARY` | M/text | Match heading hierarchy |
+   198→   198→| Body text | `TEXT_PRIMARY` | text | Never use pure #000000 |
+   199→   199→| Muted/meta text | `TEXT_MUTED` | text | Dates, captions, footnotes |
+   200→   200→| Horizontal rules | `BORDER` at 30% opacity | S | Thin, unobtrusive |
+   201→   201→| Chart colors | `ACCENT` → `ACCENT_2` → `HEADER_FILL` → `ICON` | XS/M/S | Series colors (see charts.md) |
+   202→   202→| Badges / tags | `ACCENT` | XS | Small area, high sat OK |
+   203→   203→| Card backgrounds | `CARD_BG` | L | Container fills |
+   204→   204→
+   205→   205→### 2c. Forbidden
+   206→   206→
+   207→   207→- ❌ Hardcoding hex colors like `#1F4E79`, `#555555`, `#888888` in code
+   208→   208→- ❌ Using `colors.red`, `colors.blue` or any ReportLab named color for design elements
+   209→   209→- ❌ Choosing colors by "feel" without running palette first
+   210→   210→- ❌ Using different accent colors across tables/sections in the same document
+   211→   211→
+   212→   212→> **Exception**: Semantic colors for data visualization (green for positive, red for negative) are acceptable but should be muted variants derived from the palette when possible.
+   213→   213→
+   214→   214→---
+   215→   215→
+   216→   216→## Step 3: EDIT - Content Transformation
+   217→   217→
+   218→   218→**Before writing any code, restructure raw text into visual roles.** This is the most impactful quality step - skipping it produces "Word document with a PDF extension".
+   219→   219→
+   220→   220→### 3a. Typographic Role Extraction
+   221→   221→
+   222→   222→Parse raw text and categorize content into visual roles:
+   223→   223→
+   224→   224→| Role | ReportLab Mapping | Description |
+   225→   225→|------|------------------|-------------|
+   226→   226→| **Hero / Display** | Cover title (36-42pt) or section opener | 1-5 words, the emotional hook |
+   227→   227→| **Kicker / Eyebrow** | Subtitle or section intro (10-12pt, muted) | Tiny context line above main heading |
+   228→   228→| **Data Sculpture** | CalloutBox or bold stat block | Extract impactful numbers (97%, $4.2M, -45ms) |
+   229→   229→| **Pull Quote** | BlockQuote (italic + left indent 24pt + accent border) | Most provocative sentence, standalone |
+   230→   230→| **Body** | Standard paragraph | Everything else |
+   231→   231→
+   232→   232→**Rule**: Before writing any body paragraph, scan for numbers with units. Every metric like "revenue grew by 12%" or "latency dropped to 45ms" MUST be extracted into a CalloutBox or metrics table - never buried in paragraph prose. See §Data-to-Ink Ratio Rules below.
+   233→   233→
+   234→   234→### 3b. Section Pacing
+   235→   235→
+   236→   236→- If any H1 section has **>400 words** of continuous body text without visual breaks, split into H2 subsections or insert a visual break (table, chart, callout)
+   237→   237→- Aim for at least 1 visual element (table/chart/callout) per 2-3 pages of body text
+   238→   238→- Dense text walls are the #1 sign of poor report design
+   239→   239→
+   240→   240→### 3c. Content Sanitization for External Sources (MANDATORY when source is PDF/OCR/web)
+   241→   241→
+   242→   242→When content is extracted from an external PDF, OCR output, or web scrape, it may contain invisible garbage characters that cause garbled rendering. **You MUST sanitize the text content before writing it into any `Paragraph()` or `canvas.drawString()`.**
+   243→   243→
+   244→   244→This is different from `code.sanitize` (which cleans Python source code). Content sanitization cleans the **text data itself**.
+   245→   245→
+   246→   246→```python
+   247→   247→import re
+   248→   248→
+   249→   249→def content_sanitize(text: str) -> str:
+   250→   250→    """Strip invisible/control chars from externally-sourced text."""
+   251→   251→    # Remove control chars (except \n \t)
+   252→   252→    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
+   253→   253→    # Remove zero-width chars
+   254→   254→    text = re.sub(r'[\u200b-\u200f\u2028-\u202f\u2060\ufeff]', '', text)
+   255→   255→    # Remove replacement char (upstream encoding error)
+   256→   256→    text = text.replace('\ufffd', '')
+   257→   257→    # Remove variation selectors
+   258→   258→    text = re.sub(r'[\ufe00-\ufe0f]', '', text)
+   259→   259→    # Remove private use area chars
+   260→   260→    text = re.sub(r'[\ue000-\uf8ff]', '', text)
+   261→   261→    return text
+   262→   262→```
+   263→   263→
+   264→   264→**When to use:**
+   265→   265→| Source | Must sanitize? |
+   266→   266→|--------|---------------|
+   267→   267→| User typed text in prompt | No (usually clean) |
+   268→   268→| Extracted from PDF via `pdf.py extract.text` | **YES** |
+   269→   269→| OCR output | **YES** |
+   270→   270→| Web scrape / HTML strip | **YES** |
+   271→   271→| LLM-generated content | No (usually clean) |
+   272→   272→
+   273→   273→⚠️ **Do NOT confuse** `code.sanitize` (Step 6, cleans Python code) with `content_sanitize()` (Step 3, cleans text data). They solve different problems.
+   274→   274→
+   275→   275→---
+   276→   276→
+   277→   277→## Step 3.5: NUMBERING — 正文才是第一章 (MANDATORY)
+   278→   278→
+   279→   279→> ⚠️ **封面、目录、摘要、前言都不是章节。正文第一节 = 第一章/Chapter 1，永远。** Outline 的 `index` 是排序序号，不是章节号。混淆两者会导致文档从“第三章”或“第四章”开始。
+   280→   280→
+   281→   281→**写代码前必须输出编号映射表：**
+   282→   282→
+   283→   283→```
+   284→   284→| Outline Index | Type    | Chapter # | Title            |
+   285→   285→|---------------|---------|-----------|------------------|
+   286→   286→| 1             | cover   | —         | 封面               |
+   287→   287→| 2             | toc     | —         | 目录               |
+   288→   288→| 3             | content | 第一章    | 概要               |
+   289→   289→| 4             | content | 第二章    | 引言               |
+   290→   290→| ...           | ...     | ...       | ...              |
+   291→   291→```
+   292→   292→
+   293→   293→**铁律：**
+   294→   294→- cover/toc/back_cover/摘要/前言 → 无编号
+   295→   295→- 第一个 content 节点 = 第一章，永远从 1 开始
+   296→   296→- `page_title()` 必须用此表的章节号，不是 Outline `index`
+   297→   297→
+   298→   298→---
+   299→   299→
+   300→   300→---
+   301→   301→
+   302→   302→## Character Safety Rule (MANDATORY)
+   303→   303→
+   304→   304→Three rules for safe character handling in ReportLab PDFs:
+   305→   305→
+   306→   306→**a) Superscripts and subscripts**: Use `<super>`/`<sub>` tags, never raw Unicode superscript/subscript characters (e.g., `\u00b2`, `\u2082`).
+   307→   307→
+   308→   308→**b) Emoji**: ReportLab cannot render emoji. If content contains emoji, use Creative brief (HTML + Playwright).
+   309→   309→
+   310→   310→**c) Font fallback for mixed CJK/Latin text (MANDATORY)**: After registering fonts, you **MUST** call `install_font_fallback()` once. This automatically wraps missing-glyph characters in `<font>` tags inside every `Paragraph()`. No manual `<font name="...">` wrapping needed for mixed Chinese-English text. **Skipping this call is the #1 cause of Helvetica garbled text in CJK documents.**
+   311→   311→
+   312→   312→**d) canvas.drawString / drawRightString CJK font rule (MANDATORY)**: `install_font_fallback()` only works on `Paragraph()` objects. It does NOT affect `canvas.drawString()` / `canvas.drawRightString()` / `canvas.drawCentredString()`. If the text passed to any `canvas.draw*String()` call contains CJK characters (Chinese/Japanese/Korean), you **MUST** call `canvas.setFont('NotoSerifSC', size)` (or another registered CJK font) before drawing. Using FreeSerif / Helvetica / Times for CJK canvas text = garbled output.
+   313→   313→
+   314→   314→```python
+   315→   315→# ❌ WRONG — FreeSerif has no CJK glyphs, '科大讯飞' will be garbled
+   316→   316→canvas.setFont('FreeSerif-Italic', 8)
+   317→   317→canvas.drawRightString(x, y, 'SZSE: 002230  ·  科大讯飞')
+   318→   318→
+   319→   319→# ✅ CORRECT — use CJK font for mixed text
+   320→   320→canvas.setFont('NotoSerifSC', 8)
+   321→   321→canvas.drawRightString(x, y, 'SZSE: 002230  ·  科大讯飞')
+   322→   322→
+   323→   323→# ✅ ALSO CORRECT — pure English text can use FreeSerif
+   324→   324→canvas.setFont('FreeSerif-Italic', 8)
+   325→   325→canvas.drawString(x, y, 'Prepared by Strategy Advisory Team')
+   326→   326→```
+   327→   327→
+   328→   328→Mathematical/relational operators (×, ÷, ±, ≤, √, ∑, ≅, ∫, π, ∠, Δ, etc.) are safe to use as literal characters in `Paragraph()` - both Noto Sans SC and FreeSerif have these glyphs.
+   329→   329→
+   330→   330→| Need | Correct Method | Correct Example |
+   331→   331→|------|---------------|---------|
+   332→   332→| Superscript | `<super>` tag in `Paragraph()` | `Paragraph('10<super>2</super> × 10<super>3</super> = 10<super>5</super>', style)` |
+   333→   333→| Subscript | `<sub>` tag in `Paragraph()` | `Paragraph('H<sub>2</sub>O', style)` |
+   334→   334→| Bold | `<b>` tag in `Paragraph()` | `Paragraph('<b>Title</b>', style)` |
+   335→   335→| Math operators | Literal char in `Paragraph()` | `Paragraph('AB ⊥ AC, ∠A = 90°, and ΔABC ≅ ΔDCF', style)` |
+   336→   336→| Scientific notation | Combined tags in `Paragraph()` | `Paragraph('1.2 × 10<super>8</super> kg/m<super>3</super>', style)` |
+   337→   337→
+   338→   338→```python
+   339→   339→from reportlab.platypus import Paragraph
+   340→   340→from reportlab.lib.styles import ParagraphStyle
+   341→   341→from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
+   342→   342→
+   343→   343→body_style = ParagraphStyle(
+   344→   344→    name="ENBodyStyle",
+   345→   345→    fontName="FreeSerif",
+   346→   346→    fontSize=10.5,
+   347→   347→    leading=18,
+   348→   348→    alignment=TA_JUSTIFY,
+   349→   349→)
+   350→   350→
+   351→   351→# CJK Body (Chinese documents)
+   352→   352→cn_body_style = ParagraphStyle(
+   353→   353→    name="CNBodyStyle",
+   354→   354→    fontName="NotoSerifSC", fontSize=10.5, leading=18,
+   355→   355→    alignment=TA_LEFT,      # ← NEVER TA_JUSTIFY for CJK
+   356→   356→    wordWrap='CJK',         # ← MANDATORY for CJK
+   357→   357→    firstLineIndent=2*4.5*mm,
+   358→   358→)
+   359→   359→
+   360→   360→# Superscript: area unit
+   361→   361→Paragraph('Total area: 500 m<super>2</super>', body_style)
+   362→   362→
+   363→   363→# Subscript: chemical formula
+   364→   364→Paragraph('The reaction produces CO<sub>2</sub> and H<sub>2</sub>O', body_style)
+   365→   365→
+   366→   366→# Scientific notation
+   367→   367→Paragraph('Speed of light: 3.0 × 10<super>8</super> m/s', body_style)
+   368→   368→
+   369→   369→# Combined
+   370→   370→Paragraph('E<sub>k</sub> = mv<super>2</super>/2', body_style)
+   371→   371→
+   372→   372→# Bold heading
+   373→   373→Paragraph('<b>Chapter 1: Introduction</b>', header_style)
+   374→   374→
+   375→   375→# Math symbols
+   376→   376→Paragraph('When ∠ A = 90°, AB ⊥ AC and ΔABC ≅ ΔDEF', body_style)
+   377→   377→```
+   378→   378→
+   379→   379→**Pre-generation check - before writing ANY string, ask:**
+   380→   380→> "Does this string contain a character outside basic CJK or Mathematical/relational operators?"
+   381→   381→> If YES → it MUST be inside a `Paragraph()` with the appropriate tag.
+   382→   382→> If it is a superscript/subscript digit in raw unicode escape form → REPLACE with `<super>`/`<sub>` tag.
+   383→   383→
+   384→   384→**NEVER rely on post-generation scanning. Prevent at the point of writing.**
+   385→   385→
+   386→   386→**Encoding safety - before writing ANY content text:**
+   387→   387→> "Does this string contain Japanese kana (の, が, は etc.) or rare Unicode symbols?"
+   388→   388→> If YES → REPLACE with safe plain Chinese equivalents. Japanese kana (Hiragana U+3040-U+309F, Katakana U+30A0-U+30FF) frequently corrupt to U+FFFD (�) when code passes through LLM output, heredoc, or terminal encoding layers.
+   389→   389→> Common safe replacements: `活の真鲷`→`活缔真鲷`, `盐烤の鲭鱼`→`盐烤鲭鱼`, `烤の鸡串`→`炭烤鸡串`.
+   390→   390→> If the character is genuinely needed, verify it survives a full write→read round-trip with `open(file, encoding='utf-8')`.
+   391→   391→
+   392→   392→---
+   393→   393→
+   394→   394→## Font Setup (Guaranteed Success Method)
+   395→   395→
+   396→   396→### CRITICAL: Allowed Fonts Only
+   397→   397→**You MUST ONLY use the following registered fonts. Using ANY other font is STRICTLY FORBIDDEN.**
+   398→   398→
+   399→   399→| Font Name | Usage | Path |
+   400→   400→|-----------|-------|------|
+   401→   401→| `NotoSerifSC` | **Chinese body text (primary)** |  `/usr/share/fonts/truetype/noto-serif-sc/NotoSerifSC-Regular.ttf` |
+   402→   402→| `NotoSerifSC-Bold` | **Chinese headings (primary)** |  `/usr/share/fonts/truetype/noto-serif-sc/NotoSerifSC-Bold.ttf` |
+   403→   403→| `Noto Sans SC` | Chinese fallback / sans-serif | `/usr/share/fonts/truetype/chinese/NotoSansSC-Regular.ttf` |
+   404→   404→| `Noto Sans SC Bold` | Chinese headings (sans-serif) | `/usr/share/fonts/truetype/chinese/NotoSansSC-Bold.ttf` |
+   405→   405→| `SarasaMonoSC` | Chinese code blocks | `/usr/share/fonts/truetype/chinese/SarasaMonoSC-Regular.ttf` |
+   406→   406→| `FreeSerif` | English text, numbers, tables | `freefont/FreeSerif.ttf` |
+   407→   407→| `DejaVuSans` | Formulas, symbols, code | `/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf` |
+   408→   408→
+   409→   409→**FORBIDDEN fonts (DO NOT USE):**
+   410→   410→- ❌ Arial, Arial-Bold, Arial-Italic
+   411→   411→- ❌ Helvetica, Helvetica-Bold, Helvetica-Oblique
+   412→   412→- ❌ Courier, Courier-Bold
+   413→   413→- ❌ Any font not listed in the table above
+   414→   414→
+   415→   415→> **Font file locations note:** On macOS, font paths may be under `~/.openclaw/workspace/fonts/` or `~/Library/Fonts/` instead of `/usr/share/fonts/`. The registration code below uses a single `FONT_DIR` variable — set it to the correct base path for your system. All font sub-paths (e.g. `truetype/noto-serif-sc/NotoSerifSC-Regular.ttf`) are appended to `FONT_DIR`.
+   416→   416→
+   417→   417→### Font Registration Template
+   418→   418→```python
+   419→   419→from reportlab.pdfbase import pdfmetrics
+   420→   420→from reportlab.pdfbase.ttfonts import TTFont
+   421→   421→from reportlab.pdfbase.pdfmetrics import registerFontFamily
+   422→   422→
+   423→   423→import platform
+   424→   424→_IS_MAC = platform.system() == 'Darwin'
+   425→   425→if _IS_MAC:
+   426→   426→    FONT_DIR = os.path.expanduser('~/.openclaw/workspace/fonts')
+   427→   427→else:  # Linux
+   428→   428→    FONT_DIR = '/usr/share/fonts'
+   429→   429→
+   430→   430→# Chinese fonts — Noto Serif SC (primary, serif, high quality)
+   431→   431→pdfmetrics.registerFont(TTFont('NotoSerifSC', f'{FONT_DIR}/truetype/noto-serif-sc/NotoSerifSC-Regular.ttf'))
+   432→   432→pdfmetrics.registerFont(TTFont('NotoSerifSC-Bold', f'{FONT_DIR}/truetype/noto-serif-sc/NotoSerifSC-Bold.ttf'))
+   433→   433→# Chinese fonts — fallback / sans-serif (static weight files, NOT variable font)
+   434→   434→pdfmetrics.registerFont(TTFont('Noto Sans SC', f'{FONT_DIR}/truetype/chinese/NotoSansSC-Regular.ttf'))
+   435→   435→pdfmetrics.registerFont(TTFont('Noto Sans SC Bold', f'{FONT_DIR}/truetype/chinese/NotoSansSC-Bold.ttf'))
+   436→   436→pdfmetrics.registerFont(TTFont('SarasaMonoSC', f'{FONT_DIR}/truetype/chinese/SarasaMonoSC-Regular.ttf'))
+   437→   437→
+   438→   438→# English fonts — FreeSerif (4 weights)
+   439→   439→pdfmetrics.registerFont(TTFont('FreeSerif', f'{FONT_DIR}/truetype/freefont/FreeSerif.ttf'))
+   440→   440→pdfmetrics.registerFont(TTFont('FreeSerif-Bold', f'{FONT_DIR}/truetype/freefont/FreeSerifBold.ttf'))
+   441→   441→pdfmetrics.registerFont(TTFont('FreeSerif-Italic', f'{FONT_DIR}/truetype/freefont/FreeSerifItalic.ttf'))
+   442→   442→pdfmetrics.registerFont(TTFont('FreeSerif-BoldItalic', f'{FONT_DIR}/truetype/freefont/FreeSerifBoldItalic.ttf'))
+   443→   443→
+   444→   444→# Symbol/Formula font
+   445→   445→pdfmetrics.registerFont(TTFont('DejaVuSans', f'{FONT_DIR}/truetype/dejavu/DejaVuSansMono.ttf'))
+   446→   446→
+   447→   447→# CRITICAL: Register font families to enable <b>, <i>, <super>, <sub> tags
+   448→   448→registerFontFamily('NotoSerifSC', normal='NotoSerifSC', bold='NotoSerifSC-Bold')
+   449→   449→registerFontFamily('Noto Sans SC', normal='Noto Sans SC', bold='Noto Sans SC Bold')
+   450→   450→registerFontFamily('FreeSerif', normal='FreeSerif', bold='FreeSerif-Bold', italic='FreeSerif-Italic', boldItalic='FreeSerif-BoldItalic')
+   451→   451→registerFontFamily('DejaVuSans', normal='DejaVuSans', bold='DejaVuSans')
+   452→   452→```
+   453→   453→
+   454→   454→### Font Configuration by Document Type
+   455→   455→
+   456→   456→**For Chinese PDFs:**
+   457→   457→- Body text: `NotoSerifSC` (primary) — serif font with sharp, elegant strokes
+   458→   458→- Headings: `NotoSerifSC-Bold` (MUST use for Chinese headings) — same family, bolder weight for clear hierarchy
+   459→   459→- Code blocks: `SarasaMonoSC`
+   460→   460→- Formulas/symbols: `DejaVuSans`
+   461→   461→- **In tables: ALL Chinese content MUST use `NotoSerifSC`, numbers use `FreeSerif`**
+   462→   462→- Fallback: `Noto Sans SC` (if NotoSerifSC unavailable)
+   463→   463→
+   464→   464→**For English PDFs:**
+   465→   465→- Body text: `FreeSerif`
+   466→   466→- Headings: `FreeSerif` (MUST use for English headings)
+   467→   467→- Code blocks: `DejaVuSans`
+   468→   468→- **In tables: ALL English content and numbers MUST use `FreeSerif`**
+   469→   469→
+   470→   470→**For Mixed Chinese-English PDFs:**
+   471→   471→- Call `install_font_fallback()` once after registering fonts - it automatically wraps characters in `<font>` tags so you don't need to do it manually.
+   472→   472→- If you still want manual control, you can use `<font name='...'>` tags, but the automatic fallback handles most cases.
+   473→   473→
+   474→   474→```python
+   475→   475→import sys, os
+   476→   476→sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'scripts'))
+   477→   477→from pdf import install_font_fallback
+   478→   478→
+   479→   479→# 1. Register fonts (as above)
+   480→   480→# 2. Install fallback - one line, handles all mixed-language text
+   481→   481→install_font_fallback()
+   482→   482→
+   483→   483→# 3. Just write naturally - no manual <font> wrapping needed!
+   484→   484→en_style = ParagraphStyle(name="EN", fontName="FreeSerif", fontSize=10.5, leading=18)
+   485→   485→cn_style = ParagraphStyle(name="CN", fontName="NotoSerifSC", fontSize=10.5, leading=18, wordWrap='CJK')
+   486→   486→
+   487→   487→Paragraph('MySQL、PostgreSQL、Redis', en_style)           # ✅ CJK comma auto-fallback to NotoSerifSC
+   488→   488→Paragraph('Beijing (北京) has 21M people', en_style)       # ✅ CJK chars auto-fallback
+   489→   489→Paragraph('价格:¥2,200~5,800/月', en_style)               # ✅ all CJK chars handled
+   490→   490→Paragraph('《巴黎协定》签署于2015年', en_style)               # ✅ CJK book title marks handled
+   491→   491→```
+   492→   492→
+   493→   493→**How it works:** `install_font_fallback()` monkey-patches `Paragraph.__init__` to scan each character against the font's `charToGlyph` table. Characters missing from the base font are automatically wrapped in `<font name="FallbackFont">`. The fallback chain is: English fonts → NotoSerifSC (primary) or Noto Sans SC (legacy), Chinese fonts → FreeSerif. For aesthetic optimization, Cyrillic text in NotoSerifSC/Noto Sans SC is automatically routed to FreeSerif (serif looks better for Cyrillic).
+   494→   494→
+   495→   495→### Chinese Plot PNG Method
+   496→   496→```python
+   497→   497→import matplotlib
+   498→   498→import matplotlib.pyplot as plt
+   499→   499→matplotlib.font_manager.fontManager.addfont('/usr/share/fonts/truetype/chinese/NotoSansSC-Regular.ttf')
+   500→   500→matplotlib.font_manager.fontManager.addfont('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
+
+[showing lines 1-500 of 1704; use offset=501 with limit to continue reading]
