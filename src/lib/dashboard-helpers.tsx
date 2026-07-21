@@ -136,6 +136,32 @@ export function getTrustScoreColor(score: number): string {
   return 'text-red-600'
 }
 
+export function getTrustScoreBg(score: number): string {
+  if (score >= 80) return 'bg-emerald-500'
+  if (score >= 60) return 'bg-amber-500'
+  if (score >= 40) return 'bg-orange-500'
+  return 'bg-red-500'
+}
+
+export function getRiskColor(score: number): string {
+  if (score >= 80) return 'text-red-600'
+  if (score >= 60) return 'text-orange-600'
+  if (score >= 40) return 'text-amber-600'
+  return 'text-emerald-600'
+}
+
+export function getRiskBg(score: number): string {
+  if (score >= 80) return 'bg-red-500'
+  if (score >= 60) return 'bg-orange-500'
+  if (score >= 40) return 'bg-amber-500'
+  return 'bg-emerald-500'
+}
+
+export function truncate(str: string, len: number): string {
+  if (!str) return ''
+  return str.length > len ? str.slice(0, len) + '...' : str
+}
+
 // ─── useApi Hook ────────────────────────────────────────────────────────────────
 
 export function useApi<T>(url: string) {
@@ -279,7 +305,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'trust-graph', label: 'Trust Graph', icon: Network },
   { id: 'escrow', label: 'Escrow', icon: Shield },
   { id: 'payments', label: 'Payments', icon: ArrowLeftRight },
-  { id: 'passport', label: 'Passport', icon: IdCard },
+  { id: 'passport', label: 'Passport', icon: PassportIcon },
   { id: 'digital-twin', label: 'Digital Twin', icon: Brain },
   { id: 'payment-links', label: 'Payment Links', icon: Link2 },
   { id: 'wallet', label: 'Wallet', icon: Wallet },
