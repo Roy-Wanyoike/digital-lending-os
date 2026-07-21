@@ -1,0 +1,498 @@
+     1→   801→      {/* Filter + Table */}
+     2→   802→      <Card className="border-0 shadow-sm">
+     3→   803→        <CardHeader className="pb-2 px-4 pt-4 flex flex-row items-center justify-between">
+     4→   804→          <div>
+     5→   805→            <CardTitle className="text-sm font-semibold text-slate-700">Escrow Transactions</CardTitle>
+     6→   806→            <CardDescription className="text-xs text-slate-500">{transactions.length} transactions</CardDescription>
+     7→   807→          </div>
+     8→   808→          <Select value={statusFilter} onValueChange={setStatusFilter}>
+     9→   809→            <SelectTrigger className="w-[150px] h-8 text-xs"><SelectValue placeholder="Filter status" /></SelectTrigger>
+    10→   810→            <SelectContent>
+    11→   811→              <SelectItem value="all">All Statuses</SelectItem>
+    12→   812→              {pipeline.map(p => <SelectItem key={p.status} value={p.status}>{p.label}</SelectItem>)}
+    13→   813→            </SelectContent>
+    14→   814→          </Select>
+    15→   815→        </CardHeader>
+    16→   816→        <CardContent className="px-4 pb-4">
+    17→   817→          <ScrollArea className="max-h-[500px]">
+    18→   818→            <Table>
+    19→   819→              <TableHeader>
+    20→   820→                <TableRow className="hover:bg-transparent border-slate-100">
+    21→   821→                  <TableHead className="text-xs font-semibold text-slate-500">Reference</TableHead>
+    22→   822→                  <TableHead className="text-xs font-semibold text-slate-500">Buyer</TableHead>
+    23→   823→                  <TableHead className="text-xs font-semibold text-slate-500">Seller</TableHead>
+    24→   824→                  <TableHead className="text-xs font-semibold text-slate-500 text-right">Amount</TableHead>
+    25→   825→                  <TableHead className="text-xs font-semibold text-slate-500">Currency</TableHead>
+    26→   826→                  <TableHead className="text-xs font-semibold text-slate-500">Status</TableHead>
+    27→   827→                  <TableHead className="text-xs font-semibold text-slate-500">AI Risk</TableHead>
+    28→   828→                  <TableHead className="text-xs font-semibold text-slate-500">Milestones</TableHead>
+    29→   829→                  <TableHead className="text-xs font-semibold text-slate-500">Date</TableHead>
+    30→   830→                </TableRow>
+    31→   831→              </TableHeader>
+    32→   832→              <TableBody>
+    33→   833→                {transactions.map((tx) => (
+    34→   834→                  <TableRow key={tx.id} className="hover:bg-slate-50 transition-colors">
+    35→   835→                    <TableCell className="text-xs font-mono text-slate-600">{tx.txRef}</TableCell>
+    36→   836→                    <TableCell className="text-xs text-slate-700 max-w-[120px] truncate">{tx.buyer.name}</TableCell>
+    37→   837→                    <TableCell className="text-xs text-slate-700 max-w-[120px] truncate">{tx.seller.name}</TableCell>
+    38→   838→                    <TableCell className="text-xs font-medium text-slate-900 text-right">{formatCurrency(tx.amount)}</TableCell>
+    39→   839→                    <TableCell className="text-xs font-mono">{tx.currency}</TableCell>
+    40→   840→                    <TableCell><Badge className={`border-0 text-[11px] ${ESCROW_COLORS[tx.status] || 'bg-slate-100 text-slate-600'}`}>{tx.status.replace(/_/g, ' ')}</Badge></TableCell>
+    41→   841→                    <TableCell>
+    42→   842→                      <div className="flex items-center gap-1.5">
+    43→   843→                        {tx.aiRiskScore !== null && <Badge className={`border-0 text-[11px] ${RISK_COLOR(tx.aiRiskLevel)}`}>{tx.aiRiskLevel}</Badge>}
+    44→   844→                        {tx.aiRiskScore !== null && <span className="text-[10px] text-slate-400">{tx.aiRiskScore.toFixed(0)}</span>}
+    45→   845→                      </div>
+    46→   846→                    </TableCell>
+    47→   847→                    <TableCell>
+    48→   848→                      <div className="flex items-center gap-1.5">
+    49→   849→                        <Progress value={(tx.currentMilestone / tx.totalMilestones) * 100} className="h-1.5 w-12 bg-slate-100" />
+    50→   850→                        <span className="text-[10px] text-slate-500">{tx.currentMilestone}/{tx.totalMilestones}</span>
+    51→   851→                      </div>
+    52→   852→                    </TableCell>
+    53→   853→                    <TableCell className="text-xs text-slate-500">{format(new Date(tx.createdAt), 'MMM dd')}</TableCell>
+    54→   854→                  </TableRow>
+    55→   855→                ))}
+    56→   856→              </TableBody>
+    57→   857→            </Table>
+    58→   858→          </ScrollArea>
+    59→   859→        </CardContent>
+    60→   860→      </Card>
+    61→   861→    </div>
+    62→   862→  )
+    63→   863→}
+    64→   864→
+    65→   865→// ═══════════════════════════════════════════════════════════════════════════════
+    66→   866→// 4. PAYMENTS TAB
+    67→   867→// ═══════════════════════════════════════════════════════════════════════════════
+    68→   868→
+    69→   869→function PaymentsTab() {
+    70→   870→  const [intents, setIntents] = useState<PaymentIntent[]>([])
+    71→   871→  const [rates, setRates] = useState<{ from: string; to: string; rate: number }[]>([])
+    72→   872→  const [loading, setLoading] = useState(true)
+    73→   873→
+    74→   874→  useEffect(() => {
+    75→   875→    Promise.all([
+    76→   876→      fetchJSON<any>('/api/payments/intents?page=1&limit=20'),
+    77→   877→      fetchJSON<any>('/api/payments/rates'),
+    78→   878→    ]).then(([intRes, rateRes]) => {
+    79→   879→      setIntents(intRes?.data || [])
+    80→   880→      setRates(rateRes?.data || [])
+    81→   881→      setLoading(false)
+    82→   882→    })
+    83→   883→  }, [])
+    84→   884→
+    85→   885→  const completedIntents = intents.filter(i => i.status === 'completed')
+    86→   886→  const avgRoutingScore = completedIntents.length > 0
+    87→   887→    ? (completedIntents.reduce((s, i) => s + (i.routingScore || 0), 0) / completedIntents.length)
+    88→   888→    : 0
+    89→   889→  const uniqueProviders = new Set(completedIntents.map(i => i.routingProvider).filter(Boolean)).size
+    90→   890→  const totalProcessed = completedIntents.reduce((s, i) => s + i.sourceAmount, 0)
+    91→   891→
+    92→   892→  if (loading) return (
+    93→   893→    <div className="space-y-6">
+    94→   894→      <KpiSkeleton />
+    95→   895→      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{[...Array(5)].map((_, i) => <Card key={i} className="border-0 shadow-sm"><CardContent className="p-4"><Skeleton className="h-6 w-24 mb-2" /><Skeleton className="h-8 w-16" /></CardContent></Card>)}</div>
+    96→   896→      <TableSkeleton />
+    97→   897→    </div>
+    98→   898→  )
+    99→   899→
+   100→   900→  return (
+   101→   901→    <div className="space-y-6">
+   102→   902→      {/* Summary Cards */}
+   103→   903→      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+   104→   904→        <KPICard icon={DollarSign} label="Total Processed" value={formatCurrency(totalProcessed)} sub={`${completedIntents.length} payments`} color="emerald" />
+   105→   905→        <KPICard icon={Target} label="Avg Routing Score" value={avgRoutingScore.toFixed(2)} sub="AI optimization score" color="sky" />
+   106→   906→        <KPICard icon={Globe} label="Unique Providers" value={uniqueProviders.toString()} sub="Payment routing partners" color="amber" />
+   107→   907→      </div>
+   108→   908→
+   109→   909→      {/* Exchange Rates */}
+   110→   910→      <Card className="border-0 shadow-sm">
+   111→   911→        <CardHeader className="pb-2 px-4 pt-4"><CardTitle className="text-sm font-semibold text-slate-700">Exchange Rates</CardTitle></CardHeader>
+   112→   912→        <CardContent className="px-4 pb-4">
+   113→   913→          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+   114→   914→            {rates.map((r) => (
+   115→   915→              <div key={`${r.from}-${r.to}`} className="p-3 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+   116→   916→                <div className="flex items-center gap-1.5 mb-1">
+   117→   917→                  <span className="text-xs font-bold text-slate-800">{r.from}</span>
+   118→   918→                  <ArrowUpRight className="h-3 w-3 text-emerald-500" />
+   119→   919→                  <span className="text-xs font-bold text-slate-800">{r.to}</span>
+   120→   920→                </div>
+   121→   921→                <p className="text-lg font-bold text-slate-900">{r.rate.toFixed(r.rate < 1 ? 4 : 2)}</p>
+   122→   922→              </div>
+   123→   923→            ))}
+   124→   924→          </div>
+   125→   925→        </CardContent>
+   126→   926→      </Card>
+   127→   927→
+   128→   928→      {/* Payment Intents Table */}
+   129→   929→      <Card className="border-0 shadow-sm">
+   130→   930→        <CardHeader className="pb-2 px-4 pt-4">
+   131→   931→          <CardTitle className="text-sm font-semibold text-slate-700">Payment Intents</CardTitle>
+   132→   932→          <CardDescription className="text-xs text-slate-500">{intents.length} intents</CardDescription>
+   133→   933→        </CardHeader>
+   134→   934→        <CardContent className="px-4 pb-4">
+   135→   935→          <ScrollArea className="max-h-[500px]">
+   136→   936→            <Table>
+   137→   937→              <TableHeader>
+   138→   938→                <TableRow className="hover:bg-transparent border-slate-100">
+   139→   939→                  <TableHead className="text-xs font-semibold text-slate-500">Reference</TableHead>
+   140→   940→                  <TableHead className="text-xs font-semibold text-slate-500">Route</TableHead>
+   141→   941→                  <TableHead className="text-xs font-semibold text-slate-500 text-right">Amount</TableHead>
+   142→   942→                  <TableHead className="text-xs font-semibold text-slate-500">Currencies</TableHead>
+   143→   943→                  <TableHead className="text-xs font-semibold text-slate-500">Provider</TableHead>
+   144→   944→                  <TableHead className="text-xs font-semibold text-slate-500">Routing Score</TableHead>
+   145→   945→                  <TableHead className="text-xs font-semibold text-slate-500">Status</TableHead>
+   146→   946→                  <TableHead className="text-xs font-semibold text-slate-500 text-right">Est. Fee</TableHead>
+   147→   947→                </TableRow>
+   148→   948→              </TableHeader>
+   149→   949→              <TableBody>
+   150→   950→                {intents.map((pi) => (
+   151→   951→                  <TableRow key={pi.id} className="hover:bg-slate-50 transition-colors">
+   152→   952→                    <TableCell className="text-xs font-mono text-slate-600">{pi.intentRef}</TableCell>
+   153→   953→                    <TableCell className="text-xs text-slate-600">Payment</TableCell>
+   154→   954→                    <TableCell className="text-xs font-medium text-slate-900 text-right">{formatCurrency(pi.sourceAmount)}</TableCell>
+   155→   955→                    <TableCell>
+   156→   956→                      <div className="flex items-center gap-1 text-xs">
+   157→   957→                        <span className="font-medium">{pi.sourceCurrency}</span>
+   158→   958→                        <ArrowRight className="h-3 w-3 text-slate-400" />
+   159→   959→                        <span className="font-medium">{pi.targetCurrency}</span>
+   160→   960→                      </div>
+   161→   961→                    </TableCell>
+   162→   962→                    <TableCell>
+   163→   963→                      {pi.routingProvider && (
+   164→   964→                        <Badge variant="outline" className="text-[11px] font-normal">{PROVIDER_LABELS[pi.routingProvider] || pi.routingProvider}</Badge>
+   165→   965→                      )}
+   166→   966→                    </TableCell>
+   167→   967→                    <TableCell>
+   168→   968→                      {pi.routingScore !== null && (
+   169→   969→                        <div className="flex items-center gap-1.5">
+   170→   970→                          <Progress value={pi.routingScore * 100} className={`h-1.5 w-14 ${pi.routingScore >= 0.85 ? 'bg-emerald-500' : pi.routingScore >= 0.7 ? 'bg-amber-500' : 'bg-red-500'}`} />
+   171→   971→                          <span className={`text-[11px] font-semibold ${pi.routingScore >= 0.85 ? 'text-emerald-600' : pi.routingScore >= 0.7 ? 'text-amber-600' : 'text-red-600'}`}>
+   172→   972→                            {(pi.routingScore * 100).toFixed(0)}%
+   173→   973→                          </span>
+   174→   974→                        </div>
+   175→   975→                      )}
+   176→   976→                    </TableCell>
+   177→   977→                    <TableCell><Badge className={`border-0 text-[11px] ${STATUS_COLOR(pi.status)}`}>{pi.status}</Badge></TableCell>
+   178→   978→                    <TableCell className="text-xs text-slate-600 text-right">
+   179→   979→                      {pi.estimatedFee !== null ? currencyFmt.format(pi.estimatedFee) : '—'}
+   180→   980→                    </TableCell>
+   181→   981→                  </TableRow>
+   182→   982→                ))}
+   183→   983→              </TableBody>
+   184→   984→            </Table>
+   185→   985→          </ScrollArea>
+   186→   986→        </CardContent>
+   187→   987→      </Card>
+   188→   988→    </div>
+   189→   989→  )
+   190→   990→}
+   191→   991→
+   192→   992→// ═══════════════════════════════════════════════════════════════════════════════
+   193→   993→// 5. PASSPORT TAB
+   194→   994→// ═══════════════════════════════════════════════════════════════════════════════
+   195→   995→
+   196→   996→function PassportTab() {
+   197→   997→  const [businesses, setBusinesses] = useState<Business[]>([])
+   198→   998→  const [verifications, setVerifications] = useState<Verification[]>([])
+   199→   999→  const [loading, setLoading] = useState(true)
+   200→  1000→
+   201→  1001→  useEffect(() => {
+   202→  1002→    Promise.all([
+   203→  1003→      fetchJSON<any>('/api/businesses?page=1&limit=20'),
+   204→  1004→      fetchJSON<any>('/api/passport/verifications'),
+   205→  1005→    ]).then(([bizRes, verRes]) => {
+   206→  1006→      setBusinesses(bizRes?.data || [])
+   207→  1007→      setVerifications(verRes?.data || [])
+   208→  1008→      setLoading(false)
+   209→  1009→    })
+   210→  1010→  }, [])
+   211→  1011→
+   212→  1012→  if (loading) return (
+   213→  1013→    <div className="space-y-6">
+   214→  1014→      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+   215→  1015→        {[...Array(5)].map((_, i) => <Card key={i} className="border-0 shadow-sm"><CardContent className="p-4"><Skeleton className="h-4 w-16 mb-2" /><Skeleton className="h-8 w-10" /></CardContent></Card>)}
+   216→  1016→      </div>
+   217→  1017→      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4"><TableSkeleton /><TableSkeleton /></div>
+   218→  1018→    </div>
+   219→  1019→  )
+   220→  1020→
+   221→  1021→  // Verification status counts by type
+   222→  1022→  const verByType: Record<string, Record<string, number>> = {}
+   223→  1023→  verifications.forEach(v => {
+   224→  1024→    if (!verByType[v.type]) verByType[v.type] = {}
+   225→  1025→    verByType[v.type][v.status] = (verByType[v.type][v.status] || 0) + 1
+   226→  1026→  })
+   227→  1027→
+   228→  1028→  const verTypeCards = Object.entries(VER_TYPE_LABELS).map(([type, label]) => {
+   229→  1029→    const counts = verByType[type] || {}
+   230→  1030→    const total = Object.values(counts).reduce((s, v) => s + v, 0)
+   231→  1031→    const approved = counts.approved || 0
+   232→  1032→    return { type, label, total, approved, pending: counts.pending || 0, rejected: counts.rejected || 0, in_progress: counts.in_progress || 0 }
+   233→  1033→  })
+   234→  1034→
+   235→  1035→  return (
+   236→  1036→    <div className="space-y-6">
+   237→  1037→      {/* Verification Status Cards */}
+   238→  1038→      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+   239→  1039→        {verTypeCards.map(vc => (
+   240→  1040→          <Card key={vc.type} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+   241→  1041→            <CardContent className="p-4">
+   242→  1042→              <p className="text-[11px] text-slate-500 font-medium mb-1">{vc.label}</p>
+   243→  1043→              <p className="text-xl font-bold text-slate-900">{vc.total}</p>
+   244→  1044→              <div className="flex gap-1 mt-2">
+   245→  1045→                <Badge className="border-0 text-[10px] bg-emerald-100 text-emerald-700">{vc.approved} ok</Badge>
+   246→  1046→                {vc.pending > 0 && <Badge className="border-0 text-[10px] bg-slate-100 text-slate-600">{vc.pending} pend</Badge>}
+   247→  1047→                {vc.rejected > 0 && <Badge className="border-0 text-[10px] bg-red-100 text-red-600">{vc.rejected} rej</Badge>}
+   248→  1048→              </div>
+   249→  1049→            </CardContent>
+   250→  1050→          </Card>
+   251→  1051→        ))}
+   252→  1052→      </div>
+   253→  1053→
+   254→  1054→      {/* Business Compliance Grid + Recent Verifications */}
+   255→  1055→      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+   256→  1056→        <Card className="border-0 shadow-sm">
+   257→  1057→          <CardHeader className="pb-2 px-4 pt-4"><CardTitle className="text-sm font-semibold text-slate-700">Business Compliance</CardTitle></CardHeader>
+   258→  1058→          <CardContent className="px-4 pb-4">
+   259→  1059→            <ScrollArea className="max-h-[500px]">
+   260→  1060→              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   261→  1061→                {businesses.filter(b => b.passport).map(biz => (
+   262→  1062→                  <div key={biz.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-emerald-200 transition-colors">
+   263→  1063→                    <p className="text-xs font-semibold text-slate-800 mb-2 truncate">{biz.name}</p>
+   264→  1064→                    <div className="flex flex-wrap gap-1.5">
+   265→  1065→                      <Badge className={`border-0 text-[10px] ${STATUS_COLOR(biz.passport!.kycStatus)}`}>KYC: {biz.passport!.kycStatus.replace('_', ' ')}</Badge>
+   266→  1066→                      <Badge className={`border-0 text-[10px] ${STATUS_COLOR(biz.passport!.amlStatus)}`}>AML: {biz.passport!.amlStatus}</Badge>
+   267→  1067→                      <Badge className={`border-0 text-[10px] ${CREDENTIAL_COLOR(biz.passport!.credentialLevel)}`}>{biz.passport!.credentialLevel}</Badge>
+   268→  1068→                      <Badge className={`border-0 text-[10px] ${RISK_COLOR(biz.passport!.riskRating)}`}>Risk: {biz.passport!.riskRating}</Badge>
+   269→  1069→                    </div>
+   270→  1070→                  </div>
+   271→  1071→                ))}
+   272→  1072→              </div>
+   273→  1073→            </ScrollArea>
+   274→  1074→          </CardContent>
+   275→  1075→        </Card>
+   276→  1076→
+   277→  1077→        <Card className="border-0 shadow-sm">
+   278→  1078→          <CardHeader className="pb-2 px-4 pt-4"><CardTitle className="text-sm font-semibold text-slate-700">Recent Verifications</CardTitle></CardHeader>
+   279→  1079→          <CardContent className="px-4 pb-4">
+   280→  1080→            <ScrollArea className="max-h-[500px]">
+   281→  1081→              <Table>
+   282→  1082→                <TableHeader>
+   283→  1083→                  <TableRow className="hover:bg-transparent border-slate-100">
+   284→  1084→                    <TableHead className="text-xs font-semibold text-slate-500">Business</TableHead>
+   285→  1085→                    <TableHead className="text-xs font-semibold text-slate-500">Type</TableHead>
+   286→  1086→                    <TableHead className="text-xs font-semibold text-slate-500">Method</TableHead>
+   287→  1087→                    <TableHead className="text-xs font-semibold text-slate-500">Status</TableHead>
+   288→  1088→                    <TableHead className="text-xs font-semibold text-slate-500">Date</TableHead>
+   289→  1089→                  </TableRow>
+   290→  1090→                </TableHeader>
+   291→  1091→                <TableBody>
+   292→  1092→                  {verifications.slice(0, 20).map(v => (
+   293→  1093→                    <TableRow key={v.id} className="hover:bg-slate-50 transition-colors">
+   294→  1094→                      <TableCell className="text-xs text-slate-700 max-w-[120px] truncate">{v.business.name}</TableCell>
+   295→  1095→                      <TableCell className="text-xs text-slate-600">{VER_TYPE_LABELS[v.type] || v.type}</TableCell>
+   296→  1096→                      <TableCell className="text-xs text-slate-500 capitalize">{v.method}</TableCell>
+   297→  1097→                      <TableCell><Badge className={`border-0 text-[11px] ${STATUS_COLOR(v.status)}`}>{v.status}</Badge></TableCell>
+   298→  1098→                      <TableCell className="text-xs text-slate-500">{format(new Date(v.submittedAt), 'MMM dd')}</TableCell>
+   299→  1099→                    </TableRow>
+   300→  1100→                  ))}
+   301→  1101→                </TableBody>
+   302→  1102→              </Table>
+   303→  1103→            </ScrollArea>
+   304→  1104→          </CardContent>
+   305→  1105→        </Card>
+   306→  1106→      </div>
+   307→  1107→    </div>
+   308→  1108→  )
+   309→  1109→}
+   310→  1110→
+   311→  1111→// ═══════════════════════════════════════════════════════════════════════════════
+   312→  1112→// 6. DIGITAL TWIN TAB
+   313→  1113→// ═══════════════════════════════════════════════════════════════════════════════
+   314→  1114→
+   315→  1115→function DigitalTwinTab() {
+   316→  1116→  const [twins, setTwins] = useState<TwinProfile[]>([])
+   317→  1117→  const [selectedTwin, setSelectedTwin] = useState<TwinProfile | null>(null)
+   318→  1118→  const [metrics, setMetrics] = useState<any[]>([])
+   319→  1119→  const [predictions, setPredictions] = useState<any[]>([])
+   320→  1120→  const [loading, setLoading] = useState(true)
+   321→  1121→  const [loadedTwinId, setLoadedTwinId] = useState<string | null>(null)
+   322→  1122→  const metricsLoading = selectedTwin !== null && loadedTwinId !== selectedTwin.id
+   323→  1123→
+   324→  1124→  useEffect(() => {
+   325→  1125→    fetchJSON<TwinProfile[]>('/api/twin/profiles').then(d => {
+   326→  1126→      setTwins(d || [])
+   327→  1127→      if (d && d.length > 0) setSelectedTwin(d[0])
+   328→  1128→      setLoading(false)
+   329→  1129→    })
+   330→  1130→  }, [])
+   331→  1131→
+   332→  1132→  useEffect(() => {
+   333→  1133→    if (!selectedTwin || loadedTwinId === selectedTwin.id) return
+   334→  1134→    Promise.all([
+   335→  1135→      fetchJSON<any>(`/api/twin/profiles/${selectedTwin.id}/metrics`),
+   336→  1136→      fetchJSON<any>(`/api/twin/profiles/${selectedTwin.id}/predictions`),
+   337→  1137→    ]).then(([mRes, pRes]) => {
+   338→  1138→      setMetrics(mRes || [])
+   339→  1139→      setPredictions(pRes || [])
+   340→  1140→      setLoadedTwinId(selectedTwin.id)
+   341→  1141→    })
+   342→  1142→  }, [selectedTwin, loadedTwinId])
+   343→  1143→
+   344→  1144→  if (loading) return (
+   345→  1145→    <div className="space-y-6">
+   346→  1146→      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   347→  1147→        {[...Array(6)].map((_, i) => <Card key={i} className="border-0 shadow-sm"><CardContent className="p-4"><Skeleton className="h-4 w-24 mb-3" /><Skeleton className="h-10 w-10 rounded-full mx-auto mb-3" /><Skeleton className="h-3 w-20" /></CardContent></Card>)}
+   348→  1148→      </div>
+   349→  1149→    </div>
+   350→  1150→  )
+   351→  1151→
+   352→  1152→  const chartData = metrics
+   353→  1153→    .filter(m => m.period === 'monthly')
+   354→  1154→    .sort((a, b) => a.periodDate.localeCompare(b.periodDate))
+   355→  1155→    .map(m => ({
+   356→  1156→      date: m.periodDate,
+   357→  1157→      revenue: m.revenue || 0,
+   358→  1158→      expenses: m.expenses || 0,
+   359→  1159→      netIncome: m.netIncome || 0,
+   360→  1160→    }))
+   361→  1161→
+   362→  1162→  const twinPredictions = predictions.filter(p => selectedTwin && p.twinId === selectedTwin.id)
+   363→  1163→
+   364→  1164→  return (
+   365→  1165→    <div className="space-y-6">
+   366→  1166→      {/* Twin Cards Grid */}
+   367→  1167→      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   368→  1168→        {twins.slice(0, 12).map(twin => {
+   369→  1169→          const isSelected = selectedTwin?.id === twin.id
+   370→  1170→          return (
+   371→  1171→            <Card
+   372→  1172→              key={twin.id}
+   373→  1173→              className={`border-0 shadow-sm hover:shadow-md transition-all cursor-pointer ${isSelected ? 'ring-2 ring-emerald-500' : ''}`}
+   374→  1174→              onClick={() => { setLoadedTwinId(null); setSelectedTwin(twin) }}
+   375→  1175→            >
+   376→  1176→              <CardContent className="p-4">
+   377→  1177→                <div className="flex items-start justify-between mb-3">
+   378→  1178→                  <div className="min-w-0">
+   379→  1179→                    <p className="text-sm font-semibold text-slate-800 truncate">{twin.business.name}</p>
+   380→  1180→                    <p className="text-[11px] text-slate-500">{COUNTRY_FLAGS[twin.business.country]} {twin.business.industry}</p>
+   381→  1181→                  </div>
+   382→  1182→                  {/* Health Score Circle */}
+   383→  1183→                  <div className="relative h-12 w-12 flex-shrink-0">
+   384→  1184→                    <svg className="h-12 w-12 -rotate-90" viewBox="0 0 36 36">
+   385→  1185→                      <circle cx="18" cy="18" r="15" fill="none" stroke="#e2e8f0" strokeWidth="3" />
+   386→  1186→                      <circle cx="18" cy="18" r="15" fill="none" stroke={twin.healthScore >= 70 ? '#10b981' : twin.healthScore >= 40 ? '#f59e0b' : '#ef4444'} strokeWidth="3" strokeDasharray={`${twin.healthScore} ${100 - twin.healthScore}`} strokeLinecap="round" />
+   387→  1187→                    </svg>
+   388→  1188→                    <span className={`absolute inset-0 flex items-center justify-center text-[10px] font-bold ${TRUST_COLOR(twin.healthScore)}`}>
+   389→  1189→                      {twin.healthScore.toFixed(0)}
+   390→  1190→                    </span>
+   391→  1191→                  </div>
+   392→  1192→                </div>
+   393→  1193→                <div className="grid grid-cols-2 gap-2 mb-3">
+   394→  1194→                  <div className="text-center p-1.5 bg-slate-50 rounded">
+   395→  1195→                    <p className="text-[10px] text-slate-500">Cash Flow</p>
+   396→  1196→                    <p className={`text-xs font-semibold ${TRUST_COLOR(twin.cashFlowHealth)}`}>{twin.cashFlowHealth.toFixed(0)}</p>
+   397→  1197→                  </div>
+   398→  1198→                  <div className="text-center p-1.5 bg-slate-50 rounded">
+   399→  1199→                    <p className="text-[10px] text-slate-500">Credit</p>
+   400→  1200→                    <p className={`text-xs font-semibold ${TRUST_COLOR(twin.creditWorthiness)}`}>{twin.creditWorthiness.toFixed(0)}</p>
+   401→  1201→                  </div>
+   402→  1202→                </div>
+   403→  1203→                <div className="flex gap-1.5 flex-wrap">
+   404→  1204→                  {GROWTH_BADGE(twin.growthTrajectory)}
+   405→  1205→                  {RISK_APPETITE_BADGE(twin.riskAppetite)}
+   406→  1206→                </div>
+   407→  1207→              </CardContent>
+   408→  1208→            </Card>
+   409→  1209→          )
+   410→  1210→        })}
+   411→  1211→      </div>
+   412→  1212→
+   413→  1213→      {/* Selected Twin Details */}
+   414→  1214→      {selectedTwin && (
+   415→  1215→        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+   416→  1216→          {/* Metrics Chart */}
+   417→  1217→          <Card className="border-0 shadow-sm">
+   418→  1218→            <CardHeader className="pb-2 px-4 pt-4">
+   419→  1219→              <CardTitle className="text-sm font-semibold text-slate-700">Financial Metrics Trend</CardTitle>
+   420→  1220→              <CardDescription className="text-xs text-slate-500">{selectedTwin.business.name} — Monthly</CardDescription>
+   421→  1221→            </CardHeader>
+   422→  1222→            <CardContent className="px-4 pb-4">
+   423→  1223→              {metricsLoading ? (
+   424→  1224→                <Skeleton className="h-[280px] w-full" />
+   425→  1225→              ) : chartData.length > 0 ? (
+   426→  1226→                <ResponsiveContainer width="100%" height={280}>
+   427→  1227→                  <AreaChart data={chartData} margin={{ left: 0, right: 10, top: 5, bottom: 5 }}>
+   428→  1228→                    <defs>
+   429→  1229→                      <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2} /><stop offset="95%" stopColor="#10b981" stopOpacity={0} /></linearGradient>
+   430→  1230→                      <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} /><stop offset="95%" stopColor="#ef4444" stopOpacity={0} /></linearGradient>
+   431→  1231→                    </defs>
+   432→  1232→                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+   433→  1233→                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+   434→  1234→                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+   435→  1235→                    <RechartsTooltip formatter={(v: number) => [formatCurrency(v), '']} contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', fontSize: 12 }} />
+   436→  1236→                    <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
+   437→  1237→                    <Area type="monotone" dataKey="revenue" stroke="#10b981" fill="url(#revenueGrad)" strokeWidth={2} name="Revenue" />
+   438→  1238→                    <Area type="monotone" dataKey="expenses" stroke="#ef4444" fill="url(#expenseGrad)" strokeWidth={2} name="Expenses" />
+   439→  1239→                    <Line type="monotone" dataKey="netIncome" stroke="#f59e0b" strokeWidth={2} dot={false} name="Net Income" />
+   440→  1240→                  </AreaChart>
+   441→  1241→                </ResponsiveContainer>
+   442→  1242→              ) : (
+   443→  1243→                <div className="h-[280px] flex items-center justify-center text-slate-400 text-sm">No metric data available</div>
+   444→  1244→              )}
+   445→  1245→            </CardContent>
+   446→  1246→          </Card>
+   447→  1247→
+   448→  1248→          {/* AI Predictions Panel */}
+   449→  1249→          <Card className="border-0 shadow-sm">
+   450→  1250→            <CardHeader className="pb-2 px-4 pt-4">
+   451→  1251→              <CardTitle className="text-sm font-semibold text-slate-700">AI Predictions</CardTitle>
+   452→  1252→              <CardDescription className="text-xs text-slate-500">{selectedTwin.business.name} — Model {selectedTwin.aiModelVersion}</CardDescription>
+   453→  1253→            </CardHeader>
+   454→  1254→            <CardContent className="px-4 pb-4">
+   455→  1255→              {metricsLoading ? (
+   456→  1256→                <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+   457→  1257→              ) : twinPredictions.length > 0 ? (
+   458→  1258→                <div className="space-y-3">
+   459→  1259→                  {['revenue', 'cash_flow', 'risk', 'growth_rate'].map(predType => {
+   460→  1260→                    const preds = twinPredictions.filter(p => p.predictionType === predType).sort((a, b) => a.timeframe.localeCompare(b.timeframe))
+   461→  1261→                    if (preds.length === 0) return null
+   462→  1262→                    const latest = preds[0]
+   463→  1263→                    const label = predType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+   464→  1264→                    return (
+   465→  1265→                      <div key={predType} className="p-3 bg-slate-50 rounded-lg">
+   466→  1266→                        <div className="flex items-center justify-between mb-2">
+   467→  1267→                          <span className="text-xs font-semibold text-slate-700">{label}</span>
+   468→  1268→                          <Badge variant="outline" className="text-[10px]">{latest.timeframe}</Badge>
+   469→  1269→                        </div>
+   470→  1270→                        <div className="flex items-center gap-3">
+   471→  1271→                          <span className="text-lg font-bold text-slate-900">{formatCurrency(latest.predictedValue)}</span>
+   472→  1272→                          <div className="flex-1">
+   473→  1273→                            <div className="flex items-center gap-1 mb-0.5">
+   474→  1274→                              <span className="text-[10px] text-slate-500">Confidence</span>
+   475→  1275→                              <span className="text-[10px] font-semibold text-emerald-600">{(latest.confidence * 100).toFixed(0)}%</span>
+   476→  1276→                            </div>
+   477→  1277→                            <Progress value={latest.confidence * 100} className="h-1.5 bg-slate-200 [&>div]:bg-emerald-500" />
+   478→  1278→                          </div>
+   479→  1279→                        </div>
+   480→  1280→                        <div className="flex gap-3 mt-1.5 text-[10px] text-slate-400">
+   481→  1281→                          {latest.lowerBound !== null && latest.upperBound !== null && (
+   482→  1282→                            <>Range: {formatCurrency(latest.lowerBound)} — {formatCurrency(latest.upperBound)}</>
+   483→  1283→                          )}
+   484→  1284→                        </div>
+   485→  1285→                      </div>
+   486→  1286→                    )
+   487→  1287→                  })}
+   488→  1288→                </div>
+   489→  1289→              ) : (
+   490→  1290→                <div className="h-[280px] flex items-center justify-center text-slate-400 text-sm">No predictions available</div>
+   491→  1291→              )}
+   492→  1292→            </CardContent>
+   493→  1293→          </Card>
+   494→  1294→        </div>
+   495→  1295→      )}
+   496→  1296→    </div>
+   497→  1297→  )
+   498→  1298→}

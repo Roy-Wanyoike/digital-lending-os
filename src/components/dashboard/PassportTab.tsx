@@ -1,0 +1,119 @@
+'use client'
+
+import { motion } from 'framer-motion'
+import { CheckCircle, Clock, XCircle, Shield, AlertTriangle } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  useApi, getCountryFlag, formatDate, getStatusBadgeVariant, getStatusColor,
+  KPICard, LoadingSkeleton, type Business, type Verification,
+} from '@/lib/dashboard-helpers'
+
+export function PassportTab() {
+  const { data: businesses, loading: bLoading } = useApi<Business[]>('/api/businesses?limit=20')
+  const { data: verifications, loading: vLoading } = useApi<Verification[]>('/api/passport/verifications?limit=15')
+
+  if (bLoading || vLoading) return <LoadingSkeleton />
+
+  const allBiz = businesses || []
+  const allVerif = verifications || []
+
+  const kycCounts = { verified: 0, pending: 0, failed: 0 }
+  const amlCounts = { clear: 0, pending: 0, flagged: 0 }
+  allBiz.forEach(b => {
+    const ks = b.kycStatus?.toLowerCase() || 'pending'
+    if (ks === 'verified' || ks === 'approved' || ks === 'complete') kycCounts.verified++
+    else if (ks === 'failed' || ks === 'rejected') kycCounts.failed++
+    else kycCounts.pending++
+    const as = b.amlStatus?.toLowerCase() || 'pending'
+    if (as === 'clear' || as === 'passed') amlCounts.clear++
+    else if (as === 'flagged' || as === 'alert') amlCounts.flagged++
+    else amlCounts.pending++
+  })
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        <KPICard title="KYC Verified" value={kycCounts.verified.toString()} icon={CheckCircle} />
+        <KPICard title="KYC Pending" value={kycCounts.pending.toString()} icon={Clock} />
+        <KPICard title="KYC Failed" value={kycCounts.failed.toString()} icon={XCircle} />
+        <KPICard title="AML Clear" value={amlCounts.clear.toString()} icon={Shield} />
+        <KPICard title="AML Pending" value={amlCounts.pending.toString()} icon={Clock} />
+        <KPICard title="AML Flagged" value={amlCounts.flagged.toString()} icon={AlertTriangle} />
+      </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Compliance Grid</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+            {allBiz.map(biz => (
+              <Card key={biz.id} className="border">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Avatar className="h-8 w-8"><AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs">{biz.name?.charAt(0)}</AvatarFallback></Avatar>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{biz.name}</p>
+                      <p className="text-xs text-slate-500">{getCountryFlag(biz.country)} {biz.country}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex items-center gap-1">
+                      <Badge variant="outline" className={`text-[10px] ${biz.kycStatus?.toLowerCase() === 'verified' || biz.kycStatus?.toLowerCase() === 'approved' ? 'border-emerald-300 text-emerald-700' : 'border-amber-300 text-amber-700'}`}>KYC: {biz.kycStatus || 'Pending'}</Badge>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Badge variant="outline" className={`text-[10px] ${biz.amlStatus?.toLowerCase() === 'clear' || biz.amlStatus?.toLowerCase() === 'passed' ? 'border-emerald-300 text-emerald-700' : 'border-red-300 text-red-700'}`}>AML: {biz.amlStatus || 'Pending'}</Badge>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Badge variant="secondary" className="text-[10px]">{biz.credentialLevel || 'Basic'}</Badge>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Badge variant="secondary" className="text-[10px]">Risk: {biz.riskRating || 'Low'}</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Recent Verifications</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Business</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Result</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allVerif.map(v => (
+                  <TableRow key={v.id} className="even:bg-muted/50">
+                    <TableCell className="font-mono text-xs">{v.reference}</TableCell>
+                    <TableCell className="max-w-[120px] truncate">{v.businessName}</TableCell>
+                    <TableCell>{v.type}</TableCell>
+                    <TableCell><Badge variant={getStatusBadgeVariant(v.result)} className={getStatusColor(v.result)}>{v.result}</Badge></TableCell>
+                    <TableCell><Badge variant={getStatusBadgeVariant(v.status)} className={getStatusColor(v.status)}>{v.status}</Badge></TableCell>
+                    <TableCell className="text-xs text-slate-500">{formatDate(v.createdAt)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
+  )
+}

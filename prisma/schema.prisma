@@ -530,3 +530,333 @@ model Invoice {
   @@index([status])
   @@index([dueDate])
 }
+
+// ============================================================
+// MODULE 6: USERS & ROLES — Multi-view Access Control
+// ============================================================
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String
+  role            String   @default("viewer") // admin, buyer, seller, auditor, viewer
+  businessId      String?  // which business this user belongs to
+  avatarUrl       String?
+  isActive        Boolean  @default(true)
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([role])
+  @@index([businessId])
+  @@index([isActive])
+}
+
+// ============================================================
+// MODULE 7: PAYMENT LINKS — Shareable Payment URLs
+// ============================================================
+
+model PaymentLink {
+  id              String   @id @default(cuid())
+  linkRef         String   @unique
+  businessId      String
+  title           String?
+  description     String?
+  amount          Float    // 0 = open amount (payer decides)
+  currency        String   @default("USD")
+  allowedMethods  String   @default("[]") // JSON array of allowed payment method types
+  allowedCountries String?  // JSON array of country codes, null = all
+  maxPayments     Int      @default(1) // 0 = unlimited
+  paymentCount    Int      @default(0)
+  totalCollected  Float    @default(0)
+  status          String   @default("active") // active, paused, expired, depleted
+  expiresAt       DateTime?
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  payments        PaymentLinkPayment[]
+
+  @@index([businessId])
+  @@index([status])
+  @@index([currency])
+  @@index([createdAt])
+}
+
+model PaymentLinkPayment {
+  id              String   @id @default(cuid())
+  paymentLinkId   String
+  payerName       String?
+  payerEmail      String?
+  payerCountry    String?
+  amount          Float
+  currency        String
+  paymentMethod   String   // bank_transfer, card, mobile_money, digital_wallet, crypto, upi, pix, mpesa, etc.
+  provider        String?
+  status          String   @default("pending") // pending, processing, completed, failed, refunded
+  feeAmount       Float?
+  netAmount       Float?
+  providerTxId    String?
+  metadata        String?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  paymentLink     PaymentLink @relation(fields: [paymentLinkId], references: [id], onDelete: Cascade)
+
+  @@index([paymentLinkId])
+  @@index([status])
+  @@index([payerCountry])
+  @@index([paymentMethod])
+  @@index([createdAt])
+}
+
+// ============================================================
+// MODULE 8: GLOBAL PAYMENT METHODS CATALOG
+// ============================================================
+
+model GlobalPaymentMethod {
+  id              String   @id @default(cuid())
+  methodCode      String   // mpesa, upi, pix, alipay, wechat_pay, gcash, grabpay, ovo, dana, bca, promptpay, fps, sepa, ach, swift, etc.
+  methodName      String   // M-Pesa, UPI, PIX, Alipay, etc.
+  provider        String   // safaricom, npci, bcb, ant_group, tencent, gcash, grab, etc.
+  type            String   // mobile_money, digital_wallet, bank_transfer, card, crypto, real_time_payment
+  countries       String   // JSON array of ISO country codes where available
+  currencies      String   // JSON array of supported currency codes
+  minAmount       Float?
+  maxAmount       Float?
+  feePercent      Float    @default(0) // percentage fee
+  fixedFee        Float    @default(0) // fixed fee per transaction
+  settlementTime  Int?     // settlement time in minutes
+  isActive        Boolean  @default(true)
+  icon            String?  // emoji or icon name
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([methodCode])
+  @@index([type])
+  @@index([isActive])
+}
+
+// ============================================================
+// MODULE 9: MULTI-CURRENCY WALLET
+// ============================================================
+
+model Wallet {
+  id              String   @id @default(cuid())
+  businessId      String
+  currency        String
+  balance         Float    @default(0)
+  availableBalance Float   @default(0)
+  pendingBalance  Float    @default(0)
+  frozenBalance   Float    @default(0)
+  isDefault       Boolean  @default(false)
+  status          String   @default("active") // active, frozen, closed
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  transactions    WalletTransaction[]
+
+  @@unique([businessId, currency])
+  @@index([businessId])
+  @@index([currency])
+  @@index([status])
+}
+
+model WalletTransaction {
+  id              String   @id @default(cuid())
+  walletId        String
+  txRef           String   @unique
+  type            String   // credit, debit, transfer_in, transfer_out, conversion, fee, refund
+  amount          Float
+  balanceBefore   Float
+  balanceAfter    Float
+  currency        String
+  description     String?
+  referenceType   String?  // escrow, payment_link, invoice, transfer, conversion
+  referenceId     String?
+  counterpartyId  String?  // other wallet/business involved
+  status          String   @default("completed") // pending, completed, failed, reversed
+  metadata        String?
+  createdAt       DateTime @default(now())
+
+  wallet          Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([type])
+  @@index([referenceType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================================
+// MODULE 10: AI FRAUD DETECTION
+// ============================================================
+
+model FraudAlert {
+  id              String   @id @default(cuid())
+  alertRef        String   @unique
+  businessId      String?
+  relatedType     String   // escrow, payment_intent, payment_link, wallet
+  relatedId       String?
+  severity        String   @default("medium") // low, medium, high, critical
+  fraudType       String   // unusual_amount, velocity_breach, geo_mismatch, sanctioned_entity, fake_identity, account_takeover, structure_pattern
+  score           Float    // 0-100 fraud confidence score
+  description     String
+  recommendation  String?
+  status          String   @default("open") // open, investigating, confirmed_fraud, false_positive, escalated, resolved
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([severity])
+  @@index([fraudType])
+  @@index([status])
+  @@index([score])
+  @@index([createdAt])
+}
+
+model FraudRule {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  condition       String   // JSON rule definition
+  action          String   // alert, block, require_review, flag
+  severity        String   @default("medium")
+  isActive        Boolean  @default(true)
+  triggerCount    Int      @default(0)
+  lastTriggeredAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([severity])
+}
+
+// ============================================================
+// MODULE 11: BUSINESS MATCHING — AI Buyer-Supplier Discovery
+// ============================================================
+
+model BusinessMatch {
+  id              String   @id @default(cuid())
+  seekerId        String   // business looking for a match
+  candidateId     String   // business being matched
+  matchType       String   // supplier, buyer, partner, logistics, financial
+  matchScore      Float    // 0-100 AI compatibility score
+  reasons         String?  // JSON array of match reasons
+  status          String   @default("suggested") // suggested, contacted, interested, declined, engaged
+  seekerResponse  String?
+  candidateResponse String?
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([seekerId, candidateId, matchType])
+  @@index([seekerId])
+  @@index([candidateId])
+  @@index([matchScore])
+  @@index([status])
+}
+
+// ============================================================
+// MODULE 12: AI COLLECTIONS — Payment Reminders & Aging
+// ============================================================
+
+model CollectionCase {
+  id              String   @id @default(cuid())
+  caseRef         String   @unique
+  invoiceId       String?
+  businessId      String   // creditor
+  debtorId        String
+  originalAmount  Float
+  outstandingAmount Float
+  currency        String
+  agingBucket     String   @default("current") // current, 1-30, 31-60, 61-90, 90+
+  priority        String   @default("normal") // low, normal, high, urgent
+  status          String   @default("active") // active, paused, resolved, written_off, escalated
+  reminderCount   Int      @default(0)
+  lastReminderAt  DateTime?
+  nextReminderDue DateTime?
+  aiStrategy      String?  // AI-recommended collection strategy
+  resolution      String?
+  resolvedAt      DateTime?
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  reminders       CollectionReminder[]
+
+  @@index([businessId])
+  @@index([debtorId])
+  @@index([agingBucket])
+  @@index([priority])
+  @@index([status])
+}
+
+model CollectionReminder {
+  id              String   @id @default(cuid())
+  caseId          String
+  channel         String   // email, sms, whatsapp, in_app
+  template        String   // friendly, firm, final, legal
+  status          String   @default("sent") // sent, delivered, read, failed
+  sentAt          DateTime @default(now())
+  response        String?
+  respondedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  case            CollectionCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+  @@index([channel])
+  @@index([status])
+}
+
+// ============================================================
+// MODULE 13: COMPLIANCE ENGINE — Rules & Screening
+// ============================================================
+
+model ComplianceRule {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  ruleType        String   // sanctions_check, kyc_requirement, aml_threshold, transaction_limit, country_restriction, industry_restriction
+  condition       String   // JSON rule definition
+  action          String   // block, flag_for_review, require_additional_doc, allow
+  severity        String   @default("medium") // low, medium, high, critical
+  isActive        Boolean  @default(true)
+  triggeredCount  Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([ruleType])
+  @@index([isActive])
+  @@index([severity])
+}
+
+model ComplianceScreening {
+  id              String   @id @default(cuid())
+  businessId      String?
+  transactionType String?  // escrow, payment, wallet
+  transactionId   String?
+  screeningType   String   // sanctions, pep, adverse_media, country_risk
+  result          String   // clear, match, potential_match, alert
+  riskLevel       String   // low, medium, high, critical
+  details         String?
+  matchedLists    String?  // JSON array of matched sanction/list names
+  status          String   @default("completed") // pending, in_progress, completed, escalated
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([screeningType])
+  @@index([result])
+  @@index([riskLevel])
+  @@index([status])
+  @@index([createdAt])
+}
