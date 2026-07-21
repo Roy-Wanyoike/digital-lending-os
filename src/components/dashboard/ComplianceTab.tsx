@@ -58,7 +58,7 @@ export function ComplianceTab() {
                 {allRules.map(r => (
                   <TableRow key={r.id} className="even:bg-muted/50">
                     <TableCell className="font-medium">{r.name}</TableCell>
-                    <TableCell><Badge variant="outline" className="text-xs">{r.type}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className="text-xs">{r.ruleType}</Badge></TableCell>
                     <TableCell><Badge variant="outline" className="text-xs">{r.action}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(r.severity)} className={getStatusColor(r.severity)}>{r.severity}</Badge></TableCell>
                     <TableCell className="font-medium">{r.triggerCount}</TableCell>
@@ -90,8 +90,8 @@ export function ComplianceTab() {
               <TableBody>
                 {allScreenings.map(s => (
                   <TableRow key={s.id} className="even:bg-muted/50">
-                    <TableCell className="max-w-[120px] truncate">{s.businessName || '—'}</TableCell>
-                    <TableCell className="text-sm">{s.type}</TableCell>
+                    <TableCell className="max-w-[120px] truncate">{'—'}</TableCell>
+                    <TableCell className="text-sm">{s.screeningType}</TableCell>
                     <TableCell><Badge variant="secondary" className={`text-xs ${screeningResultColor(s.result)}`}>{s.result}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(s.riskLevel)} className={getStatusColor(s.riskLevel)}>{s.riskLevel}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(s.status)} className={getStatusColor(s.status)}>{s.status}</Badge></TableCell>

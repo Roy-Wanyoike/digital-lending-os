@@ -51,7 +51,7 @@ export function MatchingTab() {
                   <TableRow key={m.id} className={`even:bg-muted/50 ${m.matchScore > 85 ? 'bg-emerald-50/50' : ''}`}>
                     <TableCell className="font-medium max-w-[120px] truncate">{m.seekerName}</TableCell>
                     <TableCell className="max-w-[120px] truncate">{m.candidateName}</TableCell>
-                    <TableCell><Badge variant="outline" className="text-xs">{m.type}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className="text-xs">{m.matchType}</Badge></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Progress value={m.matchScore} className="h-2 w-16" />
@@ -59,7 +59,7 @@ export function MatchingTab() {
                       </div>
                     </TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(m.status)} className={getStatusColor(m.status)}>{m.status}</Badge></TableCell>
-                    <TableCell className="text-xs max-w-[200px] truncate">{(m.reasons || []).slice(0, 2).join(', ')}</TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate">{(() => { try { const r = JSON.parse(m.reasons || '[]'); return Array.isArray(r) ? r.slice(0,2).join(', ') : m.reasons } catch { return m.reasons } })()}</TableCell>
                     <TableCell className="text-xs text-slate-500">{formatDate(m.createdAt)}</TableCell>
                   </TableRow>
                 ))}

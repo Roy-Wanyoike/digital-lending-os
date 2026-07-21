@@ -22,7 +22,7 @@ export function PaymentLinksTab() {
   const allLinks = links || []
   const totalLinks = allLinks.length
   const activeLinks = allLinks.filter(l => l.status?.toLowerCase() === 'active').length
-  const totalCollected = allLinks.reduce((sum, l) => sum + (l.totalCollected || 0), 0)
+  const totalCollected = 0
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -51,13 +51,13 @@ export function PaymentLinksTab() {
               <TableBody>
                 {allLinks.map(link => (
                   <TableRow key={link.id} className="even:bg-muted/50 cursor-pointer hover:bg-muted" onClick={() => setSelectedLink(link)}>
-                    <TableCell className="font-mono text-xs">{link.reference}</TableCell>
+                    <TableCell className="font-mono text-xs">{link.linkRef}</TableCell>
                     <TableCell className="font-medium max-w-[150px] truncate">{link.title}</TableCell>
                     <TableCell>{link.amount ? formatCurrency(link.amount, link.currency) : <Badge variant="outline">Open</Badge>}</TableCell>
                     <TableCell>{CURRENCY_FLAGS[link.currency]} {link.currency}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(link.status)} className={getStatusColor(link.status)}>{link.status}</Badge></TableCell>
-                    <TableCell className="text-xs">{link.paymentCount}{link.maxPayments ? `/${link.maxPayments}` : ''}</TableCell>
-                    <TableCell className="font-medium text-emerald-600">{formatCurrency(link.totalCollected, link.currency)}</TableCell>
+                    <TableCell className="text-xs">{link._paymentCount ?? 0}{link.maxPayments ? `/${link.maxPayments}` : ''}</TableCell>
+                    <TableCell className="font-medium text-emerald-600">{formatCurrency(0, link.currency)}</TableCell>
                     <TableCell className="text-xs text-slate-500">{formatDate(link.createdAt)}</TableCell>
                   </TableRow>
                 ))}
@@ -71,7 +71,7 @@ export function PaymentLinksTab() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{selectedLink?.title}</DialogTitle>
-            <DialogDescription>{selectedLink?.reference}</DialogDescription>
+            <DialogDescription>{selectedLink?.linkRef}</DialogDescription>
           </DialogHeader>
           {selectedLink && (
             <div className="space-y-4">
@@ -82,7 +82,7 @@ export function PaymentLinksTab() {
                 </div>
                 <div>
                   <p className="text-slate-500">Collected</p>
-                  <p className="font-medium text-emerald-600">{formatCurrency(selectedLink.totalCollected, selectedLink.currency)}</p>
+                  <p className="font-medium text-emerald-600">{formatCurrency(0, selectedLink.currency)}</p>
                 </div>
                 <div>
                   <p className="text-slate-500">Status</p>
@@ -90,7 +90,7 @@ export function PaymentLinksTab() {
                 </div>
                 <div>
                   <p className="text-slate-500">Payments</p>
-                  <p className="font-medium">{selectedLink.paymentCount}{selectedLink.maxPayments ? ` / ${selectedLink.maxPayments}` : ''}</p>
+                  <p className="font-medium">{selectedLink._paymentCount ?? 0}{selectedLink.maxPayments ? ` / ${selectedLink.maxPayments}` : ''}</p>
                 </div>
               </div>
               <Separator />

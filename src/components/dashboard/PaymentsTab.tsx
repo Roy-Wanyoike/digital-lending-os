@@ -36,11 +36,11 @@ export function PaymentsTab() {
             <Card key={rate.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <span>{CURRENCY_FLAGS[rate.fromCurrency]}</span>
+                  <span>{CURRENCY_FLAGS[rate.from]}</span>
                   <ArrowRight className="h-3 w-3 text-slate-400" />
-                  <span>{CURRENCY_FLAGS[rate.toCurrency]}</span>
+                  <span>{CURRENCY_FLAGS[rate.to]}</span>
                 </div>
-                <p className="text-lg font-bold">{rate.fromCurrency}/{rate.toCurrency}</p>
+                <p className="text-lg font-bold">{rate.from}/{rate.to}</p>
                 <p className="text-2xl font-bold text-emerald-600">{rate.rate?.toFixed(4)}</p>
                 <p className="text-xs text-slate-500 mt-1">{rate.provider}</p>
               </CardContent>
@@ -71,16 +71,16 @@ export function PaymentsTab() {
               <TableBody>
                 {allIntents.slice(0, 15).map(pi => (
                   <TableRow key={pi.id} className="even:bg-muted/50">
-                    <TableCell className="font-mono text-xs">{pi.reference}</TableCell>
+                    <TableCell className="font-mono text-xs">{pi.intentRef}</TableCell>
                     <TableCell className="text-xs">
                       <span className="flex items-center gap-1">
-                        {CURRENCY_FLAGS[pi.fromCurrency]} {pi.fromCurrency}
+                        {CURRENCY_FLAGS[pi.sourceCurrency]} {pi.sourceCurrency}
                         <ArrowRight className="h-3 w-3 text-slate-400" />
-                        {CURRENCY_FLAGS[pi.toCurrency]} {pi.toCurrency}
+                        {CURRENCY_FLAGS[pi.targetCurrency]} {pi.targetCurrency}
                       </span>
                     </TableCell>
-                    <TableCell className="font-medium">{formatCurrency(pi.fromAmount, pi.fromCurrency)}</TableCell>
-                    <TableCell><Badge variant="outline" className="text-xs">{pi.provider}</Badge></TableCell>
+                    <TableCell className="font-medium">{formatCurrency(pi.sourceAmount, pi.sourceCurrency)}</TableCell>
+                    <TableCell><Badge variant="outline" className="text-xs">{pi.routingProvider}</Badge></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -90,7 +90,7 @@ export function PaymentsTab() {
                       </div>
                     </TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(pi.status)} className={getStatusColor(pi.status)}>{pi.status}</Badge></TableCell>
-                    <TableCell className="text-xs">{formatCurrency(pi.fee)}</TableCell>
+                    <TableCell className="text-xs">{formatCurrency(pi.estimatedFee)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -125,10 +125,10 @@ export function PaymentsTab() {
                       <p className="text-xs text-slate-500">{m.provider}</p>
                       <div className="flex flex-wrap gap-1 mt-2">
                         <Badge variant="secondary" className="text-[10px]">{m.type}</Badge>
-                        <span className="text-[10px] text-slate-500">{m.countries?.length || 0} countries</span>
+                        <span className="text-[10px] text-slate-500">{(() => { try { return JSON.parse(m.countries || '[]').length } catch { return 0 } })()} countries</span>
                       </div>
                       <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-500">
-                        <span>Fee: {m.feePercentage}% + {formatCurrency(m.fixedFee)}</span>
+                        <span>Fee: {m.feePercent ?? 0}% + {formatCurrency(m.fixedFee)}</span>
                         <span>·</span>
                         <span>{m.settlementTime}</span>
                       </div>

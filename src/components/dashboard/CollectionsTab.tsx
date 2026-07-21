@@ -19,8 +19,8 @@ export function CollectionsTab() {
 
   const agingCounts = AGING_BUCKETS.map(a => ({
     bucket: a,
-    count: allCollections.filter(c => c.aging === a).length,
-    total: allCollections.filter(c => c.aging === a).reduce((sum, c) => sum + c.outstandingAmount, 0),
+    count: allCollections.filter(c => c.agingBucket?.toLowerCase() === a.toLowerCase()).length,
+    total: allCollections.filter(c => c.agingBucket?.toLowerCase() === a.toLowerCase()).reduce((sum, c) => sum + c.outstandingAmount, 0),
   }))
   const agingColors = ['#10b981', '#84cc16', '#f59e0b', '#f97316', '#ef4444']
 
@@ -31,17 +31,19 @@ export function CollectionsTab() {
   const priorityColors: Record<string, string> = { Urgent: '#ef4444', High: '#f97316', Normal: '#f59e0b', Low: '#10b981' }
 
   const agingBadgeColor = (aging: string) => {
-    if (aging === 'Current') return 'bg-emerald-100 text-emerald-700'
-    if (aging === '1-30') return 'bg-lime-100 text-lime-700'
-    if (aging === '31-60') return 'bg-amber-100 text-amber-700'
-    if (aging === '61-90') return 'bg-orange-100 text-orange-700'
+    const a = aging?.toLowerCase() || ''
+    if (a === 'current') return 'bg-emerald-100 text-emerald-700'
+    if (a === '1-30') return 'bg-lime-100 text-lime-700'
+    if (a === '31-60') return 'bg-amber-100 text-amber-700'
+    if (a === '61-90') return 'bg-orange-100 text-orange-700'
     return 'bg-red-100 text-red-700'
   }
 
   const priorityBadgeColor = (p: string) => {
-    if (p === 'Urgent') return 'bg-red-100 text-red-700'
-    if (p === 'High') return 'bg-orange-100 text-orange-700'
-    if (p === 'Normal') return 'bg-amber-100 text-amber-700'
+    const v = p?.toLowerCase() || ''
+    if (v === 'urgent') return 'bg-red-100 text-red-700'
+    if (v === 'high') return 'bg-orange-100 text-orange-700'
+    if (v === 'normal') return 'bg-amber-100 text-amber-700'
     return 'bg-emerald-100 text-emerald-700'
   }
 
@@ -94,15 +96,15 @@ export function CollectionsTab() {
               <TableBody>
                 {allCollections.map(c => (
                   <TableRow key={c.id} className="even:bg-muted/50">
-                    <TableCell className="font-mono text-xs">{c.reference}</TableCell>
+                    <TableCell className="font-mono text-xs">{c.caseRef}</TableCell>
                     <TableCell className="max-w-[100px] truncate">{c.debtorName}</TableCell>
                     <TableCell className="text-sm">{formatCurrency(c.originalAmount, c.currency)}</TableCell>
                     <TableCell className="font-medium">{formatCurrency(c.outstandingAmount, c.currency)}</TableCell>
-                    <TableCell><Badge variant="secondary" className={`text-[10px] ${agingBadgeColor(c.aging)}`}>{c.aging}</Badge></TableCell>
+                    <TableCell><Badge variant="secondary" className={`text-[10px] ${agingBadgeColor(c.agingBucket ?? '')}`}>{c.agingBucket}</Badge></TableCell>
                     <TableCell><Badge variant="secondary" className={`text-[10px] ${priorityBadgeColor(c.priority)}`}>{c.priority}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(c.status)} className={getStatusColor(c.status)}>{c.status}</Badge></TableCell>
-                    <TableCell className="text-center">{c.reminderCount}</TableCell>
-                    <TableCell className="max-w-[150px] truncate text-xs text-slate-500">{truncate(c.aiStrategy, 35)}</TableCell>
+                    <TableCell className="text-center">{c.reminderCount ?? 0}</TableCell>
+                    <TableCell className="max-w-[150px] truncate text-xs text-slate-500">{truncate(c.aiStrategy || '—', 35)}</TableCell>
                     <TableCell className="text-xs text-slate-500">{formatDate(c.createdAt)}</TableCell>
                   </TableRow>
                 ))}

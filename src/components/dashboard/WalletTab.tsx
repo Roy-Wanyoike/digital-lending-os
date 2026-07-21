@@ -2,17 +2,15 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
-  useApi, formatCurrency, CURRENCY_FLAGS, formatDate,
+  useApi, formatCurrency, CURRENCY_FLAGS,
   LoadingSkeleton, type Business, type WalletData,
 } from '@/lib/dashboard-helpers'
 
 export function WalletTab() {
-  const { data: businesses, loading: bLoading } = useApi<Business[]>('/api/businesses?limit=1')
+  const { data: businesses, loading: bLoading } = useApi<Business[]>('/api/businesses?limit=50')
   const [selectedBizId, setSelectedBizId] = useState<string>('')
   const bizId = selectedBizId || businesses?.[0]?.id || ''
   const { data: wallets, loading: wLoading } = useApi<WalletData[]>(bizId ? `/api/wallets?businessId=${bizId}` : '')
@@ -23,8 +21,6 @@ export function WalletTab() {
   const totalPortfolio = allWallets.reduce((sum, w) => {
     try { return sum + w.balance * (w.currency === 'NGN' ? 0.00065 : w.currency === 'KES' ? 0.0077 : w.currency === 'GHS' ? 0.088 : w.currency === 'EUR' ? 1.08 : w.currency === 'GBP' ? 1.26 : 1) } catch { return sum }
   }, 0)
-
-  const firstWallet = allWallets[0]
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -65,42 +61,14 @@ export function WalletTab() {
         ))}
       </div>
 
-      {firstWallet && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Recent Transactions</CardTitle>
-            <CardDescription>{CURRENCY_FLAGS[firstWallet.currency]} {firstWallet.currency} wallet</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Reference</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(firstWallet.transactions || []).slice(0, 10).map(tx => (
-                    <TableRow key={tx.id} className="even:bg-muted/50">
-                      <TableCell className="font-mono text-xs">{tx.reference}</TableCell>
-                      <TableCell><Badge variant="secondary" className="text-xs">{tx.type}</Badge></TableCell>
-                      <TableCell className={`font-medium ${tx.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {tx.amount >= 0 ? '+' : ''}{formatCurrency(Math.abs(tx.amount), tx.currency)}
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate text-sm">{tx.description}</TableCell>
-                      <TableCell className="text-xs text-slate-500">{formatDate(tx.createdAt)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+      {allWallets.length === 0 && bizId && !wLoading && (
+        <Card className="border-dashed">
+          <CardContent className="p-12 text-center">
+            <p className="text-slate-500">No wallets found for this business. Try selecting a different business.</p>
           </CardContent>
         </Card>
       )}
+
     </motion.div>
   )
 }

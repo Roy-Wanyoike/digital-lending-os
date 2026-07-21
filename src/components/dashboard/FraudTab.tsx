@@ -72,9 +72,9 @@ export function FraudTab() {
               <TableBody>
                 {allAlerts.map(a => (
                   <TableRow key={a.id} className="even:bg-muted/50">
-                    <TableCell className="font-mono text-xs">{a.reference}</TableCell>
+                    <TableCell className="font-mono text-xs">{a.alertRef}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(a.severity)} className={getStatusColor(a.severity)}>{a.severity}</Badge></TableCell>
-                    <TableCell className="text-sm">{a.type}</TableCell>
+                    <TableCell className="text-sm">{a.fraudType}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -83,7 +83,7 @@ export function FraudTab() {
                         <span className={`text-xs font-medium ${getRiskColor(a.score)}`}>{a.score}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-[100px] truncate">{a.businessName}</TableCell>
+                    <TableCell className="max-w-[100px] truncate">{a.businessId?.slice(0, 8) + '...' || '—'}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(a.status)} className={getStatusColor(a.status)}>{a.status}</Badge></TableCell>
                     <TableCell className="max-w-[150px] truncate text-xs">{truncate(a.description, 40)}</TableCell>
                     <TableCell className="text-xs text-slate-500">{formatDate(a.createdAt)}</TableCell>
@@ -105,20 +105,18 @@ export function FraudTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
                   <TableHead>Action</TableHead>
                   <TableHead>Severity</TableHead>
-                  <TableHead>Trigger Count</TableHead>
-                </TableRow>
+                  <TableHead>Triggered</TableHead>
+                  </TableRow>
               </TableHeader>
               <TableBody>
                 {allRules.map(r => (
                   <TableRow key={r.id} className="even:bg-muted/50">
                     <TableCell className="font-medium">{r.name}</TableCell>
-                    <TableCell className="text-sm">{r.type}</TableCell>
                     <TableCell><Badge variant="outline" className="text-xs">{r.action}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(r.severity)} className={getStatusColor(r.severity)}>{r.severity}</Badge></TableCell>
-                    <TableCell className="font-medium">{r.triggerCount}</TableCell>
+                    <TableCell className="font-medium">{r.triggerCount ?? 0}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -42,9 +42,9 @@ export function DigitalTwinTab() {
           <Card key={twin.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedTwin(twin)}>
             <CardContent className="p-4 sm:p-6 text-center">
               <CircularScore score={twin.healthScore} size={90} />
-              <p className="font-medium mt-3 truncate">{twin.businessName}</p>
-              <p className="text-xs text-slate-500">Cash Flow: {twin.cashFlow || 'Positive'}</p>
-              <p className="text-xs text-slate-500">Credit: <span className="font-medium">{twin.creditScore}</span></p>
+              <p className="font-medium mt-3 truncate">{twin.business?.name}</p>
+              <p className="text-xs text-slate-500">Cash Flow: {twin.cashFlowHealth?.toFixed(0)}/100</p>
+              <p className="text-xs text-slate-500">Credit: <span className="font-medium">{twin.creditWorthiness}</span></p>
               <div className="flex justify-center gap-2 mt-2">
                 <Badge variant="secondary" className={`text-[10px] ${trajectoryColor(twin.growthTrajectory)}`}>{twin.growthTrajectory || 'Stable'}</Badge>
                 <Badge variant="secondary" className={`text-[10px] ${riskAppetiteColor(twin.riskAppetite)}`}>{twin.riskAppetite || 'Moderate'}</Badge>
@@ -57,7 +57,7 @@ export function DigitalTwinTab() {
       <Dialog open={!!selectedTwin} onOpenChange={() => setSelectedTwin(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Digital Twin - {selectedTwin?.businessName}</DialogTitle>
+            <DialogTitle>Digital Twin - {selectedTwin?.business?.name}</DialogTitle>
             <DialogDescription>AI-generated business profile and predictions</DialogDescription>
           </DialogHeader>
           {selectedTwin && (
@@ -67,7 +67,7 @@ export function DigitalTwinTab() {
                 <div className="space-y-1">
                   <p className="text-2xl font-bold">{selectedTwin.healthScore}<span className="text-sm text-slate-500 font-normal">/100</span></p>
                   <p className="text-sm text-slate-500">Health Score</p>
-                  <p className="text-sm">Cash Flow: {selectedTwin.cashFlow} · Credit: {selectedTwin.creditScore}</p>
+                  <p className="text-sm">Cash Flow: {selectedTwin.cashFlowHealth?.toFixed(0)}/100 · Credit: {selectedTwin.creditWorthiness}</p>
                 </div>
               </div>
 

@@ -66,10 +66,10 @@ export function TrustGraphTab() {
                     <TableCell>{biz.industry}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(biz.status)} className={getStatusColor(biz.status)}>{biz.status}</Badge></TableCell>
                     <TableCell>
-                      <span className={`font-bold ${getTrustScoreColor(biz.trustScore)}`}>{biz.trustScore}</span>
+                      <span className={`font-bold ${getTrustScoreColor(biz.trustScore?.overallScore)}`}>{biz.trustScore?.overallScore ?? 'N/A'}</span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-xs">{biz.passportLevel || 'N/A'}</Badge>
+                      <Badge variant="outline" className="text-xs">{biz.passport?.credentialLevel || 'N/A'}</Badge>
                     </TableCell>
                     <TableCell><ChevronRight className="h-4 w-4 text-slate-400" /></TableCell>
                   </TableRow>
@@ -89,26 +89,26 @@ export function TrustGraphTab() {
           {selectedBiz && (
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <CircularScore score={selectedBiz.trustScore} size={80} />
+                <CircularScore score={selectedBiz.trustScore?.overallScore} size={80} />
                 <div>
-                  <p className="text-2xl font-bold">{selectedBiz.trustScore}<span className="text-sm text-slate-500 font-normal">/100</span></p>
+                  <p className="text-2xl font-bold">{selectedBiz.trustScore?.overallScore ?? 'N/A'}<span className="text-sm text-slate-500 font-normal">/100</span></p>
                   <p className="text-sm text-slate-500">Overall Trust Score</p>
                 </div>
               </div>
               <Separator />
               <div className="space-y-3">
-                <ScoreBar score={Math.min(100, selectedBiz.trustScore * 1.05)} maxScore={100} label="Identity Verification" />
-                <ScoreBar score={Math.min(100, selectedBiz.trustScore * 0.95)} maxScore={100} label="Financial Health" />
-                <ScoreBar score={Math.min(100, selectedBiz.trustScore * 1.0)} maxScore={100} label="Compliance" />
-                <ScoreBar score={Math.min(100, selectedBiz.trustScore * 0.9)} maxScore={100} label="Reputation" />
-                <ScoreBar score={Math.min(100, selectedBiz.trustScore * 0.85)} maxScore={100} label="Network Strength" />
+                <ScoreBar score={Math.min(100, (selectedBiz.trustScore?.overallScore ?? 0) * 1.05)} maxScore={100} label="Identity Verification" />
+                <ScoreBar score={Math.min(100, (selectedBiz.trustScore?.overallScore ?? 0) * 0.95)} maxScore={100} label="Financial Health" />
+                <ScoreBar score={Math.min(100, (selectedBiz.trustScore?.overallScore ?? 0) * 1.0)} maxScore={100} label="Compliance" />
+                <ScoreBar score={Math.min(100, (selectedBiz.trustScore?.overallScore ?? 0) * 0.9)} maxScore={100} label="Reputation" />
+                <ScoreBar score={Math.min(100, (selectedBiz.trustScore?.overallScore ?? 0) * 0.85)} maxScore={100} label="Network Strength" />
               </div>
               <Separator />
               <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">KYC: {selectedBiz.kycStatus || 'Pending'}</Badge>
-                <Badge variant="outline">AML: {selectedBiz.amlStatus || 'Pending'}</Badge>
-                <Badge variant="outline">Level: {selectedBiz.credentialLevel || 'Basic'}</Badge>
-                <Badge variant="outline">Risk: {selectedBiz.riskRating || 'Low'}</Badge>
+                <Badge variant="outline">KYC: {selectedBiz.passport?.kycStatus || 'Pending'}</Badge>
+                <Badge variant="outline">AML: {selectedBiz.passport?.amlStatus || 'Pending'}</Badge>
+                <Badge variant="outline">Level: {selectedBiz.passport?.credentialLevel || 'Basic'}</Badge>
+                <Badge variant="outline">Risk: {selectedBiz.passport?.riskRating || 'Low'}</Badge>
               </div>
             </div>
           )}

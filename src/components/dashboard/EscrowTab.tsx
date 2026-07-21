@@ -66,9 +66,9 @@ export function EscrowTab() {
               <TableBody>
                 {filtered.slice(0, 15).map(txn => (
                   <TableRow key={txn.id} className="even:bg-muted/50">
-                    <TableCell className="font-mono text-xs">{txn.reference}</TableCell>
-                    <TableCell className="max-w-[100px] truncate">{txn.buyerBusinessName}</TableCell>
-                    <TableCell className="max-w-[100px] truncate">{txn.sellerBusinessName}</TableCell>
+                    <TableCell className="font-mono text-xs">{txn.txRef}</TableCell>
+                    <TableCell className="max-w-[100px] truncate">{txn.buyer?.name}</TableCell>
+                    <TableCell className="max-w-[100px] truncate">{txn.seller?.name}</TableCell>
                     <TableCell className="font-medium">{formatCurrency(txn.amount, txn.currency)}</TableCell>
                     <TableCell>{CURRENCY_FLAGS[txn.currency]} {txn.currency}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(txn.status)} className={getStatusColor(txn.status)}>{txn.status}</Badge></TableCell>

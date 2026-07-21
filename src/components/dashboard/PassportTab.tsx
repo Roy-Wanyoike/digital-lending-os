@@ -23,11 +23,11 @@ export function PassportTab() {
   const kycCounts = { verified: 0, pending: 0, failed: 0 }
   const amlCounts = { clear: 0, pending: 0, flagged: 0 }
   allBiz.forEach(b => {
-    const ks = b.kycStatus?.toLowerCase() || 'pending'
+    const ks = b.passport?.kycStatus?.toLowerCase() || 'pending'
     if (ks === 'verified' || ks === 'approved' || ks === 'complete') kycCounts.verified++
     else if (ks === 'failed' || ks === 'rejected') kycCounts.failed++
     else kycCounts.pending++
-    const as = b.amlStatus?.toLowerCase() || 'pending'
+    const as = b.passport?.amlStatus?.toLowerCase() || 'pending'
     if (as === 'clear' || as === 'passed') amlCounts.clear++
     else if (as === 'flagged' || as === 'alert') amlCounts.flagged++
     else amlCounts.pending++
@@ -62,16 +62,16 @@ export function PassportTab() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex items-center gap-1">
-                      <Badge variant="outline" className={`text-[10px] ${biz.kycStatus?.toLowerCase() === 'verified' || biz.kycStatus?.toLowerCase() === 'approved' ? 'border-emerald-300 text-emerald-700' : 'border-amber-300 text-amber-700'}`}>KYC: {biz.kycStatus || 'Pending'}</Badge>
+                      <Badge variant="outline" className={`text-[10px] ${biz.passport?.kycStatus?.toLowerCase() === 'verified' || biz.passport?.kycStatus?.toLowerCase() === 'approved' ? 'border-emerald-300 text-emerald-700' : 'border-amber-300 text-amber-700'}`}>KYC: {biz.passport?.kycStatus || 'Pending'}</Badge>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Badge variant="outline" className={`text-[10px] ${biz.amlStatus?.toLowerCase() === 'clear' || biz.amlStatus?.toLowerCase() === 'passed' ? 'border-emerald-300 text-emerald-700' : 'border-red-300 text-red-700'}`}>AML: {biz.amlStatus || 'Pending'}</Badge>
+                      <Badge variant="outline" className={`text-[10px] ${biz.passport?.amlStatus?.toLowerCase() === 'clear' || biz.passport?.amlStatus?.toLowerCase() === 'passed' ? 'border-emerald-300 text-emerald-700' : 'border-red-300 text-red-700'}`}>AML: {biz.passport?.amlStatus || 'Pending'}</Badge>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Badge variant="secondary" className="text-[10px]">{biz.credentialLevel || 'Basic'}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">{biz.passport?.credentialLevel || 'Basic'}</Badge>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Badge variant="secondary" className="text-[10px]">Risk: {biz.riskRating || 'Low'}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">Risk: {biz.passport?.riskRating || 'Low'}</Badge>
                     </div>
                   </div>
                 </CardContent>
@@ -90,10 +90,9 @@ export function PassportTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Reference</TableHead>
+                  <TableHead>ID</TableHead>
                   <TableHead>Business</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Result</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
                 </TableRow>
@@ -101,10 +100,9 @@ export function PassportTab() {
               <TableBody>
                 {allVerif.map(v => (
                   <TableRow key={v.id} className="even:bg-muted/50">
-                    <TableCell className="font-mono text-xs">{v.reference}</TableCell>
-                    <TableCell className="max-w-[120px] truncate">{v.businessName}</TableCell>
+                    <TableCell className="font-mono text-xs">{v.id}</TableCell>
+                    <TableCell className="max-w-[120px] truncate">{v.business?.name}</TableCell>
                     <TableCell>{v.type}</TableCell>
-                    <TableCell><Badge variant={getStatusBadgeVariant(v.result)} className={getStatusColor(v.result)}>{v.result}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(v.status)} className={getStatusColor(v.status)}>{v.status}</Badge></TableCell>
                     <TableCell className="text-xs text-slate-500">{formatDate(v.createdAt)}</TableCell>
                   </TableRow>

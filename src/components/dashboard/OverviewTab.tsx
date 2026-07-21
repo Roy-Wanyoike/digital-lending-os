@@ -22,7 +22,7 @@ export function OverviewTab() {
       </div>
       <div className="text-4xl font-bold text-emerald-600">{formatCurrency(stats.totalEscrowVolume)}</div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Verified Businesses" value={String(stats.totalBusinesses)} icon={Building2} />
+        <KPICard title="Verified Businesses" value={String(stats.verifiedBusinesses)} icon={Building2} />
         <KPICard title="Active Deals" value={String(stats.activeEscrows)} icon={Shield} />
         <KPICard title="VCV" value={formatCurrency(stats.totalEscrowVolume)} subtitle="Verified Commerce Volume" icon={TrendingUp} />
         <KPICard title="Avg Trust Score" value={stats.averageTrustScore?.toFixed(1) || '0'} icon={Star} />
@@ -38,8 +38,8 @@ export function OverviewTab() {
             {(stats.recentTransactions || []).map((tx: any) => (
               <TableRow key={tx.txRef}>
                 <TableCell className="font-mono text-xs">{tx.txRef}</TableCell>
-                <TableCell className="text-sm">{tx.buyerBusinessName}</TableCell>
-                <TableCell className="text-sm">{tx.sellerBusinessName}</TableCell>
+                <TableCell className="text-sm">{tx.buyerName}</TableCell>
+                <TableCell className="text-sm">{tx.sellerName}</TableCell>
                 <TableCell className="text-sm font-medium">{formatCurrency(tx.amount, tx.currency)}</TableCell>
                 <TableCell><Badge variant={getStatusBadgeVariant(tx.status)}>{tx.status}</Badge></TableCell>
                 <TableCell className="text-xs text-slate-500">{formatDate(tx.createdAt)}</TableCell>

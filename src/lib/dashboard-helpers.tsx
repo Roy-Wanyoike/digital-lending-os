@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import {
   LayoutDashboard, Network, Shield, ArrowLeftRight, IdCard as PassportIcon,
@@ -10,14 +10,13 @@ import {
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 export const CURRENCY_FLAGS: Record<string, string> = {
   USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', NGN: '🇳🇬', KES: '🇰🇪',
   GHS: '🇬🇭', UGX: '🇺🇬', TZS: '🇹🇿', RWF: '🇷🇼', BRL: '🇧🇷',
-  MXN: '🇲🇽', ZAR: '🇿🇿', JPY: '🇯🇵', CNY: '🇨🇳', INR: '🇮🇳',
+  MXN: '🇲🇽', ZAR: '🇿🇦', JPY: '🇯🇵', CNY: '🇨🇳', INR: '🇮🇳',
   CAD: '🇨🇦', AUD: '🇦🇺', CHF: '🇨🇭', AED: '🇦🇪', SGD: '🇸🇬',
 }
 
@@ -41,6 +40,7 @@ export interface NavItem {
   icon: React.ComponentType<{ className?: string }>
 }
 
+// Matches /api/dashboard/stats response shape
 export interface DashboardStats {
   totalBusinesses: number
   verifiedBusinesses: number
@@ -54,40 +54,157 @@ export interface DashboardStats {
   businessesByCountry: Record<string, number>
   paymentsByMethod: Record<string, number>
   recentTransactions: Array<{
-    txRef: string; buyerBusinessName: string; sellerBusinessName: string;
-    amount: number; currency: string; status: string; createdAt: string;
-    buyerBusinessId: string; sellerBusinessId: string;
-    currentMilestone: number; totalMilestones: number;
+    id: string; txRef: string; amount: number; currency: string;
+    status: string; createdAt: string;
+    buyerName: string; sellerName: string;
   }>,
-  trustScoreDistribution: Array<{ range: string; count: number }>,
+  trustScoreDistribution: Record<string, number>
 }
 
+// Matches /api/businesses response (includes nested passport + trustScore)
 export interface Business {
   id: string; name: string; legalName?: string; registrationNo?: string;
   taxId?: string; country: string; city?: string;
   industry?: string; website?: string; employeeCount?: number;
   annualRevenue?: number; description?: string; logoUrl?: string;
   status: string; verifiedAt?: string; createdAt: string; updatedAt: string;
-  passportLevel?: string; amlStatus?: string; riskRating?: string;
-  kycStatus?: string; trustScore?: number;
+  passport?: { credentialLevel?: string; kycStatus?: string; amlStatus?: string; riskRating?: string } | null
+  trustScore?: { overallScore?: number } | null
+  digitalTwin?: { healthScore?: number; growthTrajectory?: string; riskAppetite?: string } | null
 }
 
-export interface EscrowData {
+// Matches /api/escrow/transactions response
+export interface EscrowTransaction {
   id: string; txRef: string; buyerId: string; sellerId: string;
-  amount: number; currency: string; description?: string;
+  amount: number; currency: string; description?: string | null;
   status: string; currentMilestone: number; totalMilestones: number;
   fundedAmount: number; releasedAmount: number; refundedAmount: number;
-  feeAmount: number; feeCurrency: string; aiRiskScore?: number;
-  aiRiskLevel?: string; paymentIntentId?: string; expiresAt?: string;
-  completedAt?: string; createdAt: string; updatedAt: string;
-  buyerBusinessName?: string; sellerBusinessName?: string;
+  feeAmount: number; feeCurrency: string; aiRiskScore: number;
+  aiRiskLevel: string; expiresAt?: string | null;
+  completedAt?: string | null; createdAt: string; updatedAt: string;
+  buyer?: { id: string; name: string } | null
+  seller?: { id: string; name: string } | null
+  milestones?: Array<{ id: string; sequence: number; title: string; amount: number; status: string }>
 }
 
-export interface TrustScoreData {
-  id: string; businessId: string; overallScore: number; paymentScore: number;
-  deliveryScore: number; qualityScore: number; communicationScore: number;
-  complianceScore: number; totalReviews: number; totalTransactions: number;
-  lastCalculated: string;
+// Matches /api/payments/intents response
+export interface PaymentIntent {
+  id: string; intentRef: string; fromBusinessId: string; toBusinessId: string;
+  sourceAmount: number; sourceCurrency: string;
+  targetAmount: number; targetCurrency: string;
+  exchangeRate: number; status: string;
+  paymentMethod?: string | null; routingProvider?: string | null;
+  routingScore?: number | null; estimatedFee?: number | null;
+  actualFee?: number | null; estimatedTime?: number | null;
+  completedAt?: string | null; createdAt: string; updatedAt: string;
+}
+
+// Matches /api/payments/rates response
+export interface ExchangeRate {
+  from: string; to: string; rate: number
+}
+
+// Matches /api/payment-methods/global response
+export interface PaymentMethod {
+  id: string; methodName: string; provider: string; type: string;
+  feePercent: number; fixedFee: number; settlementTime: number;
+  countries: string; icon?: string; isActive: boolean
+}
+
+// Matches /api/passport/verifications response
+export interface Verification {
+  id: string; businessId: string; type: string; method: string;
+  status: string; submittedAt: string; verifiedAt?: string | null;
+  verifiedBy?: string | null; rejectionReason?: string | null;
+  metadata?: string | null; createdAt: string; updatedAt: string;
+  business?: { id: string; name: string; country: string; status: string } | null
+}
+
+// Matches /api/twin/profiles response
+export interface TwinProfile {
+  id: string; businessId: string; healthScore: number;
+  cashFlowHealth: number; riskAppetite: string;
+  creditWorthiness: number; liquidityScore: number;
+  growthTrajectory: string; aiModelVersion: string;
+  lastSyncAt?: string | null; createdAt: string; updatedAt: string;
+  business?: { id: string; name: string; country: string; industry: string } | null
+}
+
+// Matches /api/payment-links response
+export interface PaymentLink {
+  id: string; linkRef: string; businessId: string;
+  title?: string | null; description?: string | null;
+  amount?: number | null; currency: string;
+  status: string; allowedMethods?: string | null;
+  allowedCountries?: string | null; maxPayments: number;
+  expiresAt?: string | null; createdAt: string; updatedAt: string;
+  _paymentCount?: number
+}
+
+// Matches /api/wallets response
+export interface WalletData {
+  id: string; businessId: string; currency: string;
+  balance: number; availableBalance: number;
+  pendingBalance: number; frozenBalance: number;
+  isDefault: boolean; status: string;
+  createdAt: string; updatedAt: string;
+  _transactionCount?: number
+}
+
+// Matches /api/fraud/alerts response
+export interface FraudAlert {
+  id: string; alertRef: string; businessId?: string | null;
+  relatedType: string; relatedId?: string | null;
+  severity: string; fraudType: string; score: number;
+  description: string; recommendation?: string | null;
+  status: string; actionTaken?: string | null;
+  resolvedAt?: string | null; createdAt: string; updatedAt: string;
+}
+
+// Matches /api/fraud/rules response
+export interface FraudRule {
+  id: string; name: string; description?: string | null;
+  condition: string; action: string;
+  severity: string; isActive: boolean; triggerCount?: number;
+  lastTriggeredAt?: string | null;
+  createdAt: string; updatedAt: string
+}
+
+// Matches /api/matching response
+export interface MatchingRecord {
+  id: string; seekerId: string; candidateId: string;
+  matchType: string; matchScore: number;
+  reasons: string; status: string;
+  createdAt: string; updatedAt: string;
+  seekerName?: string | null; candidateName?: string | null
+}
+
+// Matches /api/collections response
+export interface CollectionRecord {
+  id: string; caseRef: string; businessId: string; debtorId: string;
+  invoiceId?: string | null; originalAmount: number;
+  outstandingAmount: number; currency: string;
+  agingBucket: string; priority: string; status: string;
+  aiStrategy?: string | null; reminderCount?: number;
+  createdAt: string; updatedAt: string;
+  debtorName?: string | null
+}
+
+// Matches /api/compliance/rules response
+export interface ComplianceRule {
+  id: string; name: string; description?: string | null;
+  ruleType: string; condition: string; action: string;
+  severity: string; isActive: boolean;
+  createdAt: string; updatedAt: string
+}
+
+// Matches /api/compliance/screenings response
+export interface Screening {
+  id: string; businessId?: string | null;
+  transactionType?: string | null; transactionId?: string | null;
+  screeningType: string; result: string; riskLevel: string;
+  status: string; details?: string | null;
+  matchedLists?: string | null; createdAt: string; updatedAt: string
 }
 
 // ─── Helper Functions ──────────────────────────────────────────────────────
@@ -110,27 +227,36 @@ export function formatDate(dateStr: string): string {
 }
 
 export function getCountryFlag(country: string): string {
+  const nameMap: Record<string, string> = {
+    'Nigeria': '🇳🇬', 'Kenya': '🇰🇪', 'Ghana': '🇬🇭', 'Uganda': '🇺🇬',
+    'Tanzania': '🇹🇿', 'Rwanda': '🇷🇼', 'South Africa': '🇿🇦',
+    'United States': '🇺🇸', 'United Kingdom': '🇬🇧', 'Germany': '🇩🇪',
+    'Brazil': '🇧🇷', 'Mexico': '🇲🇽', 'Japan': '🇯🇵', 'China': '🇨🇳',
+    'India': '🇮🇳', 'Canada': '🇨🇦', 'Australia': '🇦🇺', 'UAE': '🇦🇪',
+    'Singapore': '🇸🇬', 'France': '🇫🇷', 'Netherlands': '🇳🇱',
+  }
+  if (nameMap[country]) return nameMap[country]
   return CURRENCY_FLAGS[country] || '🌐'
 }
 
 export function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'completed' || status === 'active' || status === 'verified' || status === 'clear') return 'default'
-  if (status === 'disputed' || status === 'high_risk' || status === 'alert') return 'destructive'
-  if (status === 'pending' || status === 'in_progress' || status === 'in_escrow' || status === 'funded') return 'secondary'
-  if (status === 'failed' || status === 'rejected' || status === 'cancelled') return 'outline'
-  return 'outline'
+  const s = status?.toLowerCase()?.replace(/[\s_-]/g, '') || ''
+  if (['completed', 'active', 'clear', 'resolved', 'engaged'].includes(s)) return 'default'
+  if (['disputed', 'critical', 'alert', 'confirmed', 'declined'].includes(s)) return 'destructive'
+  return 'secondary'
 }
 
 export function getStatusColor(status: string): string {
-  if (status === 'completed' || status === 'verified') return 'text-emerald-700 bg-emerald-50'
-  if (status === 'active' || status === 'in_escrow') return 'text-blue-700 bg-blue-50'
-  if (status === 'pending' || status === 'created') return 'text-slate-500'
-  if (status === 'disputed' || status === 'failed') return 'text-red-700 bg-red-50'
-  return 'text-slate-500'
+  const s = status?.toLowerCase()?.replace(/[\s_-]/g, '') || ''
+  if (['completed', 'active', 'clear', 'resolved', 'engaged'].includes(s)) return 'bg-emerald-100 text-emerald-700 border-emerald-200'
+  if (['funded', 'inescrow', 'investigating', 'interested', 'potential_match'].includes(s)) return 'bg-amber-100 text-amber-700 border-amber-200'
+  if (['disputed', 'critical', 'alert', 'confirmed', 'declined'].includes(s)) return 'bg-red-100 text-red-700 border-red-200'
+  if (['created', 'pending', 'open', 'suggested'].includes(s)) return 'bg-slate-100 text-slate-600 border-slate-200'
+  return 'bg-slate-100 text-slate-600 border-slate-200'
 }
 
 export function getTrustScoreColor(score: number): string {
-  if (score >= 80) return 'text-emerald-700'
+  if (score >= 80) return 'text-emerald-600'
   if (score >= 60) return 'text-amber-600'
   if (score >= 40) return 'text-orange-600'
   return 'text-red-600'
@@ -163,6 +289,7 @@ export function truncate(str: string, len: number): string {
 }
 
 // ─── useApi Hook ────────────────────────────────────────────────────────────────
+// Auto-unwraps { data: T } responses from API routes
 
 export function useApi<T>(url: string) {
   const [data, setData] = useState<T | null>(null)
@@ -173,7 +300,17 @@ export function useApi<T>(url: string) {
     let cancelled = false
     fetch(url)
       .then(r => r.json())
-      .then(d => { if (!cancelled) { setData(d); setLoading(false) } })
+      .then(d => {
+        if (!cancelled) {
+          // Auto-unwrap { data: T, pagination? } envelope
+          if (d && typeof d === 'object' && !Array.isArray(d) && 'data' in d) {
+            setData(d.data as T)
+          } else {
+            setData(d as T)
+          }
+          setLoading(false)
+        }
+      })
       .catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [url])
@@ -221,14 +358,19 @@ export function KPICard({ title, value, subtitle, icon: Icon, trend }: {
   )
 }
 
-export function PipelineCard({ title, value, color }: { title: string; value: number; color: string }) {
+// Accepts both { title, value } and { label, count } prop patterns for backward compat
+export function PipelineCard(props: { title?: string; value?: number; label?: string; count?: number; color: string }) {
+  const title = props.title ?? props.label ?? ''
+  const value = props.value ?? props.count ?? 0
   return (
-    <Card className="hover:shadow-sm transition-shadow">
-      <CardContent className="p-3 sm:p-4 flex items-center gap-3">
-        <div className="text-2xl font-bold" style={{ color }}>{value}</div>
-        <p className="text-xs font-medium" style={{ color }}>{title}</p>
-      </CardContent>
-    </Card>
+    <div className="flex-1 min-w-0">
+      <Card className="hover:shadow-md transition-shadow">
+        <CardContent className="p-3 sm:p-4 text-center">
+          <p className="text-2xl sm:text-3xl font-bold" style={{ color: props.color }}>{value}</p>
+          <p className="text-xs text-slate-500 mt-1 truncate">{title}</p>
+        </CardContent>
+      </Card>
+    </div>
   )
 }
 
@@ -287,7 +429,7 @@ export function Toast({ message, visible }: { message: string; visible: boolean 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Admin',
   buyer: 'Buyer',
-  seller: 'seller',
+  seller: 'Seller',
   auditor: 'Auditor',
   viewer: 'Viewer',
 }
