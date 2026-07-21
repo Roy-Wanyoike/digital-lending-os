@@ -1,8 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { useApi, LoadingSkeleton, type DashboardStats, formatCurrency, abbreviateNumber, formatDate, getStatusBadgeVariant, getStatusColor, ESCROW_STATUSES, KPICard, PipelineCard, CURRENCY_FLAGS } from '@/lib/dashboard-helpers'
+
+import { useApi, LoadingSkeleton, type DashboardStats, formatCurrency, formatDate, getStatusBadgeVariant, ESCROW_STATUSES, KPICard, PipelineCard } from '@/lib/dashboard-helpers'
 import { TrendingUp, Building2, Shield, Star } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -22,10 +22,10 @@ export function OverviewTab() {
       </div>
       <div className="text-4xl font-bold text-emerald-600">{formatCurrency(stats.totalEscrowVolume)}</div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Verified Businesses" value={String(stats.totalBusinesses)} icon={<Building2 className="h-4 w-4" />} />
-        <KPICard title="Active Deals" value={String(stats.activeEscrows)} icon={<Shield className="h-4 w-4" />} />
-        <KPICard title="VCV" value={formatCurrency(stats.totalEscrowVolume)} subtitle="Verified Commerce Volume" icon={<TrendingUp className="h-4 w-4" />} />
-        <KPICard title="Avg Trust Score" value={stats.averageTrustScore?.toFixed(1) || '0'} icon={<Star className="h-4 w-4" />} />
+        <KPICard title="Verified Businesses" value={String(stats.totalBusinesses)} icon={Building2} />
+        <KPICard title="Active Deals" value={String(stats.activeEscrows)} icon={Shield} />
+        <KPICard title="VCV" value={formatCurrency(stats.totalEscrowVolume)} subtitle="Verified Commerce Volume" icon={TrendingUp} />
+        <KPICard title="Avg Trust Score" value={stats.averageTrustScore?.toFixed(1) || '0'} icon={Star} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {pipelineData.map((p, i) => <PipelineCard key={p.status} title={p.status} value={p.count} color={['#94a3b8','#3b82f6','#f59e0b','#10b981','#ef4444'][i]} />)}
