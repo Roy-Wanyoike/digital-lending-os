@@ -1,0 +1,123 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { z } from "zod";
+
+// ── Zod Schema ───────────────────────────────────────────────
+const resolveDisputeSchema = z.object({
+  resolution: z.string().min(1, "Resolution is required"),
+  status: z.enum(["resolved", "escalated"], {
+    errorMap: () => ({ message: "Status must be 'resolved' or 'escalated'" }),
+  }),
+});
+
+// ── PUT: Resolve a dispute ──────────────────────────────────
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; disputeId: string }> }
+) {
+  try {
+    const { id, disputeId } = await params;
+    const body = await request.json();
+    const parsed = resolveDisputeSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Validation failed", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const { resolution, status: disputeStatus } = parsed.data;
+
+    // Verify dispute exists and belongs to this escrow
+    const dispute = await db.dispute.findUnique({
+      where: { id: disputeId },
+    });
+
+    if (!dispute || dispute.escrowId !== id) {
+      return NextResponse.json(
+        { error: "Dispute not found for this escrow" },
+        { status: 404 }
+      );
+    }
+
+    if (dispute.status === "resolved" || dispute.status === "escalated") {
+      return NextResponse.json(
+        { error: `Dispute is already '${dispute.status}'` },
+        { status: 409 }
+      );
+    }
+
+    const escrow = await db.escrowTransaction.findUnique({
+      where: { id },
+    });
+
+    if (!escrow) {
+      return NextResponse.json(
+        { error: "Escrow transaction not found" },
+        { status: 404 }
+      );
+    }
+
+    // Determine new escrow status based on resolution
+    let newEscrowStatus: string;
+    const resolutionLower = resolution.toLowerCase();
+
+    if (disputeStatus === "escalated") {
+      newEscrowStatus = "disputed"; // stays disputed
+    } else if (
+      resolutionLower.includes("refund") ||
+      resolutionLower.includes("cancel") ||
+      resolutionLower.includes("return to buyer")
+    ) {
+      newEscrowStatus = "refunded";
+    } else {
+      newEscrowStatus = "in_escrow"; // resume escrow
+    }
+
+    const now = new Date();
+
+    const updated = await db.$transaction(async (tx) => {
+      // Update dispute
+      const resolvedDispute = await tx.dispute.update({
+        where: { id: disputeId },
+        data: {
+          resolution,
+          status: disputeStatus,
+          resolvedAt: disputeStatus === "resolved" ? now : null,
+        },
+      });
+
+      // Update escrow status
+      await tx.escrowTransaction.update({
+        where: { id },
+        data: { status: newEscrowStatus },
+      });
+
+      // Create audit log
+      await tx.escrowAuditLog.create({
+        data: {
+          escrowId: id,
+          action: "dispute_resolved",
+          details: `Dispute ${disputeId} ${disputeStatus}. Resolution: ${resolution}. Escrow status changed to '${newEscrowStatus}'.`,
+          metadata: JSON.stringify({
+            disputeId,
+            resolution,
+            disputeStatus,
+            newEscrowStatus,
+          }),
+        },
+      });
+
+      return resolvedDispute;
+    });
+
+    return NextResponse.json({ data: updated });
+  } catch (error) {
+    console.error("Error resolving dispute:", error);
+    return NextResponse.json(
+      { error: "Failed to resolve dispute" },
+      { status: 500 }
+    );
+  }
+}

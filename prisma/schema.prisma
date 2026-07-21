@@ -1,0 +1,532 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// MODULE 1: COMMERCE PASSPORT — Business Identity & Verification
+// ============================================================
+
+model Business {
+  id              String   @id @default(cuid())
+  name            String
+  legalName       String?
+  registrationNo  String?
+  taxId           String?
+  country         String
+  city            String?
+  industry        String?
+  website         String?
+  employeeCount   Int?
+  annualRevenue   Float?
+  description     String?
+  logoUrl         String?
+  status          String   @default("pending") // pending, verified, suspended, deactivated
+  verifiedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  passport        CommercePassport?
+  trustScore      TrustScore?
+  digitalTwin     FinancialDigitalTwin?
+  sentRelationships  BusinessRelationship[] @relation("SentRelationships")
+  receivedRelationships BusinessRelationship[] @relation("ReceivedRelationships")
+  escrowAsBuyer   EscrowTransaction[] @relation("Buyer")
+  escrowAsSeller  EscrowTransaction[] @relation("Seller")
+  sentInvoices    Invoice[] @relation("InvoiceSender")
+  receivedInvoices Invoice[] @relation("InvoiceReceiver")
+  verifications   Verification[]
+
+  @@index([country])
+  @@index([industry])
+  @@index([status])
+}
+
+model CommercePassport {
+  id              String   @id @default(cuid())
+  businessId      String   @unique
+  passportHash    String   @unique
+  credentialLevel String   @default("basic") // basic, standard, enhanced, premium
+  kycStatus       String   @default("not_started") // not_started, in_progress, verified, rejected
+  kycVerifiedAt   DateTime?
+  amlStatus       String   @default("not_started") // not_started, cleared, flagged, rejected
+  amlCheckedAt    DateTime?
+  riskRating      String   @default("medium") // low, medium, high, critical
+  lastAuditAt     DateTime?
+  nextAuditDue    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  complianceDocs  ComplianceDocument[]
+
+  @@index([credentialLevel])
+  @@index([riskRating])
+}
+
+model Verification {
+  id              String   @id @default(cuid())
+  businessId      String
+  type            String   // identity, business_registration, tax, bank_account, address
+  method          String   // document, api, manual, third_party
+  status          String   @default("pending") // pending, in_progress, approved, rejected, expired
+  submittedAt     DateTime @default(now())
+  verifiedAt      DateTime?
+  verifiedBy      String?
+  rejectionReason String?
+  metadata        String?  // JSON string for extra data
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([type])
+  @@index([status])
+}
+
+model ComplianceDocument {
+  id              String   @id @default(cuid())
+  passportId      String
+  docType         String   // certificate_of_incorporation, tax_registration, bank_statement, proof_of_address, license
+  docName         String
+  docUrl          String?
+  status          String   @default("pending") // pending, approved, rejected, expired
+  uploadedAt      DateTime @default(now())
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  passport        CommercePassport @relation(fields: [passportId], references: [id], onDelete: Cascade)
+
+  @@index([docType])
+  @@index([status])
+}
+
+// ============================================================
+// MODULE 2: TRUST GRAPH — Reputation & Relationship Network
+// ============================================================
+
+model TrustScore {
+  id              String   @id @default(cuid())
+  businessId      String   @unique
+  overallScore    Float    @default(50.0)
+  paymentScore    Float    @default(50.0)
+  deliveryScore   Float    @default(50.0)
+  qualityScore    Float    @default(50.0)
+  communicationScore Float @default(50.0)
+  complianceScore Float    @default(50.0)
+  totalReviews    Int      @default(0)
+  totalTransactions Int    @default(0)
+  scoreVersion    Int      @default(1)
+  lastCalculated  DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  reputationEvents ReputationEvent[]
+
+  @@index([overallScore])
+}
+
+model BusinessRelationship {
+  id              String   @id @default(cuid())
+  fromBusinessId  String
+  toBusinessId    String
+  type            String   // supplier, buyer, partner, logistics, financial
+  status          String   @default("active") // active, paused, terminated
+  trustLevel      Float    @default(50.0)
+  totalTxVolume   Float    @default(0)
+  totalTxCount    Int      @default(0)
+  firstTxDate     DateTime?
+  lastTxDate      DateTime?
+  metadata        String?  // JSON string
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  fromBusiness    Business  @relation("SentRelationships", fields: [fromBusinessId], references: [id], onDelete: Cascade)
+  toBusiness      Business  @relation("ReceivedRelationships", fields: [toBusinessId], references: [id], onDelete: Cascade)
+
+  @@unique([fromBusinessId, toBusinessId, type])
+  @@index([type])
+  @@index([trustLevel])
+}
+
+model ReputationEvent {
+  id              String   @id @default(cuid())
+  trustScoreId    String
+  eventType       String   // transaction_completed, review_received, dispute_resolved, verification_upgraded, penalty_applied
+  scoreImpact     Float    @default(0)
+  description     String?
+  sourceId        String?  // ID of related entity (escrow_id, review_id, etc.)
+  metadata        String?  // JSON string
+  createdAt       DateTime @default(now())
+
+  trustScore      TrustScore @relation(fields: [trustScoreId], references: [id], onDelete: Cascade)
+
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model Review {
+  id              String   @id @default(cuid())
+  fromBusinessId  String
+  toBusinessId    String
+  escrowId        String?
+  rating          Float    // 1-5
+  paymentRating   Float?
+  deliveryRating  Float?
+  qualityRating   Float?
+  communicationRating Float?
+  comment         String?
+  response        String?
+  respondedAt     DateTime?
+  status          String   @default("published") // published, hidden, flagged
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([toBusinessId])
+  @@index([rating])
+  @@index([createdAt])
+}
+
+// ============================================================
+// MODULE 3: AI SMART ESCROW — Transaction State Machine
+// ============================================================
+
+model EscrowTransaction {
+  id              String   @id @default(cuid())
+  txRef           String   @unique
+  buyerId         String
+  sellerId        String
+  amount          Float
+  currency        String   @default("USD")
+  description     String?
+  status          String   @default("created") // created, funded, in_escrow, partial_release, completed, disputed, refunded, cancelled
+  currentMilestone Int      @default(0)
+  totalMilestones Int      @default(1)
+  fundedAmount    Float    @default(0)
+  releasedAmount  Float    @default(0)
+  refundedAmount  Float    @default(0)
+  feeAmount       Float    @default(0)
+  feeCurrency     String   @default("USD")
+  aiRiskScore     Float?
+  aiRiskLevel     String?  // low, medium, high
+  paymentIntentId String?
+  paymentIntent  PaymentIntent?
+  expiresAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  buyer           Business  @relation("Buyer", fields: [buyerId], references: [id])
+  seller          Business  @relation("Seller", fields: [sellerId], references: [id])
+  milestones      EscrowMilestone[]
+  disbursements   Disbursement[]
+  disputes        Dispute[]
+  auditLog        EscrowAuditLog[]
+
+  @@index([status])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([currency])
+  @@index([createdAt])
+}
+
+model EscrowMilestone {
+  id              String   @id @default(cuid())
+  escrowId        String
+  sequence        Int
+  title           String
+  description     String?
+  amount          Float
+  status          String   @default("pending") // pending, ready, released, disputed
+  evidence        String?  // JSON array of evidence URLs
+  releasedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  escrow          EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+
+  @@index([escrowId])
+  @@index([status])
+}
+
+model Disbursement {
+  id              String   @id @default(cuid())
+  escrowId        String
+  milestoneId     String?
+  amount          Float
+  currency        String
+  fromAccount     String?
+  toAccount       String?
+  status          String   @default("pending") // pending, processing, completed, failed
+  paymentRef      String?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  escrow          EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+
+  @@index([escrowId])
+  @@index([status])
+}
+
+model Dispute {
+  id              String   @id @default(cuid())
+  escrowId        String
+  raisedBy        String   // buyer or seller
+  reason          String
+  description     String?
+  status          String   @default("open") // open, under_review, resolved, escalated
+  resolution      String?
+  resolvedAt      DateTime?
+  aiRecommendation String?
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  escrow          EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+
+  @@index([escrowId])
+  @@index([status])
+}
+
+model EscrowAuditLog {
+  id              String   @id @default(cuid())
+  escrowId        String
+  action          String
+  actor           String?
+  details         String?
+  metadata        String?
+  createdAt       DateTime @default(now())
+
+  escrow          EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+
+  @@index([escrowId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============================================================
+// MODULE 4: GLOBAL PAYMENT ROUTER — Multi-Currency & Routing
+// ============================================================
+
+model PaymentIntent {
+  id              String   @id @default(cuid())
+  intentRef       String   @unique
+  escrowId        String?  @unique
+  fromBusinessId  String
+  toBusinessId    String
+  sourceAmount    Float
+  sourceCurrency  String
+  targetAmount    Float
+  targetCurrency  String
+  exchangeRate    Float?
+  status          String   @default("created") // created, processing, completed, failed, cancelled
+  paymentMethod   String?  // bank_transfer, card, crypto, mobile_money, digital_wallet
+  routingProvider String?  // stripe, wise, paypal, local_bank, crypto_network
+  routingScore    Float?   // AI-calculated routing optimization score
+  estimatedFee    Float?
+  actualFee       Float?
+  estimatedTime   Int?     // in minutes
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  escrow          EscrowTransaction?  @relation(fields: [escrowId], references: [id])
+  transactions    PaymentTransaction[]
+
+  @@index([status])
+  @@index([fromBusinessId])
+  @@index([toBusinessId])
+  @@index([paymentMethod])
+  @@index([createdAt])
+}
+
+model PaymentTransaction {
+  id              String   @id @default(cuid())
+  intentId        String
+  txRef           String   @unique
+  provider        String
+  providerTxId    String?
+  amount          Float
+  currency        String
+  status          String   @default("pending") // pending, processing, settled, failed, refunded
+  fromAddress     String?
+  toAddress       String?
+  metadata        String?
+  settledAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  intent          PaymentIntent  @relation(fields: [intentId], references: [id], onDelete: Cascade)
+
+  @@index([intentId])
+  @@index([status])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+model CurrencyRate {
+  id              String   @id @default(cuid())
+  fromCurrency    String
+  toCurrency      String
+  rate            Float
+  provider        String
+  source          String?
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  @@unique([fromCurrency, toCurrency, provider, createdAt])
+  @@index([fromCurrency, toCurrency])
+}
+
+model PaymentMethod {
+  id              String   @id @default(cuid())
+  businessId      String
+  type            String   // bank_account, card, crypto_wallet, mobile_money, digital_wallet
+  provider        String?  // stripe, paypal, wise, etc.
+  label           String?
+  identifier      String?  // masked account/card number
+  currency        String?
+  country         String?
+  isDefault       Boolean  @default(false)
+  status          String   @default("active") // active, inactive, verification_required
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([type])
+  @@index([status])
+}
+
+// ============================================================
+// MODULE 5: FINANCIAL DIGITAL TWIN — AI-Powered Financial Profile
+// ============================================================
+
+model FinancialDigitalTwin {
+  id              String   @id @default(cuid())
+  businessId      String   @unique
+  healthScore     Float    @default(50.0)
+  cashFlowHealth  Float    @default(50.0)
+  riskAppetite    String   @default("moderate") // conservative, moderate, aggressive
+  creditWorthiness Float   @default(50.0)
+  liquidityScore  Float    @default(50.0)
+  growthTrajectory String  @default("stable") // declining, stable, growing, rapid_growth
+  aiModelVersion  String   @default("v1.0")
+  lastSyncAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  metrics         FinancialMetric[]
+  predictions     FinancialPrediction[]
+  snapshots       FinancialSnapshot[]
+
+  @@index([healthScore])
+  @@index([growthTrajectory])
+}
+
+model FinancialMetric {
+  id              String   @id @default(cuid())
+  twinId          String
+  period          String   // daily, weekly, monthly, quarterly, yearly
+  periodDate      String   // ISO date for the period
+  revenue         Float?
+  expenses        Float?
+  netIncome       Float?
+  accountsReceivable Float?
+  accountsPayable Float?
+  totalAssets     Float?
+  totalLiabilities Float?
+  cashBalance     Float?
+  transactionCount Int?
+  averageTransactionValue Float?
+  paymentSuccessRate Float?
+  disputeRate     Float?
+  customerCount   Int?
+  supplierCount   Int?
+  createdAt       DateTime @default(now())
+
+  twin            FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
+
+  @@unique([twinId, period, periodDate])
+  @@index([twinId])
+  @@index([period])
+}
+
+model FinancialPrediction {
+  id              String   @id @default(cuid())
+  twinId          String
+  predictionType  String   // revenue, cash_flow, risk, default_probability, growth_rate
+  timeframe       String   // 30d, 60d, 90d, 6m, 1y
+  predictedValue  Float
+  confidence      Float    // 0-1
+  lowerBound      Float?
+  upperBound      Float?
+  model           String   @default("ensemble")
+  metadata        String?
+  createdAt       DateTime @default(now())
+
+  twin            FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
+
+  @@index([twinId])
+  @@index([predictionType])
+}
+
+model FinancialSnapshot {
+  id              String   @id @default(cuid())
+  twinId          String
+  snapshotType    String   // daily, weekly, event_driven
+  healthScore     Float
+  cashFlowHealth  Float
+  creditWorthiness Float
+  liquidityScore  Float
+  topRiskFactors  String?  // JSON array
+  topOpportunities String? // JSON array
+  aiSummary       String?
+  metadata        String?
+  createdAt       DateTime @default(now())
+
+  twin            FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
+
+  @@index([twinId])
+  @@index([snapshotType])
+  @@index([createdAt])
+}
+
+// ============================================================
+// SHARED: Invoice Module
+// ============================================================
+
+model Invoice {
+  id              String   @id @default(cuid())
+  invoiceRef      String   @unique
+  senderId        String
+  receiverId      String
+  escrowId        String?
+  amount          Float
+  currency        String   @default("USD")
+  status          String   @default("draft") // draft, sent, paid, partially_paid, overdue, cancelled
+  dueDate         DateTime?
+  paidAmount      Float    @default(0)
+  items           String?  // JSON array of line items
+  notes           String?
+  paidAt          DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sender          Business  @relation("InvoiceSender", fields: [senderId], references: [id])
+  receiver        Business  @relation("InvoiceReceiver", fields: [receiverId], references: [id])
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+  @@index([dueDate])
+}
