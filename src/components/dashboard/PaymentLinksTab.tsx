@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { Link2, Plus, DollarSign, Zap, Copy, ExternalLink, X } from 'lucide-react'
+import { Link2, Plus, DollarSign, Zap, Copy, ExternalLink, X, CreditCard } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -36,6 +36,9 @@ export function PaymentLinksTab() {
   const [createOpen, setCreateOpen] = useState(false)
   const [payOpen, setPayOpen] = useState(false)
   const [payLinkId, setPayLinkId] = useState<string | null>(null)
+  const [payLinkCurrency, setPayLinkCurrency] = useState('USD')
+  const [payProviders, setPayProviders] = useState<Array<{code: string; name: string}>>([])
+  const [payProvider, setPayProvider] = useState('')
   const [toastMsg, setToastMsg] = useState('')
   const [toastVis, setToastVis] = useState(false)
 
@@ -102,17 +105,24 @@ export function PaymentLinksTab() {
     if (!payLinkId) return
     setPaying(true)
     try {
+      const body: Record<string, any> = { amount: parseFloat(payAmount), payerName: payName, payerEmail: payEmail, payerCountry: payCountry, paymentMethod: payMethod }
+      if (payProvider) body.provider = payProvider
       const res = await fetch(`/api/payment-links/${payLinkId}/pay`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: parseFloat(payAmount), payerName: payName, payerEmail: payEmail, payerCountry: payCountry, paymentMethod: payMethod }),
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Payment failed')
-      showToast('Payment processed!')
+      const data = json.data
+      if (data?.checkoutUrl) {
+        window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer')
+        showToast(`Redirecting to ${data.providerName}...`)
+      } else {
+        showToast('Payment processed!')
+      }
       setPayOpen(false)
       setPayName(''); setPayEmail(''); setPayCountry(''); setPayAmount('')
       setLinkKey(k => k + 1)
-      // Refresh detail if open
       if (selectedLink?.id === payLinkId) openDetail(selectedLink as any)
     } catch (e: any) { showToast(e.message) } finally { setPaying(false) }
   }
@@ -122,10 +132,18 @@ export function PaymentLinksTab() {
     navigator.clipboard.writeText(url).then(() => showToast('Link copied to clipboard!')).catch(() => showToast('Failed to copy'))
   }
 
-  const openLink = (link: PaymentLink) => {
+  const openLink = async (link: PaymentLink) => {
     setPayLinkId(link.id)
+    setPayLinkCurrency(link.currency)
     setPayAmount(link.amount ? String(link.amount) : '')
     setPayOpen(true)
+    try {
+      const res = await fetch(`/api/payments/providers?currency=${link.currency}`)
+      const json = await res.json()
+      const providers = (json.data || []).map((p: any) => ({ code: p.code, name: p.name }))
+      setPayProviders(providers)
+      if (providers.length > 0) setPayProvider(providers[0].code)
+    } catch { setPayProviders([]) }
   }
 
   return (
@@ -279,12 +297,28 @@ export function PaymentLinksTab() {
                 <SelectContent>{['US','GB','NG','KE','IN','DE','BR','CN','JP','SG','AE','AU','ZA','GH','UG','TZ'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            {payProviders.length > 0 && (
+              <div className="space-y-2"><Label>Payment Provider</Label>
+                <Select value={payProvider} onValueChange={setPayProvider}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {payProviders.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-400">Auto-selected based on link currency ({payLinkCurrency})</p>
+              </div>
+            )}
+            {payProviders.length === 0 && (
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                No payment providers configured for {payLinkCurrency}. Payment will be recorded in demo mode. Add provider keys in .env.
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2"><Label>Amount *</Label><Input type="number" min="0.01" step="0.01" placeholder="0.00" value={payAmount} onChange={e => setPayAmount(e.target.value)} /></div>
               <div className="space-y-2"><Label>Payment Method</Label>
                 <Select value={payMethod} onValueChange={setPayMethod}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{['bank_transfer','card','mobile_money','digital_wallet','crypto'].map(m => <SelectItem key={m} value={m}>{m.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
+                  <SelectContent>{['bank_transfer','card','mobile_money','digital_wallet','crypto','mpesa'].map(m => <SelectItem key={m} value={m}>{m.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>

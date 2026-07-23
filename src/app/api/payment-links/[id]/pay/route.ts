@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { providerRegistry, getProvidersForCurrency, calculateFee, getProviderName, type PaymentProviderCode } from '@/lib/payment'
 
 const paySchema = z.object({
   amount: z.number().positive('Amount must be greater than 0'),
@@ -8,8 +9,10 @@ const paySchema = z.object({
   payerEmail: z.string().email('Invalid payer email'),
   payerCountry: z.string().min(1, 'Payer country is required'),
   paymentMethod: z.string().min(1, 'Payment method is required'),
+  provider: z.enum(['stripe', 'paystack', 'intasend', 'flutterwave']).optional(),
 })
 
+// ─── POST: Pay via a payment link using real provider ───────
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -34,17 +37,14 @@ export async function POST(
       return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
     }
 
-    // Check link is active
     if (link.status !== 'active') {
       return NextResponse.json({ error: 'Payment link is not active' }, { status: 400 })
     }
 
-    // Check not expired
     if (link.expiresAt && new Date() > link.expiresAt) {
       return NextResponse.json({ error: 'Payment link has expired' }, { status: 400 })
     }
 
-    // Check amount >= link.amount (if fixed amount > 0)
     if (link.amount > 0 && data.amount < link.amount) {
       return NextResponse.json(
         { error: `Amount must be at least ${link.amount} ${link.currency}` },
@@ -52,26 +52,25 @@ export async function POST(
       )
     }
 
-    // Check payment count < maxPayments
     if (link.maxPayments > 0 && link.paymentCount >= link.maxPayments) {
       return NextResponse.json({ error: 'Payment link has reached its maximum number of payments' }, { status: 400 })
     }
 
-    // Check payment method is allowed
-    if (link.allowedMethods) {
-      const allowed: string[] = JSON.parse(link.allowedMethods)
-      if (!allowed.includes(data.paymentMethod)) {
-        return NextResponse.json({ error: 'Payment method is not allowed for this link' }, { status: 400 })
-      }
+    // ─── Provider Selection ────────────────────────────────────
+    let providerCode: PaymentProviderCode | null = data.provider || null
+    if (!providerCode) {
+      const candidates = getProvidersForCurrency(link.currency)
+      const { getProvidersForCountry } = await import('@/lib/payment')
+      const countryCandidates = getProvidersForCountry(data.payerCountry)
+      const filtered = candidates.filter(c => countryCandidates.includes(c))
+      providerCode = filtered[0] || candidates[0] || null
     }
 
-    // Calculate fee (1.5% standard)
-    const feeAmount = Math.round(data.amount * 0.015 * 100) / 100
-    const netAmount = Math.round((data.amount - feeAmount) * 100) / 100
-
-    // Create the payment
-    const payment = await db.$transaction(async (tx) => {
-      const newPayment = await tx.paymentLinkPayment.create({
+    if (!providerCode) {
+      // Fallback: create a pending record without provider (demo mode)
+ const feeAmount = Math.round(data.amount * 0.015 * 100) / 100
+      const netAmount = Math.round((data.amount - feeAmount) * 100) / 100
+      const payment = await db.paymentLinkPayment.create({
         data: {
           paymentLinkId: id,
           payerName: data.payerName,
@@ -80,29 +79,108 @@ export async function POST(
           amount: data.amount,
           currency: link.currency,
           paymentMethod: data.paymentMethod,
-          status: 'completed',
+          status: 'pending',
           feeAmount,
           netAmount,
-          completedAt: new Date(),
+          metadata: JSON.stringify({ note: 'No provider configured - pending manual confirmation' }),
         },
       })
-
-      await tx.paymentLink.update({
-        where: { id },
-        data: {
-          paymentCount: { increment: 1 },
-          totalCollected: { increment: data.amount },
-          // Auto-expire if maxPayments reached
-          ...(link.maxPayments > 0 && link.paymentCount + 1 >= link.maxPayments ? { status: 'depleted' } : {}),
-        },
+      return NextResponse.json({
+        data: payment,
+        warning: 'No active payment provider available. Payment recorded as pending.',
       })
+    }
 
-      return newPayment
+    const provider = providerRegistry.getProvider(providerCode)
+    if (!provider) {
+      return NextResponse.json({ error: `Provider '${providerCode}' is not active` }, { status: 400 })
+    }
+
+    const feeBreakdown = calculateFee(data.amount, providerCode, link.currency)
+    const amountInCents = Math.round(data.amount * 100)
+
+    // ─── Create PaymentIntent ──────────────────────────────────
+    const paymentIntent = await db.paymentIntent.create({
+      data: {
+        intentRef: `PL-${link.linkRef}-${Date.now()}`,
+        fromBusinessId: link.businessId,
+        toBusinessId: link.businessId,
+        sourceAmount: data.amount,
+        sourceCurrency: link.currency,
+        targetAmount: feeBreakdown.netAmount,
+        targetCurrency: link.currency,
+        exchangeRate: 1,
+        status: 'processing',
+        paymentMethod: data.paymentMethod,
+        routingProvider: providerCode,
+        routingScore: 0.9,
+        estimatedFee: feeBreakdown.totalFee,
+        estimatedTime: 5,
+      },
     })
 
-    return NextResponse.json({ data: payment })
+    // ─── Initialize Payment with Provider ─────────────────────
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_URL || ''
+
+    const initResult = await provider.initialize({
+      amount: amountInCents,
+      currency: link.currency,
+      email: data.payerEmail,
+      firstName: data.payerName.split(' ')[0] || data.payerName,
+      lastName: data.payerName.split(' ').slice(1).join(' ') || '',
+      reference: link.linkRef,
+      callbackUrl: `${baseUrl}/api/payments/webhooks/${providerCode}`,
+      redirectUrl: `${baseUrl}/pay/${link.linkRef}?provider=${providerCode}`,
+      paymentMethods: [data.paymentMethod as any],
+      metadata: {
+        referenceType: 'payment_link',
+        referenceId: id,
+        paymentIntentId: paymentIntent.id,
+        linkRef: link.linkRef,
+        payerName: data.payerName,
+        payerCountry: data.payerCountry,
+      },
+    })
+
+    if (!initResult.success) {
+      await db.paymentIntent.update({ where: { id: paymentIntent.id }, data: { status: 'failed' } })
+      return NextResponse.json(
+        { error: `Failed to initialize payment with ${getProviderName(providerCode)}` },
+        { status: 502 }
+      )
+    }
+
+    // ─── Create PaymentTransaction ─────────────────────────────
+    await db.paymentTransaction.create({
+      data: {
+        intentId: paymentIntent.id,
+        txRef: `PTX-PL-${link.linkRef}`,
+        provider: providerCode,
+        providerTxId: initResult.providerPaymentId,
+        amount: data.amount,
+        currency: link.currency,
+        status: 'processing',
+        metadata: JSON.stringify({
+          referenceType: 'payment_link',
+          referenceId: id,
+          linkRef: link.linkRef,
+        }),
+      },
+    })
+
+    // ─── Return checkout info ─────────────────────────────────
+    return NextResponse.json({
+      data: {
+        paymentIntentId: paymentIntent.id,
+        provider: providerCode,
+        providerName: getProviderName(providerCode),
+        checkoutUrl: initResult.checkoutUrl || initResult.authorizationUrl,
+        fee: feeBreakdown,
+        status: 'awaiting_payment',
+      },
+    })
   } catch (error) {
-    console.error('Error processing payment:', error)
+    console.error('Error processing payment link:', error)
     return NextResponse.json({ error: 'Failed to process payment' }, { status: 500 })
   }
 }

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Shield, Plus, Eye, DollarSign, Play, ChevronRight, AlertTriangle, CheckCircle, Clock, X } from 'lucide-react'
+import { Shield, Plus, Eye, DollarSign, Play, ChevronRight, AlertTriangle, CheckCircle, Clock, X, ExternalLink, CreditCard } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -43,8 +43,18 @@ export function EscrowTab() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [disputeOpen, setDisputeOpen] = useState(false)
+  const [fundOpen, setFundOpen] = useState(false)
+  const [fundEscrowId, setFundEscrowId] = useState<string | null>(null)
   const [toastMsg, setToastMsg] = useState('')
   const [toastVis, setToastVis] = useState(false)
+
+  // Fund form state
+  const [fundEmail, setFundEmail] = useState('')
+  const [fundFirstName, setFundFirstName] = useState('')
+  const [fundLastName, setFundLastName] = useState('')
+  const [fundProvider, setFundProvider] = useState('')
+  const [fundProviders, setFundProviders] = useState<Array<{code: string; name: string}>>([])
+  const [funding, setFunding] = useState(false)
 
   // Create form state
   const [formBuyer, setFormBuyer] = useState('')
@@ -89,6 +99,47 @@ export function EscrowTab() {
       return json.data
     } catch (e: any) { showToast(e.message); return null }
   }, [showToast])
+
+  const openFundDialog = useCallback(async (escrowId: string, currency: string) => {
+    setFundEscrowId(escrowId)
+    setFundOpen(true)
+    try {
+      const res = await fetch(`/api/payments/providers?currency=${currency}`)
+      const json = await res.json()
+      const providers = (json.data || []).map((p: any) => ({ code: p.code, name: p.name }))
+      setFundProviders(providers)
+      if (providers.length > 0) setFundProvider(providers[0].code)
+    } catch { setFundProviders([]) }
+  }, [])
+
+  const handleFund = async () => {
+    if (!fundEscrowId || !fundEmail) return
+    setFunding(true)
+    try {
+      const body: Record<string, string> = { email: fundEmail }
+      if (fundFirstName) body.firstName = fundFirstName
+      if (fundLastName) body.lastName = fundLastName
+      if (fundProvider) body.provider = fundProvider
+      const res = await fetch(`/api/escrow/transactions/${fundEscrowId}/fund`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Funding failed')
+      const data = json.data
+      if (data?.checkoutUrl) {
+        window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer')
+        showToast(`Redirecting to ${data.providerName}...`)
+      } else if (data?.status === 'awaiting_payment') {
+        showToast('Payment initiated! Complete it via the provider.')
+      } else {
+        showToast('Escrow funding initiated!')
+      }
+      setFundOpen(false)
+      setFundEmail(''); setFundFirstName(''); setFundLastName(''); setFundProvider('')
+      setRefreshKey(k => k + 1)
+    } catch (e: any) { showToast(e.message) } finally { setFunding(false) }
+  }
 
   const handleCreate = async () => {
     setCreating(true)
@@ -206,7 +257,7 @@ export function EscrowTab() {
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedId(txn.id)} title="View details"><Eye className="h-3.5 w-3.5" /></Button>
-                          {canFund && <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => doAction(txn.id, 'fund')}><DollarSign className="h-3 w-3 mr-1" />Fund</Button>}
+                          {canFund && <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openFundDialog(txn.id, txn.currency)}><CreditCard className="h-3 w-3 mr-1" />Fund</Button>}
                           {canActivate && <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => doAction(txn.id, 'activate')}><Play className="h-3 w-3 mr-1" />Activate</Button>}
                           {canRelease && <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => {
                             const ms = txn.milestones?.find((m: any) => m.status === 'ready' || m.status === 'pending')
@@ -312,6 +363,43 @@ export function EscrowTab() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Fund Dialog */}
+      <Dialog open={fundOpen} onOpenChange={setFundOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5" /> Fund Escrow</DialogTitle>
+            <DialogDescription>Pay via a payment provider to fund this escrow. You will be redirected to complete payment.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {fundProviders.length > 0 && (
+              <div className="space-y-2"><Label>Payment Provider</Label>
+                <Select value={fundProvider} onValueChange={setFundProvider}>
+                  <SelectTrigger><SelectValue placeholder="Select provider" /></SelectTrigger>
+                  <SelectContent>
+                    {fundProviders.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-400">Auto-selected based on escrow currency. Fees apply per provider.</p>
+              </div>
+            )}
+            {fundProviders.length === 0 && (
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-700">
+                No payment providers configured. Payments will use demo mode. Add provider keys in .env to enable real payments.
+              </div>
+            )}
+            <div className="space-y-2"><Label>Email *</Label><Input type="email" placeholder="payer@email.com" value={fundEmail} onChange={e => setFundEmail(e.target.value)} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2"><Label>First Name</Label><Input placeholder="John" value={fundFirstName} onChange={e => setFundFirstName(e.target.value)} /></div>
+              <div className="space-y-2"><Label>Last Name</Label><Input placeholder="Doe" value={fundLastName} onChange={e => setFundLastName(e.target.value)} /></div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFundOpen(false)}>Cancel</Button>
+            <Button onClick={handleFund} disabled={!fundEmail || funding}>{funding ? 'Initiating...' : 'Pay Now'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

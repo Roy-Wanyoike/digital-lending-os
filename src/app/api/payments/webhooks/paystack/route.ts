@@ -1,0 +1,143 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { providerRegistry, type PaymentProviderCode } from '@/lib/payment'
+import { db } from '@/lib/db'
+
+// ─── Paystack Webhook ────────────────────────────────────
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.text()
+    const signature = request.headers.get('x-paystack-signature') || ''
+
+    const provider = providerRegistry.getProvider('paystack')
+    if (!provider) {
+      return NextResponse.json({ error: 'Paystack provider not configured' }, { status: 500 })
+    }
+
+    if (!provider.validateWebhookSignature(body, signature)) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+    }
+
+    const payload = JSON.parse(body)
+    const event = payload.event
+
+    // Handle charge.success
+    if (event === 'charge.success') {
+      const data = payload.data
+      const providerPaymentId = data.reference
+      const metadata = data.metadata?.custom_fields?.reduce((acc: any, f: any) => { acc[f.variable_name] = f.value; return acc }, {}) || data.metadata || {}
+
+      // Update payment transaction
+      const tx = await db.paymentTransaction.findFirst({
+        where: { providerTxId: providerPaymentId, provider: 'paystack' },
+      })
+
+      if (tx) {
+        await db.paymentTransaction.update({
+          where: { id: tx.id },
+          data: {
+            status: 'settled',
+            settledAt: new Date(data.paid_at),
+          },
+        })
+
+        // Update payment intent
+        if (tx.intentId) {
+          await db.paymentIntent.update({
+            where: { id: tx.intentId },
+            data: {
+              status: 'completed',
+              actualFee: data.fees ? data.fees / 100 : null,
+              completedAt: new Date(data.paid_at),
+            },
+          })
+
+          // Check escrow link
+          const intent = await db.paymentIntent.findUnique({
+            where: { id: tx.intentId },
+            include: { escrow: true },
+          })
+
+          if (intent?.escrowId && intent.escrow?.status === 'created') {
+            await db.escrowTransaction.update({
+              where: { id: intent.escrowId },
+              data: {
+                status: 'funded',
+                fundedAmount: data.amount / 100,
+                paymentIntentId: intent.id,
+              },
+            })
+
+            await db.escrowAuditLog.create({
+              data: {
+                escrowId: intent.escrowId,
+                action: 'funded',
+                actor: 'system',
+                details: `Escrow funded via Paystack webhook. TX: ${providerPaymentId}`,
+                metadata: JSON.stringify({ providerPaymentId }),
+              },
+            })
+
+            if (Math.abs(intent.escrow.amount - data.amount / 100) < 0.01) {
+              await db.escrowTransaction.update({
+                where: { id: intent.escrowId },
+                data: { status: 'in_escrow' },
+              })
+
+              await db.escrowAuditLog.create({
+                data: {
+                  escrowId: intent.escrowId,
+                  action: 'activated',
+                  actor: 'system',
+                  details: 'Escrow auto-activated after full Paystack payment.',
+                },
+              })
+            }
+          }
+        }
+
+        // Check payment link
+        const ref = metadata.reference || providerPaymentId
+        const link = await db.paymentLink.findFirst({
+          where: { linkRef: ref },
+        })
+
+        if (link) {
+          await db.paymentLink.update({
+            where: { id: link.id },
+            data: {
+              paymentCount: { increment: 1 },
+              totalCollected: { increment: data.amount / 100 },
+              ...(link.maxPayments > 0 && link.paymentCount + 1 >= link.maxPayments
+                ? { status: 'depleted' }
+                : {}),
+            },
+          })
+
+          await db.paymentLinkPayment.create({
+            data: {
+              paymentLinkId: link.id,
+              payerName: data.customer?.first_name
+                ? `${data.customer.first_name} ${data.customer.last_name || ''}`.trim()
+                : null,
+              payerEmail: data.customer?.email,
+              amount: data.amount / 100,
+              currency: data.currency,
+              paymentMethod: data.channel || 'card',
+              provider: 'paystack',
+              status: 'completed',
+              feeAmount: data.fees ? data.fees / 100 : null,
+              netAmount: data.amount / 100 - (data.fees || 0) / 100,
+              providerTxId: providerPaymentId,
+              completedAt: new Date(data.paid_at),
+            },
+          })
+        }
+      }
+    }
+
+    return NextResponse.json({ received: true })
+  } catch (error) {
+    console.error('[Paystack Webhook] Error:', error)
+    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
+  }
+}
