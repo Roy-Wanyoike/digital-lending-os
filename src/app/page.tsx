@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
@@ -46,9 +46,12 @@ export default function YoungsendDashboard() {
   const [toastVisible, setToastVisible] = useState(false)
 
   const visibleTabs = ROLE_TABS[currentRole] || []
-  const activeNav = NAV_ITEMS.find(n => n.id === activeTab)
   const safeTab = visibleTabs.includes(activeTab) ? activeTab : (visibleTabs[0] || 'overview')
-  if (safeTab !== activeTab) setActiveTab(safeTab)
+  const prevSafeTab = useRef(safeTab)
+  useEffect(() => {
+    if (safeTab !== activeTab) setActiveTab(safeTab)
+  }, [currentRole]) // only re-evaluate when role changes
+  const activeNav = NAV_ITEMS.find(n => n.id === activeTab)
 
   const handleTabChange = useCallback((tabId: string) => {
     setActiveTab(tabId)
