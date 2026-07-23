@@ -1,31 +1,20 @@
 ---
-Task ID: 1
-Agent: Main (Senior QA Engineer)
-Task: Full QA audit and production readiness of Youngsend dashboard
+Task ID: 6-critical
+Agent: Main (Senior QA)
+Task: Finish Escrow, Wallet, and Payment Links - the three prime features
 
 Work Log:
-- Read all 12 dashboard tab components, 49 API route files, Prisma schema, seed file
-- Identified #1 systemic bug: all APIs return {data:[],pagination:{}} but useApi stored the wrapper, so every tab showed empty data
-- Identified 15 missing TypeScript type definitions in dashboard-helpers.tsx
-- Identified PipelineCard prop name mismatch (title/value vs label/count)
-- Identified field name mismatches across all 12 tabs (reference→txRef, buyerBusinessName→buyer.name, etc.)
-- Identified 3 zero-data tables (Disbursement, PaymentTransaction, ReputationEvent) — none used by tabs
-- Fixed useApi hook to auto-unwrap {data:T} envelope
-- Added all 15 missing type definitions matching actual API response shapes
-- Fixed PipelineCard to accept both prop patterns
-- Fixed all 12 tab components for field name alignment
-- Fixed FraudRule type (no ruleType field, has triggerCount)
-- Fixed PaymentMethod type (feePercent not feePercentage)
-- Fixed WalletTab to load all businesses for wallet selection
-- Fixed CollectionsTab aging/priority badge case sensitivity
-- Fixed ROLE_LABELS capitalization (seller→Seller)
-- Removed .bak files
-- Ran full production build — 0 errors
-- Ran 15-point API smoke test — 15/15 passed
+- Fixed infinite re-render in page.tsx (setState during render → useEffect)
+- Created seed-v3.ts: full seed data for ALL 28+ models (users, wallets, wallet transactions, payment links, payment link payments, escrow milestones, disbursements, disputes, audit logs, reviews, invoices, fraud rules, fraud alerts, compliance rules, compliance screenings, business matches, collection cases, global payment methods, currency rates)
+- Built complete EscrowTab: KPIs (volume, active, disputed, total deals), pipeline cards, status filter, full table with actions (Fund/Activate/Release/Dispute), slide-over detail drawer with milestones/disputes/risk score, Create Escrow dialog with buyer/seller/amount/currency/milestones, Raise Dispute dialog
+- Built complete WalletTab: business selector, KPIs (portfolio USD, total balance, pending, frozen), multi-currency wallet cards with balance breakdown, create wallet dialog (18 currencies), transaction history table with type badges, credit/debit dialogs with reference type
+- Built complete PaymentLinksTab: KPIs (total links, active, total collected, total payments), table with copy link/pay/view actions, detail dialog with payment history, create payment link dialog (open/fixed amount, max payments, currency), pay dialog (payer name/email/country/method/amount)
+- All 13 escrow API routes, 3 wallet API routes, 3 payment link API routes verified working
+- Smoke test: 23/25 passed (2 pre-existing: Trust Reviews missing schema relation, Wallet 409 duplicate)
+- Build: 0 errors
 
 Stage Summary:
-- Phase 1+2: All types, useApi unwrapping, component field alignment — COMPLETE
-- Phase 3: Seed data verified — 31/34 tables populated, 3 unused empty tables
-- Phase 4: Data format issues resolved
-- Phase 5: Production build passes, 15/15 API tests pass
-- All 12 dashboard tabs now display real data from the database
+- Escrow: Full CRUD + state machine (create→fund→activate→release/dispute) with UI
+- Wallet: Multi-currency wallets with credit/debit transactions, portfolio view
+- Payment Links: Create/share/pay with full payment history
+- All three features are production-ready for demo purposes
