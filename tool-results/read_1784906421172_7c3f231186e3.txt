@@ -1,0 +1,713 @@
+     1→'use client'
+     2→
+     3→import { useState, useCallback, useEffect } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import {
+     6→  Wallet as WalletIcon, Plus, ArrowUpRight, ArrowDownRight, X, RefreshCw,
+     7→  Download, Upload, ArrowLeftRight, Bitcoin, Info, ExternalLink,
+     8→} from 'lucide-react'
+     9→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    10→import { Badge } from '@/components/ui/badge'
+    11→import { Button } from '@/components/ui/button'
+    12→import { Input } from '@/components/ui/input'
+    13→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    14→import {
+    15→  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+    16→} from '@/components/ui/dialog'
+    17→import { Label } from '@/components/ui/label'
+    18→import {
+    19→  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+    20→} from '@/components/ui/table'
+    21→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    22→import {
+    23→  useApi, formatCurrency, CURRENCY_FLAGS, formatDate,
+    24→  KPICard, LoadingSkeleton, Toast, type Business, type WalletData,
+    25→} from '@/lib/dashboard-helpers'
+    26→
+    27→// ─── Types ───────────────────────────────────────────────────────
+    28→
+    29→interface WalletTransaction {
+    30→  id: string; txRef: string; type: string; amount: number;
+    31→  balanceBefore: number; balanceAfter: number; currency: string;
+    32→  description?: string | null; referenceType?: string | null;
+    33→  status: string; createdAt: string
+    34→}
+    35→
+    36→interface DepositRecord {
+    37→  id: string; depositRef: string; walletId: string; amount: number;
+    38→  currency: string; paymentMethod: string; provider?: string | null;
+    39→  bankName?: string | null; bankRef?: string | null; cardLast4?: string | null;
+    40→  notes?: string | null; status: string; completedAt?: string | null; createdAt: string
+    41→}
+    42→
+    43→interface WithdrawalRecord {
+    44→  id: string; withdrawalRef: string; walletId: string; amount: number;
+    45→  currency: string; paymentMethod: string; provider?: string | null;
+    46→  bankName?: string | null; bankAccount?: string | null; recipientName?: string | null;
+    47→  feeAmount: number; netAmount?: number | null;
+    48→  notes?: string | null; status: string; completedAt?: string | null; createdAt: string
+    49→}
+    50→
+    51→interface CryptoWithdrawalRecord {
+    52→  id: string; withdrawalRef: string; walletId: string; amount: number;
+    53→  cryptoAmount?: number | null; currency: string; cryptoCurrency: string;
+    54→  network: string; walletAddress: string; status: string;
+    55→  exchangeRate?: number | null; networkFee: number; processingFee: number;
+    56→  txHash?: string | null; explorerUrl?: string | null;
+    57→  notes?: string | null; completedAt?: string | null; createdAt: string
+    58→}
+    59→
+    60→interface RatesData {
+    61→  fiatRates: Record<string, Record<string, number>>
+    62→  cryptoPrices: Record<string, number>
+    63→  fiatToUsd: Record<string, number>
+    64→  networkFees: Record<string, number>
+    65→  cryptoNetworks: Record<string, string[]>
+    66→  conversionFeePercent: number
+    67→  withdrawalFeePercent: number
+    68→  withdrawalFlatFee: number
+    69→  cryptoWithdrawalFeePercent: number
+    70→  cryptoWithdrawalMinFee: number
+    71→}
+    72→
+    73→const TX_TYPE_BADGE: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+    74→  credit: { label: 'Credit', variant: 'default' },
+    75→  debit: { label: 'Debit', variant: 'destructive' },
+    76→  transfer_in: { label: 'Transfer In', variant: 'default' },
+    77→  transfer_out: { label: 'Transfer Out', variant: 'destructive' },
+    78→  conversion: { label: 'Conversion', variant: 'outline' },
+    79→  fee: { label: 'Fee', variant: 'secondary' },
+    80→  refund: { label: 'Refund', variant: 'outline' },
+    81→  deposit: { label: 'Deposit', variant: 'default' },
+    82→  withdrawal: { label: 'Withdrawal', variant: 'destructive' },
+    83→  crypto_withdrawal: { label: 'Crypto Out', variant: 'destructive' },
+    84→}
+    85→
+    86→const CRYPTO_ICONS: Record<string, string> = {
+    87→  USDT: '💲', USDC: '💎', BTC: '₿', ETH: 'Ξ', SOL: '◎', BNB: '🔶',
+    88→}
+    89→
+    90→const NETWORK_LABELS: Record<string, string> = {
+    91→  trc20: 'TRC-20 (Tron)', erc20: 'ERC-20 (Ethereum)', bsc: 'BEP-20 (BSC)',
+    92→  solana: 'Solana', bitcoin: 'Bitcoin', bep2: 'BEP-2 (BNB)',
+    93→}
+    94→
+    95→// ─── Component ──────────────────────────────────────────────────
+    96→
+    97→export function WalletTab() {
+    98→  const { data: businesses, loading: bLoading } = useApi<Business[]>('/api/businesses?limit=50')
+    99→  const { data: rates } = useApi<RatesData>('/api/wallets/rates')
+   100→  const [selectedBizId, setSelectedBizId] = useState<string>('')
+   101→  const bizId = selectedBizId || businesses?.[0]?.id || ''
+   102→  const [walletKey, setWalletKey] = useState(0)
+   103→  const { data: wallets, loading: wLoading } = useApi<WalletData[]>(bizId ? `/api/wallets?businessId=${bizId}&k=${walletKey}` : '')
+   104→  const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null)
+   105→  const [txns, setTxns] = useState<WalletTransaction[]>([])
+   106→  const [txLoading, setTxLoading] = useState(false)
+   107→
+   108→  // Dialogs
+   109→  const [createOpen, setCreateOpen] = useState(false)
+   110→  const [depositOpen, setDepositOpen] = useState(false)
+   111→  const [withdrawOpen, setWithdrawOpen] = useState(false)
+   112→  const [convertOpen, setConvertOpen] = useState(false)
+   113→  const [cryptoOpen, setCryptoOpen] = useState(false)
+   114→
+   115→  // History dialogs
+   116→  const [historyTab, setHistoryTab] = useState('transactions')
+   117→  const [deposits, setDeposits] = useState<DepositRecord[]>([])
+   118→  const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([])
+   119→  const [cryptoWdrs, setCryptoWdrs] = useState<CryptoWithdrawalRecord[]>([])
+   120→  const [historyOpen, setHistoryOpen] = useState(false)
+   121→
+   122→  const [toastMsg, setToastMsg] = useState('')
+   123→  const [toastVis, setToastVis] = useState(false)
+   124→
+   125→  // Create wallet form
+   126→  const [newCurrency, setNewCurrency] = useState('USD')
+   127→  const [creating, setCreating] = useState(false)
+   128→
+   129→  // Deposit form
+   130→  const [depAmount, setDepAmount] = useState('')
+   131→  const [depMethod, setDepMethod] = useState('bank_transfer')
+   132→  const [depNotes, setDepNotes] = useState('')
+   133→  const [depSubmitting, setDepSubmitting] = useState(false)
+   134→
+   135→  // Withdraw form
+   136→  const [wdrAmount, setWdrAmount] = useState('')
+   137→  const [wdrMethod, setWdrMethod] = useState('bank_transfer')
+   138→  const [wdrBankName, setWdrBankName] = useState('')
+   139→  const [wdrBankAccount, setWdrBankAccount] = useState('')
+   140→  const [wdrRecipientName, setWdrRecipientName] = useState('')
+   141→  const [wdrNotes, setWdrNotes] = useState('')
+   142→  const [wdrSubmitting, setWdrSubmitting] = useState(false)
+   143→
+   144→  // Convert form
+   145→  const [cvtFromWalletId, setCvtFromWalletId] = useState('')
+   146→  const [cvtToWalletId, setCvtToWalletId] = useState('')
+   147→  const [cvtAmount, setCvtAmount] = useState('')
+   148→  const [cvtSubmitting, setCvtSubmitting] = useState(false)
+   149→
+   150→  // Crypto form
+   151→  const [crCrypto, setCrCrypto] = useState('USDT')
+   152→  const [crNetwork, setCrNetwork] = useState('trc20')
+   153→  const [crAddress, setCrAddress] = useState('')
+   154→  const [crAmount, setCrAmount] = useState('')
+   155→  const [crNotes, setCrNotes] = useState('')
+   156→  const [crSubmitting, setCrSubmitting] = useState(false)
+   157→
+   158→  const showToast = useCallback((msg: string) => { setToastMsg(msg); setToastVis(true); setTimeout(() => setToastVis(false), 3000) }, [])
+   159→
+   160→  const loadTransactions = useCallback(async (walletId: string) => {
+   161→    setSelectedWalletId(walletId)
+   162→    setTxLoading(true)
+   163→    try {
+   164→      const res = await fetch(`/api/wallets/${walletId}/transactions?limit=50`)
+   165→      const json = await res.json()
+   166→      setTxns(json.data || [])
+   167→    } catch { setTxns([]) } finally { setTxLoading(false) }
+   168→  }, [])
+   169→
+   170→  const loadHistory = useCallback(async (walletId: string, tab: string) => {
+   171→    setHistoryTab(tab)
+   172→    setHistoryOpen(true)
+   173→    try {
+   174→      if (tab === 'deposits') {
+   175→        const r = await fetch(`/api/wallets/deposit?walletId=${walletId}&limit=50`)
+   176→        setDeposits((await r.json()).data || [])
+   177→      } else if (tab === 'withdrawals') {
+   178→        const r = await fetch(`/api/wallets/withdrawal?walletId=${walletId}&limit=50`)
+   179→        setWithdrawals((await r.json()).data || [])
+   180→      } else if (tab === 'crypto') {
+   181→        const r = await fetch(`/api/wallets/crypto-withdrawal?walletId=${walletId}&limit=50`)
+   182→        setCryptoWdrs((await r.json()).data || [])
+   183→      }
+   184→    } catch { /* ignore */ }
+   185→  }, [])
+   186→
+   187→  const allWallets = wallets || []
+   188→  const totalPortfolio = allWallets.reduce((sum, w) => {
+   189→    try {
+   190→      const toUsd = rates?.fiatToUsd?.[w.currency] || 1
+   191→      return sum + w.balance * toUsd
+   192→    } catch { return sum }
+   193→  }, 0)
+   194→  const totalBalance = allWallets.reduce((s, w) => s + w.balance, 0)
+   195→  const totalPending = allWallets.reduce((s, w) => s + w.pendingBalance, 0)
+   196→  const totalFrozen = allWallets.reduce((s, w) => s + w.frozenBalance, 0)
+   197→
+   198→  const selectedWallet = allWallets.find(w => w.id === selectedWalletId)
+   199→
+   200→  // Conversion preview
+   201→  const conversionPreview = (() => {
+   202→    if (!cvtAmount || !cvtFromWalletId || !cvtToWalletId || !rates) return null
+   203→    const from = allWallets.find(w => w.id === cvtFromWalletId)
+   204→    const to = allWallets.find(w => w.id === cvtToWalletId)
+   205→    if (!from || !to) return null
+   206→    const amount = parseFloat(cvtAmount)
+   207→    if (isNaN(amount) || amount <= 0) return null
+   208→    const direct = rates.fiatRates[from.currency]?.[to.currency]
+   209→    if (!direct) return null
+   210→    const gross = amount * direct
+   211→    const fee = Math.round(gross * 0.005 * 100) / 100
+   212→    const net = Math.round((gross - fee) * 100) / 100
+   213→    return { rate: direct, gross, fee, net }
+   214→  })()
+   215→
+   216→  // Crypto withdrawal preview
+   217→  const cryptoPreview = (() => {
+   218→    if (!crAmount || !selectedWallet || !rates) return null
+   219→    const amount = parseFloat(crAmount)
+   220→    if (isNaN(amount) || amount <= 0) return null
+   221→    const toUsd = rates.fiatToUsd[selectedWallet.currency] || 1
+   222→    const usdAmount = amount * toUsd
+   223→    const cryptoPrice = rates.cryptoPrices[crCrypto]
+   224→    if (!cryptoPrice) return null
+   225→    const cryptoAmt = usdAmount / cryptoPrice
+   226→    const netFee = rates.networkFees[crNetwork] || 0
+   227→    const netCrypto = Math.max(0, cryptoAmt - netFee)
+   228→    const procFee = Math.max(amount * (rates.cryptoWithdrawalFeePercent / 100), rates.cryptoWithdrawalMinFee)
+   229→    const totalDebit = amount + procFee
+   230→    return { usdAmount, cryptoAmt, netCrypto, netFee, procFee, totalDebit, cryptoPrice }
+   231→  })()
+   232→
+   233→  const handleCreateWallet = async () => {
+   234→    if (!bizId) return
+   235→    setCreating(true)
+   236→    try {
+   237→      const res = await fetch('/api/wallets', {
+   238→        method: 'POST', headers: { 'Content-Type': 'application/json' },
+   239→        body: JSON.stringify({ businessId: bizId, currency: newCurrency, isDefault: allWallets.length === 0 }),
+   240→      })
+   241→      const json = await res.json()
+   242→      if (!res.ok) throw new Error(json.error || 'Failed')
+   243→      showToast('Wallet created!')
+   244→      setCreateOpen(false)
+   245→      setWalletKey(k => k + 1)
+   246→    } catch (e: any) { showToast(e.message) } finally { setCreating(false) }
+   247→  }
+   248→
+   249→  const handleDeposit = async () => {
+   250→    if (!selectedWalletId || !depAmount) return
+   251→    setDepSubmitting(true)
+   252→    try {
+   253→      const res = await fetch('/api/wallets/deposit', {
+   254→        method: 'POST', headers: { 'Content-Type': 'application/json' },
+   255→        body: JSON.stringify({
+   256→          walletId: selectedWalletId, amount: parseFloat(depAmount),
+   257→          paymentMethod: depMethod, provider: 'demo', notes: depNotes || undefined,
+   258→        }),
+   259→      })
+   260→      const json = await res.json()
+   261→      if (!res.ok) throw new Error(json.error || 'Failed')
+   262→      showToast('Deposit completed!')
+   263→      setDepositOpen(false); setDepAmount(''); setDepNotes('')
+   264→      setWalletKey(k => k + 1)
+   265→      loadTransactions(selectedWalletId)
+   266→    } catch (e: any) { showToast(e.message) } finally { setDepSubmitting(false) }
+   267→  }
+   268→
+   269→  const handleWithdraw = async () => {
+   270→    if (!selectedWalletId || !wdrAmount) return
+   271→    setWdrSubmitting(true)
+   272→    try {
+   273→      const res = await fetch('/api/wallets/withdrawal', {
+   274→        method: 'POST', headers: { 'Content-Type': 'application/json' },
+   275→        body: JSON.stringify({
+   276→          walletId: selectedWalletId, amount: parseFloat(wdrAmount),
+   277→          paymentMethod: wdrMethod, provider: 'demo',
+   278→          bankName: wdrBankName || undefined, bankAccount: wdrBankAccount || undefined,
+   279→          recipientName: wdrRecipientName || undefined, notes: wdrNotes || undefined,
+   280→        }),
+   281→      })
+   282→      const json = await res.json()
+   283→      if (!res.ok) throw new Error(json.error || 'Failed')
+   284→      showToast('Withdrawal completed!')
+   285→      setWithdrawOpen(false); setWdrAmount(''); setWdrBankName(''); setWdrBankAccount(''); setWdrRecipientName(''); setWdrNotes('')
+   286→      setWalletKey(k => k + 1)
+   287→      loadTransactions(selectedWalletId)
+   288→    } catch (e: any) { showToast(e.message) } finally { setWdrSubmitting(false) }
+   289→  }
+   290→
+   291→  const handleConvert = async () => {
+   292→    if (!cvtFromWalletId || !cvtToWalletId || !cvtAmount) return
+   293→    setCvtSubmitting(true)
+   294→    try {
+   295→      const res = await fetch('/api/wallets/convert', {
+   296→        method: 'POST', headers: { 'Content-Type': 'application/json' },
+   297→        body: JSON.stringify({ fromWalletId: cvtFromWalletId, toWalletId: cvtToWalletId, fromAmount: parseFloat(cvtAmount) }),
+   298→      })
+   299→      const json = await res.json()
+   300→      if (!res.ok) throw new Error(json.error || 'Failed')
+   301→      showToast('Conversion completed!')
+   302→      setConvertOpen(false); setCvtAmount('')
+   303→      setWalletKey(k => k + 1)
+   304→      loadTransactions(selectedWalletId)
+   305→    } catch (e: any) { showToast(e.message) } finally { setCvtSubmitting(false) }
+   306→  }
+   307→
+   308→  const handleCryptoWithdraw = async () => {
+   309→    if (!selectedWalletId || !crAmount || !crAddress) return
+   310→    setCrSubmitting(true)
+   311→    try {
+   312→      const res = await fetch('/api/wallets/crypto-withdrawal', {
+   313→        method: 'POST', headers: { 'Content-Type': 'application/json' },
+   314→        body: JSON.stringify({
+   315→          walletId: selectedWalletId, amount: parseFloat(crAmount),
+   316→          cryptoCurrency: crCrypto, network: crNetwork, walletAddress: crAddress.trim(),
+   317→          notes: crNotes || undefined,
+   318→        }),
+   319→      })
+   320→      const json = await res.json()
+   321→      if (!res.ok) throw new Error(json.error || 'Failed')
+   322→      showToast('Crypto withdrawal submitted!')
+   323→      setCryptoOpen(false); setCrAmount(''); setCrAddress(''); setCrNotes('')
+   324→      setWalletKey(k => k + 1)
+   325→      loadTransactions(selectedWalletId)
+   326→    } catch (e: any) { showToast(e.message) } finally { setCrSubmitting(false) }
+   327→  }
+   328→
+   329→  // When crypto changes, reset network to first valid
+   330→  useEffect(() => {
+   331→    if (rates) {
+   332→      const nets = rates.cryptoNetworks[crCrypto]
+   333→      if (nets && nets.length > 0) setCrNetwork(nets[0])
+   334→    }
+   335→  }, [crCrypto, rates])
+   336→
+   337→  // When convert source wallet changes, clear target if same
+   338→  useEffect(() => {
+   339→    if (cvtFromWalletId === cvtToWalletId) setCvtToWalletId('')
+   340→  }, [cvtFromWalletId])
+   341→
+   342→  if (bLoading || (bizId && wLoading)) return <LoadingSkeleton />
+   343→
+   344→  return (
+   345→    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+   346→      {/* Business selector */}
+   347→      <div className="flex items-center justify-between flex-wrap gap-3">
+   348→        <div className="flex items-center gap-3">
+   349→          <span className="text-sm text-slate-500">Business:</span>
+   350→          <Select value={selectedBizId || businesses?.[0]?.id} onValueChange={setSelectedBizId}>
+   351→            <SelectTrigger className="w-64"><SelectValue placeholder="Select business" /></SelectTrigger>
+   352→            <SelectContent>{(businesses || []).map(b => (<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>))}</SelectContent>
+   353→          </Select>
+   354→        </div>
+   355→        <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-1" /> New Wallet</Button>
+   356→      </div>
+   357→
+   358→      {/* KPIs */}
+   359→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+   360→        <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-white">
+   361→          <CardContent className="p-4 sm:p-6 text-center">
+   362→            <p className="text-xs text-slate-500 mb-1">Portfolio (USD)</p>
+   363→            <p className="text-2xl font-bold text-emerald-700">{formatCurrency(totalPortfolio)}</p>
+   364→          </CardContent>
+   365→        </Card>
+   366→        <KPICard title="Total Balance" value={formatCurrency(totalBalance)} icon={WalletIcon} />
+   367→        <KPICard title="Pending" value={formatCurrency(totalPending)} icon={RefreshCw} />
+   368→        <KPICard title="Frozen" value={formatCurrency(totalFrozen)} icon={WalletIcon} />
+   369→      </div>
+   370→
+   371→      {/* Wallet Cards */}
+   372→      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   373→        {allWallets.map(w => (
+   374→          <Card key={w.id} className={`hover:shadow-md transition-shadow cursor-pointer ${selectedWalletId === w.id ? 'ring-2 ring-emerald-500' : ''}`} onClick={() => loadTransactions(w.id)}>
+   375→            <CardContent className="p-4 sm:p-6">
+   376→              <div className="flex items-center justify-between mb-3">
+   377→                <div className="flex items-center gap-2">
+   378→                  <span className="text-xl">{CURRENCY_FLAGS[w.currency] || '💰'}</span>
+   379→                  <span className="font-semibold">{w.currency}</span>
+   380→                  {w.isDefault && <Badge variant="outline" className="text-[10px]">Default</Badge>}
+   381→                </div>
+   382→                <Badge variant={w.status === 'active' ? 'default' : 'destructive'}>{w.status}</Badge>
+   383→              </div>
+   384→              <p className="text-2xl sm:text-3xl font-bold">{formatCurrency(w.balance, w.currency)}</p>
+   385→              <div className="mt-3 space-y-1 text-xs text-slate-500">
+   386→                <div className="flex justify-between"><span>Available</span><span className="text-emerald-600 font-medium">{formatCurrency(w.availableBalance, w.currency)}</span></div>
+   387→                <div className="flex justify-between"><span>Pending</span><span className="text-amber-600 font-medium">{formatCurrency(w.pendingBalance, w.currency)}</span></div>
+   388→                <div className="flex justify-between"><span>Frozen</span><span className="text-red-600 font-medium">{formatCurrency(w.frozenBalance, w.currency)}</span></div>
+   389→              </div>
+   390→            </CardContent>
+   391→          </Card>
+   392→        ))}
+   393→      </div>
+   394→
+   395→      {allWallets.length === 0 && bizId && !wLoading && (
+   396→        <Card className="border-dashed"><CardContent className="p-12 text-center"><p className="text-slate-500">No wallets for this business.</p></CardContent></Card>
+   397→      )}
+   398→
+   399→      {/* Action Buttons + Transaction History */}
+   400→      <AnimatePresence>
+   401→        {selectedWalletId && selectedWallet && (
+   402→          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+   403→            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+   404→              <h3 className="font-semibold">{selectedWallet.currency} Wallet — {CURRENCY_FLAGS[selectedWallet.currency] || ''}</h3>
+   405→              <div className="flex gap-2 flex-wrap">
+   406→                <Button size="sm" onClick={() => setDepositOpen(true)}><Download className="h-3.5 w-3.5 mr-1 text-emerald-500" /> Deposit</Button>
+   407→                <Button size="sm" variant="outline" onClick={() => setWithdrawOpen(true)}><Upload className="h-3.5 w-3.5 mr-1 text-red-500" /> Withdraw</Button>
+   408→                <Button size="sm" variant="outline" onClick={() => setConvertOpen(true)}><ArrowLeftRight className="h-3.5 w-3.5 mr-1 text-amber-500" /> Convert</Button>
+   409→                <Button size="sm" variant="outline" onClick={() => setCryptoOpen(true)}><Bitcoin className="h-3.5 w-3.5 mr-1 text-orange-500" /> Crypto</Button>
+   410→                <Button size="sm" variant="ghost" onClick={() => loadHistory(selectedWalletId, 'transactions')}>History</Button>
+   411→              </div>
+   412→            </div>
+   413→            <Card>
+   414→              <CardContent className="p-0">
+   415→                <div className="overflow-x-auto">
+   416→                  <Table>
+   417→                    <TableHeader>
+   418→                      <TableRow>
+   419→                        <TableHead>Reference</TableHead>
+   420→                        <TableHead>Type</TableHead>
+   421→                        <TableHead>Description</TableHead>
+   422→                        <TableHead className="text-right">Amount</TableHead>
+   423→                        <TableHead className="text-right">Balance After</TableHead>
+   424→                        <TableHead>Status</TableHead>
+   425→                        <TableHead>Date</TableHead>
+   426→                      </TableRow>
+   427→                    </TableHeader>
+   428→                    <TableBody>
+   429→                      {txLoading && <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-400">Loading...</TableCell></TableRow>}
+   430→                      {!txLoading && txns.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-400">No transactions yet</TableCell></TableRow>}
+   431→                      {txns.map(tx => {
+   432→                        const badge = TX_TYPE_BADGE[tx.type] || { label: tx.type, variant: 'secondary' as const }
+   433→                        const isCredit = tx.type === 'credit' || tx.type === 'transfer_in' || tx.type === 'refund' || tx.type === 'deposit'
+   434→                        return (
+   435→                          <TableRow key={tx.id} className="even:bg-muted/50">
+   436→                            <TableCell className="font-mono text-xs">{tx.txRef}</TableCell>
+   437→                            <TableCell><Badge variant={badge.variant}>{badge.label}</Badge></TableCell>
+   438→                            <TableCell className="max-w-[200px] truncate text-xs">{tx.description || tx.referenceType || '—'}</TableCell>
+   439→                            <TableCell className={`text-right font-medium ${isCredit ? 'text-emerald-600' : 'text-red-600'}`}>{isCredit ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}</TableCell>
+   440→                            <TableCell className="text-right text-sm">{formatCurrency(tx.balanceAfter, tx.currency)}</TableCell>
+   441→                            <TableCell><Badge variant={tx.status === 'completed' ? 'default' : 'secondary'}>{tx.status}</Badge></TableCell>
+   442→                            <TableCell className="text-xs text-slate-500">{formatDate(tx.createdAt)}</TableCell>
+   443→                          </TableRow>
+   444→                        )
+   445→                      })}
+   446→                    </TableBody>
+   447→                  </Table>
+   448→                </div>
+   449→              </CardContent>
+   450→            </Card>
+   451→          </motion.div>
+   452→        )}
+   453→      </AnimatePresence>
+   454→
+   455→      {/* ═══ DIALOGS ═══ */}
+   456→
+   457→      {/* Create Wallet Dialog */}
+   458→      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+   459→        <DialogContent className="max-w-sm">
+   460→          <DialogHeader><DialogTitle>Create New Wallet</DialogTitle><DialogDescription>Add a multi-currency wallet for this business</DialogDescription></DialogHeader>
+   461→          <div className="space-y-4">
+   462→            <div className="space-y-2"><Label>Currency *</Label>
+   463→              <Select value={newCurrency} onValueChange={setNewCurrency}>
+   464→                <SelectTrigger><SelectValue /></SelectTrigger>
+   465→                <SelectContent>{['USD','EUR','GBP','NGN','KES','CNY','JPY','SGD','AED','BRL','AUD','INR','GHS','UGX','TZS','ZAR','CAD','CHF'].map(c => <SelectItem key={c} value={c}>{CURRENCY_FLAGS[c] || '💰'} {c}</SelectItem>)}</SelectContent>
+   466→              </Select>
+   467→            </div>
+   468→          </div>
+   469→          <DialogFooter>
+   470→            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+   471→            <Button onClick={handleCreateWallet} disabled={creating}>{creating ? 'Creating...' : 'Create Wallet'}</Button>
+   472→          </DialogFooter>
+   473→        </DialogContent>
+   474→      </Dialog>
+   475→
+   476→      {/* Deposit Dialog */}
+   477→      <Dialog open={depositOpen} onOpenChange={setDepositOpen}>
+   478→        <DialogContent className="max-w-md">
+   479→          <DialogHeader><DialogTitle><Download className="h-4 w-4 inline mr-2 text-emerald-500" />Deposit Funds</DialogTitle><DialogDescription>Add funds to your {selectedWallet?.currency} wallet</DialogDescription></DialogHeader>
+   480→          <div className="space-y-4">
+   481→            <div className="space-y-2"><Label>Amount ({selectedWallet?.currency || '—'}) *</Label>
+   482→              <Input type="number" min="0.01" step="0.01" placeholder="0.00" value={depAmount} onChange={e => setDepAmount(e.target.value)} />
+   483→            </div>
+   484→            <div className="space-y-2"><Label>Payment Method *</Label>
+   485→              <Select value={depMethod} onValueChange={setDepMethod}>
+   486→                <SelectTrigger><SelectValue /></SelectTrigger>
+   487→                <SelectContent>
+   488→                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+   489→                  <SelectItem value="card">Debit/Credit Card</SelectItem>
+   490→                  <SelectItem value="mobile_money">Mobile Money (M-Pesa, etc.)</SelectItem>
+   491→                  <SelectItem value="payment_link">Payment Link</SelectItem>
+   492→                  <SelectItem value="external">External / Manual</SelectItem>
+   493→                </SelectContent>
+   494→              </Select>
+   495→            </div>
+   496→            <div className="space-y-2"><Label>Notes (optional)</Label>
+   497→              <Input placeholder="Reference or description" value={depNotes} onChange={e => setDepNotes(e.target.value)} />
+   498→            </div>
+   499→            <div className="bg-slate-50 rounded-md p-3 text-xs text-slate-500 space-y-1">
+   500→              <p><Info className="h-3 w-3 inline mr-1" />Deposits via <b>demo provider</b> complete instantly. In production, bank transfers take 1–3 business days, cards are instant.</p>
+   501→            </div>
+   502→          </div>
+   503→          <DialogFooter>
+   504→            <Button variant="outline" onClick={() => setDepositOpen(false)}>Cancel</Button>
+   505→            <Button onClick={handleDeposit} disabled={!depAmount || depSubmitting}>{depSubmitting ? 'Processing...' : 'Deposit'}</Button>
+   506→          </DialogFooter>
+   507→        </DialogContent>
+   508→      </Dialog>
+   509→
+   510→      {/* Withdraw Dialog */}
+   511→      <Dialog open={withdrawOpen} onOpenChange={setWithdrawOpen}>
+   512→        <DialogContent className="max-w-md">
+   513→          <DialogHeader><DialogTitle><Upload className="h-4 w-4 inline mr-2 text-red-500" />Withdraw Funds</DialogTitle><DialogDescription>Withdraw from your {selectedWallet?.currency} wallet</DialogDescription></DialogHeader>
+   514→          <div className="space-y-4">
+   515→            <div className="bg-slate-50 rounded-md p-3 flex justify-between text-sm">
+   516→              <span className="text-slate-500">Available</span>
+   517→              <span className="font-semibold text-emerald-700">{formatCurrency(selectedWallet?.availableBalance || 0, selectedWallet?.currency)}</span>
+   518→            </div>
+   519→            <div className="space-y-2"><Label>Amount ({selectedWallet?.currency || '—'}) *</Label>
+   520→              <Input type="number" min="0.01" step="0.01" placeholder="0.00" value={wdrAmount} onChange={e => setWdrAmount(e.target.value)} />
+   521→            </div>
+   522→            <div className="space-y-2"><Label>Withdrawal Method *</Label>
+   523→              <Select value={wdrMethod} onValueChange={setWdrMethod}>
+   524→                <SelectTrigger><SelectValue /></SelectTrigger>
+   525→                <SelectContent>
+   526→                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+   527→                  <SelectItem value="mobile_money">Mobile Money</SelectItem>
+   528→                </SelectContent>
+   529→              </Select>
+   530→            </div>
+   531→            {wdrMethod === 'bank_transfer' && (
+   532→              <div className="space-y-3">
+   533→                <div className="space-y-2"><Label>Bank Name</Label><Input placeholder="e.g. Equity Bank Kenya" value={wdrBankName} onChange={e => setWdrBankName(e.target.value)} /></div>
+   534→                <div className="space-y-2"><Label>Account Number</Label><Input placeholder="e.g. ****1234" value={wdrBankAccount} onChange={e => setWdrBankAccount(e.target.value)} /></div>
+   535→                <div className="space-y-2"><Label>Recipient Name</Label><Input placeholder="Account holder name" value={wdrRecipientName} onChange={e => setWdrRecipientName(e.target.value)} /></div>
+   536→              </div>
+   537→            )}
+   538→            <div className="space-y-2"><Label>Notes (optional)</Label>
+   539→              <Input placeholder="Reference or description" value={wdrNotes} onChange={e => setWdrNotes(e.target.value)} />
+   540→            </div>
+   541→            {wdrAmount && parseFloat(wdrAmount) > 0 && (
+   542→              <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs space-y-1">
+   543→                <p className="font-medium text-amber-800">Fee Estimate</p>
+   544→                <div className="flex justify-between"><span>Amount:</span><span>{formatCurrency(parseFloat(wdrAmount), selectedWallet?.currency)}</span></div>
+   545→                <div className="flex justify-between"><span>Fee (max 0.5% or $2.50):</span><span className="text-red-600">{formatCurrency(Math.max(2.5, parseFloat(wdrAmount) * 0.005), selectedWallet?.currency)}</span></div>
+   546→                <div className="flex justify-between font-medium border-t border-amber-200 pt-1 mt-1"><span>Net:</span><span>{formatCurrency(parseFloat(wdrAmount) - Math.max(2.5, parseFloat(wdrAmount) * 0.005), selectedWallet?.currency)}</span></div>
+   547→              </div>
+   548→            )}
+   549→          </div>
+   550→          <DialogFooter>
+   551→            <Button variant="outline" onClick={() => setWithdrawOpen(false)}>Cancel</Button>
+   552→            <Button onClick={handleWithdraw} disabled={!wdrAmount || wdrSubmitting}>{wdrSubmitting ? 'Processing...' : 'Withdraw'}</Button>
+   553→          </DialogFooter>
+   554→        </DialogContent>
+   555→      </Dialog>
+   556→
+   557→      {/* Currency Conversion Dialog */}
+   558→      <Dialog open={convertOpen} onOpenChange={setConvertOpen}>
+   559→        <DialogContent className="max-w-md">
+   560→          <DialogHeader><DialogTitle><ArrowLeftRight className="h-4 w-4 inline mr-2 text-amber-500" />Convert Currency</DialogTitle><DialogDescription>Convert between your multi-currency wallets</DialogDescription></DialogHeader>
+   561→          {allWallets.length < 2 ? (
+   562→            <p className="text-sm text-slate-500 py-4">You need at least 2 wallets in different currencies to convert.</p>
+   563→          ) : (
+   564→            <div className="space-y-4">
+   565→              <div className="space-y-2"><Label>From Wallet *</Label>
+   566→                <Select value={cvtFromWalletId} onValueChange={setCvtFromWalletId}>
+   567→                  <SelectTrigger><SelectValue placeholder="Select source wallet" /></SelectTrigger>
+   568→                  <SelectContent>{allWallets.filter(w => w.status === 'active').map(w => (
+   569→                    <SelectItem key={w.id} value={w.id}>{CURRENCY_FLAGS[w.currency]} {w.currency} — {formatCurrency(w.availableBalance, w.currency)}</SelectItem>
+   570→                  ))}</SelectContent>
+   571→                </Select>
+   572→              </div>
+   573→              <div className="flex justify-center"><ArrowDownRight className="h-5 w-5 text-slate-400 rotate-90" /></div>
+   574→              <div className="space-y-2"><Label>To Wallet *</Label>
+   575→                <Select value={cvtToWalletId} onValueChange={setCvtToWalletId}>
+   576→                  <SelectTrigger><SelectValue placeholder="Select destination wallet" /></SelectTrigger>
+   577→                  <SelectContent>{allWallets.filter(w => w.status === 'active' && w.id !== cvtFromWalletId).map(w => (
+   578→                    <SelectItem key={w.id} value={w.id}>{CURRENCY_FLAGS[w.currency]} {w.currency} — {formatCurrency(w.balance, w.currency)}</SelectItem>
+   579→                  ))}</SelectContent>
+   580→                </Select>
+   581→              </div>
+   582→              <div className="space-y-2"><Label>Amount *</Label>
+   583→                <Input type="number" min="0.01" step="0.01" placeholder="0.00" value={cvtAmount} onChange={e => setCvtAmount(e.target.value)} />
+   584→              </div>
+   585→              {conversionPreview && (
+   586→                <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3 text-xs space-y-1">
+   587→                  <p className="font-medium text-emerald-800">Conversion Preview</p>
+   588→                  <div className="flex justify-between"><span>Rate:</span><span>1 {allWallets.find(w => w.id === cvtFromWalletId)?.currency} = {conversionPreview.rate} {allWallets.find(w => w.id === cvtToWalletId)?.currency}</span></div>
+   589→                  <div className="flex justify-between"><span>Gross:</span><span>{formatCurrency(conversionPreview.gross, allWallets.find(w => w.id === cvtToWalletId)?.currency)}</span></div>
+   590→                  <div className="flex justify-between"><span>Fee (0.5%):</span><span className="text-red-600">{formatCurrency(conversionPreview.fee, allWallets.find(w => w.id === cvtToWalletId)?.currency)}</span></div>
+   591→                  <div className="flex justify-between font-medium border-t border-emerald-200 pt-1 mt-1"><span>You receive:</span><span className="text-emerald-700">{formatCurrency(conversionPreview.net, allWallets.find(w => w.id === cvtToWalletId)?.currency)}</span></div>
+   592→                </div>
+   593→              )}
+   594→            </div>
+   595→          )}
+   596→          <DialogFooter>
+   597→            <Button variant="outline" onClick={() => setConvertOpen(false)}>Cancel</Button>
+   598→            <Button onClick={handleConvert} disabled={!cvtFromWalletId || !cvtToWalletId || !cvtAmount || cvtSubmitting}>{cvtSubmitting ? 'Converting...' : 'Convert'}</Button>
+   599→          </DialogFooter>
+   600→        </DialogContent>
+   601→      </Dialog>
+   602→
+   603→      {/* Crypto Withdrawal Dialog */}
+   604→      <Dialog open={cryptoOpen} onOpenChange={setCryptoOpen}>
+   605→        <DialogContent className="max-w-lg">
+   606→          <DialogHeader><DialogTitle><Bitcoin className="h-4 w-4 inline mr-2 text-orange-500" />Withdraw via Crypto</DialogTitle><DialogDescription>Convert wallet balance to cryptocurrency and send to an external wallet</DialogDescription></DialogHeader>
+   607→          <div className="space-y-4">
+   608→            <div className="bg-slate-50 rounded-md p-3 flex justify-between text-sm">
+   609→              <span className="text-slate-500">Available</span>
+   610→              <span className="font-semibold text-emerald-700">{formatCurrency(selectedWallet?.availableBalance || 0, selectedWallet?.currency)}</span>
+   611→            </div>
+   612→            <div className="grid grid-cols-2 gap-4">
+   613→              <div className="space-y-2"><Label>Cryptocurrency *</Label>
+   614→                <Select value={crCrypto} onValueChange={setCrCrypto}>
+   615→                  <SelectTrigger><SelectValue /></SelectTrigger>
+   616→                  <SelectContent>{['USDT','USDC','BTC','ETH','SOL','BNB'].map(c => (
+   617→                    <SelectItem key={c} value={c}>{CRYPTO_ICONS[c]} {c}</SelectItem>
+   618→                  ))}</SelectContent>
+   619→                </Select>
+   620→              </div>
+   621→              <div className="space-y-2"><Label>Network *</Label>
+   622→                <Select value={crNetwork} onValueChange={setCrNetwork}>
+   623→                  <SelectTrigger><SelectValue /></SelectTrigger>
+   624→                  <SelectContent>{(rates?.cryptoNetworks?.[crCrypto] || []).map(n => (
+   625→                    <SelectItem key={n} value={n}>{NETWORK_LABELS[n] || n}</SelectItem>
+   626→                  ))}</SelectContent>
+   627→                </Select>
+   628→              </div>
+   629→            </div>
+   630→            <div className="space-y-2"><Label>Wallet Address *</Label>
+   631→              <Input placeholder="0x... or bc1... or T..." value={crAddress} onChange={e => setCrAddress(e.target.value)} className="font-mono text-sm" />
+   632→            </div>
+   633→            <div className="space-y-2"><Label>Amount ({selectedWallet?.currency || '—'}) *</Label>
+   634→              <Input type="number" min="0.01" step="0.01" placeholder="0.00" value={crAmount} onChange={e => setCrAmount(e.target.value)} />
+   635→            </div>
+   636→            <div className="space-y-2"><Label>Notes (optional)</Label>
+   637→              <Input placeholder="Memo, tag, or description" value={crNotes} onChange={e => setCrNotes(e.target.value)} />
+   638→            </div>
+   639→            {cryptoPreview && (
+   640→              <div className="bg-orange-50 border border-orange-200 rounded-md p-3 text-xs space-y-1">
+   641→                <p className="font-medium text-orange-800">Crypto Withdrawal Preview</p>
+   642→                <div className="flex justify-between"><span>Amount:</span><span>{formatCurrency(cryptoPreview.usdAmount, 'USD')}</span></div>
+   643→                <div className="flex justify-between"><span>Crypto Price:</span><span>{formatCurrency(cryptoPreview.cryptoPrice, 'USD')} per {crCrypto}</span></div>
+   644→                <div className="flex justify-between"><span>{crCrypto} Amount:</span><span>{cryptoPreview.cryptoAmt.toFixed(6)} {crCrypto}</span></div>
+   645→                <div className="flex justify-between"><span>Network Fee:</span><span className="text-red-600">{cryptoPreview.netFee} {crCrypto}</span></div>
+   646→                <div className="flex justify-between"><span>You Receive:</span><span className="font-medium text-orange-900">{cryptoPreview.netCrypto.toFixed(6)} {crCrypto}</span></div>
+   647→                <div className="flex justify-between border-t border-orange-200 pt-1 mt-1"><span>Processing Fee (1% min $1):</span><span className="text-red-600">{formatCurrency(cryptoPreview.procFee, selectedWallet?.currency)}</span></div>
+   648→                <div className="flex justify-between font-medium"><span>Total Debit:</span><span className="text-red-700">{formatCurrency(cryptoPreview.totalDebit, selectedWallet?.currency)}</span></div>
+   649→              </div>
+   650→            )}
+   651→            <div className="bg-red-50 border border-red-200 rounded-md p-3 text-xs text-red-700 space-y-1">
+   652→              <p className="font-medium">Warning</p>
+   653→              <p>Double-check the wallet address and network. Crypto transactions are irreversible. Sending to the wrong network may result in permanent loss of funds.</p>
+   654→            </div>
+   655→          </div>
+   656→          <DialogFooter>
+   657→            <Button variant="outline" onClick={() => setCryptoOpen(false)}>Cancel</Button>
+   658→            <Button onClick={handleCryptoWithdraw} disabled={!crAmount || !crAddress || crSubmitting}>{crSubmitting ? 'Submitting...' : 'Withdraw Crypto'}</Button>
+   659→          </DialogFooter>
+   660→        </DialogContent>
+   661→      </Dialog>
+   662→
+   663→      {/* History Dialog */}
+   664→      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+   665→        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+   666→          <DialogHeader><DialogTitle>Transaction History</DialogTitle><DialogDescription>View detailed records for this wallet</DialogDescription></DialogHeader>
+   667→          <Tabs value={historyTab} onValueChange={(v) => loadHistory(selectedWalletId || '', v)} className="flex-1 flex flex-col min-h-0">
+   668→            <TabsList className="w-full justify-start">
+   669→              <TabsTrigger value="transactions">All Transactions</TabsTrigger>
+   670→              <TabsTrigger value="deposits">Deposits</TabsTrigger>
+   671→              <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
+   672→              <TabsTrigger value="crypto">Crypto</TabsTrigger>
+   673→            </TabsList>
+   674→            <div className="flex-1 overflow-y-auto mt-2">
+   675→              <TabsContent value="transactions" className="mt-0">
+   676→                <Table><TableHeader><TableRow><TableHead>Ref</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Balance</TableHead><TableHead>Date</TableHead></TableRow></TableHeader><TableBody>
+   677→                  {txns.map(tx => { const isC = ['credit','transfer_in','refund','deposit'].includes(tx.type); return (
+   678→                    <TableRow key={tx.id}><TableCell className="font-mono text-xs">{tx.txRef}</TableCell><TableCell><Badge variant={TX_TYPE_BADGE[tx.type]?.variant || 'secondary'}>{TX_TYPE_BADGE[tx.type]?.label || tx.type}</Badge></TableCell><TableCell className={`text-right ${isC ? 'text-emerald-600' : 'text-red-600'}`}>{isC ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}</TableCell><TableCell>{formatCurrency(tx.balanceAfter, tx.currency)}</TableCell><TableCell className="text-xs text-slate-500">{formatDate(tx.createdAt)}</TableCell></TableRow>
+   679→                  )})}
+   680→                </TableBody></Table>
+   681→              </TabsContent>
+   682→              <TabsContent value="deposits" className="mt-0">
+   683→                <Table><TableHeader><TableRow><TableHead>Ref</TableHead><TableHead>Method</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader><TableBody>
+   684→                  {deposits.map(d => (
+   685→                    <TableRow key={d.id}><TableCell className="font-mono text-xs">{d.depositRef}</TableCell><TableCell>{d.paymentMethod}{d.provider ? ` (${d.provider})` : ''}</TableCell><TableCell className="text-right text-emerald-600">+{formatCurrency(d.amount, d.currency)}</TableCell><TableCell><Badge variant={d.status === 'completed' ? 'default' : 'secondary'}>{d.status}</Badge></TableCell><TableCell className="text-xs text-slate-500">{formatDate(d.createdAt)}</TableCell></TableRow>
+   686→                  ))}
+   687→                </TableBody></Table>
+   688→              </TabsContent>
+   689→              <TabsContent value="withdrawals" className="mt-0">
+   690→                <Table><TableHeader><TableRow><TableHead>Ref</TableHead><TableHead>Details</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Fee</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader><TableBody>
+   691→                  {withdrawals.map(w => (
+   692→                    <TableRow key={w.id}><TableCell className="font-mono text-xs">{w.withdrawalRef}</TableCell><TableCell className="text-xs max-w-[150px] truncate">{w.bankName || w.recipientName || w.paymentMethod}</TableCell><TableCell className="text-right text-red-600">-{formatCurrency(w.amount, w.currency)}</TableCell><TableCell className="text-right text-red-400">{formatCurrency(w.feeAmount, w.currency)}</TableCell><TableCell><Badge variant={w.status === 'completed' ? 'default' : 'secondary'}>{w.status}</Badge></TableCell><TableCell className="text-xs text-slate-500">{formatDate(w.createdAt)}</TableCell></TableRow>
+   693→                  ))}
+   694→                </TableBody></Table>
+   695→              </TabsContent>
+   696→              <TabsContent value="crypto" className="mt-0">
+   697→                <Table><TableHeader><TableRow><TableHead>Ref</TableHead><TableHead>Crypto</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Crypto</TableHead><TableHead>Network</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>
+   698→                  {cryptoWdrs.map(c => (
+   699→                    <TableRow key={c.id}><TableCell className="font-mono text-xs">{c.withdrawalRef}</TableCell><TableCell>{CRYPTO_ICONS[c.cryptoCurrency] || ''} {c.cryptoCurrency}</TableCell><TableCell className="text-right text-red-600">-{formatCurrency(c.amount, c.currency)}</TableCell><TableCell className="text-right">{c.cryptoAmount?.toFixed(6) || '—'}</TableCell><TableCell><Badge variant="outline" className="text-[10px]">{c.network}</Badge></TableCell><TableCell><Badge variant={c.status === 'completed' ? 'default' : 'secondary'}>{c.status}</Badge></TableCell></TableRow>
+   700→                  ))}
+   701→                </TableBody></Table>
+   702→              </TabsContent>
+   703→            </div>
+   704→          </Tabs>
+   705→        </div>
+   706→        </DialogContent>
+   707→      </Dialog>
+   708→
+   709→      <Toast message={toastMsg} visible={toastVis} />
+   710→    </motion.div>
+   711→  )
+   712→}
+   713→

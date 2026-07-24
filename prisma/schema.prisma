@@ -690,9 +690,7 @@ model GlobalPaymentMethod {
   @@index([isActive])
 }
 
-// ============================================================
-// MODULE 9: MULTI-CURRENCY WALLET
-// ============================================================
+// ============================================================// MODULE 9: MULTI-CURRENCY WALLET// ============================================================
 
 model Wallet {
   id              String   @id @default(cuid())
@@ -708,6 +706,11 @@ model Wallet {
   updatedAt       DateTime @updatedAt
 
   transactions    WalletTransaction[]
+  deposits        Deposit[]
+  withdrawals     Withdrawal[]
+  cryptoWithdrawals CryptoWithdrawal[]
+  conversionsOut  CurrencyConversion[] @relation("ConversionFrom")
+  conversionsIn   CurrencyConversion[] @relation("ConversionTo")
 
   @@unique([businessId, currency])
   @@index([businessId])
@@ -719,13 +722,13 @@ model WalletTransaction {
   id              String   @id @default(cuid())
   walletId        String
   txRef           String   @unique
-  type            String   // credit, debit, transfer_in, transfer_out, conversion, fee, refund
+  type            String   // credit, debit, transfer_in, transfer_out, conversion, fee, refund, deposit, withdrawal, crypto_withdrawal
   amount          Float
   balanceBefore   Float
   balanceAfter    Float
   currency        String
   description     String?
-  referenceType   String?  // escrow, payment_link, invoice, transfer, conversion
+  referenceType   String?  // escrow, payment_link, invoice, transfer, conversion, deposit, withdrawal, crypto_withdrawal
   referenceId     String?
   counterpartyId  String?  // other wallet/business involved
   status          String   @default("completed") // pending, completed, failed, reversed
@@ -737,6 +740,135 @@ model WalletTransaction {
   @@index([walletId])
   @@index([type])
   @@index([referenceType])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ── Deposit Model ─────────────────────────────────────────────
+
+model Deposit {
+  id              String   @id @default(cuid())
+  depositRef      String   @unique
+  walletId        String
+  amount          Float
+  currency        String
+  paymentMethod   String   // bank_transfer, card, mobile_money, payment_link, external
+  provider        String?  // paystack, stripe, flutterwave, intasend, manual
+  providerTxId    String?  // external provider transaction ID
+  status          String   @default("pending") // pending, processing, completed, failed, reversed
+  bankName        String?  // source bank name for bank transfers
+  bankRef         String?  // bank reference / cheque number
+  cardLast4       String?  // last 4 digits of card used
+  notes           String?
+  completedAt     DateTime?
+  failedReason    String?
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  wallet          Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([status])
+  @@index([paymentMethod])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+// ── Withdrawal Model ──────────────────────────────────────────
+
+model Withdrawal {
+  id              String   @id @default(cuid())
+  withdrawalRef   String   @unique
+  walletId        String
+  amount          Float
+  currency        String
+  paymentMethod   String   // bank_transfer, mobile_money, external
+  provider        String?  // paystack, stripe, flutterwave, intasend, manual
+  providerTxId    String?
+  status          String   @default("pending") // pending, processing, completed, failed, reversed
+  bankName        String?  // destination bank name
+  bankAccount     String?  // destination bank account (masked)
+  bankCode        String?  // bank sort/routing code
+  recipientName   String?
+  feeAmount       Float    @default(0)
+  netAmount       Float?
+  notes           String?
+  completedAt     DateTime?
+  failedReason    String?
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  wallet          Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([status])
+  @@index([paymentMethod])
+  @@index([createdAt])
+}
+
+// ── Crypto Withdrawal Model ───────────────────────────────────
+
+model CryptoWithdrawal {
+  id              String   @id @default(cuid())
+  withdrawalRef   String   @unique
+  walletId        String
+  amount          Float    // amount in wallet fiat currency to convert
+  cryptoAmount    Float?   // amount in crypto after conversion
+  currency        String   // wallet fiat currency (e.g. USD, KES)
+  cryptoCurrency  String   // target crypto (USDT, USDC, BTC, ETH, SOL, BNB)
+  network         String   // trc20, erc20, bsc, solana, bitcoin, bep2
+  walletAddress   String   // destination crypto wallet address
+  status          String   @default("pending") // pending, processing, completed, failed, reversed
+  exchangeRate    Float?   // fiat-to-crypto rate at time of withdrawal
+  networkFee      Float    @default(0) // blockchain network fee in crypto
+  processingFee   Float    @default(0) // platform processing fee in fiat
+  gasPrice        String?  // gwei/sats per byte at time of execution
+  txHash          String?  // on-chain transaction hash
+  explorerUrl     String?  // block explorer URL
+  notes           String?
+  completedAt     DateTime?
+  failedReason    String?
+  metadata        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  wallet          Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([status])
+  @@index([cryptoCurrency])
+  @@index([network])
+  @@index([createdAt])
+}
+
+// ── Currency Conversion Model ─────────────────────────────────
+
+model CurrencyConversion {
+  id              String   @id @default(cuid())
+  conversionRef   String   @unique
+  fromWalletId    String
+  toWalletId      String
+  fromCurrency    String
+  toCurrency      String
+  fromAmount      Float
+  toAmount        Float
+  exchangeRate    Float
+  feePercent      Float    @default(0.5) // 0.5% conversion fee
+  feeAmount       Float
+  netAmount       Float    // toAmount - feeAmount
+  provider        String   @default("internal")
+  status          String   @default("completed") // pending, completed, failed, reversed
+  metadata        String?
+  createdAt       DateTime @default(now())
+
+  fromWallet      Wallet @relation("ConversionFrom", fields: [fromWalletId], references: [id], onDelete: Cascade)
+  toWallet        Wallet @relation("ConversionTo", fields: [toWalletId], references: [id], onDelete: Cascade)
+
+  @@index([fromWalletId])
+  @@index([toWalletId])
+  @@index([fromCurrency, toCurrency])
   @@index([status])
   @@index([createdAt])
 }
