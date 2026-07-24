@@ -1,0 +1,200 @@
+examples/websocket/server.ts(2,24): error TS2307: Cannot find module 'socket.io' or its corresponding type declarations.
+prisma/seed.ts(149,21): error TS2345: Argument of type '{ description: string | null; status: string; name: string; id: string; tenantId: string; legalName: string | null; registrationNo: string | null; taxId: string | null; country: string; ... 8 more ...; updatedAt: Date; }' is not assignable to parameter of type 'never'.
+prisma/seed.ts(149,48): error TS2322: Type '{ id: string; name: string; country: string; city: string; industry: string; website: string; employeeCount: number; annualRevenue: number; status: "verified" | "pending" | "suspended" | "deactivated"; verifiedAt: Date | null; }' is not assignable to type '(Without<BusinessCreateInput, BusinessUncheckedCreateInput> & BusinessUncheckedCreateInput) | (Without<...> & BusinessCreateInput)'.
+  Type '{ id: string; name: string; country: string; city: string; industry: string; website: string; employeeCount: number; annualRevenue: number; status: "verified" | "pending" | "suspended" | "deactivated"; verifiedAt: Date | null; }' is not assignable to type 'Without<BusinessUncheckedCreateInput, BusinessCreateInput> & BusinessCreateInput'.
+    Property 'tenant' is missing in type '{ id: string; name: string; country: string; city: string; industry: string; website: string; employeeCount: number; annualRevenue: number; status: "verified" | "pending" | "suspended" | "deactivated"; verifiedAt: Date | null; }' but required in type 'BusinessCreateInput'.
+prisma/seed.ts(160,25): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(161,55): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(180,25): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(201,25): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(220,19): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(220,32): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(236,22): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(237,24): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(265,18): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(265,33): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(285,33): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(286,29): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(313,25): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(336,25): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(337,88): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(358,86): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(366,27): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(386,15): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(386,27): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(391,32): error TS2339: Property 'id' does not exist on type 'never'.
+prisma/seed.ts(392,28): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v2.ts(156,7): error TS2322: Type '{ id: string; name: string; legalName: string; registrationNo: string; taxId: string; country: string; city: string; industry: string; employeeCount: number; annualRevenue: number; description: string; ... 4 more ...; trustScore: { ...; }; }' is not assignable to type '(Without<BusinessCreateInput, BusinessUncheckedCreateInput> & BusinessUncheckedCreateInput) | (Without<...> & BusinessCreateInput)'.
+  Type '{ id: string; name: string; legalName: string; registrationNo: string; taxId: string; country: string; city: string; industry: string; employeeCount: number; annualRevenue: number; description: string; ... 4 more ...; trustScore: { ...; }; }' is not assignable to type 'Without<BusinessUncheckedCreateInput, BusinessCreateInput> & BusinessCreateInput'.
+    Property 'tenant' is missing in type '{ id: string; name: string; legalName: string; registrationNo: string; taxId: string; country: string; city: string; industry: string; employeeCount: number; annualRevenue: number; description: string; ... 4 more ...; trustScore: { ...; }; }' but required in type 'BusinessCreateInput'.
+scripts/seed-v2.ts(213,56): error TS2339: Property 'businessId' does not exist on type 'never'.
+scripts/seed-v3.ts(128,16): error TS2345: Argument of type '{ businessId: string | null; name: string; id: string; createdAt: Date; updatedAt: Date; email: string; role: string; avatarUrl: string | null; isActive: boolean; lastLoginAt: Date | null; }' is not assignable to parameter of type 'never'.
+scripts/seed-v3.ts(161,21): error TS2345: Argument of type '{ description: string | null; status: string; name: string; id: string; tenantId: string; legalName: string | null; registrationNo: string | null; taxId: string | null; country: string; ... 8 more ...; updatedAt: Date; }' is not assignable to parameter of type 'never'.
+scripts/seed-v3.ts(161,48): error TS2322: Type '{ id: string; name: string; country: string; city: string; industry: string; website: string; employeeCount: number; annualRevenue: number; status: "verified" | "pending" | "suspended" | "deactivated"; verifiedAt: Date | null; }' is not assignable to type '(Without<BusinessCreateInput, BusinessUncheckedCreateInput> & BusinessUncheckedCreateInput) | (Without<...> & BusinessCreateInput)'.
+  Type '{ id: string; name: string; country: string; city: string; industry: string; website: string; employeeCount: number; annualRevenue: number; status: "verified" | "pending" | "suspended" | "deactivated"; verifiedAt: Date | null; }' is not assignable to type 'Without<BusinessUncheckedCreateInput, BusinessCreateInput> & BusinessCreateInput'.
+    Property 'tenant' is missing in type '{ id: string; name: string; country: string; city: string; industry: string; website: string; employeeCount: number; annualRevenue: number; status: "verified" | "pending" | "suspended" | "deactivated"; verifiedAt: Date | null; }' but required in type 'BusinessCreateInput'.
+scripts/seed-v3.ts(172,25): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(173,55): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(192,25): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(213,25): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(232,19): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(232,32): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(249,24): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(250,26): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(310,68): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(314,69): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(319,72): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(352,18): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(352,33): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(371,33): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(372,29): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(399,25): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(422,25): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(423,88): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(437,86): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(445,27): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(462,15): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(462,27): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(466,32): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(466,53): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(491,15): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(491,27): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(495,30): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(495,51): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(517,21): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(517,35): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(524,26): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(524,51): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(549,27): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(613,25): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(685,38): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(722,38): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(747,22): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(747,36): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(751,28): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(751,55): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(769,19): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(769,35): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(776,30): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed-v3.ts(776,51): error TS2339: Property 'id' does not exist on type 'never'.
+scripts/seed.ts(68,7): error TS2322: Type '{ id: string; name: string; legalName: string; registrationNo: string; taxId: string; country: string; city: string; industry: string; employeeCount: number; annualRevenue: number; description: string; ... 4 more ...; trustScore: { ...; }; }' is not assignable to type '(Without<BusinessCreateInput, BusinessUncheckedCreateInput> & BusinessUncheckedCreateInput) | (Without<...> & BusinessCreateInput)'.
+  Type '{ id: string; name: string; legalName: string; registrationNo: string; taxId: string; country: string; city: string; industry: string; employeeCount: number; annualRevenue: number; description: string; ... 4 more ...; trustScore: { ...; }; }' is not assignable to type 'Without<BusinessUncheckedCreateInput, BusinessCreateInput> & BusinessCreateInput'.
+    Property 'tenant' is missing in type '{ id: string; name: string; legalName: string; registrationNo: string; taxId: string; country: string; city: string; industry: string; employeeCount: number; annualRevenue: number; description: string; ... 4 more ...; trustScore: { ...; }; }' but required in type 'BusinessCreateInput'.
+scripts/seed.ts(238,41): error TS2322: Type 'Record<string, unknown>' is not assignable to type '(Without<EscrowTransactionCreateInput, EscrowTransactionUncheckedCreateInput> & EscrowTransactionUncheckedCreateInput) | (Without<...> & EscrowTransactionCreateInput)'.
+  Type 'Record<string, unknown>' is not assignable to type 'Without<EscrowTransactionUncheckedCreateInput, EscrowTransactionCreateInput> & EscrowTransactionCreateInput'.
+    Type 'Record<string, unknown>' is missing the following properties from type 'EscrowTransactionCreateInput': txRef, amount, buyer, seller
+skills/image-edit/scripts/image-edit.ts(10,4): error TS2561: Object literal may only specify known properties, but 'images' does not exist in type 'CreateImageEditBody'. Did you mean to write 'image'?
+skills/stock-analysis-skill/src/analyzer.ts(253,11): error TS2322: Type '({ type: string; image: { type: "base64"; data: string; mediaType: "image/png"; url?: undefined; } | { type: "url"; url: string; data?: undefined; mediaType?: undefined; }; } | { type: string; text: string; })[]' is not assignable to type 'string'.
+src/app/api/collections/[id]/remind/route.ts(39,18): error TS2353: Object literal may only specify known properties, and 'business' does not exist in type 'CollectionCaseInclude<DefaultArgs>'.
+src/app/api/collections/[id]/remind/route.ts(44,24): error TS2551: Property 'business' does not exist on type '{ status: string; businessId: string; currency: string; id: string; createdAt: Date; updatedAt: Date; metadata: string | null; resolution: string | null; resolvedAt: Date | null; ... 10 more ...; aiStrategy: string | null; }'. Did you mean 'businessId'?
+src/app/api/collections/[id]/route.ts(22,18): error TS2353: Object literal may only specify known properties, and 'business' does not exist in type 'CollectionCaseInclude<DefaultArgs>'.
+src/app/api/collections/[id]/route.ts(28,24): error TS2551: Property 'business' does not exist on type '{ status: string; businessId: string; currency: string; id: string; createdAt: Date; updatedAt: Date; metadata: string | null; resolution: string | null; resolvedAt: Date | null; ... 10 more ...; aiStrategy: string | null; }'. Did you mean 'businessId'?
+src/app/api/collections/[id]/route.ts(64,18): error TS2353: Object literal may only specify known properties, and 'business' does not exist in type 'CollectionCaseInclude<DefaultArgs>'.
+src/app/api/collections/[id]/route.ts(69,18): error TS2551: Property 'business' does not exist on type '{ status: string; businessId: string; currency: string; id: string; createdAt: Date; updatedAt: Date; metadata: string | null; resolution: string | null; resolvedAt: Date | null; ... 10 more ...; aiStrategy: string | null; }'. Did you mean 'businessId'?
+src/app/api/escrow/transactions/[id]/disputes/[disputeId]/route.ts(9,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: readonly ["resolved", "escalated"], params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Object literal may only specify known properties, and 'errorMap' does not exist in type '{ error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; }'.
+  Overload 2 of 2, '(entries: Readonly<Record<string, EnumValue>>, params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Argument of type 'string[]' is not assignable to parameter of type 'Readonly<Record<string, EnumValue>>'.
+      Index signature for type 'string' is missing in type 'string[]'.
+src/app/api/escrow/transactions/[id]/disputes/route.ts(8,15): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: readonly ["buyer", "seller"], params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Object literal may only specify known properties, and 'errorMap' does not exist in type '{ error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; }'.
+  Overload 2 of 2, '(entries: Readonly<Record<string, EnumValue>>, params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Argument of type 'string[]' is not assignable to parameter of type 'Readonly<Record<string, EnumValue>>'.
+      Index signature for type 'string' is missing in type 'string[]'.
+src/app/api/fraud/alerts/[id]/route.ts(21,7): error TS2322: Type '{ business: { select: { tenantId: true; }; }; }' is not assignable to type 'never'.
+src/app/api/fraud/alerts/[id]/route.ts(27,42): error TS2339: Property 'tenantId' does not exist on type 'never'.
+src/app/api/fraud/alerts/[id]/route.ts(58,7): error TS2322: Type '{ business: { select: { tenantId: true; }; }; }' is not assignable to type 'never'.
+src/app/api/fraud/alerts/[id]/route.ts(63,48): error TS2339: Property 'tenantId' does not exist on type 'never'.
+src/app/api/matching/[id]/route.ts(31,7): error TS2322: Type '{ seeker: { select: { tenantId: true; }; }; candidate: { select: { tenantId: true; }; }; }' is not assignable to type 'never'.
+src/app/api/matching/[id]/route.ts(39,25): error TS2339: Property 'tenantId' does not exist on type 'never'.
+src/app/api/matching/[id]/route.ts(39,74): error TS2339: Property 'tenantId' does not exist on type 'never'.
+src/app/api/passport/compliance/[id]/route.ts(7,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: readonly ["pending", "approved", "rejected", "expired"], params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Object literal may only specify known properties, and 'errorMap' does not exist in type '{ error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; }'.
+  Overload 2 of 2, '(entries: Readonly<Record<string, EnumValue>>, params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Argument of type 'string[]' is not assignable to parameter of type 'Readonly<Record<string, EnumValue>>'.
+      Index signature for type 'string' is missing in type 'string[]'.
+src/app/api/passport/compliance/[id]/route.ts(56,9): error TS2353: Object literal may only specify known properties, and 'rejectionReason' does not exist in type '(Without<ComplianceDocumentUpdateInput, ComplianceDocumentUncheckedUpdateInput> & ComplianceDocumentUncheckedUpdateInput) | (Without<...> & ComplianceDocumentUpdateInput)'.
+src/app/api/passport/verifications/[id]/route.ts(7,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: readonly ["pending", "in_progress", "approved", "rejected", "expired"], params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Object literal may only specify known properties, and 'errorMap' does not exist in type '{ error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; }'.
+  Overload 2 of 2, '(entries: Readonly<Record<string, EnumValue>>, params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Argument of type 'string[]' is not assignable to parameter of type 'Readonly<Record<string, EnumValue>>'.
+      Index signature for type 'string' is missing in type 'string[]'.
+src/app/api/passport/verifications/route.ts(8,11): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: readonly ["identity", "business_registration", "tax", "bank_account", "address"], params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Object literal may only specify known properties, and 'errorMap' does not exist in type '{ error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; }'.
+  Overload 2 of 2, '(entries: Readonly<Record<string, EnumValue>>, params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Argument of type 'string[]' is not assignable to parameter of type 'Readonly<Record<string, EnumValue>>'.
+      Index signature for type 'string' is missing in type 'string[]'.
+src/app/api/passport/verifications/route.ts(11,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: readonly ["document", "api", "manual", "third_party"], params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Object literal may only specify known properties, and 'errorMap' does not exist in type '{ error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; }'.
+  Overload 2 of 2, '(entries: Readonly<Record<string, EnumValue>>, params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Argument of type 'string[]' is not assignable to parameter of type 'Readonly<Record<string, EnumValue>>'.
+      Index signature for type 'string' is missing in type 'string[]'.
+src/app/api/payments/intents/[id]/route.ts(8,13): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: readonly ["created", "processing", "completed", "failed", "cancelled"], params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Object literal may only specify known properties, and 'errorMap' does not exist in type '{ error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; }'.
+  Overload 2 of 2, '(entries: Readonly<Record<string, EnumValue>>, params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Argument of type 'string[]' is not assignable to parameter of type 'Readonly<Record<string, EnumValue>>'.
+      Index signature for type 'string' is missing in type 'string[]'.
+src/app/api/payments/intents/[id]/route.ts(29,13): error TS2561: Object literal may only specify known properties, but 'fromBusiness' does not exist in type 'PaymentIntentWhereInput'. Did you mean to write 'fromBusinessId'?
+src/app/api/payments/intents/[id]/route.ts(30,13): error TS2561: Object literal may only specify known properties, but 'toBusiness' does not exist in type 'PaymentIntentWhereInput'. Did you mean to write 'toBusinessId'?
+src/app/api/payments/intents/[id]/route.ts(80,13): error TS2561: Object literal may only specify known properties, but 'fromBusiness' does not exist in type 'PaymentIntentWhereInput'. Did you mean to write 'fromBusinessId'?
+src/app/api/payments/intents/[id]/route.ts(81,13): error TS2561: Object literal may only specify known properties, but 'toBusiness' does not exist in type 'PaymentIntentWhereInput'. Did you mean to write 'toBusinessId'?
+src/app/api/payments/methods/route.ts(9,11): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: readonly ["bank_account", "card", "crypto_wallet", "mobile_money", "digital_wallet"], params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Object literal may only specify known properties, and 'errorMap' does not exist in type '{ error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; }'.
+  Overload 2 of 2, '(entries: Readonly<Record<string, EnumValue>>, params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Argument of type 'string[]' is not assignable to parameter of type 'Readonly<Record<string, EnumValue>>'.
+      Index signature for type 'string' is missing in type 'string[]'.
+src/app/api/payments/verify/route.ts(43,15): error TS2561: Object literal may only specify known properties, but 'fromBusiness' does not exist in type 'PaymentIntentWhereInput'. Did you mean to write 'fromBusinessId'?
+src/app/api/payments/verify/route.ts(44,15): error TS2561: Object literal may only specify known properties, but 'toBusiness' does not exist in type 'PaymentIntentWhereInput'. Did you mean to write 'toBusinessId'?
+src/app/api/payments/webhooks/stripe/route.ts(111,50): error TS18048: 'result.amount' is possibly 'undefined'.
+src/app/api/payments/webhooks/stripe/route.ts(121,29): error TS18048: 'result.amount' is possibly 'undefined'.
+src/app/api/payments/webhooks/stripe/route.ts(122,21): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/app/api/payments/webhooks/stripe/route.ts(127,32): error TS18048: 'result.amount' is possibly 'undefined'.
+src/app/api/tenants/route.ts(29,39): error TS2339: Property 'errors' does not exist on type 'ZodError<{ name: string; ownerName: string; ownerEmail: string; password: string; }>'.
+src/app/api/trust/relationships/route.ts(9,11): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(values: readonly ["supplier", "buyer", "partner", "logistics", "financial"], params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Object literal may only specify known properties, and 'errorMap' does not exist in type '{ error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; }'.
+  Overload 2 of 2, '(entries: Readonly<Record<string, EnumValue>>, params?: string | { error?: string | $ZodErrorMap<$ZodIssueInvalidValue<unknown>> | undefined; message?: string | undefined; } | undefined): ZodEnum<...>', gave the following error.
+    Argument of type 'string[]' is not assignable to parameter of type 'Readonly<Record<string, EnumValue>>'.
+      Index signature for type 'string' is missing in type 'string[]'.
+src/app/api/trust/reviews/route.ts(50,7): error TS2322: Type '{ fromBusiness: { select: { id: true; name: true; country: true; }; }; toBusiness: { select: { id: true; name: true; country: true; }; }; }' is not assignable to type 'never'.
+src/app/api/trust/reviews/route.ts(116,7): error TS2322: Type '{ fromBusiness: { select: { id: true; name: true; country: true; }; }; toBusiness: { select: { id: true; name: true; country: true; }; }; }' is not assignable to type 'never'.
+src/app/api/twin/profiles/[id]/metrics/route.ts(90,31): error TS2339: Property 'errors' does not exist on type 'ZodError<{ period: "monthly" | "daily" | "weekly" | "quarterly" | "yearly"; periodDate: string; revenue?: number | null | undefined; expenses?: number | null | undefined; netIncome?: number | null | undefined; ... 6 more ...; supplierCount?: number | ... 1 more ... | undefined; }>'.
+src/app/api/twin/profiles/[id]/predictions/route.ts(122,31): error TS2339: Property 'errors' does not exist on type 'ZodError<{ predictionType: "revenue" | "cash_flow" | "risk" | "growth_rate" | "default_probability"; timeframe: "30d" | "60d" | "90d" | "6m" | "1y"; }>'.
+src/app/api/twin/profiles/[id]/route.ts(90,31): error TS2339: Property 'errors' does not exist on type 'ZodError<{ healthScore?: number | undefined; cashFlowHealth?: number | undefined; riskAppetite?: "conservative" | "moderate" | "aggressive" | undefined; creditWorthiness?: number | undefined; liquidityScore?: number | undefined; growthTrajectory?: "declining" | ... 3 more ... | undefined; }>'.
+src/app/api/twin/profiles/[id]/sync/route.ts(20,18): error TS2345: Argument of type '{ period: "monthly"; periodDate: string; revenue: number; expenses: number; netIncome: number; cashBalance: number; transactionCount: number; averageTransactionValue: number; paymentSuccessRate: number; disputeRate: number; customerCount: number; supplierCount: number; }' is not assignable to parameter of type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(75,23): error TS2339: Property 'period' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(76,27): error TS2339: Property 'periodDate' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(80,22): error TS2339: Property 'revenue' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(81,23): error TS2339: Property 'expenses' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(82,24): error TS2339: Property 'netIncome' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(83,26): error TS2339: Property 'cashBalance' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(84,31): error TS2339: Property 'transactionCount' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(85,38): error TS2339: Property 'averageTransactionValue' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(86,33): error TS2339: Property 'paymentSuccessRate' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(87,26): error TS2339: Property 'disputeRate' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(88,28): error TS2339: Property 'customerCount' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(89,28): error TS2339: Property 'supplierCount' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(93,11): error TS2698: Spread types may only be created from object types.
+src/app/api/twin/profiles/[id]/sync/route.ts(100,34): error TS2339: Property 'revenue' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(101,35): error TS2339: Property 'expenses' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(102,38): error TS2339: Property 'cashBalance' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(103,45): error TS2339: Property 'paymentSuccessRate' does not exist on type 'never'.
+src/app/api/twin/profiles/[id]/sync/route.ts(104,38): error TS2339: Property 'disputeRate' does not exist on type 'never'.
+src/app/api/twin/profiles/route.ts(66,31): error TS2339: Property 'errors' does not exist on type 'ZodError<{ businessId: string; }>'.
+src/app/api/users/[id]/route.ts(28,20): error TS2339: Property 'tenantId' does not exist on type '{ businessId: string | null; name: string; id: string; createdAt: Date; updatedAt: Date; email: string; role: string; avatarUrl: string | null; isActive: boolean; lastLoginAt: Date | null; }'.
+src/app/api/users/[id]/route.ts(70,18): error TS2339: Property 'tenantId' does not exist on type '{ businessId: string | null; name: string; id: string; createdAt: Date; updatedAt: Date; email: string; role: string; avatarUrl: string | null; isActive: boolean; lastLoginAt: Date | null; }'.
+src/app/api/users/[id]/route.ts(106,18): error TS2339: Property 'tenantId' does not exist on type '{ businessId: string | null; name: string; id: string; createdAt: Date; updatedAt: Date; email: string; role: string; avatarUrl: string | null; isActive: boolean; lastLoginAt: Date | null; }'.
+src/app/api/users/route.ts(109,7): error TS2322: Type '{ email: string; name: string; role: "buyer" | "seller" | "admin" | "auditor" | "viewer"; businessId: string | undefined; tenantId: string; }' is not assignable to type '(Without<AccountCreateInput, AccountUncheckedCreateInput> & AccountUncheckedCreateInput) | (Without<...> & AccountCreateInput)'.
+  Type '{ email: string; name: string; role: "buyer" | "seller" | "admin" | "auditor" | "viewer"; businessId: string | undefined; tenantId: string; }' is not assignable to type 'Without<AccountCreateInput, AccountUncheckedCreateInput> & AccountUncheckedCreateInput'.
+    Property 'passwordHash' is missing in type '{ email: string; name: string; role: "buyer" | "seller" | "admin" | "auditor" | "viewer"; businessId: string | undefined; tenantId: string; }' but required in type 'AccountUncheckedCreateInput'.
+src/app/page-full.tsx(1907,19): error TS2304: Cannot find name 'Socket'.
+src/app/page-full.tsx(1907,28): error TS2304: Cannot find name 'io'.

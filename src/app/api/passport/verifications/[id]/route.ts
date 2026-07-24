@@ -4,8 +4,8 @@ import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateVerificationSchema = z.object({
-  status: z.enum(['pending', 'in_progress', 'approved', 'rejected', 'expired'], {
-    errorMap: () => ({ message: 'Status must be one of: pending, in_progress, approved, rejected, expired' }),
+  status: z.enum(['pending', 'in_progress', 'approved', 'rejected', 'expired'] as const, {
+    message: 'Status must be one of: pending, in_progress, approved, rejected, expired',
   }),
   verifiedBy: z.string().optional(),
   rejectionReason: z.string().optional(),
@@ -125,7 +125,7 @@ export async function PUT(
         const allApproved = relatedVerifications.every((v) => v.status === 'approved')
         if (allApproved) {
           passportUpdate.kycStatus = 'verified'
-          passportUpdate.kycVerifiedAt = new Date()
+          passportUpdate.lastAuditAt = new Date()
         }
       }
 
@@ -138,7 +138,7 @@ export async function PUT(
 
       if (verification.type === 'bank_account' && status === 'approved') {
         passportUpdate.amlStatus = 'cleared'
-        passportUpdate.amlCheckedAt = new Date()
+        passportUpdate.lastAuditAt = new Date()
       }
 
       if (verification.type === 'bank_account' && status === 'rejected') {

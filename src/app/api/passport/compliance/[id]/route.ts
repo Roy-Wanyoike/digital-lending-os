@@ -4,10 +4,9 @@ import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateComplianceSchema = z.object({
-  status: z.enum(['pending', 'approved', 'rejected', 'expired'], {
-    errorMap: () => ({ message: 'Status must be one of: pending, approved, rejected, expired' }),
+  status: z.enum(['pending', 'approved', 'rejected', 'expired'] as const, {
+    message: 'Status must be one of: pending, approved, rejected, expired',
   }),
-  rejectionReason: z.string().optional(),
 })
 
 export async function PUT(
@@ -27,7 +26,7 @@ export async function PUT(
       )
     }
 
-    const { status, rejectionReason } = parsed.data
+    const { status } = parsed.data
 
     const document = await db.complianceDocument.findUnique({
       where: { id },
@@ -41,20 +40,9 @@ export async function PUT(
       return NextResponse.json({ error: 'Compliance document not found' }, { status: 404 })
     }
 
-    // If rejected, require a reason
-    if (status === 'rejected' && !rejectionReason) {
-      return NextResponse.json(
-        { error: 'Rejection reason is required when rejecting a compliance document' },
-        { status: 400 }
-      )
-    }
-
     const updated = await db.complianceDocument.update({
       where: { id },
-      data: {
-        status,
-        rejectionReason,
-      },
+      data: { status },
     })
 
     return NextResponse.json({ data: updated })

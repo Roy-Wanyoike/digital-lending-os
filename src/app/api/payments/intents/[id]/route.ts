@@ -5,13 +5,19 @@ import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const updateIntentSchema = z.object({
-  status: z.enum(["created", "processing", "completed", "failed", "cancelled"], {
-    errorMap: () => ({
-      message:
-        "Status must be one of: created, processing, completed, failed, cancelled",
-    }),
+  status: z.enum(["created", "processing", "completed", "failed", "cancelled"] as const, {
+    message: "Status must be one of: created, processing, completed, failed, cancelled",
   }),
 });
+
+// ── Helper ───────────────────────────────────────────────────
+async function getTenantBusinessIds(tenantId: string): Promise<string[]> {
+  const businesses = await db.business.findMany({
+    where: { tenantId },
+    select: { id: true },
+  });
+  return businesses.map((b) => b.id);
+}
 
 // ── GET: Single payment intent ──────────────────────────────
 export async function GET(
@@ -21,13 +27,14 @@ export async function GET(
   try {
     const user = await getApiUser(request);
     const { id } = await params;
+    const bizIds = await getTenantBusinessIds(user.tenantId);
 
     const intent = await db.paymentIntent.findFirst({
       where: {
         id,
         OR: [
-          { fromBusiness: { tenantId: user.tenantId } },
-          { toBusiness: { tenantId: user.tenantId } },
+          { fromBusinessId: { in: bizIds } },
+          { toBusinessId: { in: bizIds } },
         ],
       },
       include: {
@@ -73,12 +80,13 @@ export async function PUT(
       );
     }
 
+    const bizIds = await getTenantBusinessIds(user.tenantId);
     const existing = await db.paymentIntent.findFirst({
       where: {
         id,
         OR: [
-          { fromBusiness: { tenantId: user.tenantId } },
-          { toBusiness: { tenantId: user.tenantId } },
+          { fromBusinessId: { in: bizIds } },
+          { toBusinessId: { in: bizIds } },
         ],
       },
     });

@@ -11,8 +11,8 @@ const REMIND_INTERVAL_DAYS: Record<string, number> = {
 }
 
 const remindSchema = z.object({
-  channel: z.enum(['email', 'sms', 'whatsapp', 'in_app']),
-  template: z.enum(['friendly', 'firm', 'final', 'legal']),
+  channel: z.enum(['email', 'sms', 'whatsapp', 'in_app'] as const),
+  template: z.enum(['friendly', 'firm', 'final', 'legal'] as const),
 })
 
 export async function POST(
@@ -34,14 +34,17 @@ export async function POST(
 
     const data = parsed.data
 
-    const collectionCase = await db.collectionCase.findUnique({
-      where: { id },
-      include: { business: { select: { tenantId: true } } },
-    })
+    const collectionCase = await db.collectionCase.findUnique({ where: { id } })
     if (!collectionCase) {
       return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
     }
-    if (collectionCase.business?.tenantId !== user.tenantId) {
+
+    // Verify tenant access
+    const biz = await db.business.findUnique({
+      where: { id: collectionCase.businessId },
+      select: { tenantId: true },
+    })
+    if (!biz || biz.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
     }
 

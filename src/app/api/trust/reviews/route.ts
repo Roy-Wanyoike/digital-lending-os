@@ -24,37 +24,27 @@ export async function GET(request: NextRequest) {
     const minRating = searchParams.get('rating')
     const status = searchParams.get('status') || ''
 
+    // Get tenant business IDs
+    const tenantBizIds = (await db.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })).map(b => b.id)
+
     const where: Record<string, unknown> = {
       OR: [
-        { fromBusiness: { tenantId: user.tenantId } },
-        { toBusiness: { tenantId: user.tenantId } },
+        { fromBusinessId: { in: tenantBizIds } },
+        { toBusinessId: { in: tenantBizIds } },
       ],
     }
 
-    if (toBusinessId) {
-      where.toBusinessId = toBusinessId
-    }
-    if (fromBusinessId) {
-      where.fromBusinessId = fromBusinessId
-    }
-    if (minRating) {
-      where.rating = { gte: parseFloat(minRating) }
-    }
-    if (status) {
-      where.status = status
-    }
+    if (toBusinessId) where.toBusinessId = toBusinessId
+    if (fromBusinessId) where.fromBusinessId = fromBusinessId
+    if (minRating) where.rating = { gte: parseFloat(minRating) }
+    if (status) where.status = status
 
     const reviews = await db.review.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: {
-        fromBusiness: {
-          select: { id: true, name: true, country: true },
-        },
-        toBusiness: {
-          select: { id: true, name: true, country: true },
-        },
-      },
     })
 
     return NextResponse.json({ data: reviews })
@@ -112,14 +102,6 @@ export async function POST(request: NextRequest) {
         deliveryRating,
         qualityRating,
         communicationRating,
-      },
-      include: {
-        fromBusiness: {
-          select: { id: true, name: true, country: true },
-        },
-        toBusiness: {
-          select: { id: true, name: true, country: true },
-        },
       },
     })
 

@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateAlertSchema = z.object({
-  status: z.enum(['investigating', 'confirmed_fraud', 'false_positive', 'escalated', 'resolved']),
+  status: z.enum(['investigating', 'confirmed_fraud', 'false_positive', 'escalated', 'resolved'] as const),
   resolvedBy: z.string().optional(),
   resolution: z.string().optional(),
 })
@@ -16,16 +16,21 @@ export async function GET(
   try {
     const user = await getApiUser(request)
     const { id } = await params
-    const alert = await db.fraudAlert.findUnique({
-      where: { id },
-      include: { business: { select: { tenantId: true } } },
-    })
+    const alert = await db.fraudAlert.findUnique({ where: { id } })
 
     if (!alert) {
       return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
     }
-    if (alert.business && alert.business.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+
+    // Verify tenant access via businessId
+    if (alert.businessId) {
+      const biz = await db.business.findUnique({
+        where: { id: alert.businessId },
+        select: { tenantId: true },
+      })
+      if (!biz || biz.tenantId !== user.tenantId) {
+        return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+      }
     }
 
     return NextResponse.json({ data: alert })
@@ -53,15 +58,20 @@ export async function PUT(
       )
     }
 
-    const existing = await db.fraudAlert.findUnique({
-      where: { id },
-      include: { business: { select: { tenantId: true } } },
-    })
+    const existing = await db.fraudAlert.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
     }
-    if (existing.business && existing.business.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+
+    // Verify tenant access via businessId
+    if (existing.businessId) {
+      const biz = await db.business.findUnique({
+        where: { id: existing.businessId },
+        select: { tenantId: true },
+      })
+      if (!biz || biz.tenantId !== user.tenantId) {
+        return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+      }
     }
 
     const data = parsed.data

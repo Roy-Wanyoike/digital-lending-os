@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
+import { z } from 'zod'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createUserSchema = z.object({
   email: z.string().email('Invalid email address'),
   name: z.string().min(1, 'Name is required'),
-  role: z.enum(['admin', 'buyer', 'seller', 'auditor', 'viewer']),
+  role: z.enum(['admin', 'buyer', 'seller', 'auditor', 'viewer'] as const),
   businessId: z.string().optional(),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
 })
 
 export async function GET(request: NextRequest) {
@@ -105,6 +107,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'A user with this email already exists' }, { status: 409 })
     }
 
+    // Hash the password
+    const passwordHash = await bcrypt.hash(data.password, 12)
+
     const createdAccount = await db.account.create({
       data: {
         email: data.email,
@@ -112,6 +117,7 @@ export async function POST(request: NextRequest) {
         role: data.role,
         businessId: data.businessId,
         tenantId: user.tenantId,
+        passwordHash,
       },
     })
 

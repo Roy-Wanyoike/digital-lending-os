@@ -6,7 +6,7 @@ import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const verifySchema = z.object({
   providerPaymentId: z.string().min(1, 'Provider payment ID is required'),
-  provider: z.enum(['stripe', 'paystack', 'intasend', 'flutterwave']),
+  provider: z.enum(['stripe', 'paystack', 'intasend', 'flutterwave'] as const),
   paymentIntentId: z.string().optional(),
 })
 
@@ -36,12 +36,17 @@ export async function POST(request: NextRequest) {
 
     // If paymentIntentId provided, verify tenant owns it
     if (paymentIntentId) {
+      const bizIds = (await db.business.findMany({
+        where: { tenantId: user.tenantId },
+        select: { id: true },
+      })).map(b => b.id)
+
       const intent = await db.paymentIntent.findFirst({
         where: {
           id: paymentIntentId,
           OR: [
-            { fromBusiness: { tenantId: user.tenantId } },
-            { toBusiness: { tenantId: user.tenantId } },
+            { fromBusinessId: { in: bizIds } },
+            { toBusinessId: { in: bizIds } },
           ],
         },
       })

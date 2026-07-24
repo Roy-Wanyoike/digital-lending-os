@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
                   where: { id: link.id },
                   data: {
                     paymentCount: { increment: 1 },
-                    totalCollected: { increment: result.amount / 100 },
+                    totalCollected: { increment: (result.amount ?? 0) / 100 },
                     ...(link.maxPayments > 0 && link.paymentCount + 1 >= link.maxPayments
                       ? { status: 'depleted' }
                       : {}),
@@ -118,13 +118,13 @@ export async function POST(request: NextRequest) {
                 await db.paymentLinkPayment.create({
                   data: {
                     paymentLinkId: link.id,
-                    amount: result.amount / 100,
-                    currency: result.currency,
+                    amount: (result.amount ?? 0) / 100,
+                    currency: (result.currency ?? 'USD'),
                     paymentMethod: 'card',
                     provider: 'stripe',
                     status: 'completed',
                     feeAmount: result.fee ? result.fee / 100 : null,
-                    netAmount: result.amount / 100 - (result.fee ? result.fee / 100 : 0),
+                    netAmount: (result.amount ?? 0) / 100 - (result.fee ? result.fee / 100 : 0),
                     providerTxId: providerPaymentId,
                     completedAt: new Date(),
                   },

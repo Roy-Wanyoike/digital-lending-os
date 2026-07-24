@@ -5,8 +5,8 @@ import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const createDisputeSchema = z.object({
-  raisedBy: z.enum(["buyer", "seller"], {
-    errorMap: () => ({ message: "raisedBy must be 'buyer' or 'seller'" }),
+  raisedBy: z.enum(["buyer", "seller"] as const, {
+    message: "raisedBy must be 'buyer' or 'seller'",
   }),
   reason: z.string().min(1, "Reason is required"),
   description: z.string().optional(),

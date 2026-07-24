@@ -7,12 +7,10 @@ import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 const addMethodSchema = z.object({
   businessId: z.string().min(1, "Business ID is required"),
   type: z.enum(
-    ["bank_account", "card", "crypto_wallet", "mobile_money", "digital_wallet"],
+    ["bank_account", "card", "crypto_wallet", "mobile_money", "digital_wallet"] as const,
     {
-      errorMap: () => ({
-        message:
-          "Type must be one of: bank_account, card, crypto_wallet, mobile_money, digital_wallet",
-      }),
+      message:
+        "Type must be one of: bank_account, card, crypto_wallet, mobile_money, digital_wallet",
     }
   ),
   provider: z.string().min(1, "Provider is required"),

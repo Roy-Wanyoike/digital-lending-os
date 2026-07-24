@@ -6,8 +6,8 @@ import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 const createRelationshipSchema = z.object({
   fromBusinessId: z.string().min(1, 'fromBusinessId is required'),
   toBusinessId: z.string().min(1, 'toBusinessId is required'),
-  type: z.enum(['supplier', 'buyer', 'partner', 'logistics', 'financial'], {
-    errorMap: () => ({ message: 'Type must be one of: supplier, buyer, partner, logistics, financial' }),
+  type: z.enum(['supplier', 'buyer', 'partner', 'logistics', 'financial'] as const, {
+    message: 'Type must be one of: supplier, buyer, partner, logistics, financial',
   }),
 })
 
@@ -19,10 +19,16 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type') || ''
     const status = searchParams.get('status') || ''
 
+    // Get tenant's business IDs for filtering
+    const tenantBizIds = (await db.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })).map(b => b.id)
+
     const where: Record<string, unknown> = {
       OR: [
-        { fromBusiness: { tenantId: user.tenantId } },
-        { toBusiness: { tenantId: user.tenantId } },
+        { fromBusinessId: { in: tenantBizIds } },
+        { toBusinessId: { in: tenantBizIds } },
       ],
     }
 
@@ -31,11 +37,10 @@ export async function GET(request: NextRequest) {
         { fromBusinessId: businessId },
         { toBusinessId: businessId },
       ]
-      // Also ensure at least one side belongs to tenant
       where.AND = {
         OR: [
-          { fromBusiness: { tenantId: user.tenantId } },
-          { toBusiness: { tenantId: user.tenantId } },
+          { fromBusinessId: { in: tenantBizIds } },
+          { toBusinessId: { in: tenantBizIds } },
         ],
       }
     }

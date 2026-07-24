@@ -3,7 +3,20 @@ import { db } from '@/lib/db';
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
 function generateMockMonthlyMetrics(months: number) {
-  const metrics = [];
+  const metrics: {
+    period: string;
+    periodDate: string;
+    revenue: number;
+    expenses: number;
+    netIncome: number;
+    cashBalance: number;
+    transactionCount: number;
+    averageTransactionValue: number;
+    paymentSuccessRate: number;
+    disputeRate: number;
+    customerCount: number;
+    supplierCount: number;
+  }[] = [];
   const now = new Date();
 
   for (let i = 1; i <= months; i++) {
@@ -90,7 +103,18 @@ export async function POST(
         },
         create: {
           twinId: id,
-          ...m,
+          period: m.period,
+          periodDate: m.periodDate,
+          revenue: m.revenue,
+          expenses: m.expenses,
+          netIncome: m.netIncome,
+          cashBalance: m.cashBalance,
+          transactionCount: m.transactionCount,
+          averageTransactionValue: m.averageTransactionValue,
+          paymentSuccessRate: m.paymentSuccessRate,
+          disputeRate: m.disputeRate,
+          customerCount: m.customerCount,
+          supplierCount: m.supplierCount,
         },
       });
     }

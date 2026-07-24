@@ -6,8 +6,8 @@ import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 // ── Zod Schema ───────────────────────────────────────────────
 const resolveDisputeSchema = z.object({
   resolution: z.string().min(1, "Resolution is required"),
-  status: z.enum(["resolved", "escalated"], {
-    errorMap: () => ({ message: "Status must be 'resolved' or 'escalated'" }),
+  status: z.enum(["resolved", "escalated"] as const, {
+    message: "Status must be 'resolved' or 'escalated'",
   }),
 });
 

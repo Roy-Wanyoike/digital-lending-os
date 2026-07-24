@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateMatchSchema = z.object({
-  status: z.enum(['contacted', 'interested', 'declined', 'engaged']),
+  status: z.enum(['contacted', 'interested', 'declined', 'engaged'] as const),
   seekerResponse: z.string().optional(),
   candidateResponse: z.string().optional(),
 })
@@ -26,17 +26,19 @@ export async function PUT(
       )
     }
 
-    const existing = await db.businessMatch.findUnique({
-      where: { id },
-      include: {
-        seeker: { select: { tenantId: true } },
-        candidate: { select: { tenantId: true } },
-      },
-    })
+    const existing = await db.businessMatch.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Match not found' }, { status: 404 })
     }
-    if (existing.seeker.tenantId !== user.tenantId && existing.candidate.tenantId !== user.tenantId) {
+
+    // Verify tenant access: check if seeker or candidate business belongs to tenant
+    const [seekerBiz, candidateBiz] = await Promise.all([
+      db.business.findUnique({ where: { id: existing.seekerId }, select: { tenantId: true } }),
+      db.business.findUnique({ where: { id: existing.candidateId }, select: { tenantId: true } }),
+    ])
+    const seekerOk = seekerBiz?.tenantId === user.tenantId
+    const candidateOk = candidateBiz?.tenantId === user.tenantId
+    if (!seekerOk && !candidateOk) {
       return NextResponse.json({ error: 'Match not found' }, { status: 404 })
     }
 

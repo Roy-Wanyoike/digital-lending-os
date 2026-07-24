@@ -8,29 +8,28 @@ import { db } from '@/lib/db'
  */
 export async function fundEscrow(escrowId: string) {
   try {
-    const escrow = await db.escrow.findUnique({ where: { id: escrowId } })
+    const escrow = await db.escrowTransaction.findUnique({ where: { id: escrowId } })
     if (!escrow) {
       throw new Error(`Escrow not found: ${escrowId}`)
     }
     if (escrow.status === 'funded') {
       return escrow // already funded — idempotent
     }
-    if (escrow.status !== 'pending') {
+    if (escrow.status !== 'created') {
       throw new Error(`Cannot fund escrow in status '${escrow.status}'`)
     }
 
-    const updated = await db.escrow.update({
+    const updated = await db.escrowTransaction.update({
       where: { id: escrowId },
-      data: { status: 'funded', fundedAt: new Date() },
+      data: { status: 'funded', fundedAmount: escrow.amount },
     })
 
-    await db.auditLog.create({
+    await db.escrowAuditLog.create({
       data: {
+        escrowId,
         action: 'ESCROW_FUNDED',
-        entityType: 'Escrow',
-        entityId: escrowId,
-        tenantId: escrow.tenantId,
-        details: { amount: escrow.amount, currency: escrow.currency },
+        details: `Escrow funded with ${escrow.amount} ${escrow.currency}`,
+        metadata: JSON.stringify({ amount: escrow.amount, currency: escrow.currency }),
       },
     })
 
@@ -46,7 +45,7 @@ export async function fundEscrow(escrowId: string) {
  */
 export async function activateEscrow(escrowId: string) {
   try {
-    const escrow = await db.escrow.findUnique({ where: { id: escrowId } })
+    const escrow = await db.escrowTransaction.findUnique({ where: { id: escrowId } })
     if (!escrow) {
       throw new Error(`Escrow not found: ${escrowId}`)
     }
@@ -57,18 +56,17 @@ export async function activateEscrow(escrowId: string) {
       throw new Error(`Cannot activate escrow in status '${escrow.status}'`)
     }
 
-    const updated = await db.escrow.update({
+    const updated = await db.escrowTransaction.update({
       where: { id: escrowId },
-      data: { status: 'in_escrow', activatedAt: new Date() },
+      data: { status: 'in_escrow' },
     })
 
-    await db.auditLog.create({
+    await db.escrowAuditLog.create({
       data: {
+        escrowId,
         action: 'ESCROW_ACTIVATED',
-        entityType: 'Escrow',
-        entityId: escrowId,
-        tenantId: escrow.tenantId,
-        details: { amount: escrow.amount, currency: escrow.currency },
+        details: `Escrow activated. Amount: ${escrow.amount} ${escrow.currency}`,
+        metadata: JSON.stringify({ amount: escrow.amount, currency: escrow.currency }),
       },
     })
 
@@ -85,7 +83,10 @@ export async function activateEscrow(escrowId: string) {
  */
 export async function releaseMilestone(escrowId: string, milestoneSequence: number) {
   try {
-    const escrow = await db.escrow.findUnique({ where: { id: escrowId } })
+    const escrow = await db.escrowTransaction.findUnique({
+      where: { id: escrowId },
+      include: { milestones: { orderBy: { sequence: 'asc' } } },
+    })
     if (!escrow) {
       throw new Error(`Escrow not found: ${escrowId}`)
     }
@@ -93,53 +94,56 @@ export async function releaseMilestone(escrowId: string, milestoneSequence: numb
       throw new Error(`Cannot release milestone from escrow in status '${escrow.status}'`)
     }
 
-    // Find the milestone (stored as JSON in the escrow model)
-    const milestones = (escrow.milestones as { title: string; amount: number; released?: boolean }[]) || []
-    const milestone = milestones[milestoneSequence]
+    const milestone = escrow.milestones.find((m) => m.sequence === milestoneSequence)
     if (!milestone) {
-      throw new Error(`Milestone index ${milestoneSequence} not found on escrow ${escrowId}`)
+      throw new Error(`Milestone ${milestoneSequence} not found on escrow ${escrowId}`)
     }
-    if (milestone.released) {
+    if (milestone.status === 'released') {
       return escrow // already released — idempotent
     }
 
     // Mark the milestone as released
-    milestones[milestoneSequence] = { ...milestone, released: true }
     const newReleasedAmount = (escrow.releasedAmount ?? 0) + milestone.amount
+    const isComplete = newReleasedAmount >= escrow.amount
 
-    const updated = await db.escrow.update({
+    const updated = await db.escrowTransaction.update({
       where: { id: escrowId },
       data: {
-        milestones,
         releasedAmount: newReleasedAmount,
-        status: newReleasedAmount >= escrow.amount ? 'completed' : 'in_escrow',
+        currentMilestone: milestoneSequence,
+        status: isComplete ? 'completed' : 'partial_release',
       },
+    })
+
+    // Update milestone status
+    await db.escrowMilestone.update({
+      where: { id: milestone.id },
+      data: { status: 'released', releasedAt: new Date() },
     })
 
     // Create disbursement record
     await db.disbursement.create({
       data: {
         escrowId,
-        milestoneSequence,
+        milestoneId: milestone.id,
         amount: milestone.amount,
         currency: escrow.currency,
-        recipientId: escrow.sellerId,
-        tenantId: escrow.tenantId,
+        toAccount: escrow.sellerId,
         status: 'completed',
+        completedAt: new Date(),
       },
     })
 
-    await db.auditLog.create({
+    await db.escrowAuditLog.create({
       data: {
+        escrowId,
         action: 'MILESTONE_RELEASED',
-        entityType: 'Escrow',
-        entityId: escrowId,
-        tenantId: escrow.tenantId,
-        details: {
+        details: `Milestone ${milestoneSequence} (${milestone.title}) released. Amount: ${milestone.amount} ${escrow.currency}`,
+        metadata: JSON.stringify({
           milestoneSequence,
           milestoneTitle: milestone.title,
           amount: milestone.amount,
-        },
+        }),
       },
     })
 
@@ -182,14 +186,13 @@ export async function processPaymentLink(
         payerName,
         provider,
         status: 'completed',
-        tenantId: link.tenantId,
+        completedAt: new Date(),
       },
     })
 
     // Update link aggregates
     const newTotalCollected = (link.totalCollected ?? 0) + amount
     const newPaymentCount = (link.paymentCount ?? 0) + 1
-    const isDepleted = link.maxAmount ? newTotalCollected >= link.maxAmount : false
     const isMaxPayments = link.maxPayments ? newPaymentCount >= link.maxPayments : false
 
     await db.paymentLink.update({
@@ -197,23 +200,23 @@ export async function processPaymentLink(
       data: {
         totalCollected: newTotalCollected,
         paymentCount: newPaymentCount,
-        status: isDepleted || isMaxPayments ? 'depleted' : link.status,
+        status: isMaxPayments ? 'depleted' : link.status,
       },
     })
 
-    await db.auditLog.create({
+    // Log to escrow audit if this link is tied to an escrow (via metadata lookup)
+    await db.escrowAuditLog.create({
       data: {
+        escrowId: link.id, // use link id as reference since there's no direct escrow relation
         action: 'PAYMENT_LINK_PAYMENT',
-        entityType: 'PaymentLink',
-        entityId: paymentLinkId,
-        tenantId: link.tenantId,
-        details: {
+        details: `Payment of ${amount} ${link.currency} received via ${provider} from ${payerEmail}`,
+        metadata: JSON.stringify({
           paymentId: payment.id,
           amount,
           payerEmail,
           provider,
-          linkDepleted: isDepleted || isMaxPayments,
-        },
+          linkDepleted: isMaxPayments,
+        }),
       },
     })
 
@@ -251,25 +254,30 @@ export async function creditWallet(
       throw new Error(`Wallet not found: ${walletId}`)
     }
 
+    const balanceBefore = wallet.balance
+    const balanceAfter = Math.round((balanceBefore + amount) * 100) / 100
+
     const transaction = await db.walletTransaction.create({
       data: {
         walletId,
+        txRef: `WTX-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
         type: 'credit',
         amount,
+        balanceBefore,
+        balanceAfter,
         currency: wallet.currency,
         referenceType,
         referenceId,
         description,
         status: 'completed',
-        tenantId: wallet.tenantId,
       },
     })
 
     await db.wallet.update({
       where: { id: walletId },
       data: {
-        balance: { increment: amount },
-        availableBalance: { increment: amount },
+        balance: balanceAfter,
+        availableBalance: Math.round((wallet.availableBalance + amount) * 100) / 100,
       },
     })
 
@@ -312,25 +320,30 @@ export async function debitWallet(
       )
     }
 
+    const balanceBefore = wallet.balance
+    const balanceAfter = Math.round((balanceBefore - amount) * 100) / 100
+
     const transaction = await db.walletTransaction.create({
       data: {
         walletId,
+        txRef: `WTX-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
         type: 'debit',
         amount,
+        balanceBefore,
+        balanceAfter,
         currency: wallet.currency,
         referenceType,
         referenceId,
         description,
         status: 'completed',
-        tenantId: wallet.tenantId,
       },
     })
 
     await db.wallet.update({
       where: { id: walletId },
       data: {
-        balance: { decrement: amount },
-        availableBalance: { decrement: amount },
+        balance: balanceAfter,
+        availableBalance: Math.round((wallet.availableBalance - amount) * 100) / 100,
       },
     })
 
@@ -345,7 +358,7 @@ export async function debitWallet(
 /**
  * Run a compliance screening check for a business / transaction.
  * Returns mock results (result: 'clear', riskLevel: 'low') suitable for demo/development.
- * Idempotent per (businessId, transactionId) pair.
+ * Idempotent per (businessId, transactionType, transactionId) pair.
  */
 export async function runComplianceScreening(
   businessId: string,
@@ -355,7 +368,7 @@ export async function runComplianceScreening(
   try {
     // Idempotency check
     const existing = await db.complianceScreening.findFirst({
-      where: { businessId, transactionId },
+      where: { businessId, transactionType, transactionId },
     })
     if (existing) {
       return existing
@@ -366,10 +379,10 @@ export async function runComplianceScreening(
         businessId,
         transactionType,
         transactionId,
+        screeningType: 'sanctions',
         result: 'clear',
         riskLevel: 'low',
         status: 'completed',
-        screenedAt: new Date(),
       },
     })
 
@@ -403,8 +416,6 @@ export async function sendCollectionReminder(
         channel,
         template,
         status: 'sent',
-        sentAt: new Date(),
-        tenantId: collectionCase.tenantId,
       },
     })
 

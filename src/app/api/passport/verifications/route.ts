@@ -5,11 +5,11 @@ import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createVerificationSchema = z.object({
   businessId: z.string().min(1, 'businessId is required'),
-  type: z.enum(['identity', 'business_registration', 'tax', 'bank_account', 'address'], {
-    errorMap: () => ({ message: 'Type must be one of: identity, business_registration, tax, bank_account, address' }),
+  type: z.enum(['identity', 'business_registration', 'tax', 'bank_account', 'address'] as const, {
+    message: 'Type must be one of: identity, business_registration, tax, bank_account, address',
   }),
-  method: z.enum(['document', 'api', 'manual', 'third_party'], {
-    errorMap: () => ({ message: 'Method must be one of: document, api, manual, third_party' }),
+  method: z.enum(['document', 'api', 'manual', 'third_party'] as const, {
+    message: 'Method must be one of: document, api, manual, third_party',
   }),
   metadata: z.string().optional(),
 })

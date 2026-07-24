@@ -5,7 +5,7 @@ import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
-  role: z.enum(['admin', 'buyer', 'seller', 'auditor', 'viewer']).optional(),
+  role: z.enum(['admin', 'buyer', 'seller', 'auditor', 'viewer'] as const).optional(),
   isActive: z.boolean().optional(),
   businessId: z.string().nullable().optional(),
   lastLoginAt: z.string().datetime().optional(),
@@ -18,7 +18,7 @@ export async function GET(
   try {
     const user = await getApiUser(request)
     const { id } = await params
-    const targetUser = await db.user.findUnique({
+    const targetUser = await db.account.findUnique({
       where: { id },
     })
 
@@ -63,7 +63,7 @@ export async function PUT(
       )
     }
 
-    const existing = await db.user.findUnique({ where: { id } })
+    const existing = await db.account.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
@@ -79,7 +79,7 @@ export async function PUT(
     if (data.businessId !== undefined) updateData.businessId = data.businessId
     if (data.lastLoginAt !== undefined) updateData.lastLoginAt = new Date(data.lastLoginAt)
 
-    const updatedUser = await db.user.update({
+    const updatedUser = await db.account.update({
       where: { id },
       data: updateData,
     })
@@ -99,7 +99,7 @@ export async function DELETE(
   try {
     const user = await getApiUser(request)
     const { id } = await params
-    const existing = await db.user.findUnique({ where: { id } })
+    const existing = await db.account.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
@@ -107,7 +107,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const deletedUser = await db.user.update({
+    const deletedUser = await db.account.update({
       where: { id },
       data: { isActive: false },
     })

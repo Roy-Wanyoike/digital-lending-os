@@ -4,11 +4,24 @@ import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateCaseSchema = z.object({
-  status: z.enum(['active', 'paused', 'resolved', 'written_off', 'escalated']).optional(),
-  priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+  status: z.enum(['active', 'paused', 'resolved', 'written_off', 'escalated'] as const).optional(),
+  priority: z.enum(['low', 'normal', 'high', 'urgent'] as const).optional(),
   outstandingAmount: z.number().min(0).optional(),
   resolution: z.string().optional(),
 })
+
+async function verifyTenantAccess(caseId: string, tenantId: string): Promise<{ ok: boolean }> {
+  const collectionCase = await db.collectionCase.findUnique({
+    where: { id: caseId },
+  })
+  if (!collectionCase) return { ok: false }
+  const biz = await db.business.findUnique({
+    where: { id: collectionCase.businessId },
+    select: { tenantId: true },
+  })
+  if (!biz || biz.tenantId !== tenantId) return { ok: false }
+  return { ok: true }
+}
 
 export async function GET(
   request: NextRequest,
@@ -17,15 +30,13 @@ export async function GET(
   try {
     const user = await getApiUser(request)
     const { id } = await params
-    const collectionCase = await db.collectionCase.findUnique({
-      where: { id },
-      include: { business: { select: { tenantId: true } } },
-    })
 
-    if (!collectionCase) {
+    if (!(await verifyTenantAccess(id, user.tenantId)).ok) {
       return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
     }
-    if (collectionCase.business?.tenantId !== user.tenantId) {
+
+    const collectionCase = await db.collectionCase.findUnique({ where: { id } })
+    if (!collectionCase) {
       return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
     }
 
@@ -59,14 +70,7 @@ export async function PUT(
       )
     }
 
-    const existing = await db.collectionCase.findUnique({
-      where: { id },
-      include: { business: { select: { tenantId: true } } },
-    })
-    if (!existing) {
-      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
-    }
-    if (existing.business?.tenantId !== user.tenantId) {
+    if (!(await verifyTenantAccess(id, user.tenantId)).ok) {
       return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
     }
 
