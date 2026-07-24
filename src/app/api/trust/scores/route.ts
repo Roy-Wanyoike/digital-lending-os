@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const recalculateSchema = z.object({
   businessId: z.string().min(1, 'businessId is required'),
@@ -8,12 +9,13 @@ const recalculateSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId') || ''
     const sortBy = searchParams.get('sortBy') || 'overallScore'
     const sortOrder = searchParams.get('sortOrder') || 'desc'
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { business: { tenantId: user.tenantId } }
     if (businessId) {
       where.businessId = businessId
     }
@@ -38,12 +40,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: scores })
   } catch (error) {
     console.error('Error listing trust scores:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list trust scores' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = recalculateSchema.safeParse(body)
 
@@ -56,9 +60,9 @@ export async function POST(request: NextRequest) {
 
     const { businessId } = parsed.data
 
-    // Verify business exists
+    // Verify business exists and belongs to tenant
     const business = await db.business.findUnique({ where: { id: businessId } })
-    if (!business) {
+    if (!business || business.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 
@@ -97,7 +101,7 @@ export async function POST(request: NextRequest) {
 
       if (ratingsWithPayment.length > 0) {
         const sum = ratingsWithPayment.reduce((acc, r) => acc + (r.paymentRating || 0), 0)
-        paymentScore = (sum / ratingsWithPayment.length) * 20 // Convert 1-5 to 20-100
+        paymentScore = (sum / ratingsWithPayment.length) * 20
       }
 
       if (ratingsWithDelivery.length > 0) {
@@ -115,7 +119,6 @@ export async function POST(request: NextRequest) {
         communicationScore = (sum / ratingsWithComm.length) * 20
       }
 
-      // If no sub-ratings, use overall rating
       if (ratingsWithPayment.length === 0 && ratingsWithDelivery.length === 0) {
         const avgRating = reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length
         paymentScore = avgRating * 20
@@ -125,20 +128,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Apply reputation event impacts
     let eventImpact = 0
     for (const event of events) {
       eventImpact += event.scoreImpact
     }
 
-    // Clamp scores between 0 and 100
     const clamp = (v: number) => Math.max(0, Math.min(100, v))
     paymentScore = clamp(paymentScore + eventImpact)
     deliveryScore = clamp(deliveryScore + eventImpact)
     qualityScore = clamp(qualityScore + eventImpact)
     communicationScore = clamp(communicationScore + eventImpact)
 
-    // Calculate compliance score from verifications
     const verifications = await db.verification.findMany({
       where: { businessId },
     })
@@ -147,7 +147,6 @@ export async function POST(request: NextRequest) {
       verifications.length > 0 ? (approvedVerifications / verifications.length) * 100 : 50
     )
 
-    // Overall score is a weighted average
     const overallScore = clamp(
       paymentScore * 0.25 +
       deliveryScore * 0.2 +
@@ -156,7 +155,6 @@ export async function POST(request: NextRequest) {
       complianceScore * 0.15
     )
 
-    // Update the trust score
     const updated = await db.trustScore.update({
       where: { id: trustScore.id },
       data: {
@@ -178,7 +176,6 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Create a reputation event for the recalculation
     await db.reputationEvent.create({
       data: {
         trustScoreId: trustScore.id,
@@ -191,6 +188,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: updated })
   } catch (error) {
     console.error('Error recalculating trust score:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to recalculate trust score' }, { status: 500 })
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const updateIntentSchema = z.object({
@@ -14,14 +15,21 @@ const updateIntentSchema = z.object({
 
 // ── GET: Single payment intent ──────────────────────────────
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
 
-    const intent = await db.paymentIntent.findUnique({
-      where: { id },
+    const intent = await db.paymentIntent.findFirst({
+      where: {
+        id,
+        OR: [
+          { fromBusiness: { tenantId: user.tenantId } },
+          { toBusiness: { tenantId: user.tenantId } },
+        ],
+      },
       include: {
         transactions: {
           orderBy: { createdAt: "desc" },
@@ -39,6 +47,7 @@ export async function GET(
     return NextResponse.json({ data: intent });
   } catch (error) {
     console.error("Error fetching payment intent:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to fetch payment intent" },
       { status: 500 }
@@ -52,6 +61,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = updateIntentSchema.safeParse(body);
@@ -63,8 +73,14 @@ export async function PUT(
       );
     }
 
-    const existing = await db.paymentIntent.findUnique({
-      where: { id },
+    const existing = await db.paymentIntent.findFirst({
+      where: {
+        id,
+        OR: [
+          { fromBusiness: { tenantId: user.tenantId } },
+          { toBusiness: { tenantId: user.tenantId } },
+        ],
+      },
     });
 
     if (!existing) {
@@ -90,6 +106,7 @@ export async function PUT(
     return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("Error updating payment intent:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to update payment intent" },
       { status: 500 }

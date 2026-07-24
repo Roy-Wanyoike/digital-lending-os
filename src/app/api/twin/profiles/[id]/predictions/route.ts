@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
 const validPredictionTypes = ['revenue', 'cash_flow', 'risk', 'default_probability', 'growth_rate'] as const;
 const validTimeframes = ['30d', '60d', '90d', '6m', '1y'] as const;
@@ -14,7 +15,6 @@ function generateMockPrediction(
   predictionType: string,
   timeframe: string
 ): { predictedValue: number; confidence: number; lowerBound: number; upperBound: number } {
-  // Base values vary by prediction type
   const baseValues: Record<string, number> = {
     revenue: 150000,
     cash_flow: 45000,
@@ -25,7 +25,6 @@ function generateMockPrediction(
 
   const base = baseValues[predictionType] ?? 100;
 
-  // Timeframe multipliers (longer = more variance)
   const timeframeMultiplier: Record<string, number> = {
     '30d': 1.0,
     '60d': 1.08,
@@ -38,7 +37,7 @@ function generateMockPrediction(
   const variance = (timeframe === '30d' ? 0.05 : timeframe === '60d' ? 0.08 : timeframe === '90d' ? 0.1 : 0.15);
 
   const predictedValue = base * multiplier * (0.9 + Math.random() * 0.2);
-  const confidence = 0.6 + Math.random() * 0.35; // 0.6 - 0.95
+  const confidence = 0.6 + Math.random() * 0.35;
   const spread = Math.abs(predictedValue * variance * (0.5 + Math.random()));
   const lowerBound = predictedValue - spread;
   const upperBound = predictedValue + spread;
@@ -57,18 +56,26 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
     const { searchParams } = new URL(request.url);
 
     const predictionType = searchParams.get('predictionType');
     const timeframe = searchParams.get('timeframe');
 
-    // Verify twin exists
+    // Verify twin exists and belongs to tenant
     const twin = await db.financialDigitalTwin.findUnique({
       where: { id },
+      include: { business: { select: { tenantId: true } } },
     });
 
     if (!twin) {
+      return NextResponse.json(
+        { error: 'Digital twin not found' },
+        { status: 404 }
+      );
+    }
+    if (twin.business.tenantId !== user.tenantId) {
       return NextResponse.json(
         { error: 'Digital twin not found' },
         { status: 404 }
@@ -91,6 +98,7 @@ export async function GET(
     return NextResponse.json(predictions);
   } catch (error) {
     console.error('Error listing predictions:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: 'Failed to list predictions' },
       { status: 500 }
@@ -104,6 +112,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = createPredictionSchema.safeParse(body);
@@ -115,12 +124,19 @@ export async function POST(
       );
     }
 
-    // Verify twin exists
+    // Verify twin exists and belongs to tenant
     const twin = await db.financialDigitalTwin.findUnique({
       where: { id },
+      include: { business: { select: { tenantId: true } } },
     });
 
     if (!twin) {
+      return NextResponse.json(
+        { error: 'Digital twin not found' },
+        { status: 404 }
+      );
+    }
+    if (twin.business.tenantId !== user.tenantId) {
       return NextResponse.json(
         { error: 'Digital twin not found' },
         { status: 404 }
@@ -146,6 +162,7 @@ export async function POST(
     return NextResponse.json(prediction, { status: 201 });
   } catch (error) {
     console.error('Error creating prediction:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: 'Failed to create prediction' },
       { status: 500 }

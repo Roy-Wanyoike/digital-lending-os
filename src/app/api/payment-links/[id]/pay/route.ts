@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { providerRegistry, getProvidersForCurrency, calculateFee, getProviderName, type PaymentProviderCode } from '@/lib/payment'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const paySchema = z.object({
   amount: z.number().positive('Amount must be greater than 0'),
@@ -18,6 +19,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const body = await request.json()
     const parsed = paySchema.safeParse(body)
@@ -34,6 +36,10 @@ export async function POST(
     // Fetch the payment link
     const link = await db.paymentLink.findUnique({ where: { id } })
     if (!link) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
+    }
+    const biz = await db.business.findUnique({ where: { id: link.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
     }
 
@@ -68,7 +74,7 @@ export async function POST(
 
     if (!providerCode) {
       // Fallback: create a pending record without provider (demo mode)
- const feeAmount = Math.round(data.amount * 0.015 * 100) / 100
+      const feeAmount = Math.round(data.amount * 0.015 * 100) / 100
       const netAmount = Math.round((data.amount - feeAmount) * 100) / 100
       const payment = await db.paymentLinkPayment.create({
         data: {
@@ -181,6 +187,7 @@ export async function POST(
     })
   } catch (error) {
     console.error('Error processing payment link:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to process payment' }, { status: 500 })
   }
 }

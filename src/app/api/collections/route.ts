@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 function generateCaseRef(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -32,6 +33,7 @@ const createCollectionSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
@@ -41,7 +43,9 @@ export async function GET(request: NextRequest) {
     const priority = searchParams.get('priority') || ''
     const status = searchParams.get('status') || ''
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      business: { tenantId: user.tenantId },
+    }
 
     if (businessId) where.businessId = businessId
     if (debtorId) where.debtorId = debtorId
@@ -81,12 +85,14 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('Error listing collection cases:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list collection cases' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createCollectionSchema.safeParse(body)
 
@@ -98,6 +104,12 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parsed.data
+
+    // Verify business belongs to tenant
+    const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
 
     let caseRef = generateCaseRef()
     let exists = await db.collectionCase.findUnique({ where: { caseRef } })
@@ -125,6 +137,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: collectionCase }, { status: 201 })
   } catch (error: unknown) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json({ error: 'Case reference collision, please retry' }, { status: 409 })
     }

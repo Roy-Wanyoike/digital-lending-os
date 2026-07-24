@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const MATCH_REASONS = [
   'Industry complementarity',
@@ -30,6 +31,7 @@ const createMatchSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
@@ -38,7 +40,12 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || ''
     const minScore = searchParams.get('minScore')
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      OR: [
+        { seeker: { tenantId: user.tenantId } },
+        { candidate: { tenantId: user.tenantId } },
+      ],
+    }
 
     if (seekerId) where.seekerId = seekerId
     if (matchType) where.matchType = matchType
@@ -81,12 +88,14 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('Error listing business matches:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list business matches' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createMatchSchema.safeParse(body)
 
@@ -98,6 +107,12 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parsed.data
+
+    // Verify seeker belongs to tenant
+    const seeker = await db.business.findUnique({ where: { id: data.seekerId }, select: { tenantId: true } })
+    if (!seeker || seeker.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Seeker business not found' }, { status: 404 })
+    }
 
     // If candidateId is provided, create a single match
     if (data.candidateId) {
@@ -114,12 +129,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Auto-generate matches: find businesses in complementary industries/countries
-    const seeker = await db.business.findUnique({ where: { id: data.seekerId } })
-    if (!seeker) {
-      return NextResponse.json({ error: 'Seeker business not found' }, { status: 404 })
-    }
-
-    // Find potential candidates (excluding the seeker)
     const candidates = await db.business.findMany({
       where: {
         id: { not: data.seekerId },
@@ -147,6 +156,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: matches }, { status: 201 })
   } catch (error: unknown) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json({ error: 'This match already exists' }, { status: 409 })
     }

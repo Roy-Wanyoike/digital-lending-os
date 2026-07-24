@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { providerRegistry, getProvidersForCurrency, getProvidersForCountry, calculateFee, getProviderName, type PaymentProviderCode } from '@/lib/payment'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 // ─── Zod Schema ──────────────────────────────────────────────
 const initSchema = z.object({
@@ -21,6 +22,7 @@ const initSchema = z.object({
 // ─── POST: Initialize a payment with a provider ──────────────
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = initSchema.safeParse(body)
 
@@ -75,11 +77,24 @@ export async function POST(request: NextRequest) {
     let providerReference = `YS-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
 
     if (data.referenceType === 'escrow' && data.referenceId) {
-      const escrow = await db.escrowTransaction.findUnique({ where: { id: data.referenceId } })
+      const escrow = await db.escrowTransaction.findFirst({
+        where: {
+          id: data.referenceId,
+          OR: [
+            { buyer: { tenantId: user.tenantId } },
+            { seller: { tenantId: user.tenantId } },
+          ],
+        },
+      })
       if (escrow) providerReference = escrow.txRef
     } else if (data.referenceType === 'payment_link' && data.referenceId) {
       const link = await db.paymentLink.findUnique({ where: { id: data.referenceId } })
-      if (link) providerReference = link.linkRef
+      if (link) {
+        const biz = await db.business.findUnique({ where: { id: link.businessId }, select: { tenantId: true } })
+        if (biz && biz.tenantId === user.tenantId) {
+          providerReference = link.linkRef
+        }
+      }
     }
 
     // ─── Initialize with provider ─────────────────────────────
@@ -166,6 +181,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('[Payments] Initialize error:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json(
       { error: 'Failed to initialize payment' },
       { status: 500 }

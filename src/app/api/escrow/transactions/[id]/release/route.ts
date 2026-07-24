@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const releaseSchema = z.object({
@@ -13,6 +14,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = releaseSchema.safeParse(body);
@@ -27,8 +29,14 @@ export async function POST(
     const { milestoneId } = parsed.data;
 
     // Fetch escrow with milestones
-    const escrow = await db.escrowTransaction.findUnique({
-      where: { id },
+    const escrow = await db.escrowTransaction.findFirst({
+      where: {
+        id,
+        OR: [
+          { buyer: { tenantId: user.tenantId } },
+          { seller: { tenantId: user.tenantId } },
+        ],
+      },
       include: {
         milestones: { orderBy: { sequence: "asc" } },
         seller: { select: { id: true, name: true } },
@@ -151,6 +159,7 @@ export async function POST(
     return NextResponse.json({ data: updatedEscrow });
   } catch (error) {
     console.error("Error releasing escrow funds:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to release escrow funds" },
       { status: 500 }

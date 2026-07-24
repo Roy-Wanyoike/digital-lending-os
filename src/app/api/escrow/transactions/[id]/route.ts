@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── GET: Single escrow transaction ───────────────────────────
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
 
-    const escrow = await db.escrowTransaction.findUnique({
-      where: { id },
+    const escrow = await db.escrowTransaction.findFirst({
+      where: {
+        id,
+        OR: [
+          { buyer: { tenantId: user.tenantId } },
+          { seller: { tenantId: user.tenantId } },
+        ],
+      },
       include: {
         buyer: { select: { id: true, name: true } },
         seller: { select: { id: true, name: true } },
@@ -31,6 +39,7 @@ export async function GET(
     return NextResponse.json({ data: escrow });
   } catch (error) {
     console.error("Error fetching escrow transaction:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to fetch escrow transaction" },
       { status: 500 }
@@ -40,14 +49,21 @@ export async function GET(
 
 // ── PUT: Cancel escrow transaction ───────────────────────────
 export async function PUT(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
 
-    const escrow = await db.escrowTransaction.findUnique({
-      where: { id },
+    const escrow = await db.escrowTransaction.findFirst({
+      where: {
+        id,
+        OR: [
+          { buyer: { tenantId: user.tenantId } },
+          { seller: { tenantId: user.tenantId } },
+        ],
+      },
       select: { id: true, status: true, txRef: true },
     });
 
@@ -89,6 +105,7 @@ export async function PUT(
     return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("Error cancelling escrow transaction:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to cancel escrow transaction" },
       { status: 500 }

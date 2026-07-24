@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createFraudRuleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -12,6 +13,7 @@ const createFraudRuleSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const isActive = searchParams.get('isActive')
 
@@ -28,12 +30,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: rules })
   } catch (error) {
     console.error('Error listing fraud rules:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list fraud rules' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createFraudRuleSchema.safeParse(body)
 
@@ -53,6 +57,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Condition must be a valid JSON string' }, { status: 400 })
     }
 
+    // FraudRule is a global/system-level entity — no tenant filtering on creation
     const rule = await db.fraudRule.create({
       data: {
         name: data.name,
@@ -67,6 +72,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: rule }, { status: 201 })
   } catch (error) {
     console.error('Error creating fraud rule:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to create fraud rule' }, { status: 500 })
   }
 }

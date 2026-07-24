@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const createIntentSchema = z.object({
@@ -49,6 +50,7 @@ function generateIntentRef(): string {
 // ── GET: List payment intents ───────────────────────────────
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request);
     const { searchParams } = new URL(request.url);
 
     const status = searchParams.get("status") || undefined;
@@ -59,7 +61,12 @@ export async function GET(request: NextRequest) {
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
     const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 20));
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      OR: [
+        { fromBusiness: { tenantId: user.tenantId } },
+        { toBusiness: { tenantId: user.tenantId } },
+      ],
+    };
     if (status) where.status = status;
     if (fromBusinessId) where.fromBusinessId = fromBusinessId;
     if (toBusinessId) where.toBusinessId = toBusinessId;
@@ -91,6 +98,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error listing payment intents:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to list payment intents" },
       { status: 500 }
@@ -101,6 +109,7 @@ export async function GET(request: NextRequest) {
 // ── POST: Create payment intent ─────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request);
     const body = await request.json();
     const parsed = createIntentSchema.safeParse(body);
 
@@ -112,6 +121,16 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parsed.data;
+
+    // Verify both businesses belong to tenant
+    const [fromBiz, toBiz] = await Promise.all([
+      db.business.findUnique({ where: { id: data.fromBusinessId }, select: { tenantId: true } }),
+      db.business.findUnique({ where: { id: data.toBusinessId }, select: { tenantId: true } }),
+    ]);
+    if (!fromBiz || fromBiz.tenantId !== user.tenantId || !toBiz || toBiz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+    }
+
     const exchangeRate = getMockRate(data.sourceCurrency, data.targetCurrency);
     const targetAmount = parseFloat(
       (data.sourceAmount * exchangeRate).toFixed(2)
@@ -147,6 +166,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: intent }, { status: 201 });
   } catch (error) {
     console.error("Error creating payment intent:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to create payment intent" },
       { status: 500 }

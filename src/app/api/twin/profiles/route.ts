@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
 const createTwinSchema = z.object({
   businessId: z.string().min(1, 'businessId is required'),
@@ -9,12 +10,13 @@ const createTwinSchema = z.object({
 // GET /api/twin/profiles — List financial digital twins
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request);
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get('businessId');
     const minHealthScore = searchParams.get('minHealthScore');
     const growthTrajectory = searchParams.get('growthTrajectory');
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { business: { tenantId: user.tenantId } };
 
     if (businessId) {
       where.businessId = businessId;
@@ -44,6 +46,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(twins);
   } catch (error) {
     console.error('Error listing digital twins:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: 'Failed to list digital twins' },
       { status: 500 }
@@ -54,6 +57,7 @@ export async function GET(request: NextRequest) {
 // POST /api/twin/profiles — Create a financial digital twin
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request);
     const body = await request.json();
     const parsed = createTwinSchema.safeParse(body);
 
@@ -66,12 +70,12 @@ export async function POST(request: NextRequest) {
 
     const { businessId } = parsed.data;
 
-    // Check business exists
+    // Check business exists and belongs to tenant
     const business = await db.business.findUnique({
       where: { id: businessId },
     });
 
-    if (!business) {
+    if (!business || business.tenantId !== user.tenantId) {
       return NextResponse.json(
         { error: 'Business not found' },
         { status: 404 }
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(twin, { status: 201 });
   } catch (error) {
     console.error('Error creating digital twin:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: 'Failed to create digital twin' },
       { status: 500 }

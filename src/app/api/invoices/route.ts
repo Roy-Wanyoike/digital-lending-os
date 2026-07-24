@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createInvoiceSchema = z.object({
   senderId: z.string().min(1, 'senderId is required'),
@@ -26,13 +27,19 @@ const createInvoiceSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const senderId = searchParams.get('senderId') || ''
     const receiverId = searchParams.get('receiverId') || ''
     const status = searchParams.get('status') || ''
     const currency = searchParams.get('currency') || ''
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      OR: [
+        { sender: { tenantId: user.tenantId } },
+        { receiver: { tenantId: user.tenantId } },
+      ],
+    }
 
     if (senderId) {
       where.senderId = senderId
@@ -63,12 +70,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: invoices })
   } catch (error) {
     console.error('Error listing invoices:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list invoices' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createInvoiceSchema.safeParse(body)
 
@@ -88,13 +97,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check both businesses exist
+    // Check both businesses exist and sender belongs to tenant
     const [sender, receiver] = await Promise.all([
       db.business.findUnique({ where: { id: senderId } }),
       db.business.findUnique({ where: { id: receiverId } }),
     ])
 
-    if (!sender) {
+    if (!sender || sender.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Sender business not found' }, { status: 404 })
     }
     if (!receiver) {
@@ -132,6 +141,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: invoice }, { status: 201 })
   } catch (error: unknown) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json(
         { error: 'Invoice reference collision, please retry' },

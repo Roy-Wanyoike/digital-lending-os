@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
 const riskFactorPool = [
   'High accounts receivable aging',
@@ -68,14 +69,22 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
 
-    // Verify twin exists
+    // Verify twin exists and belongs to tenant
     const twin = await db.financialDigitalTwin.findUnique({
       where: { id },
+      include: { business: { select: { tenantId: true } } },
     });
 
     if (!twin) {
+      return NextResponse.json(
+        { error: 'Digital twin not found' },
+        { status: 404 }
+      );
+    }
+    if (twin.business.tenantId !== user.tenantId) {
       return NextResponse.json(
         { error: 'Digital twin not found' },
         { status: 404 }
@@ -124,6 +133,7 @@ export async function POST(
     return NextResponse.json(snapshot, { status: 201 });
   } catch (error) {
     console.error('Error generating snapshot:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: 'Failed to generate snapshot' },
       { status: 500 }

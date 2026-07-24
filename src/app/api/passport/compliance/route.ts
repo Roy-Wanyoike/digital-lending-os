@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createComplianceDocSchema = z.object({
   passportId: z.string().min(1, 'passportId is required'),
@@ -12,12 +13,15 @@ const createComplianceDocSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const passportId = searchParams.get('passportId') || ''
     const docType = searchParams.get('docType') || ''
     const status = searchParams.get('status') || ''
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      passport: { business: { tenantId: user.tenantId } },
+    }
 
     if (passportId) {
       where.passportId = passportId
@@ -37,12 +41,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: documents })
   } catch (error) {
     console.error('Error listing compliance documents:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list compliance documents' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createComplianceDocSchema.safeParse(body)
 
@@ -55,12 +61,13 @@ export async function POST(request: NextRequest) {
 
     const { passportId, docType, docName, docUrl, expiresAt } = parsed.data
 
-    // Check passport exists
+    // Check passport exists and belongs to tenant
     const passport = await db.commercePassport.findUnique({
       where: { id: passportId },
+      include: { business: { select: { tenantId: true } } },
     })
 
-    if (!passport) {
+    if (!passport || passport.business.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Commerce passport not found' }, { status: 404 })
     }
 
@@ -78,6 +85,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: document }, { status: 201 })
   } catch (error) {
     console.error('Error creating compliance document:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to create compliance document' }, { status: 500 })
   }
 }

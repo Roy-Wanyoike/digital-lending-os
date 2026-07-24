@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updatePaymentLinkSchema = z.object({
   title: z.string().optional(),
@@ -10,16 +11,21 @@ const updatePaymentLinkSchema = z.object({
 })
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const link = await db.paymentLink.findUnique({
       where: { id },
     })
 
     if (!link) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
+    }
+    const biz = await db.business.findUnique({ where: { id: link.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
     }
 
@@ -31,6 +37,7 @@ export async function GET(
     return NextResponse.json({ data: { ...link, payments } })
   } catch (error) {
     console.error('Error fetching payment link:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to fetch payment link' }, { status: 500 })
   }
 }
@@ -40,6 +47,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const body = await request.json()
     const parsed = updatePaymentLinkSchema.safeParse(body)
@@ -53,6 +61,10 @@ export async function PUT(
 
     const existing = await db.paymentLink.findUnique({ where: { id } })
     if (!existing) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
+    }
+    const biz = await db.business.findUnique({ where: { id: existing.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
     }
 
@@ -71,18 +83,24 @@ export async function PUT(
     return NextResponse.json({ data: link })
   } catch (error) {
     console.error('Error updating payment link:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to update payment link' }, { status: 500 })
   }
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const existing = await db.paymentLink.findUnique({ where: { id } })
     if (!existing) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
+    }
+    const biz = await db.business.findUnique({ where: { id: existing.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
     }
 
@@ -94,6 +112,7 @@ export async function DELETE(
     return NextResponse.json({ data: link })
   } catch (error) {
     console.error('Error expiring payment link:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to expire payment link' }, { status: 500 })
   }
 }

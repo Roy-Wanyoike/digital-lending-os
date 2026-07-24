@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateComplianceSchema = z.object({
   status: z.enum(['pending', 'approved', 'rejected', 'expired'], {
@@ -14,6 +15,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const body = await request.json()
     const parsed = updateComplianceSchema.safeParse(body)
@@ -29,9 +31,13 @@ export async function PUT(
 
     const document = await db.complianceDocument.findUnique({
       where: { id },
+      include: { passport: { include: { business: { select: { tenantId: true } } } } },
     })
 
     if (!document) {
+      return NextResponse.json({ error: 'Compliance document not found' }, { status: 404 })
+    }
+    if (document.passport?.business?.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Compliance document not found' }, { status: 404 })
     }
 
@@ -54,6 +60,7 @@ export async function PUT(
     return NextResponse.json({ data: updated })
   } catch (error) {
     console.error('Error updating compliance document:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to update compliance document' }, { status: 500 })
   }
 }

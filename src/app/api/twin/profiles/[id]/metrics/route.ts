@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
 const validPeriods = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'] as const;
 
@@ -25,18 +26,26 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
     const { searchParams } = new URL(request.url);
 
     const period = searchParams.get('period');
     const limit = Math.min(parseInt(searchParams.get('limit') || '30', 10), 100);
 
-    // Verify twin exists
+    // Verify twin exists and belongs to tenant
     const twin = await db.financialDigitalTwin.findUnique({
       where: { id },
+      include: { business: { select: { tenantId: true } } },
     });
 
     if (!twin) {
+      return NextResponse.json(
+        { error: 'Digital twin not found' },
+        { status: 404 }
+      );
+    }
+    if (twin.business.tenantId !== user.tenantId) {
       return NextResponse.json(
         { error: 'Digital twin not found' },
         { status: 404 }
@@ -57,6 +66,7 @@ export async function GET(
     return NextResponse.json(metrics);
   } catch (error) {
     console.error('Error listing metrics:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: 'Failed to list metrics' },
       { status: 500 }
@@ -70,6 +80,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = createMetricSchema.safeParse(body);
@@ -81,9 +92,10 @@ export async function POST(
       );
     }
 
-    // Verify twin exists
+    // Verify twin exists and belongs to tenant
     const twin = await db.financialDigitalTwin.findUnique({
       where: { id },
+      include: { business: { select: { tenantId: true } } },
     });
 
     if (!twin) {
@@ -92,8 +104,14 @@ export async function POST(
         { status: 404 }
       );
     }
+    if (twin.business.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { error: 'Digital twin not found' },
+        { status: 404 }
+      );
+    }
 
-    // Upsert metric (handle unique constraint on twinId + period + periodDate)
+    // Upsert metric
     const metric = await db.financialMetric.upsert({
       where: {
         twinId_period_periodDate: {
@@ -147,17 +165,14 @@ export async function POST(
       const cashBalance = m.cashBalance ?? 0;
 
       if (revenue > expenses && cashBalance > 0) {
-        // Positive signal: increase health score slightly
         const profitMargin = (revenue - expenses) / Math.max(revenue, 1);
         newHealthScore = Math.min(100, twin.healthScore + 1 + profitMargin * 2);
       } else {
-        // Negative signal: decrease health score slightly
         const deficit = Math.abs(expenses - revenue) / Math.max(expenses, 1);
         newHealthScore = Math.max(0, twin.healthScore - 1 - deficit * 2);
       }
     }
 
-    // Update twin health score
     const updatedTwin = await db.financialDigitalTwin.update({
       where: { id },
       data: {
@@ -168,6 +183,7 @@ export async function POST(
     return NextResponse.json({ metric, updatedHealthScore: updatedTwin.healthScore }, { status: 201 });
   } catch (error) {
     console.error('Error creating metric:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: 'Failed to create metric' },
       { status: 500 }

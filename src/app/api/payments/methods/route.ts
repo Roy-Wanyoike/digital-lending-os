@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── Zod Schemas ─────────────────────────────────────────────
 const addMethodSchema = z.object({
@@ -24,6 +25,7 @@ const addMethodSchema = z.object({
 // ── GET: List payment methods for a business ────────────────
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request);
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get("businessId");
 
@@ -34,6 +36,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Verify business belongs to tenant
+    const biz = await db.business.findUnique({ where: { id: businessId }, select: { tenantId: true } });
+    if (!biz || biz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+    }
+
     const methods = await db.paymentMethod.findMany({
       where: { businessId },
       orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
@@ -42,6 +50,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: methods });
   } catch (error) {
     console.error("Error listing payment methods:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to list payment methods" },
       { status: 500 }
@@ -52,6 +61,7 @@ export async function GET(request: NextRequest) {
 // ── POST: Add payment method ────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request);
     const body = await request.json();
     const parsed = addMethodSchema.safeParse(body);
 
@@ -63,6 +73,12 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parsed.data;
+
+    // Verify business belongs to tenant
+    const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } });
+    if (!biz || biz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+    }
 
     // If this is set as default, unset other defaults
     const existingDefaults = await db.paymentMethod.findMany({
@@ -99,6 +115,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: method }, { status: 201 });
   } catch (error) {
     console.error("Error adding payment method:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to add payment method" },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const createDisputeSchema = z.object({
@@ -23,14 +24,21 @@ function generateAiRecommendation(reason: string): string {
 
 // ── GET: List disputes for an escrow ────────────────────────
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
 
-    const escrow = await db.escrowTransaction.findUnique({
-      where: { id },
+    const escrow = await db.escrowTransaction.findFirst({
+      where: {
+        id,
+        OR: [
+          { buyer: { tenantId: user.tenantId } },
+          { seller: { tenantId: user.tenantId } },
+        ],
+      },
       select: { id: true },
     });
 
@@ -49,6 +57,7 @@ export async function GET(
     return NextResponse.json({ data: disputes });
   } catch (error) {
     console.error("Error listing disputes:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to list disputes" },
       { status: 500 }
@@ -62,6 +71,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = createDisputeSchema.safeParse(body);
@@ -76,8 +86,14 @@ export async function POST(
     const { raisedBy, reason, description } = parsed.data;
 
     // Fetch escrow
-    const escrow = await db.escrowTransaction.findUnique({
-      where: { id },
+    const escrow = await db.escrowTransaction.findFirst({
+      where: {
+        id,
+        OR: [
+          { buyer: { tenantId: user.tenantId } },
+          { seller: { tenantId: user.tenantId } },
+        ],
+      },
       include: {
         buyer: { select: { id: true, name: true } },
         seller: { select: { id: true, name: true } },
@@ -139,6 +155,7 @@ export async function POST(
     return NextResponse.json({ data: dispute }, { status: 201 });
   } catch (error) {
     console.error("Error creating dispute:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to create dispute" },
       { status: 500 }

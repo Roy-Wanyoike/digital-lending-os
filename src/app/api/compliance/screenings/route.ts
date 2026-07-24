@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createScreeningSchema = z.object({
   businessId: z.string().optional(),
@@ -37,6 +38,7 @@ function generateMockResult(): { result: string; riskLevel: string; details: str
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
@@ -46,7 +48,9 @@ export async function GET(request: NextRequest) {
     const riskLevel = searchParams.get('riskLevel') || ''
     const status = searchParams.get('status') || ''
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      business: { tenantId: user.tenantId },
+    }
 
     if (businessId) where.businessId = businessId
     if (screeningType) where.screeningType = screeningType
@@ -75,12 +79,14 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('Error listing compliance screenings:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list compliance screenings' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createScreeningSchema.safeParse(body)
 
@@ -92,6 +98,15 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parsed.data
+
+    // Validate businessId belongs to tenant if provided
+    if (data.businessId) {
+      const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } })
+      if (!biz || biz.tenantId !== user.tenantId) {
+        return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+      }
+    }
+
     const mockResult = generateMockResult()
 
     const screening = await db.complianceScreening.create({
@@ -111,6 +126,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: screening }, { status: 201 })
   } catch (error) {
     console.error('Error creating compliance screening:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to create compliance screening' }, { status: 500 })
   }
 }

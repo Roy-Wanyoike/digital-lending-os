@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createRelationshipSchema = z.object({
   fromBusinessId: z.string().min(1, 'fromBusinessId is required'),
@@ -12,18 +13,31 @@ const createRelationshipSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId') || ''
     const type = searchParams.get('type') || ''
     const status = searchParams.get('status') || ''
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      OR: [
+        { fromBusiness: { tenantId: user.tenantId } },
+        { toBusiness: { tenantId: user.tenantId } },
+      ],
+    }
 
     if (businessId) {
       where.OR = [
         { fromBusinessId: businessId },
         { toBusinessId: businessId },
       ]
+      // Also ensure at least one side belongs to tenant
+      where.AND = {
+        OR: [
+          { fromBusiness: { tenantId: user.tenantId } },
+          { toBusiness: { tenantId: user.tenantId } },
+        ],
+      }
     }
     if (type) {
       where.type = type
@@ -48,12 +62,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: relationships })
   } catch (error) {
     console.error('Error listing relationships:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list relationships' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createRelationshipSchema.safeParse(body)
 
@@ -73,13 +89,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check both businesses exist
+    // Check both businesses exist and belong to tenant
     const [fromBusiness, toBusiness] = await Promise.all([
       db.business.findUnique({ where: { id: fromBusinessId } }),
       db.business.findUnique({ where: { id: toBusinessId } }),
     ])
 
-    if (!fromBusiness) {
+    if (!fromBusiness || fromBusiness.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'From business not found' }, { status: 404 })
     }
     if (!toBusiness) {
@@ -104,6 +120,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: relationship }, { status: 201 })
   } catch (error: unknown) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json(
         { error: 'This relationship already exists' },

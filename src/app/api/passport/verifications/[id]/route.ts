@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateVerificationSchema = z.object({
   status: z.enum(['pending', 'in_progress', 'approved', 'rejected', 'expired'], {
@@ -11,16 +12,17 @@ const updateVerificationSchema = z.object({
 })
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const verification = await db.verification.findUnique({
       where: { id },
       include: {
         business: {
-          select: { id: true, name: true, country: true, status: true, industry: true },
+          select: { id: true, name: true, country: true, status: true, industry: true, tenantId: true },
         },
       },
     })
@@ -28,10 +30,14 @@ export async function GET(
     if (!verification) {
       return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
     }
+    if (verification.business.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
+    }
 
     return NextResponse.json({ data: verification })
   } catch (error) {
     console.error('Error fetching verification:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to fetch verification' }, { status: 500 })
   }
 }
@@ -41,6 +47,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const body = await request.json()
     const parsed = updateVerificationSchema.safeParse(body)
@@ -64,6 +71,9 @@ export async function PUT(
     })
 
     if (!verification) {
+      return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
+    }
+    if (verification.business.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
     }
 
@@ -101,12 +111,10 @@ export async function PUT(
     if (passport) {
       const passportUpdate: Record<string, unknown> = {}
 
-      // Identity or business_registration verification approved → update KYC
       if (
         (verification.type === 'identity' || verification.type === 'business_registration') &&
         status === 'approved'
       ) {
-        // Check if all identity/business_registration verifications for this business are approved
         const relatedVerifications = await db.verification.findMany({
           where: {
             businessId: verification.businessId,
@@ -128,7 +136,6 @@ export async function PUT(
         passportUpdate.kycStatus = 'rejected'
       }
 
-      // Bank account verification approved → update AML
       if (verification.type === 'bank_account' && status === 'approved') {
         passportUpdate.amlStatus = 'cleared'
         passportUpdate.amlCheckedAt = new Date()
@@ -138,9 +145,7 @@ export async function PUT(
         passportUpdate.amlStatus = 'rejected'
       }
 
-      // Update credential level based on verification status
       if (Object.keys(passportUpdate).length > 0) {
-        // Determine credential level based on all verifications
         const allVerifications = await db.verification.findMany({
           where: { businessId: verification.businessId },
         })
@@ -184,6 +189,7 @@ export async function PUT(
     return NextResponse.json({ data: updated })
   } catch (error) {
     console.error('Error updating verification:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to update verification' }, { status: 500 })
   }
 }

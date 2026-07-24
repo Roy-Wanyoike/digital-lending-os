@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { providerRegistry, type PaymentProviderCode } from '@/lib/payment'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const verifySchema = z.object({
   providerPaymentId: z.string().min(1, 'Provider payment ID is required'),
@@ -12,6 +13,7 @@ const verifySchema = z.object({
 // ─── POST: Verify a payment with the provider ──────────────
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = verifySchema.safeParse(body)
 
@@ -30,6 +32,22 @@ export async function POST(request: NextRequest) {
         { error: `Provider '${provider}' is not available` },
         { status: 400 }
       )
+    }
+
+    // If paymentIntentId provided, verify tenant owns it
+    if (paymentIntentId) {
+      const intent = await db.paymentIntent.findFirst({
+        where: {
+          id: paymentIntentId,
+          OR: [
+            { fromBusiness: { tenantId: user.tenantId } },
+            { toBusiness: { tenantId: user.tenantId } },
+          ],
+        },
+      })
+      if (!intent) {
+        return NextResponse.json({ error: 'Payment intent not found' }, { status: 404 })
+      }
     }
 
     // ─── Verify with provider ───────────────────────────────
@@ -85,6 +103,7 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('[Payments] Verify error:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json(
       { error: 'Failed to verify payment' },
       { status: 500 }

@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── POST: Activate escrow (move to in_escrow) ───────────────
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
 
-    const escrow = await db.escrowTransaction.findUnique({
-      where: { id },
+    const escrow = await db.escrowTransaction.findFirst({
+      where: {
+        id,
+        OR: [
+          { buyer: { tenantId: user.tenantId } },
+          { seller: { tenantId: user.tenantId } },
+        ],
+      },
     });
 
     if (!escrow) {
@@ -52,6 +60,7 @@ export async function POST(
     return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("Error activating escrow transaction:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to activate escrow transaction" },
       { status: 500 }

@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateWalletSchema = z.object({
   status: z.enum(['active', 'frozen', 'closed']),
 })
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const wallet = await db.wallet.findUnique({
       where: { id },
@@ -18,6 +20,12 @@ export async function GET(
 
     if (!wallet) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+    }
+    if (wallet.businessId) {
+      const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
+      if (!biz || biz.tenantId !== user.tenantId) {
+        return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      }
     }
 
     const transactions = await db.walletTransaction.findMany({
@@ -29,6 +37,7 @@ export async function GET(
     return NextResponse.json({ data: { ...wallet, transactions } })
   } catch (error) {
     console.error('Error fetching wallet:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to fetch wallet' }, { status: 500 })
   }
 }
@@ -38,6 +47,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const body = await request.json()
     const parsed = updateWalletSchema.safeParse(body)
@@ -53,6 +63,12 @@ export async function PUT(
     if (!existing) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
+    if (existing.businessId) {
+      const biz = await db.business.findUnique({ where: { id: existing.businessId }, select: { tenantId: true } })
+      if (!biz || biz.tenantId !== user.tenantId) {
+        return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      }
+    }
 
     const wallet = await db.wallet.update({
       where: { id },
@@ -62,6 +78,7 @@ export async function PUT(
     return NextResponse.json({ data: wallet })
   } catch (error) {
     console.error('Error updating wallet:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to update wallet' }, { status: 500 })
   }
 }

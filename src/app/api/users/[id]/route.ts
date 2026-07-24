@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
@@ -11,31 +12,36 @@ const updateUserSchema = z.object({
 })
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
-    const user = await db.user.findUnique({
+    const targetUser = await db.user.findUnique({
       where: { id },
     })
 
-    if (!user) {
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+    if (targetUser.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
     let businessName: string | null = null
-    if (user.businessId) {
+    if (targetUser.businessId) {
       const biz = await db.business.findUnique({
-        where: { id: user.businessId },
+        where: { id: targetUser.businessId },
         select: { name: true },
       })
       businessName = biz?.name ?? null
     }
 
-    return NextResponse.json({ data: { ...user, businessName } })
+    return NextResponse.json({ data: { ...targetUser, businessName } })
   } catch (error) {
     console.error('Error fetching user:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 })
   }
 }
@@ -45,6 +51,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const body = await request.json()
     const parsed = updateUserSchema.safeParse(body)
@@ -60,6 +67,9 @@ export async function PUT(
     if (!existing) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
+    if (existing.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
 
     const data = parsed.data
     const updateData: Record<string, unknown> = {}
@@ -69,37 +79,43 @@ export async function PUT(
     if (data.businessId !== undefined) updateData.businessId = data.businessId
     if (data.lastLoginAt !== undefined) updateData.lastLoginAt = new Date(data.lastLoginAt)
 
-    const user = await db.user.update({
+    const updatedUser = await db.user.update({
       where: { id },
       data: updateData,
     })
 
-    return NextResponse.json({ data: user })
+    return NextResponse.json({ data: updatedUser })
   } catch (error) {
     console.error('Error updating user:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
   }
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const existing = await db.user.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
+    if (existing.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
 
-    const user = await db.user.update({
+    const deletedUser = await db.user.update({
       where: { id },
       data: { isActive: false },
     })
 
-    return NextResponse.json({ data: user })
+    return NextResponse.json({ data: deletedUser })
   } catch (error) {
     console.error('Error deactivating user:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to deactivate user' }, { status: 500 })
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createTransactionSchema = z.object({
   type: z.enum(['credit', 'debit', 'transfer_in', 'transfer_out', 'conversion', 'fee', 'refund']),
@@ -16,6 +17,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') || ''
@@ -25,6 +27,12 @@ export async function GET(
     const wallet = await db.wallet.findUnique({ where: { id } })
     if (!wallet) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+    }
+    if (wallet.businessId) {
+      const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
+      if (!biz || biz.tenantId !== user.tenantId) {
+        return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      }
     }
 
     const where: Record<string, unknown> = { walletId: id }
@@ -40,6 +48,7 @@ export async function GET(
     return NextResponse.json({ data: transactions })
   } catch (error) {
     console.error('Error listing wallet transactions:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list wallet transactions' }, { status: 500 })
   }
 }
@@ -49,6 +58,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const body = await request.json()
     const parsed = createTransactionSchema.safeParse(body)
@@ -66,6 +76,13 @@ export async function POST(
       const wallet = await tx.wallet.findUnique({ where: { id } })
       if (!wallet) {
         throw new Error('Wallet not found')
+      }
+      // Verify tenant ownership
+      if (wallet.businessId) {
+        const biz = await tx.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
+        if (!biz || biz.tenantId !== user.tenantId) {
+          throw new Error('Wallet not found')
+        }
       }
       if (wallet.status !== 'active') {
         throw new Error('Wallet is not active')
@@ -115,6 +132,7 @@ export async function POST(
     if (message === 'Wallet is not active' || message === 'Insufficient wallet balance') {
       return NextResponse.json({ error: message }, { status: 400 })
     }
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Error creating wallet transaction:', error)
     return NextResponse.json({ error: 'Failed to create wallet transaction' }, { status: 500 })
   }

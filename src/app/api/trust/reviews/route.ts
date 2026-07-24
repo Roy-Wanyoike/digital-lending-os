@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createReviewSchema = z.object({
   fromBusinessId: z.string().min(1, 'fromBusinessId is required'),
@@ -16,13 +17,19 @@ const createReviewSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const toBusinessId = searchParams.get('toBusinessId') || ''
     const fromBusinessId = searchParams.get('fromBusinessId') || ''
     const minRating = searchParams.get('rating')
     const status = searchParams.get('status') || ''
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      OR: [
+        { fromBusiness: { tenantId: user.tenantId } },
+        { toBusiness: { tenantId: user.tenantId } },
+      ],
+    }
 
     if (toBusinessId) {
       where.toBusinessId = toBusinessId
@@ -53,12 +60,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: reviews })
   } catch (error) {
     console.error('Error listing reviews:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list reviews' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createReviewSchema.safeParse(body)
 
@@ -78,13 +87,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check both businesses exist
+    // Check both businesses exist and reviewer belongs to tenant
     const [fromBusiness, toBusiness] = await Promise.all([
       db.business.findUnique({ where: { id: fromBusinessId } }),
       db.business.findUnique({ where: { id: toBusinessId } }),
     ])
 
-    if (!fromBusiness) {
+    if (!fromBusiness || fromBusiness.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Reviewer business not found' }, { status: 404 })
     }
     if (!toBusiness) {
@@ -126,7 +135,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create a ReputationEvent for the review
-    const scoreImpact = (rating - 3) * 2 // Positive for ratings > 3, negative for < 3
+    const scoreImpact = (rating - 3) * 2
     await db.reputationEvent.create({
       data: {
         trustScoreId: trustScore.id,
@@ -148,6 +157,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: review }, { status: 201 })
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Error creating review:', error)
     return NextResponse.json({ error: 'Failed to create review' }, { status: 500 })
   }

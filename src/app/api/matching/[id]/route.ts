@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateMatchSchema = z.object({
   status: z.enum(['contacted', 'interested', 'declined', 'engaged']),
@@ -13,6 +14,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const body = await request.json()
     const parsed = updateMatchSchema.safeParse(body)
@@ -24,8 +26,17 @@ export async function PUT(
       )
     }
 
-    const existing = await db.businessMatch.findUnique({ where: { id } })
+    const existing = await db.businessMatch.findUnique({
+      where: { id },
+      include: {
+        seeker: { select: { tenantId: true } },
+        candidate: { select: { tenantId: true } },
+      },
+    })
     if (!existing) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 })
+    }
+    if (existing.seeker.tenantId !== user.tenantId && existing.candidate.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Match not found' }, { status: 404 })
     }
 
@@ -42,6 +53,7 @@ export async function PUT(
     return NextResponse.json({ data: match })
   } catch (error) {
     console.error('Error updating match:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to update match' }, { status: 500 })
   }
 }

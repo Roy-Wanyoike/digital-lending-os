@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const resolveDisputeSchema = z.object({
@@ -16,6 +17,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; disputeId: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id, disputeId } = await params;
     const body = await request.json();
     const parsed = resolveDisputeSchema.safeParse(body);
@@ -28,6 +30,24 @@ export async function PUT(
     }
 
     const { resolution, status: disputeStatus } = parsed.data;
+
+    // Verify escrow belongs to tenant
+    const escrow = await db.escrowTransaction.findFirst({
+      where: {
+        id,
+        OR: [
+          { buyer: { tenantId: user.tenantId } },
+          { seller: { tenantId: user.tenantId } },
+        ],
+      },
+    });
+
+    if (!escrow) {
+      return NextResponse.json(
+        { error: "Escrow transaction not found" },
+        { status: 404 }
+      );
+    }
 
     // Verify dispute exists and belongs to this escrow
     const dispute = await db.dispute.findUnique({
@@ -45,17 +65,6 @@ export async function PUT(
       return NextResponse.json(
         { error: `Dispute is already '${dispute.status}'` },
         { status: 409 }
-      );
-    }
-
-    const escrow = await db.escrowTransaction.findUnique({
-      where: { id },
-    });
-
-    if (!escrow) {
-      return NextResponse.json(
-        { error: "Escrow transaction not found" },
-        { status: 404 }
       );
     }
 
@@ -115,6 +124,7 @@ export async function PUT(
     return NextResponse.json({ data: updated });
   } catch (error) {
     console.error("Error resolving dispute:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to resolve dispute" },
       { status: 500 }

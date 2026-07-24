@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const business = await db.business.findUnique({
       where: { id },
@@ -28,10 +30,14 @@ export async function GET(
     if (!business) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
+    if (business.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
 
     return NextResponse.json({ data: business })
   } catch (error) {
     console.error('Error fetching business:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to fetch business' }, { status: 500 })
   }
 }
@@ -41,11 +47,15 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const body = await request.json()
 
     const existing = await db.business.findUnique({ where: { id } })
     if (!existing) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+    if (existing.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 
@@ -90,19 +100,24 @@ export async function PUT(
     return NextResponse.json({ data: business })
   } catch (error) {
     console.error('Error updating business:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to update business' }, { status: 500 })
   }
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
 
     const existing = await db.business.findUnique({ where: { id } })
     if (!existing) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+    if (existing.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 
@@ -122,6 +137,7 @@ export async function DELETE(
     return NextResponse.json({ data: business, message: 'Business deactivated successfully' })
   } catch (error) {
     console.error('Error deactivating business:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to deactivate business' }, { status: 500 })
   }
 }

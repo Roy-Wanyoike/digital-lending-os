@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
 function generateMockMonthlyMetrics(months: number) {
   const metrics = [];
@@ -41,13 +42,21 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
 
     const twin = await db.financialDigitalTwin.findUnique({
       where: { id },
+      include: { business: { select: { tenantId: true } } },
     });
 
     if (!twin) {
+      return NextResponse.json(
+        { error: 'Digital twin not found' },
+        { status: 404 }
+      );
+    }
+    if (twin.business.tenantId !== user.tenantId) {
       return NextResponse.json(
         { error: 'Digital twin not found' },
         { status: 404 }
@@ -178,6 +187,7 @@ export async function POST(
     return NextResponse.json(updatedTwin);
   } catch (error) {
     console.error('Error syncing twin:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: 'Failed to sync digital twin' },
       { status: 500 }

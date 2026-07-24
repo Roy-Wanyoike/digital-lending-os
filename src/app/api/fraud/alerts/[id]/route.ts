@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const updateAlertSchema = z.object({
   status: z.enum(['investigating', 'confirmed_fraud', 'false_positive', 'escalated', 'resolved']),
@@ -9,22 +10,28 @@ const updateAlertSchema = z.object({
 })
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const alert = await db.fraudAlert.findUnique({
       where: { id },
+      include: { business: { select: { tenantId: true } } },
     })
 
     if (!alert) {
+      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+    }
+    if (alert.business && alert.business.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
     }
 
     return NextResponse.json({ data: alert })
   } catch (error) {
     console.error('Error fetching fraud alert:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to fetch fraud alert' }, { status: 500 })
   }
 }
@@ -34,6 +41,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request)
     const { id } = await params
     const body = await request.json()
     const parsed = updateAlertSchema.safeParse(body)
@@ -45,8 +53,14 @@ export async function PUT(
       )
     }
 
-    const existing = await db.fraudAlert.findUnique({ where: { id } })
+    const existing = await db.fraudAlert.findUnique({
+      where: { id },
+      include: { business: { select: { tenantId: true } } },
+    })
     if (!existing) {
+      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+    }
+    if (existing.business && existing.business.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
     }
 
@@ -66,6 +80,7 @@ export async function PUT(
     return NextResponse.json({ data: alert })
   } catch (error) {
     console.error('Error updating fraud alert:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to update fraud alert' }, { status: 500 })
   }
 }

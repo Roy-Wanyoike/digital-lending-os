@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createVerificationSchema = z.object({
   businessId: z.string().min(1, 'businessId is required'),
@@ -15,10 +16,11 @@ const createVerificationSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId') || ''
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { business: { tenantId: user.tenantId } }
     if (businessId) {
       where.businessId = businessId
     }
@@ -36,12 +38,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: verifications })
   } catch (error) {
     console.error('Error listing verifications:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list verifications' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createVerificationSchema.safeParse(body)
 
@@ -54,13 +58,13 @@ export async function POST(request: NextRequest) {
 
     const { businessId, type, method, metadata } = parsed.data
 
-    // Check business exists
+    // Check business exists and belongs to tenant
     const business = await db.business.findUnique({
       where: { id: businessId },
       include: { passport: true },
     })
 
-    if (!business) {
+    if (!business || business.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 
@@ -99,6 +103,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: verification }, { status: 201 })
   } catch (error) {
     console.error('Error creating verification:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to create verification' }, { status: 500 })
   }
 }

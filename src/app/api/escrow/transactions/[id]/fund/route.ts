@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { providerRegistry, getProvidersForCurrency, calculateFee, getProviderName, type PaymentProviderCode } from "@/lib/payment";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const fundSchema = z.object({
@@ -18,6 +19,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getApiUser(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = fundSchema.safeParse(body);
@@ -31,8 +33,14 @@ export async function POST(
 
     const data = parsed.data;
 
-    const escrow = await db.escrowTransaction.findUnique({
-      where: { id },
+    const escrow = await db.escrowTransaction.findFirst({
+      where: {
+        id,
+        OR: [
+          { buyer: { tenantId: user.tenantId } },
+          { seller: { tenantId: user.tenantId } },
+        ],
+      },
       include: {
         buyer: { select: { id: true, name: true, country: true } },
         seller: { select: { id: true, name: true } },
@@ -192,6 +200,7 @@ export async function POST(
     });
   } catch (error) {
     console.error("Error funding escrow transaction:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json(
       { error: "Failed to initiate escrow funding" },
       { status: 500 }
