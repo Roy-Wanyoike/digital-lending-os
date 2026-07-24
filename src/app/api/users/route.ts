@@ -1,133 +1,77 @@
-import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
-import { db } from '@/lib/db'
-import { z } from 'zod'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, requireAdmin, tenantScope, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { prisma } from '@/lib/prisma';
 
-const createUserSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  name: z.string().min(1, 'Name is required'),
-  role: z.enum(['admin', 'buyer', 'seller', 'auditor', 'viewer'] as const),
-  businessId: z.string().optional(),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-})
-
-export async function GET(request: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    const { searchParams } = new URL(request.url)
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
-    const role = searchParams.get('role') || ''
-    const businessId = searchParams.get('businessId') || ''
-    const isActive = searchParams.get('isActive')
-    const search = searchParams.get('search') || ''
+    const user = await requireAuth(req);
 
-    const where: Record<string, unknown> = {
-      tenantId: user.tenantId,
-    }
-
-    if (role) {
-      where.role = role
-    }
-    if (businessId) {
-      where.businessId = businessId
-    }
-    if (isActive !== null && isActive !== '') {
-      where.isActive = isActive === 'true'
-    }
-    if (search) {
-      where.OR = [
-        { name: { contains: search } },
-        { email: { contains: search } },
-      ]
-    }
-
-    const [users, total] = await Promise.all([
-      db.account.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
+    if (user.role === 'SUPER_ADMIN') {
+      // Super admin can see all users
+      const users = await prisma.account.findMany({
+        include: {
+          tenant: { select: { id: true, name: true } },
+          _count: {
+            select: { wallets: true },
+          },
+        },
         orderBy: { createdAt: 'desc' },
-      }),
-      db.account.count({ where }),
-    ])
+      });
+      return successResponse({ users });
+    }
 
-    // Attach business name if businessId exists
-    const usersWithBusiness = await Promise.all(
-      users.map(async (acct) => {
-        let businessName: string | null = null
-        if (acct.businessId) {
-          const biz = await db.business.findUnique({
-            where: { id: acct.businessId },
-            select: { name: true },
-          })
-          businessName = biz?.name ?? null
-        }
-        return { ...acct, businessName }
-      })
-    )
-
-    return NextResponse.json({
-      data: usersWithBusiness,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+    // Regular users see only users in their tenant
+    const users = await prisma.account.findMany({
+      where: tenantScope(user.tenantId),
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        active: true,
+        createdAt: true,
+        tenant: { select: { id: true, name: true } },
+        _count: { select: { wallets: true } },
       },
-    })
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error('Error listing users:', error)
-    return NextResponse.json({ error: 'Failed to list users' }, { status: 500 })
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return successResponse({ users });
+  } catch (error: any) {
+    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    console.error('Users GET error:', error);
+    return errorResponse('Failed to fetch users', 500);
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    const body = await request.json()
-    const parsed = createUserSchema.safeParse(body)
+    const user = await requireAdmin(req);
+    const body = await req.json();
+    const { email, name, role } = body;
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
-    }
+    if (!email || !name) return errorResponse('email and name are required', 400);
 
-    const data = parsed.data
+    const existing = await prisma.account.findFirst({
+      where: { email, tenantId: user.tenantId },
+    });
+    if (existing) return errorResponse('User already exists in this tenant', 409);
 
-    // Check email uniqueness within tenant
-    const existing = await db.account.findFirst({
-      where: { tenantId: user.tenantId, email: data.email },
-    })
-    if (existing) {
-      return NextResponse.json({ error: 'A user with this email already exists' }, { status: 409 })
-    }
-
-    // Hash the password
-    const passwordHash = await bcrypt.hash(data.password, 12)
-
-    const createdAccount = await db.account.create({
+    const newUser = await prisma.account.create({
       data: {
-        email: data.email,
-        name: data.name,
-        role: data.role,
-        businessId: data.businessId,
+        email,
+        name,
+        role: role || 'USER',
         tenantId: user.tenantId,
-        passwordHash,
+        active: true,
       },
-    })
+    });
 
-    return NextResponse.json({ data: createdAccount }, { status: 201 })
-  } catch (error: unknown) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-      return NextResponse.json({ error: 'A user with this email already exists' }, { status: 409 })
-    }
-    console.error('Error creating user:', error)
-    return NextResponse.json({ error: 'Failed to create user' }, { status: 500 })
+    return successResponse(newUser, 201);
+  } catch (error: any) {
+    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    if (error.message === 'Insufficient permissions') return errorResponse(error.message, 403);
+    console.error('Users POST error:', error);
+    return errorResponse('Failed to create user', 500);
   }
 }

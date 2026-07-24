@@ -7,20 +7,20 @@ export async function GET(req: NextRequest) {
     const user = await requireAuth(req);
     const where = tenantScope(user.tenantId);
 
-    const invoices = await prisma.invoice.findMany({
+    const escrows = await prisma.escrowTransaction.findMany({
       where,
       include: {
-        subscription: { select: { id: true, name: true } },
-        account: { select: { id: true, email: true, name: true } },
+        buyer: { select: { id: true, email: true } },
+        seller: { select: { id: true, email: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    return successResponse({ invoices });
+    return successResponse({ escrows });
   } catch (error: any) {
     if (error.message === 'Authentication required') return errorResponse(error.message, 401);
-    console.error('Invoices GET error:', error);
-    return errorResponse('Failed to fetch invoices', 500);
+    console.error('Escrow GET error:', error);
+    return errorResponse('Failed to fetch escrow transactions', 500);
   }
 }
 
@@ -28,27 +28,28 @@ export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth(req);
     const body = await req.json();
-    const { amount, currency, description, subscriptionId, dueDate } = body;
+    const { amount, currency, description, sellerId, buyerWalletId, sellerWalletId } = body;
 
-    if (!amount) return errorResponse('amount is required', 400);
+    if (!amount || !sellerId) return errorResponse('amount and sellerId are required', 400);
 
-    const invoice = await prisma.invoice.create({
+    const escrow = await prisma.escrowTransaction.create({
       data: {
         amount: parseFloat(amount),
         currency: currency || 'KES',
         description: description || '',
-        accountId: user.id,
+        buyerId: user.id,
+        sellerId,
+        buyerWalletId: buyerWalletId || null,
+        sellerWalletId: sellerWalletId || null,
         tenantId: user.tenantId,
-        subscriptionId: subscriptionId || null,
-        dueDate: dueDate ? new Date(dueDate) : null,
         status: 'PENDING',
       },
     });
 
-    return successResponse(invoice, 201);
+    return successResponse(escrow, 201);
   } catch (error: any) {
     if (error.message === 'Authentication required') return errorResponse(error.message, 401);
-    console.error('Invoices POST error:', error);
-    return errorResponse('Failed to create invoice', 500);
+    console.error('Escrow POST error:', error);
+    return errorResponse('Failed to create escrow transaction', 500);
   }
 }

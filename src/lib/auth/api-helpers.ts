@@ -1,83 +1,101 @@
-// Server-side helpers for API route authentication
-// Use these in API routes to get the current user from the JWT
-
-import { getToken } from 'next-auth/jwt'
-import type { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from './auth';
+import { prisma } from '@/lib/prisma';
 
 export interface ApiUser {
-  id: string
-  email: string
-  name: string
-  role: string
-  tenantId: string
-  businessId: string | null
+  id: string;
+  email: string;
+  role: string;
+  tenantId: string;
+  businessId: string;
 }
 
 /**
- * Extract and validate the JWT token from the request.
- * Returns the user info or throws an error.
+ * Extract the authenticated user from the session.
+ * Returns null if not authenticated.
  */
-export async function getApiUser(req: NextRequest): Promise<ApiUser> {
-  const token = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET,
-  })
+export async function getApiUser(req: NextRequest): Promise<ApiUser | null> {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) return null;
 
-  if (!token) {
-    throw new AuthError('Unauthorized', 401)
+    const user = session.user as any;
+    if (!user?.id) return null;
+
+    return {
+      id: user.id,
+      email: user.email || '',
+      role: user.role || 'USER',
+      tenantId: user.tenantId || '',
+      businessId: user.businessId || '',
+    };
+  } catch {
+    return null;
   }
+}
 
-  return {
-    id: token.accountId as string,
-    email: token.email as string,
-    name: token.name as string,
-    role: (token.role as string) || 'viewer',
-    tenantId: token.tenantId as string,
-    businessId: (token.businessId as string) || null,
+/**
+ * Require authentication — returns 401 if not logged in.
+ */
+export async function requireAuth(req: NextRequest): Promise<ApiUser> {
+  const user = await getApiUser(req);
+  if (!user) {
+    throw new AuthError(401, 'Authentication required');
   }
+  return user;
 }
 
 /**
- * Get the current user's tenant ID from the request JWT.
- * Useful for filtering queries by tenant.
+ * Require a specific role — returns 403 if wrong role.
  */
-export async function getTenantId(req: NextRequest): Promise<string> {
-  const user = await getApiUser(req)
-  return user.tenantId
-}
-
-/**
- * Require a specific role. Throws 403 if user doesn't have the required role.
- */
-export async function requireRole(req: NextRequest, ...roles: string[]): Promise<ApiUser> {
-  const user = await getApiUser(req)
+export async function requireRole(req: NextRequest, roles: string[]): Promise<ApiUser> {
+  const user = await requireAuth(req);
   if (!roles.includes(user.role)) {
-    throw new AuthError('Forbidden: insufficient permissions', 403)
+    throw new AuthError(403, 'Insufficient permissions');
   }
-  return user
+  return user;
 }
 
 /**
- * Require admin role.
+ * Require admin role (ADMIN or SUPER_ADMIN).
  */
 export async function requireAdmin(req: NextRequest): Promise<ApiUser> {
-  return requireRole(req, 'admin')
+  return requireRole(req, ['ADMIN', 'SUPER_ADMIN']);
 }
 
+/**
+ * Add tenant isolation to a Prisma query.
+ * Call this to get the where clause for tenant filtering.
+ */
+export function tenantScope(tenantId: string, extraWhere: any = {}) {
+  return {
+    tenantId,
+    ...extraWhere,
+  };
+}
+
+/**
+ * Auth error class for clean error handling.
+ */
 export class AuthError extends Error {
-  status: number
-  constructor(message: string, status: number) {
-    super(message)
-    this.status = status
-    this.name = 'AuthError'
+  statusCode: number;
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
   }
 }
 
 /**
- * Build a tenant-scoped where clause for Prisma queries.
- * All business-related queries should be scoped to the user's tenant.
+ * Helper to create a standard error response.
  */
-export function tenantScope(tenantId: string) {
-  return { tenantId }
+export function errorResponse(message: string, status: number = 500) {
+  return NextResponse.json({ error: message }, { status });
+}
+
+/**
+ * Helper to create a standard success response.
+ */
+export function successResponse(data: any, status: number = 200) {
+  return NextResponse.json(data, { status });
 }

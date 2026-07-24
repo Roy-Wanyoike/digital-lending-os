@@ -1,0 +1,1623 @@
+=== src/app/api/auth/[...nextauth]/route.ts ===
+import NextAuth from 'next-auth'
+import { authOptions } from '@/lib/auth'
+
+const handler = NextAuth(authOptions)
+
+export { handler as GET, handler as POST }
+
+=== src/app/api/businesses/[id]/route.ts ===
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const business = await db.business.findUnique({
+      where: { id },
+      include: {
+        passport: true,
+        trustScore: {
+          include: {
+            reputationEvents: {
+              orderBy: { createdAt: 'desc' },
+              take: 50,
+            },
+          },
+        },
+        digitalTwin: true,
+        sentRelationships: true,
+        receivedRelationships: true,
+      },
+    })
+
+    if (!business) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+    if (business.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ data: business })
+  } catch (error) {
+    console.error('Error fetching business:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to fetch business' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const body = await request.json()
+
+    const existing = await db.business.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+    if (existing.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+
+    const allowedFields = [
+      'name',
+      'legalName',
+      'registrationNo',
+      'taxId',
+      'country',
+      'city',
+      'industry',
+      'website',
+      'employeeCount',
+      'annualRevenue',
+      'description',
+      'logoUrl',
+      'status',
+    ] as const
+
+    const updateData: Record<string, unknown> = {}
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        updateData[field] = body[field]
+      }
+    }
+
+    // If status is being set to verified, set verifiedAt
+    if (updateData.status === 'verified' && !existing.verifiedAt) {
+      updateData.verifiedAt = new Date()
+    }
+
+    const business = await db.business.update({
+      where: { id },
+      data: updateData,
+      include: {
+        passport: true,
+        trustScore: true,
+        digitalTwin: true,
+      },
+    })
+
+    return NextResponse.json({ data: business })
+  } catch (error) {
+    console.error('Error updating business:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to update business' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+
+    const existing = await db.business.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+    if (existing.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+
+    if (existing.status === 'deactivated') {
+      return NextResponse.json({ error: 'Business is already deactivated' }, { status: 400 })
+    }
+
+    const business = await db.business.update({
+      where: { id },
+      data: { status: 'deactivated' },
+      include: {
+        passport: true,
+        trustScore: true,
+      },
+    })
+
+    return NextResponse.json({ data: business, message: 'Business deactivated successfully' })
+  } catch (error) {
+    console.error('Error deactivating business:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to deactivate business' }, { status: 500 })
+  }
+}
+=== src/app/api/collections/[id]/route.ts ===
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+
+const updateCaseSchema = z.object({
+  status: z.enum(['active', 'paused', 'resolved', 'written_off', 'escalated'] as const).optional(),
+  priority: z.enum(['low', 'normal', 'high', 'urgent'] as const).optional(),
+  outstandingAmount: z.number().min(0).optional(),
+  resolution: z.string().optional(),
+})
+
+async function verifyTenantAccess(caseId: string, tenantId: string): Promise<{ ok: boolean }> {
+  const collectionCase = await db.collectionCase.findUnique({
+    where: { id: caseId },
+  })
+  if (!collectionCase) return { ok: false }
+  const biz = await db.business.findUnique({
+    where: { id: collectionCase.businessId },
+    select: { tenantId: true },
+  })
+  if (!biz || biz.tenantId !== tenantId) return { ok: false }
+  return { ok: true }
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+
+    if (!(await verifyTenantAccess(id, user.tenantId)).ok) {
+      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+    }
+
+    const collectionCase = await db.collectionCase.findUnique({ where: { id } })
+    if (!collectionCase) {
+      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+    }
+
+    const reminders = await db.collectionReminder.findMany({
+      where: { caseId: id },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    return NextResponse.json({ data: { ...collectionCase, reminders } })
+  } catch (error) {
+    console.error('Error fetching collection case:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to fetch collection case' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const body = await request.json()
+    const parsed = updateCaseSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+        { status: 400 }
+      )
+    }
+
+    if (!(await verifyTenantAccess(id, user.tenantId)).ok) {
+      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+    }
+
+    const data = parsed.data
+    const updateData: Record<string, unknown> = {}
+
+    if (data.status !== undefined) {
+      updateData.status = data.status
+      if (data.status === 'resolved') {
+        updateData.resolvedAt = new Date()
+      }
+    }
+    if (data.priority !== undefined) updateData.priority = data.priority
+    if (data.outstandingAmount !== undefined) updateData.outstandingAmount = data.outstandingAmount
+    if (data.resolution !== undefined) updateData.resolution = data.resolution
+
+    const collectionCase = await db.collectionCase.update({
+      where: { id },
+      data: updateData,
+    })
+
+    return NextResponse.json({ data: collectionCase })
+  } catch (error) {
+    console.error('Error updating collection case:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to update collection case' }, { status: 500 })
+  }
+}
+
+=== src/app/api/escrow/transactions/[id]/route.ts ===
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+
+// ── GET: Single escrow transaction ───────────────────────────
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request);
+    const { id } = await params;
+
+    const escrow = await db.escrowTransaction.findFirst({
+      where: {
+        id,
+        OR: [
+          { buyer: { tenantId: user.tenantId } },
+          { seller: { tenantId: user.tenantId } },
+        ],
+      },
+      include: {
+        buyer: { select: { id: true, name: true } },
+        seller: { select: { id: true, name: true } },
+        milestones: { orderBy: { sequence: "asc" } },
+        disbursements: true,
+        disputes: { orderBy: { createdAt: "desc" } },
+        auditLog: { orderBy: { createdAt: "asc" } },
+      },
+    });
+
+    if (!escrow) {
+      return NextResponse.json(
+        { error: "Escrow transaction not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ data: escrow });
+  } catch (error) {
+    console.error("Error fetching escrow transaction:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: "Failed to fetch escrow transaction" },
+      { status: 500 }
+    );
+  }
+}
+
+// ── PUT: Cancel escrow transaction ───────────────────────────
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request);
+    const { id } = await params;
+
+    const escrow = await db.escrowTransaction.findFirst({
+      where: {
+        id,
+        OR: [
+          { buyer: { tenantId: user.tenantId } },
+          { seller: { tenantId: user.tenantId } },
+        ],
+      },
+      select: { id: true, status: true, txRef: true },
+    });
+
+    if (!escrow) {
+      return NextResponse.json(
+        { error: "Escrow transaction not found" },
+        { status: 404 }
+      );
+    }
+
+    if (escrow.status !== "created" && escrow.status !== "funded") {
+      return NextResponse.json(
+        {
+          error: `Cannot cancel escrow with status '${escrow.status}'. Only 'created' or 'funded' escrows can be cancelled.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    const updated = await db.escrowTransaction.update({
+      where: { id },
+      data: { status: "cancelled" },
+      include: {
+        buyer: { select: { id: true, name: true } },
+        seller: { select: { id: true, name: true } },
+        milestones: true,
+        disbursements: true,
+      },
+    });
+
+    await db.escrowAuditLog.create({
+      data: {
+        escrowId: id,
+        action: "cancelled",
+        details: `Escrow transaction ${escrow.txRef} cancelled from status '${escrow.status}'`,
+      },
+    });
+
+    return NextResponse.json({ data: updated });
+  } catch (error) {
+    console.error("Error cancelling escrow transaction:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: "Failed to cancel escrow transaction" },
+      { status: 500 }
+    );
+  }
+}
+
+=== src/app/api/escrow/transactions/[id]/disputes/[disputeId]/route.ts ===
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { z } from "zod";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+
+// ── Zod Schema ───────────────────────────────────────────────
+const resolveDisputeSchema = z.object({
+  resolution: z.string().min(1, "Resolution is required"),
+  status: z.enum(["resolved", "escalated"] as const, {
+    message: "Status must be 'resolved' or 'escalated'",
+  }),
+});
+
+// ── PUT: Resolve a dispute ──────────────────────────────────
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; disputeId: string }> }
+) {
+  try {
+    const user = await getApiUser(request);
+    const { id, disputeId } = await params;
+    const body = await request.json();
+    const parsed = resolveDisputeSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Validation failed", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const { resolution, status: disputeStatus } = parsed.data;
+
+    // Verify escrow belongs to tenant
+    const escrow = await db.escrowTransaction.findFirst({
+      where: {
+        id,
+        OR: [
+          { buyer: { tenantId: user.tenantId } },
+          { seller: { tenantId: user.tenantId } },
+        ],
+      },
+    });
+
+    if (!escrow) {
+      return NextResponse.json(
+        { error: "Escrow transaction not found" },
+        { status: 404 }
+      );
+    }
+
+    // Verify dispute exists and belongs to this escrow
+    const dispute = await db.dispute.findUnique({
+      where: { id: disputeId },
+    });
+
+    if (!dispute || dispute.escrowId !== id) {
+      return NextResponse.json(
+        { error: "Dispute not found for this escrow" },
+        { status: 404 }
+      );
+    }
+
+    if (dispute.status === "resolved" || dispute.status === "escalated") {
+      return NextResponse.json(
+        { error: `Dispute is already '${dispute.status}'` },
+        { status: 409 }
+      );
+    }
+
+    // Determine new escrow status based on resolution
+    let newEscrowStatus: string;
+    const resolutionLower = resolution.toLowerCase();
+
+    if (disputeStatus === "escalated") {
+      newEscrowStatus = "disputed"; // stays disputed
+    } else if (
+      resolutionLower.includes("refund") ||
+      resolutionLower.includes("cancel") ||
+      resolutionLower.includes("return to buyer")
+    ) {
+      newEscrowStatus = "refunded";
+    } else {
+      newEscrowStatus = "in_escrow"; // resume escrow
+    }
+
+    const now = new Date();
+
+    const updated = await db.$transaction(async (tx) => {
+      // Update dispute
+      const resolvedDispute = await tx.dispute.update({
+        where: { id: disputeId },
+        data: {
+          resolution,
+          status: disputeStatus,
+          resolvedAt: disputeStatus === "resolved" ? now : null,
+        },
+      });
+
+      // Update escrow status
+      await tx.escrowTransaction.update({
+        where: { id },
+        data: { status: newEscrowStatus },
+      });
+
+      // Create audit log
+      await tx.escrowAuditLog.create({
+        data: {
+          escrowId: id,
+          action: "dispute_resolved",
+          details: `Dispute ${disputeId} ${disputeStatus}. Resolution: ${resolution}. Escrow status changed to '${newEscrowStatus}'.`,
+          metadata: JSON.stringify({
+            disputeId,
+            resolution,
+            disputeStatus,
+            newEscrowStatus,
+          }),
+        },
+      });
+
+      return resolvedDispute;
+    });
+
+    return NextResponse.json({ data: updated });
+  } catch (error) {
+    console.error("Error resolving dispute:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: "Failed to resolve dispute" },
+      { status: 500 }
+    );
+  }
+}
+
+=== src/app/api/fraud/alerts/[id]/route.ts ===
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+
+const updateAlertSchema = z.object({
+  status: z.enum(['investigating', 'confirmed_fraud', 'false_positive', 'escalated', 'resolved'] as const),
+  resolvedBy: z.string().optional(),
+  resolution: z.string().optional(),
+})
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const alert = await db.fraudAlert.findUnique({ where: { id } })
+
+    if (!alert) {
+      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+    }
+
+    // Verify tenant access via businessId
+    if (alert.businessId) {
+      const biz = await db.business.findUnique({
+        where: { id: alert.businessId },
+        select: { tenantId: true },
+      })
+      if (!biz || biz.tenantId !== user.tenantId) {
+        return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+      }
+    }
+
+    return NextResponse.json({ data: alert })
+  } catch (error) {
+    console.error('Error fetching fraud alert:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to fetch fraud alert' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const body = await request.json()
+    const parsed = updateAlertSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+        { status: 400 }
+      )
+    }
+
+    const existing = await db.fraudAlert.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+    }
+
+    // Verify tenant access via businessId
+    if (existing.businessId) {
+      const biz = await db.business.findUnique({
+        where: { id: existing.businessId },
+        select: { tenantId: true },
+      })
+      if (!biz || biz.tenantId !== user.tenantId) {
+        return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+      }
+    }
+
+    const data = parsed.data
+    const isResolved = data.status === 'resolved' || data.status === 'confirmed_fraud' || data.status === 'false_positive'
+
+    const alert = await db.fraudAlert.update({
+      where: { id },
+      data: {
+        status: data.status,
+        resolvedBy: data.resolvedBy ?? (isResolved ? 'system' : null),
+        resolvedAt: isResolved ? new Date() : null,
+        ...(data.resolution ? { recommendation: data.resolution } : {}),
+      },
+    })
+
+    return NextResponse.json({ data: alert })
+  } catch (error) {
+    console.error('Error updating fraud alert:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to update fraud alert' }, { status: 500 })
+  }
+}
+
+=== src/app/api/invoices/[id]/route.ts ===
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const invoice = await db.invoice.findUnique({
+      where: { id },
+      include: {
+        sender: {
+          select: { id: true, name: true, country: true, industry: true, tenantId: true },
+        },
+        receiver: {
+          select: { id: true, name: true, country: true, industry: true, tenantId: true },
+        },
+      },
+    })
+
+    if (!invoice) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+    }
+    if (invoice.sender?.tenantId !== user.tenantId && invoice.receiver?.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ data: invoice })
+  } catch (error) {
+    console.error('Error fetching invoice:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to fetch invoice' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const body = await request.json()
+
+    const existing = await db.invoice.findUnique({
+      where: { id },
+      include: {
+        sender: { select: { tenantId: true } },
+        receiver: { select: { tenantId: true } },
+      },
+    })
+    if (!existing) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+    }
+    if (existing.sender?.tenantId !== user.tenantId && existing.receiver?.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
+    }
+
+    const allowedFields = [
+      'status',
+      'notes',
+      'paidAmount',
+      'dueDate',
+      'items',
+    ] as const
+
+    const updateData: Record<string, unknown> = {}
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        if (field === 'dueDate' && typeof body[field] === 'string') {
+          updateData[field] = new Date(body[field])
+        } else if (field === 'items' && typeof body[field] !== 'string') {
+          updateData[field] = JSON.stringify(body[field])
+        } else {
+          updateData[field] = body[field]
+        }
+      }
+    }
+
+    // Auto-set paidAt when status changes to paid
+    if (updateData.status === 'paid' && existing.status !== 'paid') {
+      updateData.paidAt = new Date()
+      updateData.paidAmount = existing.amount
+    }
+
+    const invoice = await db.invoice.update({
+      where: { id },
+      data: updateData,
+      include: {
+        sender: {
+          select: { id: true, name: true },
+        },
+        receiver: {
+          select: { id: true, name: true },
+        },
+      },
+    })
+
+    return NextResponse.json({ data: invoice })
+  } catch (error) {
+    console.error('Error updating invoice:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to update invoice' }, { status: 500 })
+  }
+}
+
+=== src/app/api/matching/[id]/route.ts ===
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+
+const updateMatchSchema = z.object({
+  status: z.enum(['contacted', 'interested', 'declined', 'engaged'] as const),
+  seekerResponse: z.string().optional(),
+  candidateResponse: z.string().optional(),
+})
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const body = await request.json()
+    const parsed = updateMatchSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+        { status: 400 }
+      )
+    }
+
+    const existing = await db.businessMatch.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 })
+    }
+
+    // Verify tenant access: check if seeker or candidate business belongs to tenant
+    const [seekerBiz, candidateBiz] = await Promise.all([
+      db.business.findUnique({ where: { id: existing.seekerId }, select: { tenantId: true } }),
+      db.business.findUnique({ where: { id: existing.candidateId }, select: { tenantId: true } }),
+    ])
+    const seekerOk = seekerBiz?.tenantId === user.tenantId
+    const candidateOk = candidateBiz?.tenantId === user.tenantId
+    if (!seekerOk && !candidateOk) {
+      return NextResponse.json({ error: 'Match not found' }, { status: 404 })
+    }
+
+    const data = parsed.data
+    const match = await db.businessMatch.update({
+      where: { id },
+      data: {
+        status: data.status,
+        ...(data.seekerResponse !== undefined ? { seekerResponse: data.seekerResponse } : {}),
+        ...(data.candidateResponse !== undefined ? { candidateResponse: data.candidateResponse } : {}),
+      },
+    })
+
+    return NextResponse.json({ data: match })
+  } catch (error) {
+    console.error('Error updating match:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to update match' }, { status: 500 })
+  }
+}
+
+=== src/app/api/passport/compliance/[id]/route.ts ===
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+
+const updateComplianceSchema = z.object({
+  status: z.enum(['pending', 'approved', 'rejected', 'expired'] as const, {
+    message: 'Status must be one of: pending, approved, rejected, expired',
+  }),
+})
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const body = await request.json()
+    const parsed = updateComplianceSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+        { status: 400 }
+      )
+    }
+
+    const { status } = parsed.data
+
+    const document = await db.complianceDocument.findUnique({
+      where: { id },
+      include: { passport: { include: { business: { select: { tenantId: true } } } } },
+    })
+
+    if (!document) {
+      return NextResponse.json({ error: 'Compliance document not found' }, { status: 404 })
+    }
+    if (document.passport?.business?.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Compliance document not found' }, { status: 404 })
+    }
+
+    const updated = await db.complianceDocument.update({
+      where: { id },
+      data: { status },
+    })
+
+    return NextResponse.json({ data: updated })
+  } catch (error) {
+    console.error('Error updating compliance document:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to update compliance document' }, { status: 500 })
+  }
+}
+
+=== src/app/api/passport/verifications/[id]/route.ts ===
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+
+const updateVerificationSchema = z.object({
+  status: z.enum(['pending', 'in_progress', 'approved', 'rejected', 'expired'] as const, {
+    message: 'Status must be one of: pending, in_progress, approved, rejected, expired',
+  }),
+  verifiedBy: z.string().optional(),
+  rejectionReason: z.string().optional(),
+})
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const verification = await db.verification.findUnique({
+      where: { id },
+      include: {
+        business: {
+          select: { id: true, name: true, country: true, status: true, industry: true, tenantId: true },
+        },
+      },
+    })
+
+    if (!verification) {
+      return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
+    }
+    if (verification.business.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ data: verification })
+  } catch (error) {
+    console.error('Error fetching verification:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to fetch verification' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const body = await request.json()
+    const parsed = updateVerificationSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+        { status: 400 }
+      )
+    }
+
+    const { status, verifiedBy, rejectionReason } = parsed.data
+
+    const verification = await db.verification.findUnique({
+      where: { id },
+      include: {
+        business: {
+          include: { passport: true },
+        },
+      },
+    })
+
+    if (!verification) {
+      return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
+    }
+    if (verification.business.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
+    }
+
+    // If rejected, require a reason
+    if (status === 'rejected' && !rejectionReason) {
+      return NextResponse.json(
+        { error: 'Rejection reason is required when rejecting a verification' },
+        { status: 400 }
+      )
+    }
+
+    const updateData: Record<string, unknown> = {
+      status,
+      verifiedBy,
+      rejectionReason,
+    }
+
+    if (status === 'approved') {
+      updateData.verifiedAt = new Date()
+    }
+
+    // Update the verification
+    const updated = await db.verification.update({
+      where: { id },
+      data: updateData,
+      include: {
+        business: {
+          select: { id: true, name: true, country: true, status: true },
+        },
+      },
+    })
+
+    // Update CommercePassport if this is a key verification
+    const passport = verification.business.passport
+    if (passport) {
+      const passportUpdate: Record<string, unknown> = {}
+
+      if (
+        (verification.type === 'identity' || verification.type === 'business_registration') &&
+        status === 'approved'
+      ) {
+        const relatedVerifications = await db.verification.findMany({
+          where: {
+            businessId: verification.businessId,
+            type: { in: ['identity', 'business_registration'] },
+          },
+        })
+
+        const allApproved = relatedVerifications.every((v) => v.status === 'approved')
+        if (allApproved) {
+          passportUpdate.kycStatus = 'verified'
+          passportUpdate.lastAuditAt = new Date()
+        }
+      }
+
+      if (
+        (verification.type === 'identity' || verification.type === 'business_registration') &&
+        status === 'rejected'
+      ) {
+        passportUpdate.kycStatus = 'rejected'
+      }
+
+      if (verification.type === 'bank_account' && status === 'approved') {
+        passportUpdate.amlStatus = 'cleared'
+        passportUpdate.lastAuditAt = new Date()
+      }
+
+      if (verification.type === 'bank_account' && status === 'rejected') {
+        passportUpdate.amlStatus = 'rejected'
+      }
+
+      if (Object.keys(passportUpdate).length > 0) {
+        const allVerifications = await db.verification.findMany({
+          where: { businessId: verification.businessId },
+        })
+
+        const approvedTypes = new Set(
+          allVerifications
+            .filter((v) => v.status === 'approved')
+            .map((v) => v.type)
+        )
+
+        let credentialLevel = 'basic'
+        if (approvedTypes.has('identity') && approvedTypes.has('business_registration')) {
+          credentialLevel = 'standard'
+        }
+        if (
+          approvedTypes.has('identity') &&
+          approvedTypes.has('business_registration') &&
+          approvedTypes.has('tax')
+        ) {
+          credentialLevel = 'enhanced'
+        }
+        if (
+          approvedTypes.has('identity') &&
+          approvedTypes.has('business_registration') &&
+          approvedTypes.has('tax') &&
+          approvedTypes.has('bank_account') &&
+          approvedTypes.has('address')
+        ) {
+          credentialLevel = 'premium'
+        }
+
+        passportUpdate.credentialLevel = credentialLevel
+
+        await db.commercePassport.update({
+          where: { id: passport.id },
+          data: passportUpdate,
+        })
+      }
+    }
+
+    return NextResponse.json({ data: updated })
+  } catch (error) {
+    console.error('Error updating verification:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to update verification' }, { status: 500 })
+  }
+}
+
+=== src/app/api/payment-links/[id]/route.ts ===
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+
+const updatePaymentLinkSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().optional(),
+  status: z.enum(['active', 'paused']).optional(),
+  allowedMethods: z.array(z.string()).optional(),
+})
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const link = await db.paymentLink.findUnique({
+      where: { id },
+    })
+
+    if (!link) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
+    }
+    const biz = await db.business.findUnique({ where: { id: link.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
+    }
+
+    const payments = await db.paymentLinkPayment.findMany({
+      where: { paymentLinkId: id },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    return NextResponse.json({ data: { ...link, payments } })
+  } catch (error) {
+    console.error('Error fetching payment link:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to fetch payment link' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const body = await request.json()
+    const parsed = updatePaymentLinkSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+        { status: 400 }
+      )
+    }
+
+    const existing = await db.paymentLink.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
+    }
+    const biz = await db.business.findUnique({ where: { id: existing.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
+    }
+
+    const data = parsed.data
+    const updateData: Record<string, unknown> = {}
+    if (data.title !== undefined) updateData.title = data.title
+    if (data.description !== undefined) updateData.description = data.description
+    if (data.status !== undefined) updateData.status = data.status
+    if (data.allowedMethods !== undefined) updateData.allowedMethods = JSON.stringify(data.allowedMethods)
+
+    const link = await db.paymentLink.update({
+      where: { id },
+      data: updateData,
+    })
+
+    return NextResponse.json({ data: link })
+  } catch (error) {
+    console.error('Error updating payment link:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to update payment link' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const existing = await db.paymentLink.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
+    }
+    const biz = await db.business.findUnique({ where: { id: existing.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 })
+    }
+
+    const link = await db.paymentLink.update({
+      where: { id },
+      data: { status: 'expired' },
+    })
+
+    return NextResponse.json({ data: link })
+  } catch (error) {
+    console.error('Error expiring payment link:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to expire payment link' }, { status: 500 })
+  }
+}
+
+=== src/app/api/payments/intents/[id]/route.ts ===
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { z } from "zod";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+
+// ── Zod Schema ───────────────────────────────────────────────
+const updateIntentSchema = z.object({
+  status: z.enum(["created", "processing", "completed", "failed", "cancelled"] as const, {
+    message: "Status must be one of: created, processing, completed, failed, cancelled",
+  }),
+});
+
+// ── Helper ───────────────────────────────────────────────────
+async function getTenantBusinessIds(tenantId: string): Promise<string[]> {
+  const businesses = await db.business.findMany({
+    where: { tenantId },
+    select: { id: true },
+  });
+  return businesses.map((b) => b.id);
+}
+
+// ── GET: Single payment intent ──────────────────────────────
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request);
+    const { id } = await params;
+    const bizIds = await getTenantBusinessIds(user.tenantId);
+
+    const intent = await db.paymentIntent.findFirst({
+      where: {
+        id,
+        OR: [
+          { fromBusinessId: { in: bizIds } },
+          { toBusinessId: { in: bizIds } },
+        ],
+      },
+      include: {
+        transactions: {
+          orderBy: { createdAt: "desc" },
+        },
+      },
+    });
+
+    if (!intent) {
+      return NextResponse.json(
+        { error: "Payment intent not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ data: intent });
+  } catch (error) {
+    console.error("Error fetching payment intent:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: "Failed to fetch payment intent" },
+      { status: 500 }
+    );
+  }
+}
+
+// ── PUT: Update payment intent status ───────────────────────
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request);
+    const { id } = await params;
+    const body = await request.json();
+    const parsed = updateIntentSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Validation failed", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const bizIds = await getTenantBusinessIds(user.tenantId);
+    const existing = await db.paymentIntent.findFirst({
+      where: {
+        id,
+        OR: [
+          { fromBusinessId: { in: bizIds } },
+          { toBusinessId: { in: bizIds } },
+        ],
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Payment intent not found" },
+        { status: 404 }
+      );
+    }
+
+    const updateData: Record<string, unknown> = {
+      status: parsed.data.status,
+    };
+
+    if (parsed.data.status === "completed") {
+      updateData.completedAt = new Date();
+    }
+
+    const updated = await db.paymentIntent.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return NextResponse.json({ data: updated });
+  } catch (error) {
+    console.error("Error updating payment intent:", error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: "Failed to update payment intent" },
+      { status: 500 }
+    );
+  }
+}
+
+=== src/app/api/twin/profiles/[id]/route.ts ===
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { db } from '@/lib/db';
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
+
+const updateTwinSchema = z.object({
+  healthScore: z.number().min(0).max(100).optional(),
+  cashFlowHealth: z.number().min(0).max(100).optional(),
+  riskAppetite: z.enum(['conservative', 'moderate', 'aggressive']).optional(),
+  creditWorthiness: z.number().min(0).max(100).optional(),
+  liquidityScore: z.number().min(0).max(100).optional(),
+  growthTrajectory: z.enum(['declining', 'stable', 'growing', 'rapid_growth']).optional(),
+});
+
+// GET /api/twin/profiles/[id] — Get single digital twin with relations
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request);
+    const { id } = await params;
+
+    const twin = await db.financialDigitalTwin.findUnique({
+      where: { id },
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true,
+            country: true,
+            industry: true,
+            status: true,
+            createdAt: true,
+            tenantId: true,
+          },
+        },
+        metrics: {
+          take: 10,
+          orderBy: { periodDate: 'desc' },
+        },
+        predictions: {
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+        },
+        snapshots: {
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!twin) {
+      return NextResponse.json(
+        { error: 'Digital twin not found' },
+        { status: 404 }
+      );
+    }
+    if (twin.business.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { error: 'Digital twin not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(twin);
+  } catch (error) {
+    console.error('Error fetching digital twin:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: 'Failed to fetch digital twin' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/twin/profiles/[id] — Update digital twin fields
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request);
+    const { id } = await params;
+    const body = await request.json();
+    const parsed = updateTwinSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((e) => e.message).join(', ') },
+        { status: 400 }
+      );
+    }
+
+    // Verify twin exists and belongs to tenant
+    const existing = await db.financialDigitalTwin.findUnique({
+      where: { id },
+      include: { business: { select: { tenantId: true } } },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: 'Digital twin not found' },
+        { status: 404 }
+      );
+    }
+    if (existing.business.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { error: 'Digital twin not found' },
+        { status: 404 }
+      );
+    }
+
+    const twin = await db.financialDigitalTwin.update({
+      where: { id },
+      data: parsed.data,
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true,
+            country: true,
+            industry: true,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json(twin);
+  } catch (error) {
+    console.error('Error updating digital twin:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    return NextResponse.json(
+      { error: 'Failed to update digital twin' },
+      { status: 500 }
+    );
+  }
+}
+
+=== src/app/api/users/[id]/route.ts ===
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+
+const updateUserSchema = z.object({
+  name: z.string().min(1).optional(),
+  role: z.enum(['admin', 'buyer', 'seller', 'auditor', 'viewer'] as const).optional(),
+  isActive: z.boolean().optional(),
+  businessId: z.string().nullable().optional(),
+  lastLoginAt: z.string().datetime().optional(),
+})
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const targetUser = await db.account.findUnique({
+      where: { id },
+    })
+
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+    if (targetUser.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    let businessName: string | null = null
+    if (targetUser.businessId) {
+      const biz = await db.business.findUnique({
+        where: { id: targetUser.businessId },
+        select: { name: true },
+      })
+      businessName = biz?.name ?? null
+    }
+
+    return NextResponse.json({ data: { ...targetUser, businessName } })
+  } catch (error) {
+    console.error('Error fetching user:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const body = await request.json()
+    const parsed = updateUserSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+        { status: 400 }
+      )
+    }
+
+    const existing = await db.account.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+    if (existing.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    const data = parsed.data
+    const updateData: Record<string, unknown> = {}
+    if (data.name !== undefined) updateData.name = data.name
+    if (data.role !== undefined) updateData.role = data.role
+    if (data.isActive !== undefined) updateData.isActive = data.isActive
+    if (data.businessId !== undefined) updateData.businessId = data.businessId
+    if (data.lastLoginAt !== undefined) updateData.lastLoginAt = new Date(data.lastLoginAt)
+
+    const updatedUser = await db.account.update({
+      where: { id },
+      data: updateData,
+    })
+
+    return NextResponse.json({ data: updatedUser })
+  } catch (error) {
+    console.error('Error updating user:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const existing = await db.account.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+    if (existing.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    const deletedUser = await db.account.update({
+      where: { id },
+      data: { isActive: false },
+    })
+
+    return NextResponse.json({ data: deletedUser })
+  } catch (error) {
+    console.error('Error deactivating user:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to deactivate user' }, { status: 500 })
+  }
+}
+
+=== src/app/api/wallets/[id]/route.ts ===
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+
+const updateWalletSchema = z.object({
+  status: z.enum(['active', 'frozen', 'closed']),
+})
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const wallet = await db.wallet.findUnique({
+      where: { id },
+    })
+
+    if (!wallet) {
+      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+    }
+    if (wallet.businessId) {
+      const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
+      if (!biz || biz.tenantId !== user.tenantId) {
+        return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      }
+    }
+
+    const transactions = await db.walletTransaction.findMany({
+      where: { walletId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    })
+
+    return NextResponse.json({ data: { ...wallet, transactions } })
+  } catch (error) {
+    console.error('Error fetching wallet:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to fetch wallet' }, { status: 500 })
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getApiUser(request)
+    const { id } = await params
+    const body = await request.json()
+    const parsed = updateWalletSchema.safeParse(body)
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+        { status: 400 }
+      )
+    }
+
+    const existing = await db.wallet.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+    }
+    if (existing.businessId) {
+      const biz = await db.business.findUnique({ where: { id: existing.businessId }, select: { tenantId: true } })
+      if (!biz || biz.tenantId !== user.tenantId) {
+        return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      }
+    }
+
+    const wallet = await db.wallet.update({
+      where: { id },
+      data: { status: parsed.data.status },
+    })
+
+    return NextResponse.json({ data: wallet })
+  } catch (error) {
+    console.error('Error updating wallet:', error)
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    return NextResponse.json({ error: 'Failed to update wallet' }, { status: 500 })
+  }
+}

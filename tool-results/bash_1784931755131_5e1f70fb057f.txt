@@ -493,7 +493,7 @@ model FinancialDigitalTwin {
   predictions     FinancialPrediction[]
   snapshots       FinancialSnapshot[]
 
-  @@index([healthScore])
+  @@index(ealthScore])
   @@index([growthTrajectory])
 }
 
@@ -700,7 +700,7 @@ model GlobalPaymentMethod {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  @@unique([methodCode])
+  @@unique(ethodCode])
   @@index([type])
   @@index([isActive])
 }
@@ -961,7 +961,7 @@ model BusinessMatch {
   @@unique([seekerId, candidateId, matchType])
   @@index([seekerId])
   @@index([candidateId])
-  @@index([matchScore])
+  @@index(atchScore])
   @@index([status])
 }
 

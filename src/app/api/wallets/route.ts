@@ -1,126 +1,92 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { db } from '@/lib/db'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth, tenantScope, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { prisma } from '@/lib/prisma';
 
-const createWalletSchema = z.object({
-  businessId: z.string().min(1, 'Business ID is required'),
-  currency: z.string().min(1, 'Currency is required'),
-  isDefault: z.boolean().default(false),
-})
-
-export async function GET(request: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    const { searchParams } = new URL(request.url)
-    const businessId = searchParams.get('businessId')
+    const user = await requireAuth(req);
+    const where = tenantScope(user.tenantId);
 
-    // Fetch business IDs belonging to the tenant
-    const tenantBusinessIds = (await db.business.findMany({
-      where: { tenantId: user.tenantId },
-      select: { id: true },
-    })).map(b => b.id)
-
-    const where: Record<string, unknown> = {
-      businessId: { in: tenantBusinessIds },
-    }
-    if (businessId) {
-      if (!tenantBusinessIds.includes(businessId)) {
-        return NextResponse.json({ error: 'Business not found' }, { status: 404 })
-      }
-      where.businessId = businessId
+    // Non-admin users only see their own wallets
+    if (user.role === 'USER' || user.role === 'VIEWER') {
+      where.accountId = user.id;
     }
 
-    const wallets = await db.wallet.findMany({
+    const wallets = await prisma.wallet.findMany({
       where,
+      include: {
+        account: { select: { id: true, email: true, name: true } },
+        business: { select: { id: true, name: true } },
+        _count: {
+          select: { transactions: true },
+        },
+      },
       orderBy: { createdAt: 'desc' },
-    })
+    });
 
-    // Attach transaction count
-    const walletsWithCount = await Promise.all(
+    // Get balances
+    const walletsData = await Promise.all(
       wallets.map(async (wallet) => {
-        const transactionCount = await db.walletTransaction.count({
-          where: { walletId: wallet.id },
-        })
-        return { ...wallet, _transactionCount: transactionCount }
-      })
-    )
+        const totalCredit = await prisma.walletTransaction.aggregate({
+          where: { walletId: wallet.id, type: 'CREDIT', status: 'COMPLETED' },
+          _sum: { amount: true },
+        });
+        const totalDebit = await prisma.walletTransaction.aggregate({
+          where: { walletId: wallet.id, type: 'DEBIT', status: 'COMPLETED' },
+          _sum: { amount: true },
+        });
 
-    return NextResponse.json({ data: walletsWithCount })
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error('Error listing wallets:', error)
-    return NextResponse.json({ error: 'Failed to list wallets' }, { status: 500 })
+        return {
+          ...wallet,
+          availableBalance: (wallet.balance || 0),
+          totalCredit: totalCredit._sum.amount || 0,
+          totalDebit: totalDebit._sum.amount || 0,
+        };
+      })
+    );
+
+    return successResponse({ wallets: walletsData });
+  } catch (error: any) {
+    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    console.error('Wallets GET error:', error);
+    return errorResponse('Failed to fetch wallets', 500);
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    const body = await request.json()
-    const parsed = createWalletSchema.safeParse(body)
+    const user = await requireAuth(req);
+    const body = await req.json();
+    const { currency, businessId, label } = body;
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
-    }
+    if (!currency) return errorResponse('currency is required', 400);
 
-    const data = parsed.data
+    // Check if wallet already exists for this currency
+    const existing = await prisma.wallet.findFirst({
+      where: {
+        accountId: user.id,
+        currency,
+        tenantId: user.tenantId,
+      },
+    });
 
-    // Verify business belongs to tenant
-    const biz = await db.business.findFirst({
-      where: { id: data.businessId, tenantId: user.tenantId },
-    })
-    if (!biz) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
-    }
+    if (existing) return errorResponse('Wallet already exists for this currency', 409);
 
-    // Check no existing wallet for same business+currency
-    const existing = await db.wallet.findFirst({
-      where: { businessId: data.businessId, currency: data.currency.toUpperCase() },
-    })
-    if (existing) {
-      return NextResponse.json(
-        { error: `A wallet for ${data.currency.toUpperCase()} already exists for this business` },
-        { status: 409 }
-      )
-    }
-
-    const currency = data.currency.toUpperCase()
-
-    // If setting as default, unset other defaults
-    if (data.isDefault) {
-      await db.wallet.updateMany({
-        where: { businessId: data.businessId, isDefault: true },
-        data: { isDefault: false },
-      })
-    }
-
-    const wallet = await db.wallet.create({
+    const wallet = await prisma.wallet.create({
       data: {
-        businessId: data.businessId,
+        accountId: user.id,
         currency,
         balance: 0,
-        availableBalance: 0,
-        pendingBalance: 0,
-        frozenBalance: 0,
-        isDefault: data.isDefault,
-        status: 'active',
+        tenantId: user.tenantId,
+        businessId: businessId || user.businessId || null,
+        label: label || null,
       },
-    })
+    });
 
-    return NextResponse.json({ data: wallet }, { status: 201 })
-  } catch (error: unknown) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-      return NextResponse.json(
-        { error: 'A wallet for this currency already exists for this business' },
-        { status: 409 }
-      )
-    }
-    console.error('Error creating wallet:', error)
-    return NextResponse.json({ error: 'Failed to create wallet' }, { status: 500 })
+    return successResponse(wallet, 201);
+  } catch (error: any) {
+    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    console.error('Wallets POST error:', error);
+    return errorResponse('Failed to create wallet', 500);
   }
 }
