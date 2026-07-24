@@ -1,0 +1,2002 @@
+     1→
+     2→============================================================
+     3→FILE: auth/[...nextauth]/route.ts
+     4→============================================================
+     5→import NextAuth from 'next-auth'
+     6→import { authOptions } from '@/lib/auth'
+     7→
+     8→const handler = NextAuth(authOptions)
+     9→
+    10→export { handler as GET, handler as POST }
+    11→
+    12→
+    13→============================================================
+    14→FILE: businesses/[id]/route.ts
+    15→============================================================
+    16→import { NextRequest, NextResponse } from 'next/server'
+    17→import { db } from '@/lib/db'
+    18→import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+    19→
+    20→export async function GET(
+    21→  request: NextRequest,
+    22→  { params }: { params: Promise<{ id: string }> }
+    23→) {
+    24→  try {
+    25→    const user = await getApiUser(request)
+    26→    const { id } = await params
+    27→    const business = await db.business.findUnique({
+    28→      where: { id },
+    29→      include: {
+    30→        passport: true,
+    31→        trustScore: {
+    32→          include: {
+    33→            reputationEvents: {
+    34→              orderBy: { createdAt: 'desc' },
+    35→              take: 50,
+    36→            },
+    37→          },
+    38→        },
+    39→        digitalTwin: true,
+    40→        sentRelationships: true,
+    41→        receivedRelationships: true,
+    42→      },
+    43→    })
+    44→
+    45→    if (!business) {
+    46→      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    47→    }
+    48→    if (business.tenantId !== user.tenantId) {
+    49→      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    50→    }
+    51→
+    52→    return NextResponse.json({ data: business })
+    53→  } catch (error) {
+    54→    console.error('Error fetching business:', error)
+    55→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    56→    return NextResponse.json({ error: 'Failed to fetch business' }, { status: 500 })
+    57→  }
+    58→}
+    59→
+    60→export async function PUT(
+    61→  request: NextRequest,
+    62→  { params }: { params: Promise<{ id: string }> }
+    63→) {
+    64→  try {
+    65→    const user = await getApiUser(request)
+    66→    const { id } = await params
+    67→    const body = await request.json()
+    68→
+    69→    const existing = await db.business.findUnique({ where: { id } })
+    70→    if (!existing) {
+    71→      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    72→    }
+    73→    if (existing.tenantId !== user.tenantId) {
+    74→      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    75→    }
+    76→
+    77→    const allowedFields = [
+    78→      'name',
+    79→      'legalName',
+    80→      'registrationNo',
+    81→      'taxId',
+    82→      'country',
+    83→      'city',
+    84→      'industry',
+    85→      'website',
+    86→      'employeeCount',
+    87→      'annualRevenue',
+    88→      'description',
+    89→      'logoUrl',
+    90→      'status',
+    91→    ] as const
+    92→
+    93→    const updateData: Record<string, unknown> = {}
+    94→    for (const field of allowedFields) {
+    95→      if (body[field] !== undefined) {
+    96→        updateData[field] = body[field]
+    97→      }
+    98→    }
+    99→
+   100→    // If status is being set to verified, set verifiedAt
+   101→    if (updateData.status === 'verified' && !existing.verifiedAt) {
+   102→      updateData.verifiedAt = new Date()
+   103→    }
+   104→
+   105→    const business = await db.business.update({
+   106→      where: { id },
+   107→      data: updateData,
+   108→      include: {
+   109→        passport: true,
+   110→        trustScore: true,
+   111→        digitalTwin: true,
+   112→      },
+   113→    })
+   114→
+   115→    return NextResponse.json({ data: business })
+   116→  } catch (error) {
+   117→    console.error('Error updating business:', error)
+   118→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+   119→    return NextResponse.json({ error: 'Failed to update business' }, { status: 500 })
+   120→  }
+   121→}
+   122→
+   123→export async function DELETE(
+   124→  request: NextRequest,
+   125→  { params }: { params: Promise<{ id: string }> }
+   126→) {
+   127→  try {
+   128→    const user = await getApiUser(request)
+   129→    const { id } = await params
+   130→
+   131→    const existing = await db.business.findUnique({ where: { id } })
+   132→    if (!existing) {
+   133→      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+   134→    }
+   135→    if (existing.tenantId !== user.tenantId) {
+   136→      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+   137→    }
+   138→
+   139→    if (existing.status === 'deactivated') {
+   140→      return NextResponse.json({ error: 'Business is already deactivated' }, { status: 400 })
+   141→    }
+   142→
+   143→    const business = await db.business.update({
+   144→      where: { id },
+   145→      data: { status: 'deactivated' },
+   146→      include: {
+   147→        passport: true,
+   148→        trustScore: true,
+   149→      },
+   150→    })
+   151→
+   152→    return NextResponse.json({ data: business, message: 'Business deactivated successfully' })
+   153→  } catch (error) {
+   154→    console.error('Error deactivating business:', error)
+   155→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+   156→    return NextResponse.json({ error: 'Failed to deactivate business' }, { status: 500 })
+   157→  }
+   158→}
+   159→
+   160→============================================================
+   161→FILE: businesses/route.ts
+   162→============================================================
+   163→import { NextRequest, NextResponse } from 'next/server';
+   164→import { requireAuth, requireAdmin, tenantScope, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+   165→import { prisma } from '@/lib/prisma';
+   166→
+   167→export async function GET(req: NextRequest) {
+   168→  try {
+   169→    const user = await requireAuth(req);
+   170→    const where = tenantScope(user.tenantId);
+   171→
+   172→    const businesses = await prisma.business.findMany({
+   173→      where,
+   174→      include: {
+   175→        _count: {
+   176→          select: {
+   177→            wallets: true,
+   178→            paymentLinks: true,
+   179→          },
+   180→        },
+   181→      },
+   182→      orderBy: { createdAt: 'desc' },
+   183→    });
+   184→
+   185→    return successResponse({ businesses });
+   186→  } catch (error: any) {
+   187→    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+   188→    console.error('Businesses GET error:', error);
+   189→    return errorResponse('Failed to fetch businesses', 500);
+   190→  }
+   191→}
+   192→
+   193→export async function POST(req: NextRequest) {
+   194→  try {
+   195→    const user = await requireAdmin(req);
+   196→    const body = await req.json();
+   197→    const { name, description, industry, website, logoUrl } = body;
+   198→
+   199→    if (!name) return errorResponse('Business name is required', 400);
+   200→
+   201→    const business = await prisma.business.create({
+   202→      data: {
+   203→        name,
+   204→        description: description || '',
+   205→        industry: industry || '',
+   206→        website: website || '',
+   207→        logoUrl: logoUrl || '',
+   208→        tenantId: user.tenantId,
+   209→        ownerId: user.id,
+   210→      },
+   211→    });
+   212→
+   213→    return successResponse(business, 201);
+   214→  } catch (error: any) {
+   215→    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+   216→    if (error.message === 'Insufficient permissions') return errorResponse(error.message, 403);
+   217→    console.error('Businesses POST error:', error);
+   218→    return errorResponse('Failed to create business', 500);
+   219→  }
+   220→}
+   221→
+   222→
+   223→============================================================
+   224→FILE: collections/[id]/remind/route.ts
+   225→============================================================
+   226→import { NextRequest, NextResponse } from 'next/server'
+   227→import { z } from 'zod'
+   228→import { db } from '@/lib/db'
+   229→import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+   230→
+   231→const REMIND_INTERVAL_DAYS: Record<string, number> = {
+   232→  friendly: 7,
+   233→  firm: 3,
+   234→  final: 1,
+   235→  legal: 0,
+   236→}
+   237→
+   238→const remindSchema = z.object({
+   239→  channel: z.enum(['email', 'sms', 'whatsapp', 'in_app'] as const),
+   240→  template: z.enum(['friendly', 'firm', 'final', 'legal'] as const),
+   241→})
+   242→
+   243→export async function POST(
+   244→  request: NextRequest,
+   245→  { params }: { params: Promise<{ id: string }> }
+   246→) {
+   247→  try {
+   248→    const user = await getApiUser(request)
+   249→    const { id } = await params
+   250→    const body = await request.json()
+   251→    const parsed = remindSchema.safeParse(body)
+   252→
+   253→    if (!parsed.success) {
+   254→      return NextResponse.json(
+   255→        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+   256→        { status: 400 }
+   257→      )
+   258→    }
+   259→
+   260→    const data = parsed.data
+   261→
+   262→    const collectionCase = await db.collectionCase.findUnique({ where: { id } })
+   263→    if (!collectionCase) {
+   264→      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+   265→    }
+   266→
+   267→    // Verify tenant access
+   268→    const biz = await db.business.findUnique({
+   269→      where: { id: collectionCase.businessId },
+   270→      select: { tenantId: true },
+   271→    })
+   272→    if (!biz || biz.tenantId !== user.tenantId) {
+   273→      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+   274→    }
+   275→
+   276→    const now = new Date()
+   277→    const intervalDays = REMIND_INTERVAL_DAYS[data.template]
+   278→    const nextReminderDue = intervalDays === 0
+   279→      ? now
+   280→      : new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000)
+   281→
+   282→    const reminder = await db.$transaction(async (tx) => {
+   283→      const newReminder = await tx.collectionReminder.create({
+   284→        data: {
+   285→          caseId: id,
+   286→          channel: data.channel,
+   287→          template: data.template,
+   288→          status: 'sent',
+   289→          sentAt: now,
+   290→        },
+   291→      })
+   292→
+   293→      await tx.collectionCase.update({
+   294→        where: { id },
+   295→        data: {
+   296→          reminderCount: { increment: 1 },
+   297→          lastReminderAt: now,
+   298→          nextReminderDue,
+   299→          ...(data.template === 'legal' ? { status: 'escalated', priority: 'urgent' } : {}),
+   300→        },
+   301→      })
+   302→
+   303→      return newReminder
+   304→    })
+   305→
+   306→    return NextResponse.json({ data: reminder }, { status: 201 })
+   307→  } catch (error) {
+   308→    console.error('Error sending collection reminder:', error)
+   309→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+   310→    return NextResponse.json({ error: 'Failed to send collection reminder' }, { status: 500 })
+   311→  }
+   312→}
+   313→
+   314→
+   315→============================================================
+   316→FILE: collections/[id]/route.ts
+   317→============================================================
+   318→import { NextRequest, NextResponse } from 'next/server'
+   319→import { z } from 'zod'
+   320→import { db } from '@/lib/db'
+   321→import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+   322→
+   323→const updateCaseSchema = z.object({
+   324→  status: z.enum(['active', 'paused', 'resolved', 'written_off', 'escalated'] as const).optional(),
+   325→  priority: z.enum(['low', 'normal', 'high', 'urgent'] as const).optional(),
+   326→  outstandingAmount: z.number().min(0).optional(),
+   327→  resolution: z.string().optional(),
+   328→})
+   329→
+   330→async function verifyTenantAccess(caseId: string, tenantId: string): Promise<{ ok: boolean }> {
+   331→  const collectionCase = await db.collectionCase.findUnique({
+   332→    where: { id: caseId },
+   333→  })
+   334→  if (!collectionCase) return { ok: false }
+   335→  const biz = await db.business.findUnique({
+   336→    where: { id: collectionCase.businessId },
+   337→    select: { tenantId: true },
+   338→  })
+   339→  if (!biz || biz.tenantId !== tenantId) return { ok: false }
+   340→  return { ok: true }
+   341→}
+   342→
+   343→export async function GET(
+   344→  request: NextRequest,
+   345→  { params }: { params: Promise<{ id: string }> }
+   346→) {
+   347→  try {
+   348→    const user = await getApiUser(request)
+   349→    const { id } = await params
+   350→
+   351→    if (!(await verifyTenantAccess(id, user.tenantId)).ok) {
+   352→      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+   353→    }
+   354→
+   355→    const collectionCase = await db.collectionCase.findUnique({ where: { id } })
+   356→    if (!collectionCase) {
+   357→      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+   358→    }
+   359→
+   360→    const reminders = await db.collectionReminder.findMany({
+   361→      where: { caseId: id },
+   362→      orderBy: { createdAt: 'desc' },
+   363→    })
+   364→
+   365→    return NextResponse.json({ data: { ...collectionCase, reminders } })
+   366→  } catch (error) {
+   367→    console.error('Error fetching collection case:', error)
+   368→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+   369→    return NextResponse.json({ error: 'Failed to fetch collection case' }, { status: 500 })
+   370→  }
+   371→}
+   372→
+   373→export async function PUT(
+   374→  request: NextRequest,
+   375→  { params }: { params: Promise<{ id: string }> }
+   376→) {
+   377→  try {
+   378→    const user = await getApiUser(request)
+   379→    const { id } = await params
+   380→    const body = await request.json()
+   381→    const parsed = updateCaseSchema.safeParse(body)
+   382→
+   383→    if (!parsed.success) {
+   384→      return NextResponse.json(
+   385→        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+   386→        { status: 400 }
+   387→      )
+   388→    }
+   389→
+   390→    if (!(await verifyTenantAccess(id, user.tenantId)).ok) {
+   391→      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+   392→    }
+   393→
+   394→    const data = parsed.data
+   395→    const updateData: Record<string, unknown> = {}
+   396→
+   397→    if (data.status !== undefined) {
+   398→      updateData.status = data.status
+   399→      if (data.status === 'resolved') {
+   400→        updateData.resolvedAt = new Date()
+   401→      }
+   402→    }
+   403→    if (data.priority !== undefined) updateData.priority = data.priority
+   404→    if (data.outstandingAmount !== undefined) updateData.outstandingAmount = data.outstandingAmount
+   405→    if (data.resolution !== undefined) updateData.resolution = data.resolution
+   406→
+   407→    const collectionCase = await db.collectionCase.update({
+   408→      where: { id },
+   409→      data: updateData,
+   410→    })
+   411→
+   412→    return NextResponse.json({ data: collectionCase })
+   413→  } catch (error) {
+   414→    console.error('Error updating collection case:', error)
+   415→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+   416→    return NextResponse.json({ error: 'Failed to update collection case' }, { status: 500 })
+   417→  }
+   418→}
+   419→
+   420→
+   421→============================================================
+   422→FILE: collections/route.ts
+   423→============================================================
+   424→import { NextRequest, NextResponse } from 'next/server'
+   425→import { z } from 'zod'
+   426→import { db } from '@/lib/db'
+   427→import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+   428→
+   429→function generateCaseRef(): string {
+   430→  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+   431→  let result = 'COL-'
+   432→  for (let i = 0; i < 5; i++) {
+   433→    result += chars.charAt(Math.floor(Math.random() * chars.length))
+   434→  }
+   435→  return result
+   436→}
+   437→
+   438→const MOCK_STRATEGIES = [
+   439→  'Start with a friendly email reminder, escalate to WhatsApp if no response within 5 days, then formal demand letter at 30 days overdue.',
+   440→  'Immediate phone contact recommended given the high outstanding amount. Follow up with formal written notice and consider payment plan negotiation.',
+   441→  'Multi-channel approach: send SMS reminder first, follow with email containing payment link, then schedule direct call. Offer early payment discount if paid within 7 days.',
+   442→  'AI analysis suggests this debtor typically pays within 48 hours of a direct message. Prioritize WhatsApp contact and include a flexible payment schedule option.',
+   443→  'Given the relationship history, recommend a collaborative approach. Send invoice reconciliation summary and offer to discuss payment terms adjustment.',
+   444→]
+   445→
+   446→const createCollectionSchema = z.object({
+   447→  invoiceId: z.string().optional(),
+   448→  businessId: z.string().min(1, 'Creditor business ID is required'),
+   449→  debtorId: z.string().min(1, 'Debtor ID is required'),
+   450→  originalAmount: z.number().positive('Original amount must be greater than 0'),
+   451→  outstandingAmount: z.number().min(0, 'Outstanding amount must be 0 or greater'),
+   452→  currency: z.string().min(1, 'Currency is required'),
+   453→  agingBucket: z.enum(['current', '1-30', '31-60', '61-90', '90+']).default('current'),
+   454→  priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
+   455→})
+   456→
+   457→export async function GET(request: NextRequest) {
+   458→  try {
+   459→    const user = await getApiUser(request)
+   460→    const { searchParams } = new URL(request.url)
+   461→    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+   462→    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
+   463→    const businessId = searchParams.get('businessId') || ''
+   464→    const debtorId = searchParams.get('debtorId') || ''
+   465→    const agingBucket = searchParams.get('agingBucket') || ''
+   466→    const priority = searchParams.get('priority') || ''
+   467→    const status = searchParams.get('status') || ''
+   468→
+   469→    const where: Record<string, unknown> = {
+   470→      business: { tenantId: user.tenantId },
+   471→    }
+   472→
+   473→    if (businessId) where.businessId = businessId
+   474→    if (debtorId) where.debtorId = debtorId
+   475→    if (agingBucket) where.agingBucket = agingBucket
+   476→    if (priority) where.priority = priority
+   477→    if (status) where.status = status
+   478→
+   479→    const [cases, total] = await Promise.all([
+   480→      db.collectionCase.findMany({
+   481→        where,
+   482→        skip: (page - 1) * limit,
+   483→        take: limit,
+   484→        orderBy: { createdAt: 'desc' },
+   485→      }),
+   486→      db.collectionCase.count({ where }),
+   487→    ])
+   488→
+   489→    // Attach debtor business name
+   490→    const casesWithDebtorName = await Promise.all(
+   491→      cases.map(async (c) => {
+   492→        const debtor = await db.business.findUnique({
+   493→          where: { id: c.debtorId },
+   494→          select: { name: true },
+   495→        })
+   496→        return { ...c, debtorName: debtor?.name ?? null }
+   497→      })
+   498→    )
+   499→
+   500→    return NextResponse.json({
+   501→      data: casesWithDebtorName,
+   502→      pagination: {
+   503→        page,
+   504→        limit,
+   505→        total,
+   506→        totalPages: Math.ceil(total / limit),
+   507→      },
+   508→    })
+   509→  } catch (error) {
+   510→    console.error('Error listing collection cases:', error)
+   511→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+   512→    return NextResponse.json({ error: 'Failed to list collection cases' }, { status: 500 })
+   513→  }
+   514→}
+   515→
+   516→export async function POST(request: NextRequest) {
+   517→  try {
+   518→    const user = await getApiUser(request)
+   519→    const body = await request.json()
+   520→    const parsed = createCollectionSchema.safeParse(body)
+   521→
+   522→    if (!parsed.success) {
+   523→      return NextResponse.json(
+   524→        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+   525→        { status: 400 }
+   526→      )
+   527→    }
+   528→
+   529→    const data = parsed.data
+   530→
+   531→    // Verify business belongs to tenant
+   532→    const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } })
+   533→    if (!biz || biz.tenantId !== user.tenantId) {
+   534→      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+   535→    }
+   536→
+   537→    let caseRef = generateCaseRef()
+   538→    let exists = await db.collectionCase.findUnique({ where: { caseRef } })
+   539→    while (exists) {
+   540→      caseRef = generateCaseRef()
+   541→      exists = await db.collectionCase.findUnique({ where: { caseRef } })
+   542→    }
+   543→
+   544→    const aiStrategy = MOCK_STRATEGIES[Math.floor(Math.random() * MOCK_STRATEGIES.length)]
+   545→
+   546→    const collectionCase = await db.collectionCase.create({
+   547→      data: {
+   548→        caseRef,
+   549→        invoiceId: data.invoiceId,
+   550→        businessId: data.businessId,
+   551→        debtorId: data.debtorId,
+   552→        originalAmount: data.originalAmount,
+   553→        outstandingAmount: data.outstandingAmount,
+   554→        currency: data.currency,
+   555→        agingBucket: data.agingBucket,
+   556→        priority: data.priority,
+   557→        aiStrategy,
+   558→      },
+   559→    })
+   560→
+   561→    return NextResponse.json({ data: collectionCase }, { status: 201 })
+   562→  } catch (error: unknown) {
+   563→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+   564→    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
+   565→      return NextResponse.json({ error: 'Case reference collision, please retry' }, { status: 409 })
+   566→    }
+   567→    console.error('Error creating collection case:', error)
+   568→    return NextResponse.json({ error: 'Failed to create collection case' }, { status: 500 })
+   569→  }
+   570→}
+   571→
+   572→
+   573→============================================================
+   574→FILE: compliance/rules/route.ts
+   575→============================================================
+   576→import { NextRequest, NextResponse } from 'next/server'
+   577→import { z } from 'zod'
+   578→import { db } from '@/lib/db'
+   579→import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+   580→
+   581→const createComplianceRuleSchema = z.object({
+   582→  name: z.string().min(1, 'Name is required'),
+   583→  description: z.string().optional(),
+   584→  ruleType: z.string().min(1, 'Rule type is required'),
+   585→  condition: z.string().min(1, 'Condition is required'),
+   586→  action: z.string().min(1, 'Action is required'),
+   587→  severity: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
+   588→})
+   589→
+   590→export async function GET(request: NextRequest) {
+   591→  try {
+   592→    const user = await getApiUser(request)
+   593→    const { searchParams } = new URL(request.url)
+   594→    const ruleType = searchParams.get('ruleType') || ''
+   595→    const isActive = searchParams.get('isActive')
+   596→    const severity = searchParams.get('severity') || ''
+   597→
+   598→    const where: Record<string, unknown> = {}
+   599→
+   600→    if (ruleType) where.ruleType = ruleType
+   601→    if (isActive !== null && isActive !== '') {
+   602→      where.isActive = isActive === 'true'
+   603→    }
+   604→    if (severity) where.severity = severity
+   605→
+   606→    // ComplianceRule is a global/system-level entity — no tenant filtering
+   607→    const rules = await db.complianceRule.findMany({
+   608→      where,
+   609→      orderBy: { createdAt: 'desc' },
+   610→    })
+   611→
+   612→    return NextResponse.json({ data: rules })
+   613→  } catch (error) {
+   614→    console.error('Error listing compliance rules:', error)
+   615→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+   616→    return NextResponse.json({ error: 'Failed to list compliance rules' }, { status: 500 })
+   617→  }
+   618→}
+   619→
+   620→export async function POST(request: NextRequest) {
+   621→  try {
+   622→    const user = await getApiUser(request)
+   623→    const body = await request.json()
+   624→    const parsed = createComplianceRuleSchema.safeParse(body)
+   625→
+   626→    if (!parsed.success) {
+   627→      return NextResponse.json(
+   628→        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+   629→        { status: 400 }
+   630→      )
+   631→    }
+   632→
+   633→    const data = parsed.data
+   634→
+   635→    // Validate condition is valid JSON
+   636→    try {
+   637→      JSON.parse(data.condition)
+   638→    } catch {
+   639→      return NextResponse.json({ error: 'Condition must be a valid JSON string' }, { status: 400 })
+   640→    }
+   641→
+   642→    // ComplianceRule is a global/system-level entity — no tenant filtering on creation
+   643→    const rule = await db.complianceRule.create({
+   644→      data: {
+   645→        name: data.name,
+   646→        description: data.description,
+   647→        ruleType: data.ruleType,
+   648→        condition: data.condition,
+   649→        action: data.action,
+   650→        severity: data.severity,
+   651→        isActive: true,
+   652→      },
+   653→    })
+   654→
+   655→    return NextResponse.json({ data: rule }, { status: 201 })
+   656→  } catch (error) {
+   657→    console.error('Error creating compliance rule:', error)
+   658→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+   659→    return NextResponse.json({ error: 'Failed to create compliance rule' }, { status: 500 })
+   660→  }
+   661→}
+   662→
+   663→
+   664→============================================================
+   665→FILE: compliance/screenings/route.ts
+   666→============================================================
+   667→import { NextRequest, NextResponse } from 'next/server'
+   668→import { z } from 'zod'
+   669→import { db } from '@/lib/db'
+   670→import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+   671→
+   672→const createScreeningSchema = z.object({
+   673→  businessId: z.string().optional(),
+   674→  transactionType: z.string().optional(),
+   675→  transactionId: z.string().optional(),
+   676→  screeningType: z.enum(['sanctions', 'pep', 'adverse_media', 'country_risk']),
+   677→})
+   678→
+   679→function generateMockResult(): { result: string; riskLevel: string; details: string; matchedLists: string | null } {
+   680→  const rand = Math.random()
+   681→  if (rand < 0.05) {
+   682→    return {
+   683→      result: 'alert',
+   684→      riskLevel: 'critical',
+   685→      details: 'Direct match found on OFAC SDN list. Immediate review required.',
+   686→      matchedLists: JSON.stringify(['OFAC SDN', 'EU Consolidated List']),
+   687→    }
+   688→  }
+   689→  if (rand < 0.20) {
+   690→    return {
+   691→      result: 'potential_match',
+   692→      riskLevel: 'high',
+   693→      details: 'Partial name match found. Manual review recommended.',
+   694→      matchedLists: JSON.stringify(['PEP Database', 'World-Check']),
+   695→    }
+   696→  }
+   697→  return {
+   698→    result: 'clear',
+   699→    riskLevel: 'low',
+   700→    details: 'No matches found across all screening databases.',
+   701→    matchedLists: null,
+   702→  }
+   703→}
+   704→
+   705→export async function GET(request: NextRequest) {
+   706→  try {
+   707→    const user = await getApiUser(request)
+   708→    const { searchParams } = new URL(request.url)
+   709→    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+   710→    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
+   711→    const businessId = searchParams.get('businessId') || ''
+   712→    const screeningType = searchParams.get('screeningType') || ''
+   713→    const result = searchParams.get('result') || ''
+   714→    const riskLevel = searchParams.get('riskLevel') || ''
+   715→    const status = searchParams.get('status') || ''
+   716→
+   717→    const where: Record<string, unknown> = {
+   718→      business: { tenantId: user.tenantId },
+   719→    }
+   720→
+   721→    if (businessId) where.businessId = businessId
+   722→    if (screeningType) where.screeningType = screeningType
+   723→    if (result) where.result = result
+   724→    if (riskLevel) where.riskLevel = riskLevel
+   725→    if (status) where.status = status
+   726→
+   727→    const [screenings, total] = await Promise.all([
+   728→      db.complianceScreening.findMany({
+   729→        where,
+   730→        skip: (page - 1) * limit,
+   731→        take: limit,
+   732→        orderBy: { createdAt: 'desc' },
+   733→      }),
+   734→      db.complianceScreening.count({ where }),
+   735→    ])
+   736→
+   737→    return NextResponse.json({
+   738→      data: screenings,
+   739→      pagination: {
+   740→        page,
+   741→        limit,
+   742→        total,
+   743→        totalPages: Math.ceil(total / limit),
+   744→      },
+   745→    })
+   746→  } catch (error) {
+   747→    console.error('Error listing compliance screenings:', error)
+   748→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+   749→    return NextResponse.json({ error: 'Failed to list compliance screenings' }, { status: 500 })
+   750→  }
+   751→}
+   752→
+   753→export async function POST(request: NextRequest) {
+   754→  try {
+   755→    const user = await getApiUser(request)
+   756→    const body = await request.json()
+   757→    const parsed = createScreeningSchema.safeParse(body)
+   758→
+   759→    if (!parsed.success) {
+   760→      return NextResponse.json(
+   761→        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+   762→        { status: 400 }
+   763→      )
+   764→    }
+   765→
+   766→    const data = parsed.data
+   767→
+   768→    // Validate businessId belongs to tenant if provided
+   769→    if (data.businessId) {
+   770→      const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } })
+   771→      if (!biz || biz.tenantId !== user.tenantId) {
+   772→        return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+   773→      }
+   774→    }
+   775→
+   776→    const mockResult = generateMockResult()
+   777→
+   778→    const screening = await db.complianceScreening.create({
+   779→      data: {
+   780→        businessId: data.businessId,
+   781→        transactionType: data.transactionType,
+   782→        transactionId: data.transactionId,
+   783→        screeningType: data.screeningType,
+   784→        result: mockResult.result,
+   785→        riskLevel: mockResult.riskLevel,
+   786→        details: mockResult.details,
+   787→        matchedLists: mockResult.matchedLists,
+   788→        status: 'completed',
+   789→      },
+   790→    })
+   791→
+   792→    return NextResponse.json({ data: screening }, { status: 201 })
+   793→  } catch (error) {
+   794→    console.error('Error creating compliance screening:', error)
+   795→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+   796→    return NextResponse.json({ error: 'Failed to create compliance screening' }, { status: 500 })
+   797→  }
+   798→}
+   799→
+   800→
+   801→============================================================
+   802→FILE: dashboard/stats/route.ts
+   803→============================================================
+   804→import { NextRequest, NextResponse } from 'next/server';
+   805→import { db } from '@/lib/db';
+   806→import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
+   807→
+   808→// GET /api/dashboard/stats — Dashboard aggregation stats
+   809→export async function GET(request: NextRequest) {
+   810→  try {
+   811→    const user = await getApiUser(request);
+   812→
+   813→    // Fetch business IDs belonging to the tenant
+   814→    const tenantBusinessIds = (await db.business.findMany({
+   815→      where: { tenantId: user.tenantId },
+   816→      select: { id: true },
+   817→    })).map(b => b.id);
+   818→
+   819→    const escrowTenantFilter = {
+   820→      OR: [
+   821→        { buyerId: { in: tenantBusinessIds } },
+   822→        { sellerId: { in: tenantBusinessIds } },
+   823→      ],
+   824→    };
+   825→    const paymentIntentTenantFilter = {
+   826→      OR: [
+   827→        { fromBusinessId: { in: tenantBusinessIds } },
+   828→        { toBusinessId: { in: tenantBusinessIds } },
+   829→      ],
+   830→    };
+   831→
+   832→    // Run independent queries in parallel
+   833→    const [
+   834→      totalBusinesses,
+   835→      verifiedBusinesses,
+   836→      activeEscrows,
+   837→      totalEscrowVolume,
+   838→      completedPayments,
+   839→      recentDisputes,
+   840→      activeRelationships,
+   841→      escrowsByStatusRaw,
+   842→      businessesByCountryRaw,
+   843→      paymentsByMethodRaw,
+   844→      recentTransactions,
+   845→      trustScores,
+   846→    ] = await Promise.all([
+   847→      // Total businesses
+   848→      db.business.count({ where: { tenantId: user.tenantId } }),
+   849→
+   850→      // Verified businesses
+   851→      db.business.count({ where: { tenantId: user.tenantId, status: 'verified' } }),
+   852→
+   853→      // Active escrows (created, funded, in_escrow, partial_release)
+   854→      db.escrowTransaction.count({
+   855→        where: {
+   856→          ...escrowTenantFilter,
+   857→          status: { in: ['created', 'funded', 'in_escrow', 'partial_release'] },
+   858→        },
+   859→      }),
+   860→
+   861→      // Total escrow volume (sum of all escrow amounts)
+   862→      db.escrowTransaction.aggregate({
+   863→        where: escrowTenantFilter,
+   864→        _sum: { amount: true },
+   865→      }),
+   866→
+   867→      // Total payments processed (completed payment intents)
+   868→      db.paymentIntent.count({
+   869→        where: { ...paymentIntentTenantFilter, status: 'completed' },
+   870→      }),
+   871→
+   872→      // Recent disputes (open / under_review)
+   873→      db.dispute.count({
+   874→        where: {
+   875→          status: { in: ['open', 'under_review'] },
+   876→          escrow: escrowTenantFilter,
+   877→        },
+   878→      }),
+   879→
+   880→      // Active relationships
+   881→      db.businessRelationship.count({
+   882→        where: {
+   883→          ...paymentIntentTenantFilter,
+   884→          status: 'active',
+   885→        },
+   886→      }),
+   887→
+   888→      // Escrows grouped by status
+   889→      db.escrowTransaction.groupBy({
+   890→        by: ['status'],
+   891→        _count: { status: true },
+   892→        where: escrowTenantFilter,
+   893→      }),
+   894→
+   895→      // Businesses grouped by country
+   896→      db.business.groupBy({
+   897→        by: ['country'],
+   898→        _count: { country: true },
+   899→        where: { tenantId: user.tenantId },
+   900→      }),
+   901→
+   902→      // Payment intents grouped by method
+   903→      db.paymentIntent.groupBy({
+   904→        by: ['paymentMethod'],
+   905→        _count: { paymentMethod: true },
+   906→        where: {
+   907→          paymentMethod: { not: null },
+   908→          ...paymentIntentTenantFilter,
+   909→        },
+   910→      }),
+   911→
+   912→      // Recent transactions — latest 5 escrow transactions with buyer/seller names
+   913→      db.escrowTransaction.findMany({
+   914→        where: escrowTenantFilter,
+   915→        take: 5,
+   916→        orderBy: { createdAt: 'desc' },
+   917→        include: {
+   918→          buyer: { select: { name: true } },
+   919→          seller: { select: { name: true } },
+   920→        },
+   921→      }),
+   922→
+   923→      // All trust scores for distribution
+   924→      db.trustScore.findMany({
+   925→        where: { businessId: { in: tenantBusinessIds } },
+   926→        select: { overallScore: true },
+   927→      }),
+   928→    ]);
+   929→
+   930→    // Build escrowsByStatus
+   931→    const escrowsByStatus: Record<string, number> = {
+   932→      created: 0,
+   933→      funded: 0,
+   934→      in_escrow: 0,
+   935→      completed: 0,
+   936→      disputed: 0,
+   937→    };
+   938→    for (const row of escrowsByStatusRaw) {
+   939→      if (row.status in escrowsByStatus) {
+   940→        escrowsByStatus[row.status] = row._count.status;
+   941→      }
+   942→    }
+   943→
+   944→    // Build businessesByCountry
+   945→    const businessesByCountry: Record<string, number> = {};
+   946→    for (const row of businessesByCountryRaw) {
+   947→      businessesByCountry[row.country] = row._count.country;
+   948→    }
+   949→
+   950→    // Build paymentsByMethod
+   951→    const paymentsByMethod: Record<string, number> = {};
+   952→    for (const row of paymentsByMethodRaw) {
+   953→      if (row.paymentMethod) {
+   954→        paymentsByMethod[row.paymentMethod] = row._count.paymentMethod;
+   955→      }
+   956→    }
+   957→
+   958→    // Build recentTransactions (flatten for API response)
+   959→    const recentTransactionsFlat = recentTransactions.map((tx) => ({
+   960→      id: tx.id,
+   961→      txRef: tx.txRef,
+   962→      amount: tx.amount,
+   963→      currency: tx.currency,
+   964→      status: tx.status,
+   965→      buyerName: tx.buyer.name,
+   966→      sellerName: tx.seller.name,
+   967→      createdAt: tx.createdAt,
+   968→    }));
+   969→
+   970→    // Build trustScoreDistribution
+   971→    const trustScoreDistribution = { excellent: 0, good: 0, average: 0, poor: 0 };
+   972→    for (const ts of trustScores) {
+   973→      if (ts.overallScore >= 80) trustScoreDistribution.excellent++;
+   974→      else if (ts.overallScore >= 60) trustScoreDistribution.good++;
+   975→      else if (ts.overallScore >= 40) trustScoreDistribution.average++;
+   976→      else trustScoreDistribution.poor++;
+   977→    }
+   978→
+   979→    // Calculate average trust score
+   980→    const averageTrustScore =
+   981→      trustScores.length > 0
+   982→        ? Math.round(
+   983→            (trustScores.reduce((sum, ts) => sum + ts.overallScore, 0) / trustScores.length) * 100
+   984→          ) / 100
+   985→        : 0;
+   986→
+   987→    return NextResponse.json({
+   988→      totalBusinesses,
+   989→      verifiedBusinesses,
+   990→      activeEscrows,
+   991→      totalEscrowVolume: totalEscrowVolume._sum.amount ?? 0,
+   992→      totalPaymentsProcessed: completedPayments,
+   993→      averageTrustScore,
+   994→      recentDisputes,
+   995→      activeRelationships,
+   996→      escrowsByStatus,
+   997→      businessesByCountry,
+   998→      paymentsByMethod,
+   999→      recentTransactions: recentTransactionsFlat,
+  1000→      trustScoreDistribution,
+  1001→    });
+  1002→  } catch (error) {
+  1003→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+  1004→    console.error('Error fetching dashboard stats:', error);
+  1005→    return NextResponse.json(
+  1006→      { error: 'Failed to fetch dashboard stats' },
+  1007→      { status: 500 }
+  1008→    );
+  1009→  }
+  1010→}
+  1011→
+  1012→============================================================
+  1013→FILE: deposits/route.ts
+  1014→============================================================
+  1015→import { NextRequest, NextResponse } from 'next/server';
+  1016→import { requireAuth, tenantScope, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+  1017→import { prisma } from '@/lib/prisma';
+  1018→
+  1019→export async function GET(req: NextRequest) {
+  1020→  try {
+  1021→    const user = await requireAuth(req);
+  1022→    const { searchParams } = new URL(req.url);
+  1023→    const page = parseInt(searchParams.get('page') || '1');
+  1024→    const limit = parseInt(searchParams.get('limit') || '20');
+  1025→    const status = searchParams.get('status');
+  1026→
+  1027→    const where: any = { tenantId: user.tenantId };
+  1028→    if (user.role === 'USER' || user.role === 'VIEWER') {
+  1029→      where.accountId = user.id;
+  1030→    }
+  1031→    if (status) where.status = status;
+  1032→
+  1033→    const [deposits, total] = await Promise.all([
+  1034→      prisma.deposit.findMany({
+  1035→        where,
+  1036→        include: {
+  1037→          wallet: { select: { id: true, currency: true } },
+  1038→          account: { select: { id: true, email: true, name: true } },
+  1039→        },
+  1040→        orderBy: { createdAt: 'desc' },
+  1041→        skip: (page - 1) * limit,
+  1042→        take: limit,
+  1043→      }),
+  1044→      prisma.deposit.count({ where }),
+  1045→    ]);
+  1046→
+  1047→    return successResponse({
+  1048→      deposits,
+  1049→      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+  1050→    });
+  1051→  } catch (error: any) {
+  1052→    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+  1053→    console.error('Deposits GET error:', error);
+  1054→    return errorResponse('Failed to fetch deposits', 500);
+  1055→  }
+  1056→}
+  1057→
+  1058→export async function POST(req: NextRequest) {
+  1059→  try {
+  1060→    const user = await requireAuth(req);
+  1061→    const body = await req.json();
+  1062→    const { walletId, amount, currency, method, description } = body;
+  1063→
+  1064→    if (!walletId || !amount) {
+  1065→      return errorResponse('walletId and amount are required', 400);
+  1066→    }
+  1067→
+  1068→    // Verify wallet belongs to user's tenant
+  1069→    const wallet = await prisma.wallet.findFirst({
+  1070→      where: { id: walletId, ...tenantScope(user.tenantId) },
+  1071→    });
+  1072→
+  1073→    if (!wallet) return errorResponse('Wallet not found', 404);
+  1074→
+  1075→    const deposit = await prisma.deposit.create({
+  1076→      data: {
+  1077→        accountId: user.id,
+  1078→        tenantId: user.tenantId,
+  1079→        walletId,
+  1080→        amount: parseFloat(amount),
+  1081→        currency: currency || wallet.currency,
+  1082→        method: method || 'manual',
+  1083→        description: description || `Deposit of ${amount} ${currency || wallet.currency}`,
+  1084→        referenceId: `DEP-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  1085→        status: 'PENDING',
+  1086→      },
+  1087→    });
+  1088→
+  1089→    return successResponse(deposit, 201);
+  1090→  } catch (error: any) {
+  1091→    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+  1092→    console.error('Deposits POST error:', error);
+  1093→    return errorResponse('Failed to create deposit', 500);
+  1094→  }
+  1095→}
+  1096→
+  1097→
+  1098→============================================================
+  1099→FILE: escrow/[id]/route.ts
+  1100→============================================================
+  1101→import { NextRequest, NextResponse } from 'next/server';
+  1102→import { requireAuth, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+  1103→import { prisma } from '@/lib/prisma';
+  1104→
+  1105→export async function GET(
+  1106→  req: NextRequest,
+  1107→  { params }: { params: { id: string } }
+  1108→) {
+  1109→  try {
+  1110→    const user = await requireAuth(req);
+  1111→
+  1112→    const escrow = await prisma.escrowTransaction.findFirst({
+  1113→      where: { id: params.id, tenantId: user.tenantId },
+  1114→      include: {
+  1115→        buyer: { select: { id: true, email: true, name: true } },
+  1116→        seller: { select: { id: true, email: true, name: true } },
+  1117→      },
+  1118→    });
+  1119→
+  1120→    if (!escrow) return errorResponse('Escrow transaction not found', 404);
+  1121→    return successResponse(escrow);
+  1122→  } catch (error: any) {
+  1123→    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+  1124→    console.error('Escrow GET by ID error:', error);
+  1125→    return errorResponse('Failed to fetch escrow transaction', 500);
+  1126→  }
+  1127→}
+  1128→
+  1129→export async function PATCH(
+  1130→  req: NextRequest,
+  1131→  { params }: { params: { id: string } }
+  1132→) {
+  1133→  try {
+  1134→    const user = await requireAuth(req);
+  1135→    const body = await req.json();
+  1136→    const { action, releaseTo } = body;
+  1137→
+  1138→    const escrow = await prisma.escrowTransaction.findFirst({
+  1139→      where: { id: params.id, tenantId: user.tenantId },
+  1140→    });
+  1141→
+  1142→    if (!escrow) return errorResponse('Escrow transaction not found', 404);
+  1143→
+  1144→    if (action === 'release') {
+  1145→      if (escrow.buyerId !== user.id && user.role !== 'ADMIN') {
+  1146→        return errorResponse('Only buyer or admin can release funds', 403);
+  1147→      }
+  1148→      const updated = await prisma.escrowTransaction.update({
+  1149→        where: { id: params.id },
+  1150→        data: { status: 'RELEASED', releasedAt: new Date() },
+  1151→      });
+  1152→      return successResponse(updated);
+  1153→    }
+  1154→
+  1155→    if (action === 'dispute') {
+  1156→      const updated = await prisma.escrowTransaction.update({
+  1157→        where: { id: params.id },
+  1158→        data: { status: 'DISPUTED' },
+  1159→      });
+  1160→      return successResponse(updated);
+  1161→    }
+  1162→
+  1163→    return errorResponse('Invalid action. Use "release" or "dispute"', 400);
+  1164→  } catch (error: any) {
+  1165→    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+  1166→    console.error('Escrow PATCH error:', error);
+  1167→    return errorResponse('Failed to update escrow transaction', 500);
+  1168→  }
+  1169→}
+  1170→
+  1171→
+  1172→============================================================
+  1173→FILE: escrow/route.ts
+  1174→============================================================
+  1175→import { NextRequest, NextResponse } from 'next/server';
+  1176→import { requireAuth, tenantScope, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+  1177→import { prisma } from '@/lib/prisma';
+  1178→
+  1179→export async function GET(req: NextRequest) {
+  1180→  try {
+  1181→    const user = await requireAuth(req);
+  1182→    const where = tenantScope(user.tenantId);
+  1183→
+  1184→    const escrows = await prisma.escrowTransaction.findMany({
+  1185→      where,
+  1186→      include: {
+  1187→        buyer: { select: { id: true, email: true } },
+  1188→        seller: { select: { id: true, email: true } },
+  1189→      },
+  1190→      orderBy: { createdAt: 'desc' },
+  1191→    });
+  1192→
+  1193→    return successResponse({ escrows });
+  1194→  } catch (error: any) {
+  1195→    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+  1196→    console.error('Escrow GET error:', error);
+  1197→    return errorResponse('Failed to fetch escrow transactions', 500);
+  1198→  }
+  1199→}
+  1200→
+  1201→export async function POST(req: NextRequest) {
+  1202→  try {
+  1203→    const user = await requireAuth(req);
+  1204→    const body = await req.json();
+  1205→    const { amount, currency, description, sellerId, buyerWalletId, sellerWalletId } = body;
+  1206→
+  1207→    if (!amount || !sellerId) return errorResponse('amount and sellerId are required', 400);
+  1208→
+  1209→    const escrow = await prisma.escrowTransaction.create({
+  1210→      data: {
+  1211→        amount: parseFloat(amount),
+  1212→        currency: currency || 'KES',
+  1213→        description: description || '',
+  1214→        buyerId: user.id,
+  1215→        sellerId,
+  1216→        buyerWalletId: buyerWalletId || null,
+  1217→        sellerWalletId: sellerWalletId || null,
+  1218→        tenantId: user.tenantId,
+  1219→        status: 'PENDING',
+  1220→      },
+  1221→    });
+  1222→
+  1223→    return successResponse(escrow, 201);
+  1224→  } catch (error: any) {
+  1225→    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+  1226→    console.error('Escrow POST error:', error);
+  1227→    return errorResponse('Failed to create escrow transaction', 500);
+  1228→  }
+  1229→}
+  1230→
+  1231→
+  1232→============================================================
+  1233→FILE: escrow/transactions/[id]/activate/route.ts
+  1234→============================================================
+  1235→import { NextRequest, NextResponse } from "next/server";
+  1236→import { db } from "@/lib/db";
+  1237→import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+  1238→
+  1239→// ── POST: Activate escrow (move to in_escrow) ───────────────
+  1240→export async function POST(
+  1241→  request: NextRequest,
+  1242→  { params }: { params: Promise<{ id: string }> }
+  1243→) {
+  1244→  try {
+  1245→    const user = await getApiUser(request);
+  1246→    const { id } = await params;
+  1247→
+  1248→    const escrow = await db.escrowTransaction.findFirst({
+  1249→      where: {
+  1250→        id,
+  1251→        OR: [
+  1252→          { buyer: { tenantId: user.tenantId } },
+  1253→          { seller: { tenantId: user.tenantId } },
+  1254→        ],
+  1255→      },
+  1256→    });
+  1257→
+  1258→    if (!escrow) {
+  1259→      return NextResponse.json(
+  1260→        { error: "Escrow transaction not found" },
+  1261→        { status: 404 }
+  1262→      );
+  1263→    }
+  1264→
+  1265→    if (escrow.status !== "funded") {
+  1266→      return NextResponse.json(
+  1267→        {
+  1268→          error: `Cannot activate escrow with status '${escrow.status}'. Only 'funded' escrows can be activated.`,
+  1269→        },
+  1270→        { status: 409 }
+  1271→      );
+  1272→    }
+  1273→
+  1274→    const updated = await db.escrowTransaction.update({
+  1275→      where: { id },
+  1276→      data: { status: "in_escrow" },
+  1277→      include: {
+  1278→        buyer: { select: { id: true, name: true } },
+  1279→        seller: { select: { id: true, name: true } },
+  1280→        milestones: { orderBy: { sequence: "asc" } },
+  1281→        disbursements: true,
+  1282→      },
+  1283→    });
+  1284→
+  1285→    await db.escrowAuditLog.create({
+  1286→      data: {
+  1287→        escrowId: id,
+  1288→        action: "activated",
+  1289→        actor: escrow.buyerId,
+  1290→        details: `Escrow ${escrow.txRef} activated and moved to 'in_escrow' status. Funds are now held.`,
+  1291→      },
+  1292→    });
+  1293→
+  1294→    return NextResponse.json({ data: updated });
+  1295→  } catch (error) {
+  1296→    console.error("Error activating escrow transaction:", error);
+  1297→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+  1298→    return NextResponse.json(
+  1299→      { error: "Failed to activate escrow transaction" },
+  1300→      { status: 500 }
+  1301→    );
+  1302→  }
+  1303→}
+  1304→
+  1305→
+  1306→============================================================
+  1307→FILE: escrow/transactions/[id]/disputes/[disputeId]/route.ts
+  1308→============================================================
+  1309→import { NextRequest, NextResponse } from "next/server";
+  1310→import { db } from "@/lib/db";
+  1311→import { z } from "zod";
+  1312→import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+  1313→
+  1314→// ── Zod Schema ───────────────────────────────────────────────
+  1315→const resolveDisputeSchema = z.object({
+  1316→  resolution: z.string().min(1, "Resolution is required"),
+  1317→  status: z.enum(["resolved", "escalated"] as const, {
+  1318→    message: "Status must be 'resolved' or 'escalated'",
+  1319→  }),
+  1320→});
+  1321→
+  1322→// ── PUT: Resolve a dispute ──────────────────────────────────
+  1323→export async function PUT(
+  1324→  request: NextRequest,
+  1325→  { params }: { params: Promise<{ id: string; disputeId: string }> }
+  1326→) {
+  1327→  try {
+  1328→    const user = await getApiUser(request);
+  1329→    const { id, disputeId } = await params;
+  1330→    const body = await request.json();
+  1331→    const parsed = resolveDisputeSchema.safeParse(body);
+  1332→
+  1333→    if (!parsed.success) {
+  1334→      return NextResponse.json(
+  1335→        { error: "Validation failed", details: parsed.error.issues },
+  1336→        { status: 400 }
+  1337→      );
+  1338→    }
+  1339→
+  1340→    const { resolution, status: disputeStatus } = parsed.data;
+  1341→
+  1342→    // Verify escrow belongs to tenant
+  1343→    const escrow = await db.escrowTransaction.findFirst({
+  1344→      where: {
+  1345→        id,
+  1346→        OR: [
+  1347→          { buyer: { tenantId: user.tenantId } },
+  1348→          { seller: { tenantId: user.tenantId } },
+  1349→        ],
+  1350→      },
+  1351→    });
+  1352→
+  1353→    if (!escrow) {
+  1354→      return NextResponse.json(
+  1355→        { error: "Escrow transaction not found" },
+  1356→        { status: 404 }
+  1357→      );
+  1358→    }
+  1359→
+  1360→    // Verify dispute exists and belongs to this escrow
+  1361→    const dispute = await db.dispute.findUnique({
+  1362→      where: { id: disputeId },
+  1363→    });
+  1364→
+  1365→    if (!dispute || dispute.escrowId !== id) {
+  1366→      return NextResponse.json(
+  1367→        { error: "Dispute not found for this escrow" },
+  1368→        { status: 404 }
+  1369→      );
+  1370→    }
+  1371→
+  1372→    if (dispute.status === "resolved" || dispute.status === "escalated") {
+  1373→      return NextResponse.json(
+  1374→        { error: `Dispute is already '${dispute.status}'` },
+  1375→        { status: 409 }
+  1376→      );
+  1377→    }
+  1378→
+  1379→    // Determine new escrow status based on resolution
+  1380→    let newEscrowStatus: string;
+  1381→    const resolutionLower = resolution.toLowerCase();
+  1382→
+  1383→    if (disputeStatus === "escalated") {
+  1384→      newEscrowStatus = "disputed"; // stays disputed
+  1385→    } else if (
+  1386→      resolutionLower.includes("refund") ||
+  1387→      resolutionLower.includes("cancel") ||
+  1388→      resolutionLower.includes("return to buyer")
+  1389→    ) {
+  1390→      newEscrowStatus = "refunded";
+  1391→    } else {
+  1392→      newEscrowStatus = "in_escrow"; // resume escrow
+  1393→    }
+  1394→
+  1395→    const now = new Date();
+  1396→
+  1397→    const updated = await db.$transaction(async (tx) => {
+  1398→      // Update dispute
+  1399→      const resolvedDispute = await tx.dispute.update({
+  1400→        where: { id: disputeId },
+  1401→        data: {
+  1402→          resolution,
+  1403→          status: disputeStatus,
+  1404→          resolvedAt: disputeStatus === "resolved" ? now : null,
+  1405→        },
+  1406→      });
+  1407→
+  1408→      // Update escrow status
+  1409→      await tx.escrowTransaction.update({
+  1410→        where: { id },
+  1411→        data: { status: newEscrowStatus },
+  1412→      });
+  1413→
+  1414→      // Create audit log
+  1415→      await tx.escrowAuditLog.create({
+  1416→        data: {
+  1417→          escrowId: id,
+  1418→          action: "dispute_resolved",
+  1419→          details: `Dispute ${disputeId} ${disputeStatus}. Resolution: ${resolution}. Escrow status changed to '${newEscrowStatus}'.`,
+  1420→          metadata: JSON.stringify({
+  1421→            disputeId,
+  1422→            resolution,
+  1423→            disputeStatus,
+  1424→            newEscrowStatus,
+  1425→          }),
+  1426→        },
+  1427→      });
+  1428→
+  1429→      return resolvedDispute;
+  1430→    });
+  1431→
+  1432→    return NextResponse.json({ data: updated });
+  1433→  } catch (error) {
+  1434→    console.error("Error resolving dispute:", error);
+  1435→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+  1436→    return NextResponse.json(
+  1437→      { error: "Failed to resolve dispute" },
+  1438→      { status: 500 }
+  1439→    );
+  1440→  }
+  1441→}
+  1442→
+  1443→
+  1444→============================================================
+  1445→FILE: escrow/transactions/[id]/disputes/route.ts
+  1446→============================================================
+  1447→import { NextRequest, NextResponse } from "next/server";
+  1448→import { db } from "@/lib/db";
+  1449→import { z } from "zod";
+  1450→import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+  1451→
+  1452→// ── Zod Schema ───────────────────────────────────────────────
+  1453→const createDisputeSchema = z.object({
+  1454→  raisedBy: z.enum(["buyer", "seller"] as const, {
+  1455→    message: "raisedBy must be 'buyer' or 'seller'",
+  1456→  }),
+  1457→  reason: z.string().min(1, "Reason is required"),
+  1458→  description: z.string().optional(),
+  1459→});
+  1460→
+  1461→// ── AI recommendation mock generator ────────────────────────
+  1462→function generateAiRecommendation(reason: string): string {
+  1463→  const recommendations = [
+  1464→    `Based on the dispute reason "${reason}", our AI analysis recommends initiating a mediation process. The transaction history suggests both parties have maintained good standing. A 72-hour review window is advisable to allow for evidence submission from both sides.`,
+  1465→    `AI risk assessment for dispute "${reason}": The transaction pattern is consistent with typical trade disagreements. Recommend reviewing delivery evidence and communication logs. Suggest partial resolution with a 60/40 split favoring the seller based on similar historical cases.`,
+  1466→    `Dispute analysis for "${reason}": Our model detects no fraudulent patterns. Recommend standard dispute resolution with an extended evidence collection period of 5 business days. Both parties' trust scores remain in good standing, suggesting an amicable resolution is likely.`,
+  1467→  ];
+  1468→  return recommendations[Math.floor(Math.random() * recommendations.length)];
+  1469→}
+  1470→
+  1471→// ── GET: List disputes for an escrow ────────────────────────
+  1472→export async function GET(
+  1473→  request: NextRequest,
+  1474→  { params }: { params: Promise<{ id: string }> }
+  1475→) {
+  1476→  try {
+  1477→    const user = await getApiUser(request);
+  1478→    const { id } = await params;
+  1479→
+  1480→    const escrow = await db.escrowTransaction.findFirst({
+  1481→      where: {
+  1482→        id,
+  1483→        OR: [
+  1484→          { buyer: { tenantId: user.tenantId } },
+  1485→          { seller: { tenantId: user.tenantId } },
+  1486→        ],
+  1487→      },
+  1488→      select: { id: true },
+  1489→    });
+  1490→
+  1491→    if (!escrow) {
+  1492→      return NextResponse.json(
+  1493→        { error: "Escrow transaction not found" },
+  1494→        { status: 404 }
+  1495→      );
+  1496→    }
+  1497→
+  1498→    const disputes = await db.dispute.findMany({
+  1499→      where: { escrowId: id },
+  1500→      orderBy: { createdAt: "desc" },
+  1501→    });
+  1502→
+  1503→    return NextResponse.json({ data: disputes });
+  1504→  } catch (error) {
+  1505→    console.error("Error listing disputes:", error);
+  1506→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+  1507→    return NextResponse.json(
+  1508→      { error: "Failed to list disputes" },
+  1509→      { status: 500 }
+  1510→    );
+  1511→  }
+  1512→}
+  1513→
+  1514→// ── POST: Create a dispute ──────────────────────────────────
+  1515→export async function POST(
+  1516→  request: NextRequest,
+  1517→  { params }: { params: Promise<{ id: string }> }
+  1518→) {
+  1519→  try {
+  1520→    const user = await getApiUser(request);
+  1521→    const { id } = await params;
+  1522→    const body = await request.json();
+  1523→    const parsed = createDisputeSchema.safeParse(body);
+  1524→
+  1525→    if (!parsed.success) {
+  1526→      return NextResponse.json(
+  1527→        { error: "Validation failed", details: parsed.error.issues },
+  1528→        { status: 400 }
+  1529→      );
+  1530→    }
+  1531→
+  1532→    const { raisedBy, reason, description } = parsed.data;
+  1533→
+  1534→    // Fetch escrow
+  1535→    const escrow = await db.escrowTransaction.findFirst({
+  1536→      where: {
+  1537→        id,
+  1538→        OR: [
+  1539→          { buyer: { tenantId: user.tenantId } },
+  1540→          { seller: { tenantId: user.tenantId } },
+  1541→        ],
+  1542→      },
+  1543→      include: {
+  1544→        buyer: { select: { id: true, name: true } },
+  1545→        seller: { select: { id: true, name: true } },
+  1546→      },
+  1547→    });
+  1548→
+  1549→    if (!escrow) {
+  1550→      return NextResponse.json(
+  1551→        { error: "Escrow transaction not found" },
+  1552→        { status: 404 }
+  1553→      );
+  1554→    }
+  1555→
+  1556→    // Verify raisedBy matches a participant
+  1557→    if (
+  1558→      (raisedBy === "buyer" && raisedBy !== "buyer") ||
+  1559→      (raisedBy === "seller" && raisedBy !== "seller")
+  1560→    ) {
+  1561→      // Accept both buyer and seller
+  1562→    }
+  1563→
+  1564→    const aiRecommendation = generateAiRecommendation(reason);
+  1565→
+  1566→    // Create dispute and update escrow status in a transaction
+  1567→    const dispute = await db.$transaction(async (tx) => {
+  1568→      const newDispute = await tx.dispute.create({
+  1569→        data: {
+  1570→          escrowId: id,
+  1571→          raisedBy,
+  1572→          reason,
+  1573→          description: description ?? null,
+  1574→          aiRecommendation,
+  1575→          status: "open",
+  1576→        },
+  1577→      });
+  1578→
+  1579→      await tx.escrowTransaction.update({
+  1580→        where: { id },
+  1581→        data: { status: "disputed" },
+  1582→      });
+  1583→
+  1584→      await tx.escrowAuditLog.create({
+  1585→        data: {
+  1586→          escrowId: id,
+  1587→          action: "dispute_raised",
+  1588→          actor: raisedBy === "buyer" ? escrow.buyerId : escrow.sellerId,
+  1589→          details: `Dispute raised by ${raisedBy}. Reason: ${reason}. AI recommendation generated.`,
+  1590→          metadata: JSON.stringify({
+  1591→            disputeId: newDispute.id,
+  1592→            raisedBy,
+  1593→            reason,
+  1594→          }),
+  1595→        },
+  1596→      });
+  1597→
+  1598→      return newDispute;
+  1599→    });
+  1600→
+  1601→    return NextResponse.json({ data: dispute }, { status: 201 });
+  1602→  } catch (error) {
+  1603→    console.error("Error creating dispute:", error);
+  1604→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+  1605→    return NextResponse.json(
+  1606→      { error: "Failed to create dispute" },
+  1607→      { status: 500 }
+  1608→    );
+  1609→  }
+  1610→}
+  1611→
+  1612→
+  1613→============================================================
+  1614→FILE: escrow/transactions/[id]/fund/route.ts
+  1615→============================================================
+  1616→import { NextRequest, NextResponse } from "next/server";
+  1617→import { z } from "zod";
+  1618→import { db } from "@/lib/db";
+  1619→import { providerRegistry, getProvidersForCurrency, calculateFee, getProviderName, type PaymentProviderCode } from "@/lib/payment";
+  1620→import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+  1621→
+  1622→// ── Zod Schema ───────────────────────────────────────────────
+  1623→const fundSchema = z.object({
+  1624→  provider: z.enum(["stripe", "paystack", "intasend", "flutterwave"]).optional(),
+  1625→  email: z.string().email("Valid email is required"),
+  1626→  firstName: z.string().optional(),
+  1627→  lastName: z.string().optional(),
+  1628→  // If no provider specified, auto-select from available
+  1629→});
+  1630→
+  1631→// ── POST: Fund an escrow transaction via payment provider ─────
+  1632→export async function POST(
+  1633→  request: NextRequest,
+  1634→  { params }: { params: Promise<{ id: string }> }
+  1635→) {
+  1636→  try {
+  1637→    const user = await getApiUser(request);
+  1638→    const { id } = await params;
+  1639→    const body = await request.json();
+  1640→    const parsed = fundSchema.safeParse(body);
+  1641→
+  1642→    if (!parsed.success) {
+  1643→      return NextResponse.json(
+  1644→        { error: parsed.error.issues.map((i) => i.message).join(", ") },
+  1645→        { status: 400 }
+  1646→      );
+  1647→    }
+  1648→
+  1649→    const data = parsed.data;
+  1650→
+  1651→    const escrow = await db.escrowTransaction.findFirst({
+  1652→      where: {
+  1653→        id,
+  1654→        OR: [
+  1655→          { buyer: { tenantId: user.tenantId } },
+  1656→          { seller: { tenantId: user.tenantId } },
+  1657→        ],
+  1658→      },
+  1659→      include: {
+  1660→        buyer: { select: { id: true, name: true, country: true } },
+  1661→        seller: { select: { id: true, name: true } },
+  1662→      },
+  1663→    });
+  1664→
+  1665→    if (!escrow) {
+  1666→      return NextResponse.json(
+  1667→        { error: "Escrow transaction not found" },
+  1668→        { status: 404 }
+  1669→      );
+  1670→    }
+  1671→
+  1672→    if (escrow.status !== "created") {
+  1673→      return NextResponse.json(
+  1674→        {
+  1675→          error: `Cannot fund escrow with status '${escrow.status}'. Only 'created' escrows can be funded.`,
+  1676→        },
+  1677→        { status: 409 }
+  1678→      );
+  1679→    }
+  1680→
+  1681→    // ─── Provider Selection ────────────────────────────────────
+  1682→    let providerCode: PaymentProviderCode | null = data.provider || null;
+  1683→    if (!providerCode) {
+  1684→      const candidates = getProvidersForCurrency(escrow.currency);
+  1685→      if (escrow.buyer?.country) {
+  1686→        const { getProvidersForCountry } = await import("@/lib/payment");
+  1687→        const countryCandidates = getProvidersForCountry(escrow.buyer.country);
+  1688→        const filtered = candidates.filter((c) => countryCandidates.includes(c));
+  1689→        providerCode = filtered[0] || candidates[0] || null;
+  1690→      } else {
+  1691→        providerCode = candidates[0] || null;
+  1692→      }
+  1693→    }
+  1694→
+  1695→    if (!providerCode) {
+  1696→      return NextResponse.json(
+  1697→        { error: `No active payment provider available for ${escrow.currency}. Configure provider keys in .env` },
+  1698→        { status: 400 }
+  1699→      );
+  1700→    }
+  1701→
+  1702→    const provider = providerRegistry.getProvider(providerCode);
+  1703→    if (!provider) {
+  1704→      return NextResponse.json(
+  1705→        { error: `Payment provider '${providerCode}' is not configured or active` },
+  1706→        { status: 400 }
+  1707→      );
+  1708→    }
+  1709→
+  1710→    // ─── Fee Calculation ───────────────────────────────────────
+  1711→    const feeBreakdown = calculateFee(escrow.amount, providerCode, escrow.currency);
+  1712→
+  1713→    // ─── Create PaymentIntent ──────────────────────────────────
+  1714→    const paymentIntent = await db.paymentIntent.create({
+  1715→      data: {
+  1716→        intentRef: `PAY-${escrow.txRef.replace("ESC-", "")}`,
+  1717→        escrowId: id,
+  1718→        fromBusinessId: escrow.buyerId,
+  1719→        toBusinessId: escrow.sellerId,
+  1720→        sourceAmount: escrow.amount,
+  1721→        sourceCurrency: escrow.currency,
+  1722→        targetAmount: feeBreakdown.netAmount,
+  1723→        targetCurrency: escrow.currency,
+  1724→        exchangeRate: 1.0,
+  1725→        status: "processing",
+  1726→        paymentMethod: "card",
+  1727→        routingProvider: providerCode,
+  1728→        routingScore: 0.9,
+  1729→        estimatedFee: feeBreakdown.totalFee,
+  1730→        estimatedTime: 5,
+  1731→      },
+  1732→    });
+  1733→
+  1734→    // ─── Initialize Payment with Provider ─────────────────────
+  1735→    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_URL || "";
+  1736→    const amountInCents = Math.round(escrow.amount * 100);
+  1737→
+  1738→    const initResult = await provider.initialize({
+  1739→      amount: amountInCents,
+  1740→      currency: escrow.currency,
+  1741→      email: data.email,
+  1742→      firstName: data.firstName,
+  1743→      lastName: data.lastName,
+  1744→      reference: escrow.txRef,
+  1745→      callbackUrl: `${baseUrl}/api/payments/webhooks/${providerCode}`,
+  1746→      redirectUrl: `${baseUrl}/escrow/${escrow.txRef}?provider=${providerCode}`,
+  1747→      metadata: {
+  1748→        referenceType: "escrow",
+  1749→        referenceId: id,
+  1750→        paymentIntentId: paymentIntent.id,
+  1751→        escrowRef: escrow.txRef,
+  1752→      },
+  1753→    });
+  1754→
+  1755→    if (!initResult.success) {
+  1756→      // Update intent to failed
+  1757→      await db.paymentIntent.update({
+  1758→        where: { id: paymentIntent.id },
+  1759→        data: { status: "failed" },
+  1760→      });
+  1761→      return NextResponse.json(
+  1762→        { error: `Failed to initialize payment with ${getProviderName(providerCode)}` },
+  1763→        { status: 502 }
+  1764→      );
+  1765→    }
+  1766→
+  1767→    // ─── Create PaymentTransaction record ─────────────────────
+  1768→    const paymentTx = await db.paymentTransaction.create({
+  1769→      data: {
+  1770→        intentId: paymentIntent.id,
+  1771→        txRef: `PTX-${escrow.txRef}`,
+  1772→        provider: providerCode,
+  1773→        providerTxId: initResult.providerPaymentId,
+  1774→        amount: escrow.amount,
+  1775→        currency: escrow.currency,
+  1776→        status: "processing",
+  1777→        metadata: JSON.stringify({
+  1778→          referenceType: "escrow",
+  1779→          referenceId: id,
+  1780→          escrowRef: escrow.txRef,
+  1781→        }),
+  1782→      },
+  1783→    });
+  1784→
+  1785→    // ─── Audit Log ─────────────────────────────────────────────
+  1786→    await db.escrowAuditLog.create({
+  1787→      data: {
+  1788→        escrowId: id,
+  1789→        action: "payment_initiated",
+  1790→        actor: escrow.buyerId,
+  1791→        details: `Payment initiated via ${getProviderName(providerCode)} for ${escrow.amount} ${escrow.currency}. Checkout URL generated.`,
+  1792→        metadata: JSON.stringify({
+  1793→          paymentIntentId: paymentIntent.id,
+  1794→          paymentTransactionId: paymentTx.id,
+  1795→          provider: providerCode,
+  1796→          providerPaymentId: initResult.providerPaymentId,
+  1797→          feeBreakdown,
+  1798→        }),
+  1799→      },
+  1800→    });
+  1801→
+  1802→    // ─── Return checkout info ─────────────────────────────────
+  1803→    return NextResponse.json({
+  1804→      data: {
+  1805→        escrowId: id,
+  1806→        escrowRef: escrow.txRef,
+  1807→        paymentIntentId: paymentIntent.id,
+  1808→        paymentTransactionId: paymentTx.id,
+  1809→        provider: providerCode,
+  1810→        providerName: getProviderName(providerCode),
+  1811→        checkoutUrl: initResult.checkoutUrl || initResult.authorizationUrl,
+  1812→        fee: feeBreakdown,
+  1813→        status: "awaiting_payment",
+  1814→      },
+  1815→    });
+  1816→  } catch (error) {
+  1817→    console.error("Error funding escrow transaction:", error);
+  1818→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+  1819→    return NextResponse.json(
+  1820→      { error: "Failed to initiate escrow funding" },
+  1821→      { status: 500 }
+  1822→    );
+  1823→  }
+  1824→}
+  1825→
+  1826→
+  1827→============================================================
+  1828→FILE: escrow/transactions/[id]/release/route.ts
+  1829→============================================================
+  1830→import { NextRequest, NextResponse } from "next/server";
+  1831→import { db } from "@/lib/db";
+  1832→import { z } from "zod";
+  1833→import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+  1834→
+  1835→// ── Zod Schema ───────────────────────────────────────────────
+  1836→const releaseSchema = z.object({
+  1837→  milestoneId: z.string().min(1, "Milestone ID is required"),
+  1838→});
+  1839→
+  1840→// ── POST: Release funds for a milestone ─────────────────────
+  1841→export async function POST(
+  1842→  request: NextRequest,
+  1843→  { params }: { params: Promise<{ id: string }> }
+  1844→) {
+  1845→  try {
+  1846→    const user = await getApiUser(request);
+  1847→    const { id } = await params;
+  1848→    const body = await request.json();
+  1849→    const parsed = releaseSchema.safeParse(body);
+  1850→
+  1851→    if (!parsed.success) {
+  1852→      return NextResponse.json(
+  1853→        { error: "Validation failed", details: parsed.error.issues },
+  1854→        { status: 400 }
+  1855→      );
+  1856→    }
+  1857→
+  1858→    const { milestoneId } = parsed.data;
+  1859→
+  1860→    // Fetch escrow with milestones
+  1861→    const escrow = await db.escrowTransaction.findFirst({
+  1862→      where: {
+  1863→        id,
+  1864→        OR: [
+  1865→          { buyer: { tenantId: user.tenantId } },
+  1866→          { seller: { tenantId: user.tenantId } },
+  1867→        ],
+  1868→      },
+  1869→      include: {
+  1870→        milestones: { orderBy: { sequence: "asc" } },
+  1871→        seller: { select: { id: true, name: true } },
+  1872→      },
+  1873→    });
+  1874→
+  1875→    if (!escrow) {
+  1876→      return NextResponse.json(
+  1877→        { error: "Escrow transaction not found" },
+  1878→        { status: 404 }
+  1879→      );
+  1880→    }
+  1881→
+  1882→    if (escrow.status !== "in_escrow") {
+  1883→      return NextResponse.json(
+  1884→        {
+  1885→          error: `Cannot release funds from escrow with status '${escrow.status}'. Only 'in_escrow' escrows can release funds.`,
+  1886→        },
+  1887→        { status: 409 }
+  1888→      );
+  1889→    }
+  1890→
+  1891→    // Find the milestone
+  1892→    const milestone = escrow.milestones.find((m) => m.id === milestoneId);
+  1893→    if (!milestone) {
+  1894→      return NextResponse.json(
+  1895→        { error: "Milestone not found for this escrow" },
+  1896→        { status: 404 }
+  1897→      );
+  1898→    }
+  1899→
+  1900→    if (milestone.status === "released") {
+  1901→      return NextResponse.json(
+  1902→        { error: "Milestone has already been released" },
+  1903→        { status: 409 }
+  1904→      );
+  1905→    }
+  1906→
+  1907→    const now = new Date();
+  1908→
+  1909→    // Update milestone status
+  1910→    await db.escrowMilestone.update({
+  1911→      where: { id: milestoneId },
+  1912→      data: {
+  1913→        status: "released",
+  1914→        releasedAt: now,
+  1915→      },
+  1916→    });
+  1917→
+  1918→    // Create disbursement
+  1919→    const disbursement = await db.disbursement.create({
+  1920→      data: {
+  1921→        escrowId: id,
+  1922→        milestoneId,
+  1923→        amount: milestone.amount,
+  1924→        currency: escrow.currency,
+  1925→        status: "completed",
+  1926→        paymentRef: `DIS-${escrow.txRef}-${milestone.sequence}`,
+  1927→        completedAt: now,
+  1928→      },
+  1929→    });
+  1930→
+  1931→    // Check if all milestones are released
+  1932→    const allMilestones = await db.escrowMilestone.findMany({
+  1933→      where: { escrowId: id },
+  1934→    });
+  1935→    const allReleased = allMilestones.every((m) => m.status === "released");
+  1936→    const totalReleased = allMilestones
+  1937→      .filter((m) => m.status === "released")
+  1938→      .reduce((sum, m) => sum + m.amount, 0);
+  1939→
+  1940→    const updateData: Record<string, unknown> = {
+  1941→      releasedAmount: totalReleased,
+  1942→    };
+  1943→
+  1944→    if (allReleased) {
+  1945→      updateData.status = "completed";
+  1946→      updateData.completedAt = now;
+  1947→    } else {
+  1948→      updateData.status = "partial_release";
+  1949→    }
+  1950→
+  1951→    const updatedEscrow = await db.escrowTransaction.update({
+  1952→      where: { id },
+  1953→      data: updateData,
+  1954→      include: {
+  1955→        buyer: { select: { id: true, name: true } },
+  1956→        seller: { select: { id: true, name: true } },
+  1957→        milestones: { orderBy: { sequence: "asc" } },
+  1958→        disbursements: true,
+  1959→      },
+  1960→    });
+  1961→
+  1962→    // Audit log for milestone release
+  1963→    await db.escrowAuditLog.create({
+  1964→      data: {
+  1965→        escrowId: id,
+  1966→        action: "milestone_released",
+  1967→        details: `Milestone "${milestone.title}" (seq ${milestone.sequence}) released. Amount: ${milestone.amount} ${escrow.currency}. Disbursement ${disbursement.paymentRef} created.`,
+  1968→        metadata: JSON.stringify({
+  1969→          milestoneId,
+  1970→          milestoneTitle: milestone.title,
+  1971→          amount: milestone.amount,
+  1972→          disbursementId: disbursement.id,
+  1973→        }),
+  1974→      },
+  1975→    });
+  1976→
+  1977→    // If all released, add completion log
+  1978→    if (allReleased) {
+  1979→      await db.escrowAuditLog.create({
+  1980→        data: {
+  1981→          escrowId: id,
+  1982→          action: "completed",
+  1983→          details: `All milestones released. Escrow ${escrow.txRef} completed. Total released: ${totalReleased} ${escrow.currency}.`,
+  1984→        },
+  1985→      });
+  1986→    }
+  1987→
+  1988→    return NextResponse.json({ data: updatedEscrow });
+  1989→  } catch (error) {
+  1990→    console.error("Error releasing escrow funds:", error);
+  1991→    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+  1992→    return NextResponse.json(
+  1993→      { error: "Failed to release escrow funds" },
+  1994→      { status: 500 }
+  1995→    );
+  1996→  }
+  1997→}
+  1998→
+  1999→
+  2000→============================================================
+
+[showing lines 1-2000 of 2617; use offset=2001 with limit to continue reading]
