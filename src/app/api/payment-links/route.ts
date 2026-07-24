@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 function generateLinkRef(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -27,6 +28,7 @@ const createPaymentLinkSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
@@ -34,9 +36,20 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || ''
     const currency = searchParams.get('currency') || ''
 
-    const where: Record<string, unknown> = {}
+    // Fetch business IDs belonging to the tenant
+    const tenantBusinessIds = (await db.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })).map(b => b.id)
+
+    const where: Record<string, unknown> = {
+      businessId: { in: tenantBusinessIds },
+    }
 
     if (businessId) {
+      if (!tenantBusinessIds.includes(businessId)) {
+        return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+      }
       where.businessId = businessId
     }
     if (status) {
@@ -76,6 +89,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Error listing payment links:', error)
     return NextResponse.json({ error: 'Failed to list payment links' }, { status: 500 })
   }
@@ -83,6 +97,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createPaymentLinkSchema.safeParse(body)
 
@@ -94,6 +109,15 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parsed.data
+
+    // Verify business belongs to tenant
+    const biz = await db.business.findFirst({
+      where: { id: data.businessId, tenantId: user.tenantId },
+    })
+    if (!biz) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
+
     const allowedMethods = data.allowedMethods ?? DEFAULT_METHODS
 
     // Ensure unique linkRef
@@ -122,6 +146,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: paymentLink }, { status: 201 })
   } catch (error: unknown) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json({ error: 'Payment link reference collision, please retry' }, { status: 409 })
     }

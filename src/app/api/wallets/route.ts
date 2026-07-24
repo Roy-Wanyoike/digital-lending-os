@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createWalletSchema = z.object({
   businessId: z.string().min(1, 'Business ID is required'),
@@ -10,15 +11,28 @@ const createWalletSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId')
 
-    if (!businessId) {
-      return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
+    // Fetch business IDs belonging to the tenant
+    const tenantBusinessIds = (await db.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })).map(b => b.id)
+
+    const where: Record<string, unknown> = {
+      businessId: { in: tenantBusinessIds },
+    }
+    if (businessId) {
+      if (!tenantBusinessIds.includes(businessId)) {
+        return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+      }
+      where.businessId = businessId
     }
 
     const wallets = await db.wallet.findMany({
-      where: { businessId },
+      where,
       orderBy: { createdAt: 'desc' },
     })
 
@@ -34,6 +48,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: walletsWithCount })
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Error listing wallets:', error)
     return NextResponse.json({ error: 'Failed to list wallets' }, { status: 500 })
   }
@@ -41,6 +56,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createWalletSchema.safeParse(body)
 
@@ -52,6 +68,14 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parsed.data
+
+    // Verify business belongs to tenant
+    const biz = await db.business.findFirst({
+      where: { id: data.businessId, tenantId: user.tenantId },
+    })
+    if (!biz) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    }
 
     // Check no existing wallet for same business+currency
     const existing = await db.wallet.findFirst({
@@ -89,6 +113,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: wallet }, { status: 201 })
   } catch (error: unknown) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json(
         { error: 'A wallet for this currency already exists for this business' },

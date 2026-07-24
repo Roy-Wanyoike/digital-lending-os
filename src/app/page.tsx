@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Menu } from 'lucide-react'
+import { useSession, signOut } from 'next-auth/react'
+import { Menu, LogOut, User as UserIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ROLE_TABS, ROLE_LABELS, NAV_ITEMS, Toast, type Role } from '@/lib/dashboard-helpers'
 import { OverviewTab } from '@/components/dashboard/OverviewTab'
 import { TrustGraphTab } from '@/components/dashboard/TrustGraphTab'
@@ -38,12 +41,23 @@ const TAB_COMPONENTS: Record<string, () => React.JSX.Element> = {
 }
 
 export default function YoungsendDashboard() {
+  const { data: session, status } = useSession()
   const [activeTab, setActiveTab] = useState('overview')
   const [currentRole, setCurrentRole] = useState<Role>('admin')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [socketConnected] = useState(true)
   const [toastMessage, setToastMessage] = useState('')
   const [toastVisible, setToastVisible] = useState(false)
+
+  // Set role from session
+  useEffect(() => {
+    if (session?.user) {
+      const userRole = (session.user as any).role as Role
+      if (userRole && Object.keys(ROLE_LABELS).includes(userRole)) {
+        setCurrentRole(userRole)
+      }
+    }
+  }, [session])
 
   const visibleTabs = ROLE_TABS[currentRole] || []
   const safeTab = visibleTabs.includes(activeTab) ? activeTab : (visibleTabs[0] || 'overview')
@@ -59,6 +73,17 @@ export default function YoungsendDashboard() {
   }, [])
 
   const ActiveTabComponent = TAB_COMPONENTS[activeTab]
+  const userName = (session?.user as any)?.name || 'User'
+  const userEmail = session?.user?.email || ''
+  const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="h-8 w-8 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <TooltipProvider>
@@ -81,10 +106,13 @@ export default function YoungsendDashboard() {
                   <h2 className="text-lg font-semibold text-slate-900">{activeNav?.label || 'Dashboard'}</h2>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Select value={currentRole} onValueChange={(v) => setCurrentRole(v as Role)}>
-                    <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>{(Object.keys(ROLE_LABELS) as Role[]).map(r => (<SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>))}</SelectContent>
-                  </Select>
+                  {/* Role Selector (admin only) */}
+                  {(currentRole === 'admin' || (session?.user as any)?.role === 'admin') && (
+                    <Select value={currentRole} onValueChange={(v) => setCurrentRole(v as Role)}>
+                      <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>{(Object.keys(ROLE_LABELS) as Role[]).map(r => (<SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>))}</SelectContent>
+                    </Select>
+                  )}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-100">
@@ -94,6 +122,29 @@ export default function YoungsendDashboard() {
                     </TooltipTrigger>
                     <TooltipContent><p>Trust Network {socketConnected ? 'connected' : 'disconnected'}</p></TooltipContent>
                   </Tooltip>
+
+                  {/* User Menu */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="h-8 w-8 rounded-full p-0">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-slate-900 text-white text-xs font-medium">{userInitials}</AvatarFallback>
+                        </Avatar>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <div className="px-2 py-1.5">
+                        <p className="text-sm font-medium">{userName}</p>
+                        <p className="text-xs text-slate-500">{userEmail}</p>
+                        <p className="text-xs text-emerald-600 mt-0.5 capitalize">{currentRole}</p>
+                      </div>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => signOut({ callbackUrl: '/login' })}>
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Sign out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             </header>

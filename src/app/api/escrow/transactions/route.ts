@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
+import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
 // ── Zod Schemas ──────────────────────────────────────────────
 const milestoneSchema = z.object({
@@ -40,6 +41,7 @@ function computeRiskScore(): { score: number; level: string } {
 // ── GET: List escrow transactions ────────────────────────────
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request);
     const { searchParams } = new URL(request.url);
 
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
@@ -49,7 +51,12 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || undefined;
     const currency = searchParams.get("currency") || undefined;
 
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = {
+      OR: [
+        { buyer: { tenantId: user.tenantId } },
+        { seller: { tenantId: user.tenantId } },
+      ],
+    };
     if (buyerId) where.buyerId = buyerId;
     if (sellerId) where.sellerId = sellerId;
     if (status) where.status = status;
@@ -81,6 +88,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("Error listing escrow transactions:", error);
     return NextResponse.json(
       { error: "Failed to list escrow transactions" },
@@ -92,6 +100,7 @@ export async function GET(request: NextRequest) {
 // ── POST: Create escrow transaction ──────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request);
     const body = await request.json();
     const parsed = createEscrowSchema.safeParse(body);
 
@@ -167,6 +176,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: escrow }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("Error creating escrow transaction:", error);
     return NextResponse.json(
       { error: "Failed to create escrow transaction" },

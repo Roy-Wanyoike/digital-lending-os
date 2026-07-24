@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CreditCard, Shield, CheckCircle, AlertCircle, Loader2, ExternalLink, Globe, Smartphone, Building } from 'lucide-react'
@@ -47,6 +47,14 @@ const METHOD_ICONS: Record<string, any> = {
 }
 
 export default function PaymentCheckoutPage() {
+  return (
+    <Suspense>
+      <PaymentCheckoutInner />
+    </Suspense>
+  )
+}
+
+function PaymentCheckoutInner() {
   const params = useParams()
   const searchParams = useSearchParams()
   const ref = params.ref as string

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const createUserSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -11,6 +12,7 @@ const createUserSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
@@ -19,7 +21,9 @@ export async function GET(request: NextRequest) {
     const isActive = searchParams.get('isActive')
     const search = searchParams.get('search') || ''
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      tenantId: user.tenantId,
+    }
 
     if (role) {
       where.role = role
@@ -38,27 +42,27 @@ export async function GET(request: NextRequest) {
     }
 
     const [users, total] = await Promise.all([
-      db.user.findMany({
+      db.account.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: 'desc' },
       }),
-      db.user.count({ where }),
+      db.account.count({ where }),
     ])
 
     // Attach business name if businessId exists
     const usersWithBusiness = await Promise.all(
-      users.map(async (user) => {
+      users.map(async (acct) => {
         let businessName: string | null = null
-        if (user.businessId) {
+        if (acct.businessId) {
           const biz = await db.business.findUnique({
-            where: { id: user.businessId },
+            where: { id: acct.businessId },
             select: { name: true },
           })
           businessName = biz?.name ?? null
         }
-        return { ...user, businessName }
+        return { ...acct, businessName }
       })
     )
 
@@ -72,6 +76,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Error listing users:', error)
     return NextResponse.json({ error: 'Failed to list users' }, { status: 500 })
   }
@@ -79,6 +84,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getApiUser(request)
     const body = await request.json()
     const parsed = createUserSchema.safeParse(body)
 
@@ -91,25 +97,27 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data
 
-    // Check email uniqueness
-    const existing = await db.user.findUnique({
-      where: { email: data.email },
+    // Check email uniqueness within tenant
+    const existing = await db.account.findFirst({
+      where: { tenantId: user.tenantId, email: data.email },
     })
     if (existing) {
       return NextResponse.json({ error: 'A user with this email already exists' }, { status: 409 })
     }
 
-    const user = await db.user.create({
+    const createdAccount = await db.account.create({
       data: {
         email: data.email,
         name: data.name,
         role: data.role,
         businessId: data.businessId,
+        tenantId: user.tenantId,
       },
     })
 
-    return NextResponse.json({ data: user }, { status: 201 })
+    return NextResponse.json({ data: createdAccount }, { status: 201 })
   } catch (error: unknown) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json({ error: 'A user with this email already exists' }, { status: 409 })
     }

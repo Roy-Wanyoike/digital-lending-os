@@ -8,11 +8,60 @@ datasource db {
 }
 
 // ============================================================
+// MODULE 0: MULTI-TENANCY — Tenant & Account
+// ============================================================
+
+model Tenant {
+  id            String    @id @default(cuid())
+  name          String
+  slug          String    @unique  // used in subdomain/URL: youngsend.space-z.ai
+  plan          String    @default("starter") // starter, professional, enterprise
+  status        String    @default("active") // active, suspended, trial_expired
+  maxBusinesses Int       @default(5)
+  maxUsers      Int       @default(10)
+  features      String    @default("{}") // JSON: feature flags
+  ownerEmail    String
+  ownerName     String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  businesses    Business[]
+  accounts      Account[]
+
+  @@index([slug])
+  @@index([status])
+}
+
+model Account {
+  id            String    @id @default(cuid())
+  email         String
+  passwordHash  String
+  name          String
+  role          String    @default("admin") // admin, buyer, seller, auditor, viewer
+  tenantId      String
+  businessId    String?   // which business this user primarily operates as
+  avatarUrl     String?
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+}
+
+// ============================================================
 // MODULE 1: COMMERCE PASSPORT — Business Identity & Verification
 // ============================================================
 
 model Business {
   id              String   @id @default(cuid())
+  tenantId        String
   name            String
   legalName       String?
   registrationNo  String?
@@ -31,6 +80,7 @@ model Business {
   updatedAt       DateTime @updatedAt
 
   // Relations
+  tenant          Tenant    @relation(fields: [tenantId], references: [id])
   passport        CommercePassport?
   trustScore      TrustScore?
   digitalTwin     FinancialDigitalTwin?
@@ -42,6 +92,7 @@ model Business {
   receivedInvoices Invoice[] @relation("InvoiceReceiver")
   verifications   Verification[]
 
+  @@index([tenantId])
   @@index([country])
   @@index([industry])
   @@index([status])

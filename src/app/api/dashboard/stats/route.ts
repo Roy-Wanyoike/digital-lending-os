@@ -1,9 +1,31 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
 // GET /api/dashboard/stats — Dashboard aggregation stats
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const user = await getApiUser(request);
+
+    // Fetch business IDs belonging to the tenant
+    const tenantBusinessIds = (await db.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })).map(b => b.id);
+
+    const escrowTenantFilter = {
+      OR: [
+        { buyerId: { in: tenantBusinessIds } },
+        { sellerId: { in: tenantBusinessIds } },
+      ],
+    };
+    const paymentIntentTenantFilter = {
+      OR: [
+        { fromBusinessId: { in: tenantBusinessIds } },
+        { toBusinessId: { in: tenantBusinessIds } },
+      ],
+    };
+
     // Run independent queries in parallel
     const [
       totalBusinesses,
@@ -20,51 +42,73 @@ export async function GET() {
       trustScores,
     ] = await Promise.all([
       // Total businesses
-      db.business.count(),
+      db.business.count({ where: { tenantId: user.tenantId } }),
 
       // Verified businesses
-      db.business.count({ where: { status: 'verified' } }),
+      db.business.count({ where: { tenantId: user.tenantId, status: 'verified' } }),
 
       // Active escrows (created, funded, in_escrow, partial_release)
       db.escrowTransaction.count({
-        where: { status: { in: ['created', 'funded', 'in_escrow', 'partial_release'] } },
+        where: {
+          ...escrowTenantFilter,
+          status: { in: ['created', 'funded', 'in_escrow', 'partial_release'] },
+        },
       }),
 
       // Total escrow volume (sum of all escrow amounts)
-      db.escrowTransaction.aggregate({ _sum: { amount: true } }),
+      db.escrowTransaction.aggregate({
+        where: escrowTenantFilter,
+        _sum: { amount: true },
+      }),
 
       // Total payments processed (completed payment intents)
-      db.paymentIntent.count({ where: { status: 'completed' } }),
+      db.paymentIntent.count({
+        where: { ...paymentIntentTenantFilter, status: 'completed' },
+      }),
 
       // Recent disputes (open / under_review)
       db.dispute.count({
-        where: { status: { in: ['open', 'under_review'] } },
+        where: {
+          status: { in: ['open', 'under_review'] },
+          escrow: escrowTenantFilter,
+        },
       }),
 
       // Active relationships
-      db.businessRelationship.count({ where: { status: 'active' } }),
+      db.businessRelationship.count({
+        where: {
+          ...paymentIntentTenantFilter,
+          status: 'active',
+        },
+      }),
 
       // Escrows grouped by status
       db.escrowTransaction.groupBy({
         by: ['status'],
         _count: { status: true },
+        where: escrowTenantFilter,
       }),
 
       // Businesses grouped by country
       db.business.groupBy({
         by: ['country'],
         _count: { country: true },
+        where: { tenantId: user.tenantId },
       }),
 
       // Payment intents grouped by method
       db.paymentIntent.groupBy({
         by: ['paymentMethod'],
         _count: { paymentMethod: true },
-        where: { paymentMethod: { not: null } },
+        where: {
+          paymentMethod: { not: null },
+          ...paymentIntentTenantFilter,
+        },
       }),
 
       // Recent transactions — latest 5 escrow transactions with buyer/seller names
       db.escrowTransaction.findMany({
+        where: escrowTenantFilter,
         take: 5,
         orderBy: { createdAt: 'desc' },
         include: {
@@ -75,6 +119,7 @@ export async function GET() {
 
       // All trust scores for distribution
       db.trustScore.findMany({
+        where: { businessId: { in: tenantBusinessIds } },
         select: { overallScore: true },
       }),
     ]);
@@ -152,6 +197,7 @@ export async function GET() {
       trustScoreDistribution,
     });
   } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error('Error fetching dashboard stats:', error);
     return NextResponse.json(
       { error: 'Failed to fetch dashboard stats' },
