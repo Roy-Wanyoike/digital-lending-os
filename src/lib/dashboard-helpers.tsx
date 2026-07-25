@@ -1,12 +1,12 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import {
   LayoutDashboard, Network, Shield, ArrowLeftRight, IdCard as PassportIcon,
   Brain, Link2, Wallet, ShieldAlert, UserCheck, BellRing, Scale,
-  TrendingUp, Building2, ArrowUpRight, ArrowDownRight, Zap, Star,
+  TrendingUp, Building2, ArrowUpRight, ArrowDownRight, Zap, Star, Gift,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -294,10 +294,14 @@ export function truncate(str: string, len: number): string {
 export function useApi<T>(url: string) {
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
+  const [key, setKey] = useState(0)
+
+  const refetch = useCallback(() => setKey(k => k + 1), [])
 
   useEffect(() => {
     if (!url) return
     let cancelled = false
+    setLoading(true)
     fetch(url)
       .then(r => r.json())
       .then(d => {
@@ -313,9 +317,9 @@ export function useApi<T>(url: string) {
       })
       .catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [url])
+  }, [url, key])
 
-  return { data, loading }
+  return { data, loading, refetch }
 }
 
 // ─── Shared Sub-Components ───────────────────────────────────────
@@ -435,9 +439,9 @@ export const ROLE_LABELS: Record<Role, string> = {
 }
 
 export const ROLE_TABS: Record<Role, string[]> = {
-  admin: ['overview', 'trust-graph', 'escrow', 'payments', 'passport', 'digital-twin', 'payment-links', 'wallet', 'fraud', 'matching', 'collections', 'compliance'],
-  buyer: ['overview', 'payments', 'payment-links', 'wallet'],
-  seller: ['overview', 'trust-graph', 'escrow', 'payment-links', 'wallet'],
+  admin: ['overview', 'trust-graph', 'escrow', 'payments', 'passport', 'digital-twin', 'payment-links', 'wallet', 'referral', 'fraud', 'matching', 'collections', 'compliance'],
+  buyer: ['overview', 'payments', 'payment-links', 'wallet', 'referral'],
+  seller: ['overview', 'trust-graph', 'escrow', 'payment-links', 'wallet', 'referral'],
   auditor: ['overview', 'trust-graph', 'fraud', 'compliance', 'collections'],
   viewer: ['overview', 'trust-graph', 'payments'],
 }
@@ -451,6 +455,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'digital-twin', label: 'Digital Twin', icon: Brain },
   { id: 'payment-links', label: 'Payment Links', icon: Link2 },
   { id: 'wallet', label: 'Wallet', icon: Wallet },
+  { id: 'referral', label: 'Referral', icon: Gift },
   { id: 'fraud', label: 'Fraud', icon: ShieldAlert },
   { id: 'matching', label: 'Matching', icon: UserCheck },
   { id: 'collections', label: 'Collections', icon: BellRing },

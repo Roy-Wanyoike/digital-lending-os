@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   Card,
@@ -15,15 +15,27 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 
 export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterPageInner />
+    </Suspense>
+  )
+}
+
+function RegisterPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const refParam = searchParams.get('ref') || ''
 
   const [tenantName, setTenantName] = useState('')
   const [ownerName, setOwnerName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [referralCode, setReferralCode] = useState(refParam)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [referralInfo, setReferralInfo] = useState<{ name: string } | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,18 +51,36 @@ export default function RegisterPage() {
       return
     }
 
+    // Validate referral code if provided
+    if (referralCode) {
+      const refRes = await fetch('/api/referral', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referralCode }),
+      })
+      const refData = await refRes.json()
+      if (!refRes.ok) {
+        setError('Invalid referral code: ' + (refData.error || 'please check and try again.'))
+        setLoading(false)
+        return
+      }
+    }
+
     setLoading(true)
 
     try {
+      const body: Record<string, string> = {
+        name: tenantName,
+        ownerName,
+        ownerEmail: email,
+        password,
+      }
+      if (referralCode) body.referralCode = referralCode
+
       const res = await fetch('/api/tenants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: tenantName,
-          ownerName,
-          ownerEmail: email,
-          password,
-        }),
+        body: JSON.stringify(body),
       })
 
       if (res.ok) {
@@ -65,6 +95,22 @@ export default function RegisterPage() {
       setLoading(false)
     }
   }
+
+  // Auto-validate referral code on mount
+  useEffect(() => {
+    if (referralCode) {
+      fetch('/api/referral', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ referralCode }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.valid) setReferralInfo({ name: d.referrer.name })
+        })
+        .catch(() => {})
+    }
+  }, [referralCode])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 px-4 py-12">
@@ -85,6 +131,17 @@ export default function RegisterPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Referral Banner */}
+            {referralInfo && (
+              <div className="rounded-md bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
+                <span className="text-lg">🎁</span>
+                <div>
+                  <p className="font-medium">Referred by {referralInfo.name}</p>
+                  <p className="text-xs text-emerald-600">You are using a referral link — make a deposit after signing up!</p>
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
                 {error}
@@ -153,6 +210,24 @@ export default function RegisterPage() {
                 autoComplete="new-password"
               />
             </div>
+            {/* Manual referral code input (if not from URL) */}
+            {!refParam && (
+              <div className="space-y-2">
+                <Label htmlFor="referralCode" className="text-slate-500">
+                  Referral Code <span className="text-slate-400">(optional)</span>
+                </Label>
+                <Input
+                  id="referralCode"
+                  type="text"
+                  placeholder="e.g. YSABC123"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                  disabled={loading}
+                  className="uppercase"
+                />
+                <p className="text-xs text-slate-400">Enter a referral code to earn bonuses</p>
+              </div>
+            )}
             <Button
               type="submit"
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"

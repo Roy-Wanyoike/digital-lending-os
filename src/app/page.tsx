@@ -20,6 +20,7 @@ import { DigitalTwinTab } from '@/components/dashboard/DigitalTwinTab'
 import { PaymentLinksTab } from '@/components/dashboard/PaymentLinksTab'
 import { WalletTab } from '@/components/dashboard/WalletTab'
 import { FraudTab } from '@/components/dashboard/FraudTab'
+import { ReferralTab } from '@/components/dashboard/ReferralTab'
 import { MatchingTab } from '@/components/dashboard/MatchingTab'
 import { CollectionsTab } from '@/components/dashboard/CollectionsTab'
 import { ComplianceTab } from '@/components/dashboard/ComplianceTab'
@@ -34,6 +35,7 @@ const TAB_COMPONENTS: Record<string, () => React.JSX.Element> = {
   'digital-twin': DigitalTwinTab,
   'payment-links': PaymentLinksTab,
   'wallet': WalletTab,
+  'referral': ReferralTab,
   'fraud': FraudTab,
   'matching': MatchingTab,
   'collections': CollectionsTab,

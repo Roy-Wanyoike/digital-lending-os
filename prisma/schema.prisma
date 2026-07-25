@@ -1057,3 +1057,27 @@ model ComplianceScreening {
   @@index([createdAt])
 }
 
+// ============================================================
+// MODULE 14: REFERRAL SYSTEM — Referral Links & Bonuses
+// ============================================================
+
+model ReferralBonus {
+  id              String   @id @default(cuid())
+  bonusRef        String   @unique
+  referrerId      String   // Account who referred
+  refereeId       String   // Account who was referred
+  depositId       String   // The deposit that triggered the bonus
+  walletId        String   // Wallet that received the bonus
+  bonusAmount     Float    @default(100.00)
+  bonusCurrency   String   @default("USD")
+  status          String   @default("credited") // credited, pending, revoked
+  creditedAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([referrerId])
+  @@index([refereeId])
+  @@index([status])
+  @@index([creditedAt])
+}
+

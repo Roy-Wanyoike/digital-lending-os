@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, slug, plan, ownerName, ownerEmail, password } = body;
+    const { name, slug, plan, ownerName, ownerEmail, password, referralCode } = body;
 
     if (!name) return errorResponse('Name is required', 400);
 
@@ -85,6 +85,18 @@ export async function POST(req: NextRequest) {
         return errorResponse('An account with this email already exists', 409);
       }
 
+      // Validate referral code if provided
+      let referrerId: string | null = null;
+      if (referralCode) {
+        const referrer = await db.account.findUnique({
+          where: { referralCode: referralCode.toUpperCase() },
+          select: { id: true, isActive: true },
+        });
+        if (!referrer) return errorResponse('Invalid referral code', 400);
+        if (!referrer.isActive) return errorResponse('Referral code is no longer active', 400);
+        referrerId = referrer.id;
+      }
+
       const hashedPassword = await bcrypt.hash(password, 12);
 
       // Create tenant, owner account, and default business in a transaction
@@ -107,6 +119,7 @@ export async function POST(req: NextRequest) {
             role: 'admin',
             tenantId: tenant.id,
             isActive: true,
+            referredBy: referrerId || undefined,
           },
         });
 

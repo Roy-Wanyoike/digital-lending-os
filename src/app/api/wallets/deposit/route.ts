@@ -4,6 +4,9 @@ import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+const REFERRAL_BONUS_AMOUNT = 100.00
+const REFERRAL_BONUS_CURRENCY = 'USD'
+
 const depositSchema = z.object({
   walletId: z.string().min(1, 'Wallet ID is required'),
   amount: z.number().positive('Amount must be greater than 0'),
@@ -20,6 +23,8 @@ const depositSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+
     const body = await request.json()
     const parsed = depositSchema.safeParse(body)
 
@@ -53,6 +58,22 @@ export async function POST(request: NextRequest) {
     // In production, this would call the payment provider.
     // For demo, if provider is 'demo' we auto-complete the deposit.
     const isAutoComplete = data.provider === 'demo'
+
+    // Check if this user has a referrer (for referral bonus)
+    const account = await db.account.findUnique({
+      where: { id: user.id },
+      select: { referredBy: true },
+    })
+    const hasReferrer = !!account?.referredBy
+
+    // Check if the referrer already got a bonus for this referee
+    let bonusAlreadyGiven = false
+    if (hasReferrer) {
+      const existingBonus = await db.referralBonus.findFirst({
+        where: { refereeId: user.id },
+      })
+      bonusAlreadyGiven = !!existingBonus
+    }
 
     const deposit = await db.$transaction(async (tx) => {
       const dep = await tx.deposit.create({
@@ -100,14 +121,92 @@ export async function POST(request: NextRequest) {
             availableBalance: Math.round((wallet.availableBalance + data.amount) * 100) / 100,
           },
         })
+
+        // ---- REFERRAL BONUS: Credit $100 to referrer on referee's first deposit ----
+        if (hasReferrer && !bonusAlreadyGiven && account!.referredBy) {
+          // Find the referrer's USD wallet
+          const referrerBusiness = await tx.account.findUnique({
+            where: { id: account!.referredBy },
+            select: { businessId: true, tenantId: true },
+          })
+          if (referrerBusiness?.businessId) {
+            const referrerWallet = await tx.wallet.findFirst({
+              where: {
+                businessId: referrerBusiness.businessId,
+                currency: REFERRAL_BONUS_CURRENCY,
+                status: 'active',
+              },
+            })
+            if (referrerWallet) {
+              const balBefore = referrerWallet.balance
+              const balAfter = Math.round((balBefore + REFERRAL_BONUS_AMOUNT) * 100) / 100
+
+              // Credit the referrer's wallet
+              await tx.wallet.update({
+                where: { id: referrerWallet.id },
+                data: {
+                  balance: balAfter,
+                  availableBalance: Math.round((referrerWallet.availableBalance + REFERRAL_BONUS_AMOUNT) * 100) / 100,
+                },
+              })
+
+              // Record the bonus transaction
+              await tx.walletTransaction.create({
+                data: {
+                  walletId: referrerWallet.id,
+                  txRef: `WTX-${randomUUID().slice(0, 8).toUpperCase()}`,
+                  type: 'bonus',
+                  amount: REFERRAL_BONUS_AMOUNT,
+                  balanceBefore: balBefore,
+                  balanceAfter: balAfter,
+                  currency: REFERRAL_BONUS_CURRENCY,
+                  description: `Referral bonus: ${user.email} made their first deposit`,
+                  referenceType: 'referral_bonus',
+                  referenceId: dep.id,
+                  status: 'completed',
+                },
+              })
+
+              // Create the referral bonus record
+              await tx.referralBonus.create({
+                data: {
+                  bonusRef: `RFB-${randomUUID().slice(0, 8).toUpperCase()}`,
+                  referrerId: account!.referredBy,
+                  refereeId: user.id,
+                  depositId: dep.id,
+                  walletId: referrerWallet.id,
+                  bonusAmount: REFERRAL_BONUS_AMOUNT,
+                  bonusCurrency: REFERRAL_BONUS_CURRENCY,
+                  status: 'credited',
+                },
+              })
+            }
+          }
+        }
       }
 
       return dep
     })
 
-    return NextResponse.json({ data: deposit }, { status: 201 })
+    // Check if referral bonus was just credited
+    let referralBonusCredited = false
+    if (isAutoComplete && hasReferrer && !bonusAlreadyGiven) {
+ const newBonus = await db.referralBonus.findFirst({
+        where: { refereeId: user.id, depositId: deposit.id },
+      })
+      referralBonusCredited = !!newBonus
+    }
+
+    return NextResponse.json({
+      data: deposit,
+      referralBonus: referralBonusCredited ? {
+        amount: REFERRAL_BONUS_AMOUNT,
+        currency: REFERRAL_BONUS_CURRENCY,
+        message: `$${REFERRAL_BONUS_AMOUNT} referral bonus credited to your referrer's wallet!`,
+      } : undefined,
+    }, { status: 201 })
   } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     console.error('Error creating deposit:', error)
     return NextResponse.json({ error: 'Failed to create deposit' }, { status: 500 })
   }
@@ -117,6 +216,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url)
     const walletId = searchParams.get('walletId')
     const status = searchParams.get('status') || ''
@@ -148,7 +248,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: deposits })
   } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     console.error('Error listing deposits:', error)
     return NextResponse.json({ error: 'Failed to list deposits' }, { status: 500 })
   }
