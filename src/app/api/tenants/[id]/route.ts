@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, requireRole, errorResponse, successResponse } from '@/lib/auth/api-helpers';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { getApiUser, requireRole, AuthError } from '@/lib/auth/api-helpers';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireAuth(req);
+    const user = await getApiUser(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    const { id } = await params;
 
     // Only allow users to view their own tenant (unless SUPER_ADMIN)
-    if (user.tenantId !== params.id && user.role !== 'SUPER_ADMIN') {
-      return errorResponse('Access denied', 403);
+    if (user.tenantId !== id && user.role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: params.id },
+    const tenant = await db.tenant.findUnique({
+      where: { id },
       include: {
         _count: {
           select: { businesses: true, accounts: true },
@@ -23,41 +27,62 @@ export async function GET(
       },
     });
 
-    if (!tenant) return errorResponse('Tenant not found', 404);
-    return successResponse(tenant);
-  } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
+    }
+    return NextResponse.json({ data: tenant });
+  } catch (error) {
     console.error('Tenant GET error:', error);
-    return errorResponse('Failed to fetch tenant', 500);
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    return NextResponse.json({ error: 'Failed to fetch tenant' }, { status: 500 });
   }
 }
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireRole(req, ['SUPER_ADMIN', 'ADMIN']);
-    const body = await req.json();
+    const user = await getApiUser(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    const { id } = await params;
 
-    if (user.tenantId !== params.id && user.role !== 'SUPER_ADMIN') {
-      return errorResponse('Access denied', 403);
+    if (user.tenantId !== id && user.role !== 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const tenant = await prisma.tenant.update({
-      where: { id: params.id },
-      data: {
-        ...(body.name && { name: body.name }),
-        ...(body.plan && { plan: body.plan }),
-        ...(body.settings && { settings: body.settings }),
-      },
+    // Only allow ADMIN or SUPER_ADMIN to update tenant
+    if (!['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const body = await req.json();
+
+    const updateData: Record<string, unknown> = {};
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.plan !== undefined) updateData.plan = body.plan;
+    if (body.ownerEmail !== undefined) updateData.ownerEmail = body.ownerEmail;
+    if (body.ownerName !== undefined) updateData.ownerName = body.ownerName;
+    if (body.maxBusinesses !== undefined) updateData.maxBusinesses = body.maxBusinesses;
+    if (body.maxUsers !== undefined) updateData.maxUsers = body.maxUsers;
+    if (body.features !== undefined) updateData.features = typeof body.features === 'object' ? JSON.stringify(body.features) : body.features;
+    if (body.status !== undefined) updateData.status = body.status;
+
+    const tenant = await db.tenant.update({
+      where: { id },
+      data: updateData,
     });
 
-    return successResponse(tenant);
-  } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
-    if (error.message === 'Insufficient permissions') return errorResponse(error.message, 403);
+    return NextResponse.json({ data: tenant });
+  } catch (error) {
     console.error('Tenant PATCH error:', error);
-    return errorResponse('Failed to update tenant', 500);
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    return NextResponse.json({ error: 'Failed to update tenant' }, { status: 500 });
   }
 }

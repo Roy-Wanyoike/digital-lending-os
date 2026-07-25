@@ -1,0 +1,1149 @@
+     1→generator client {
+     2→  provider = "prisma-client-js"
+     3→}
+     4→
+     5→datasource db {
+     6→  provider = "sqlite"
+     7→  url      = env("DATABASE_URL")
+     8→}
+     9→
+    10→// ============================================================
+    11→// MODULE 0: MULTI-TENANCY — Tenant & Account
+    12→// ============================================================
+    13→
+    14→model Tenant {
+    15→  id            String    @id @default(cuid())
+    16→  name          String
+    17→  slug          String    @unique  // used in subdomain/URL: youngsend.space-z.ai
+    18→  plan          String    @default("starter") // starter, professional, enterprise
+    19→  status        String    @default("active") // active, suspended, trial_expired
+    20→  maxBusinesses Int       @default(5)
+    21→  maxUsers      Int       @default(10)
+    22→  features      String    @default("{}") // JSON: feature flags
+    23→  ownerEmail    String
+    24→  ownerName     String
+    25→  createdAt     DateTime  @default(now())
+    26→  updatedAt     DateTime  @updatedAt
+    27→
+    28→  businesses    Business[]
+    29→  accounts      Account[]
+    30→
+    31→  @@index([slug])
+    32→  @@index([status])
+    33→  deposits    Deposit[]
+    34→  withdrawals Withdrawal[]
+    35→  currencyConversions CurrencyConversion[]
+    36→}
+    37→
+    38→model Account {
+    39→  id            String    @id @default(cuid())
+    40→  email         String
+    41→  passwordHash  String
+    42→  name          String
+    43→  role          String    @default("admin") // admin, buyer, seller, auditor, viewer
+    44→  tenantId      String
+    45→  businessId    String?   // which business this user primarily operates as
+    46→  avatarUrl     String?
+    47→  isActive      Boolean   @default(true)
+    48→  lastLoginAt   DateTime?
+    49→  createdAt     DateTime  @default(now())
+    50→  updatedAt     DateTime  @updatedAt
+    51→
+    52→  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+    53→
+    54→  @@unique([tenantId, email])
+    55→  @@index([tenantId])
+    56→  @@index([email])
+    57→  @@index([role])
+    58→  @@index([isActive])
+    59→  referralCode    String?   @unique
+    60→  referredBy      String?
+    61→  notificationsEnabled Boolean @default(true)
+    62→  twoFactorEnabled    Boolean @default(false)
+    63→  deposits    Deposit[]
+    64→  withdrawals Withdrawal[]
+    65→  currencyConversions CurrencyConversion[]
+    66→}
+    67→
+    68→// ============================================================
+    69→// MODULE 1: COMMERCE PASSPORT — Business Identity & Verification
+    70→// ============================================================
+    71→
+    72→model Business {
+    73→  id              String   @id @default(cuid())
+    74→  tenantId        String
+    75→  name            String
+    76→  legalName       String?
+    77→  registrationNo  String?
+    78→  taxId           String?
+    79→  country         String
+    80→  city            String?
+    81→  industry        String?
+    82→  website         String?
+    83→  employeeCount   Int?
+    84→  annualRevenue   Float?
+    85→  description     String?
+    86→  logoUrl         String?
+    87→  status          String   @default("pending") // pending, verified, suspended, deactivated
+    88→  verifiedAt      DateTime?
+    89→  createdAt       DateTime @default(now())
+    90→  updatedAt       DateTime @updatedAt
+    91→
+    92→  // Relations
+    93→  tenant          Tenant    @relation(fields: [tenantId], references: [id])
+    94→  passport        CommercePassport?
+    95→  trustScore      TrustScore?
+    96→  digitalTwin     FinancialDigitalTwin?
+    97→  sentRelationships  BusinessRelationship[] @relation("SentRelationships")
+    98→  receivedRelationships BusinessRelationship[] @relation("ReceivedRelationships")
+    99→  escrowAsBuyer   EscrowTransaction[] @relation("Buyer")
+   100→  escrowAsSeller  EscrowTransaction[] @relation("Seller")
+   101→  sentInvoices    Invoice[] @relation("InvoiceSender")
+   102→  receivedInvoices Invoice[] @relation("InvoiceReceiver")
+   103→  verifications   Verification[]
+   104→
+   105→  @@index([tenantId])
+   106→  @@index([country])
+   107→  @@index([industry])
+   108→  @@index([status])
+   109→}
+   110→
+   111→model CommercePassport {
+   112→  id              String   @id @default(cuid())
+   113→  businessId      String   @unique
+   114→  passportHash    String   @unique
+   115→  credentialLevel String   @default("basic") // basic, standard, enhanced, premium
+   116→  kycStatus       String   @default("not_started") // not_started, in_progress, verified, rejected
+   117→  kycVerifiedAt   DateTime?
+   118→  amlStatus       String   @default("not_started") // not_started, cleared, flagged, rejected
+   119→  amlCheckedAt    DateTime?
+   120→  riskRating      String   @default("medium") // low, medium, high, critical
+   121→  lastAuditAt     DateTime?
+   122→  nextAuditDue    DateTime?
+   123→  createdAt       DateTime @default(now())
+   124→  updatedAt       DateTime @updatedAt
+   125→
+   126→  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   127→  complianceDocs  ComplianceDocument[]
+   128→
+   129→  @@index([credentialLevel])
+   130→  @@index([riskRating])
+   131→}
+   132→
+   133→model Verification {
+   134→  id              String   @id @default(cuid())
+   135→  businessId      String
+   136→  type            String   // identity, business_registration, tax, bank_account, address
+   137→  method          String   // document, api, manual, third_party
+   138→  status          String   @default("pending") // pending, in_progress, approved, rejected, expired
+   139→  submittedAt     DateTime @default(now())
+   140→  verifiedAt      DateTime?
+   141→  verifiedBy      String?
+   142→  rejectionReason String?
+   143→  metadata        String?  // JSON string for extra data
+   144→  createdAt       DateTime @default(now())
+   145→  updatedAt       DateTime @updatedAt
+   146→
+   147→  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   148→
+   149→  @@index([type])
+   150→  @@index([status])
+   151→}
+   152→
+   153→model ComplianceDocument {
+   154→  id              String   @id @default(cuid())
+   155→  passportId      String
+   156→  docType         String   // certificate_of_incorporation, tax_registration, bank_statement, proof_of_address, license
+   157→  docName         String
+   158→  docUrl          String?
+   159→  status          String   @default("pending") // pending, approved, rejected, expired
+   160→  uploadedAt      DateTime @default(now())
+   161→  expiresAt       DateTime?
+   162→  createdAt       DateTime @default(now())
+   163→  updatedAt       DateTime @updatedAt
+   164→
+   165→  passport        CommercePassport @relation(fields: [passportId], references: [id], onDelete: Cascade)
+   166→
+   167→  @@index([docType])
+   168→  @@index([status])
+   169→}
+   170→
+   171→// ============================================================
+   172→// MODULE 2: TRUST GRAPH — Reputation & Relationship Network
+   173→// ============================================================
+   174→
+   175→model TrustScore {
+   176→  id              String   @id @default(cuid())
+   177→  businessId      String   @unique
+   178→  overallScore    Float    @default(50.0)
+   179→  paymentScore    Float    @default(50.0)
+   180→  deliveryScore   Float    @default(50.0)
+   181→  qualityScore    Float    @default(50.0)
+   182→  communicationScore Float @default(50.0)
+   183→  complianceScore Float    @default(50.0)
+   184→  totalReviews    Int      @default(0)
+   185→  totalTransactions Int    @default(0)
+   186→  scoreVersion    Int      @default(1)
+   187→  lastCalculated  DateTime @default(now())
+   188→  createdAt       DateTime @default(now())
+   189→  updatedAt       DateTime @updatedAt
+   190→
+   191→  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   192→  reputationEvents ReputationEvent[]
+   193→
+   194→  @@index([overallScore])
+   195→}
+   196→
+   197→model BusinessRelationship {
+   198→  id              String   @id @default(cuid())
+   199→  fromBusinessId  String
+   200→  toBusinessId    String
+   201→  type            String   // supplier, buyer, partner, logistics, financial
+   202→  status          String   @default("active") // active, paused, terminated
+   203→  trustLevel      Float    @default(50.0)
+   204→  totalTxVolume   Float    @default(0)
+   205→  totalTxCount    Int      @default(0)
+   206→  firstTxDate     DateTime?
+   207→  lastTxDate      DateTime?
+   208→  metadata        String?  // JSON string
+   209→  createdAt       DateTime @default(now())
+   210→  updatedAt       DateTime @updatedAt
+   211→
+   212→  fromBusiness    Business  @relation("SentRelationships", fields: [fromBusinessId], references: [id], onDelete: Cascade)
+   213→  toBusiness      Business  @relation("ReceivedRelationships", fields: [toBusinessId], references: [id], onDelete: Cascade)
+   214→
+   215→  @@unique([fromBusinessId, toBusinessId, type])
+   216→  @@index([type])
+   217→  @@index([trustLevel])
+   218→}
+   219→
+   220→model ReputationEvent {
+   221→  id              String   @id @default(cuid())
+   222→  trustScoreId    String
+   223→  eventType       String   // transaction_completed, review_received, dispute_resolved, verification_upgraded, penalty_applied
+   224→  scoreImpact     Float    @default(0)
+   225→  description     String?
+   226→  sourceId        String?  // ID of related entity (escrow_id, review_id, etc.)
+   227→  metadata        String?  // JSON string
+   228→  createdAt       DateTime @default(now())
+   229→
+   230→  trustScore      TrustScore @relation(fields: [trustScoreId], references: [id], onDelete: Cascade)
+   231→
+   232→  @@index([eventType])
+   233→  @@index([createdAt])
+   234→}
+   235→
+   236→model Review {
+   237→  id              String   @id @default(cuid())
+   238→  fromBusinessId  String
+   239→  toBusinessId    String
+   240→  escrowId        String?
+   241→  rating          Float    // 1-5
+   242→  paymentRating   Float?
+   243→  deliveryRating  Float?
+   244→  qualityRating   Float?
+   245→  communicationRating Float?
+   246→  comment         String?
+   247→  response        String?
+   248→  respondedAt     DateTime?
+   249→  status          String   @default("published") // published, hidden, flagged
+   250→  createdAt       DateTime @default(now())
+   251→  updatedAt       DateTime @updatedAt
+   252→
+   253→  @@index([toBusinessId])
+   254→  @@index([rating])
+   255→  @@index([createdAt])
+   256→}
+   257→
+   258→// ============================================================
+   259→// MODULE 3: AI SMART ESCROW — Transaction State Machine
+   260→// ============================================================
+   261→
+   262→model EscrowTransaction {
+   263→  id              String   @id @default(cuid())
+   264→  txRef           String   @unique
+   265→  buyerId         String
+   266→  sellerId        String
+   267→  amount          Float
+   268→  currency        String   @default("USD")
+   269→  description     String?
+   270→  status          String   @default("created") // created, funded, in_escrow, partial_release, completed, disputed, refunded, cancelled
+   271→  currentMilestone Int      @default(0)
+   272→  totalMilestones Int      @default(1)
+   273→  fundedAmount    Float    @default(0)
+   274→  releasedAmount  Float    @default(0)
+   275→  refundedAmount  Float    @default(0)
+   276→  feeAmount       Float    @default(0)
+   277→  feeCurrency     String   @default("USD")
+   278→  aiRiskScore     Float?
+   279→  aiRiskLevel     String?  // low, medium, high
+   280→  paymentIntentId String?
+   281→  paymentIntent  PaymentIntent?
+   282→  expiresAt       DateTime?
+   283→  completedAt     DateTime?
+   284→  createdAt       DateTime @default(now())
+   285→  updatedAt       DateTime @updatedAt
+   286→
+   287→  buyer           Business  @relation("Buyer", fields: [buyerId], references: [id])
+   288→  seller          Business  @relation("Seller", fields: [sellerId], references: [id])
+   289→  milestones      EscrowMilestone[]
+   290→  disbursements   Disbursement[]
+   291→  disputes        Dispute[]
+   292→  auditLog        EscrowAuditLog[]
+   293→
+   294→  @@index([status])
+   295→  @@index([buyerId])
+   296→  @@index([sellerId])
+   297→  @@index([currency])
+   298→  @@index([createdAt])
+   299→  buyerWalletId  String?
+   300→  sellerWalletId String?
+   301→  releasedAt    DateTime?
+   302→}
+   303→
+   304→model EscrowMilestone {
+   305→  id              String   @id @default(cuid())
+   306→  escrowId        String
+   307→  sequence        Int
+   308→  title           String
+   309→  description     String?
+   310→  amount          Float
+   311→  status          String   @default("pending") // pending, ready, released, disputed
+   312→  evidence        String?  // JSON array of evidence URLs
+   313→  releasedAt      DateTime?
+   314→  createdAt       DateTime @default(now())
+   315→  updatedAt       DateTime @updatedAt
+   316→
+   317→  escrow          EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+   318→
+   319→  @@index([escrowId])
+   320→  @@index([status])
+   321→}
+   322→
+   323→model Disbursement {
+   324→  id              String   @id @default(cuid())
+   325→  escrowId        String
+   326→  milestoneId     String?
+   327→  amount          Float
+   328→  currency        String
+   329→  fromAccount     String?
+   330→  toAccount       String?
+   331→  status          String   @default("pending") // pending, processing, completed, failed
+   332→  paymentRef      String?
+   333→  completedAt     DateTime?
+   334→  createdAt       DateTime @default(now())
+   335→  updatedAt       DateTime @updatedAt
+   336→
+   337→  escrow          EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+   338→
+   339→  @@index([escrowId])
+   340→  @@index([status])
+   341→}
+   342→
+   343→model Dispute {
+   344→  id              String   @id @default(cuid())
+   345→  escrowId        String
+   346→  raisedBy        String   // buyer or seller
+   347→  reason          String
+   348→  description     String?
+   349→  status          String   @default("open") // open, under_review, resolved, escalated
+   350→  resolution      String?
+   351→  resolvedAt      DateTime?
+   352→  aiRecommendation String?
+   353→  metadata        String?
+   354→  createdAt       DateTime @default(now())
+   355→  updatedAt       DateTime @updatedAt
+   356→
+   357→  escrow          EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+   358→
+   359→  @@index([escrowId])
+   360→  @@index([status])
+   361→}
+   362→
+   363→model EscrowAuditLog {
+   364→  id              String   @id @default(cuid())
+   365→  escrowId        String
+   366→  action          String
+   367→  actor           String?
+   368→  details         String?
+   369→  metadata        String?
+   370→  createdAt       DateTime @default(now())
+   371→
+   372→  escrow          EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+   373→
+   374→  @@index([escrowId])
+   375→  @@index([action])
+   376→  @@index([createdAt])
+   377→}
+   378→
+   379→// ============================================================
+   380→// MODULE 4: GLOBAL PAYMENT ROUTER — Multi-Currency & Routing
+   381→// ============================================================
+   382→
+   383→model PaymentIntent {
+   384→  id              String   @id @default(cuid())
+   385→  intentRef       String   @unique
+   386→  escrowId        String?  @unique
+   387→  fromBusinessId  String
+   388→  toBusinessId    String
+   389→  sourceAmount    Float
+   390→  sourceCurrency  String
+   391→  targetAmount    Float
+   392→  targetCurrency  String
+   393→  exchangeRate    Float?
+   394→  status          String   @default("created") // created, processing, completed, failed, cancelled
+   395→  paymentMethod   String?  // bank_transfer, card, crypto, mobile_money, digital_wallet
+   396→  routingProvider String?  // stripe, wise, paypal, local_bank, crypto_network
+   397→  routingScore    Float?   // AI-calculated routing optimization score
+   398→  estimatedFee    Float?
+   399→  actualFee       Float?
+   400→  estimatedTime   Int?     // in minutes
+   401→  completedAt     DateTime?
+   402→  createdAt       DateTime @default(now())
+   403→  updatedAt       DateTime @updatedAt
+   404→
+   405→  escrow          EscrowTransaction?  @relation(fields: [escrowId], references: [id])
+   406→  transactions    PaymentTransaction[]
+   407→
+   408→  @@index([status])
+   409→  @@index([fromBusinessId])
+   410→  @@index([toBusinessId])
+   411→  @@index([paymentMethod])
+   412→  @@index([createdAt])
+   413→}
+   414→
+   415→model PaymentTransaction {
+   416→  id              String   @id @default(cuid())
+   417→  intentId        String
+   418→  txRef           String   @unique
+   419→  provider        String
+   420→  providerTxId    String?
+   421→  amount          Float
+   422→  currency        String
+   423→  status          String   @default("pending") // pending, processing, settled, failed, refunded
+   424→  fromAddress     String?
+   425→  toAddress       String?
+   426→  metadata        String?
+   427→  settledAt       DateTime?
+   428→  createdAt       DateTime @default(now())
+   429→  updatedAt       DateTime @updatedAt
+   430→
+   431→  intent          PaymentIntent  @relation(fields: [intentId], references: [id], onDelete: Cascade)
+   432→
+   433→  @@index([intentId])
+   434→  @@index([status])
+   435→  @@index([provider])
+   436→  @@index([createdAt])
+   437→}
+   438→
+   439→model CurrencyRate {
+   440→  id              String   @id @default(cuid())
+   441→  fromCurrency    String
+   442→  toCurrency      String
+   443→  rate            Float
+   444→  provider        String
+   445→  source          String?
+   446→  expiresAt       DateTime
+   447→  createdAt       DateTime @default(now())
+   448→
+   449→  @@unique([fromCurrency, toCurrency, provider, createdAt])
+   450→  @@index([fromCurrency, toCurrency])
+   451→}
+   452→
+   453→model PaymentMethod {
+   454→  id              String   @id @default(cuid())
+   455→  businessId      String
+   456→  type            String   // bank_account, card, crypto_wallet, mobile_money, digital_wallet
+   457→  provider        String?  // stripe, paypal, wise, etc.
+   458→  label           String?
+   459→  identifier      String?  // masked account/card number
+   460→  currency        String?
+   461→  country         String?
+   462→  isDefault       Boolean  @default(false)
+   463→  status          String   @default("active") // active, inactive, verification_required
+   464→  metadata        String?
+   465→  createdAt       DateTime @default(now())
+   466→  updatedAt       DateTime @updatedAt
+   467→
+   468→  @@index([businessId])
+   469→  @@index([type])
+   470→  @@index([status])
+   471→}
+   472→
+   473→// ============================================================
+   474→// MODULE 5: FINANCIAL DIGITAL TWIN — AI-Powered Financial Profile
+   475→// ============================================================
+   476→
+   477→model FinancialDigitalTwin {
+   478→  id              String   @id @default(cuid())
+   479→  businessId      String   @unique
+   480→  healthScore     Float    @default(50.0)
+   481→  cashFlowHealth  Float    @default(50.0)
+   482→  riskAppetite    String   @default("moderate") // conservative, moderate, aggressive
+   483→  creditWorthiness Float   @default(50.0)
+   484→  liquidityScore  Float    @default(50.0)
+   485→  growthTrajectory String  @default("stable") // declining, stable, growing, rapid_growth
+   486→  aiModelVersion  String   @default("v1.0")
+   487→  lastSyncAt      DateTime @default(now())
+   488→  createdAt       DateTime @default(now())
+   489→  updatedAt       DateTime @updatedAt
+   490→
+   491→  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+   492→  metrics         FinancialMetric[]
+   493→  predictions     FinancialPrediction[]
+   494→  snapshots       FinancialSnapshot[]
+   495→
+   496→  @@index([healthScore])
+   497→  @@index([growthTrajectory])
+   498→}
+   499→
+   500→model FinancialMetric {
+   501→  id              String   @id @default(cuid())
+   502→  twinId          String
+   503→  period          String   // daily, weekly, monthly, quarterly, yearly
+   504→  periodDate      String   // ISO date for the period
+   505→  revenue         Float?
+   506→  expenses        Float?
+   507→  netIncome       Float?
+   508→  accountsReceivable Float?
+   509→  accountsPayable Float?
+   510→  totalAssets     Float?
+   511→  totalLiabilities Float?
+   512→  cashBalance     Float?
+   513→  transactionCount Int?
+   514→  averageTransactionValue Float?
+   515→  paymentSuccessRate Float?
+   516→  disputeRate     Float?
+   517→  customerCount   Int?
+   518→  supplierCount   Int?
+   519→  createdAt       DateTime @default(now())
+   520→
+   521→  twin            FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
+   522→
+   523→  @@unique([twinId, period, periodDate])
+   524→  @@index([twinId])
+   525→  @@index([period])
+   526→}
+   527→
+   528→model FinancialPrediction {
+   529→  id              String   @id @default(cuid())
+   530→  twinId          String
+   531→  predictionType  String   // revenue, cash_flow, risk, default_probability, growth_rate
+   532→  timeframe       String   // 30d, 60d, 90d, 6m, 1y
+   533→  predictedValue  Float
+   534→  confidence      Float    // 0-1
+   535→  lowerBound      Float?
+   536→  upperBound      Float?
+   537→  model           String   @default("ensemble")
+   538→  metadata        String?
+   539→  createdAt       DateTime @default(now())
+   540→
+   541→  twin            FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
+   542→
+   543→  @@index([twinId])
+   544→  @@index([predictionType])
+   545→}
+   546→
+   547→model FinancialSnapshot {
+   548→  id              String   @id @default(cuid())
+   549→  twinId          String
+   550→  snapshotType    String   // daily, weekly, event_driven
+   551→  healthScore     Float
+   552→  cashFlowHealth  Float
+   553→  creditWorthiness Float
+   554→  liquidityScore  Float
+   555→  topRiskFactors  String?  // JSON array
+   556→  topOpportunities String? // JSON array
+   557→  aiSummary       String?
+   558→  metadata        String?
+   559→  createdAt       DateTime @default(now())
+   560→
+   561→  twin            FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
+   562→
+   563→  @@index([twinId])
+   564→  @@index([snapshotType])
+   565→  @@index([createdAt])
+   566→}
+   567→
+   568→// ============================================================
+   569→// SHARED: Invoice Module
+   570→// ============================================================
+   571→
+   572→model Invoice {
+   573→  id              String   @id @default(cuid())
+   574→  invoiceRef      String   @unique
+   575→  senderId        String
+   576→  receiverId      String
+   577→  escrowId        String?
+   578→  amount          Float
+   579→  currency        String   @default("USD")
+   580→  status          String   @default("draft") // draft, sent, paid, partially_paid, overdue, cancelled
+   581→  dueDate         DateTime?
+   582→  paidAmount      Float    @default(0)
+   583→  items           String?  // JSON array of line items
+   584→  notes           String?
+   585→  paidAt          DateTime?
+   586→  createdAt       DateTime @default(now())
+   587→  updatedAt       DateTime @updatedAt
+   588→
+   589→  sender          Business  @relation("InvoiceSender", fields: [senderId], references: [id])
+   590→  receiver        Business  @relation("InvoiceReceiver", fields: [receiverId], references: [id])
+   591→
+   592→  @@index([senderId])
+   593→  @@index([receiverId])
+   594→  @@index([status])
+   595→  @@index([dueDate])
+   596→  subscriptionId String?
+   597→}
+   598→
+   599→// ============================================================
+   600→// MODULE 6: USERS & ROLES — Multi-view Access Control
+   601→// ============================================================
+   602→
+   603→model User {
+   604→  id              String   @id @default(cuid())
+   605→  email           String   @unique
+   606→  name            String
+   607→  role            String   @default("viewer") // admin, buyer, seller, auditor, viewer
+   608→  businessId      String?  // which business this user belongs to
+   609→  avatarUrl       String?
+   610→  isActive        Boolean  @default(true)
+   611→  lastLoginAt     DateTime?
+   612→  createdAt       DateTime @default(now())
+   613→  updatedAt       DateTime @updatedAt
+   614→
+   615→  @@index([role])
+   616→  @@index([businessId])
+   617→  @@index([isActive])
+   618→}
+   619→
+   620→// ============================================================
+   621→// MODULE 7: PAYMENT LINKS — Shareable Payment URLs
+   622→// ============================================================
+   623→
+   624→model PaymentLink {
+   625→  id              String   @id @default(cuid())
+   626→  linkRef         String   @unique
+   627→  businessId      String
+   628→  title           String?
+   629→  description     String?
+   630→  amount          Float    // 0 = open amount (payer decides)
+   631→  currency        String   @default("USD")
+   632→  allowedMethods  String   @default("[]") // JSON array of allowed payment method types
+   633→  allowedCountries String?  // JSON array of country codes, null = all
+   634→  maxPayments     Int      @default(1) // 0 = unlimited
+   635→  paymentCount    Int      @default(0)
+   636→  totalCollected  Float    @default(0)
+   637→  status          String   @default("active") // active, paused, expired, depleted
+   638→  expiresAt       DateTime?
+   639→  metadata        String?
+   640→  createdAt       DateTime @default(now())
+   641→  updatedAt       DateTime @updatedAt
+   642→
+   643→  payments        PaymentLinkPayment[]
+   644→
+   645→  @@index([businessId])
+   646→  @@index([status])
+   647→  @@index([currency])
+   648→  @@index([createdAt])
+   649→  createdBy  String?
+   650→}
+   651→
+   652→model PaymentLinkPayment {
+   653→  id              String   @id @default(cuid())
+   654→  paymentLinkId   String
+   655→  payerName       String?
+   656→  payerEmail      String?
+   657→  payerCountry    String?
+   658→  amount          Float
+   659→  currency        String
+   660→  paymentMethod   String   // bank_transfer, card, mobile_money, digital_wallet, crypto, upi, pix, mpesa, etc.
+   661→  provider        String?
+   662→  status          String   @default("pending") // pending, processing, completed, failed, refunded
+   663→  feeAmount       Float?
+   664→  netAmount       Float?
+   665→  providerTxId    String?
+   666→  metadata        String?
+   667→  completedAt     DateTime?
+   668→  createdAt       DateTime @default(now())
+   669→  updatedAt       DateTime @updatedAt
+   670→
+   671→  paymentLink     PaymentLink @relation(fields: [paymentLinkId], references: [id], onDelete: Cascade)
+   672→
+   673→  @@index([paymentLinkId])
+   674→  @@index([status])
+   675→  @@index([payerCountry])
+   676→  @@index([paymentMethod])
+   677→  @@index([createdAt])
+   678→}
+   679→
+   680→// ============================================================
+   681→// MODULE 8: GLOBAL PAYMENT METHODS CATALOG
+   682→// ============================================================
+   683→
+   684→model GlobalPaymentMethod {
+   685→  id              String   @id @default(cuid())
+   686→  methodCode      String   // mpesa, upi, pix, alipay, wechat_pay, gcash, grabpay, ovo, dana, bca, promptpay, fps, sepa, ach, swift, etc.
+   687→  methodName      String   // M-Pesa, UPI, PIX, Alipay, etc.
+   688→  provider        String   // safaricom, npci, bcb, ant_group, tencent, gcash, grab, etc.
+   689→  type            String   // mobile_money, digital_wallet, bank_transfer, card, crypto, real_time_payment
+   690→  countries       String   // JSON array of ISO country codes where available
+   691→  currencies      String   // JSON array of supported currency codes
+   692→  minAmount       Float?
+   693→  maxAmount       Float?
+   694→  feePercent      Float    @default(0) // percentage fee
+   695→  fixedFee        Float    @default(0) // fixed fee per transaction
+   696→  settlementTime  Int?     // settlement time in minutes
+   697→  isActive        Boolean  @default(true)
+   698→  icon            String?  // emoji or icon name
+   699→  metadata        String?
+   700→  createdAt       DateTime @default(now())
+   701→  updatedAt       DateTime @updatedAt
+   702→
+   703→  @@unique([methodCode])
+   704→  @@index([type])
+   705→  @@index([isActive])
+   706→}
+   707→
+   708→// ============================================================// MODULE 9: MULTI-CURRENCY WALLET// ============================================================
+   709→
+   710→model Wallet {
+   711→  id              String   @id @default(cuid())
+   712→  businessId      String
+   713→  currency        String
+   714→  balance         Float    @default(0)
+   715→  availableBalance Float   @default(0)
+   716→  pendingBalance  Float    @default(0)
+   717→  frozenBalance   Float    @default(0)
+   718→  isDefault       Boolean  @default(false)
+   719→  status          String   @default("active") // active, frozen, closed
+   720→  createdAt       DateTime @default(now())
+   721→  updatedAt       DateTime @updatedAt
+   722→
+   723→  transactions    WalletTransaction[]
+   724→  deposits        Deposit[]
+   725→  withdrawals     Withdrawal[]
+   726→  cryptoWithdrawals CryptoWithdrawal[]
+   727→  conversionsOut  CurrencyConversion[] @relation("ConversionFrom")
+   728→  conversionsIn   CurrencyConversion[] @relation("ConversionTo")
+   729→
+   730→  @@unique([businessId, currency])
+   731→  @@index([businessId])
+   732→  @@index([currency])
+   733→  @@index([status])
+   734→  label      String?
+   735→  deposits    Deposit[]
+   736→  withdrawals Withdrawal[]
+   737→  fromConversions CurrencyConversion[] @relation("FromConversion")
+   738→  toConversions   CurrencyConversion[] @relation("ToConversion")
+   739→}
+   740→
+   741→model WalletTransaction {
+   742→  id              String   @id @default(cuid())
+   743→  walletId        String
+   744→  txRef           String   @unique
+   745→  type            String   // credit, debit, transfer_in, transfer_out, conversion, fee, refund, deposit, withdrawal, crypto_withdrawal
+   746→  amount          Float
+   747→  balanceBefore   Float
+   748→  balanceAfter    Float
+   749→  currency        String
+   750→  description     String?
+   751→  referenceType   String?  // escrow, payment_link, invoice, transfer, conversion, deposit, withdrawal, crypto_withdrawal
+   752→  referenceId     String?
+   753→  counterpartyId  String?  // other wallet/business involved
+   754→  status          String   @default("completed") // pending, completed, failed, reversed
+   755→  metadata        String?
+   756→  createdAt       DateTime @default(now())
+   757→
+   758→  wallet          Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+   759→
+   760→  @@index([walletId])
+   761→  @@index([type])
+   762→  @@index([referenceType])
+   763→  @@index([status])
+   764→  @@index([createdAt])
+   765→}
+   766→
+   767→// ── Deposit Model ─────────────────────────────────────────────
+   768→
+   769→model Deposit {
+   770→  id              String   @id @default(cuid())
+   771→  depositRef      String   @unique
+   772→  walletId        String
+   773→  amount          Float
+   774→  currency        String
+   775→  paymentMethod   String   // bank_transfer, card, mobile_money, payment_link, external
+   776→  provider        String?  // paystack, stripe, flutterwave, intasend, manual
+   777→  providerTxId    String?  // external provider transaction ID
+   778→  status          String   @default("pending") // pending, processing, completed, failed, reversed
+   779→  bankName        String?  // source bank name for bank transfers
+   780→  bankRef         String?  // bank reference / cheque number
+   781→  cardLast4       String?  // last 4 digits of card used
+   782→  notes           String?
+   783→  completedAt     DateTime?
+   784→  failedReason    String?
+   785→  metadata        String?
+   786→  createdAt       DateTime @default(now())
+   787→  updatedAt       DateTime @updatedAt
+   788→
+   789→  wallet          Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+   790→
+   791→  @@index([walletId])
+   792→  @@index([status])
+   793→  @@index([paymentMethod])
+   794→  @@index([provider])
+   795→  @@index([createdAt])
+   796→}
+   797→
+   798→// ── Withdrawal Model ──────────────────────────────────────────
+   799→
+   800→model Withdrawal {
+   801→  id              String   @id @default(cuid())
+   802→  withdrawalRef   String   @unique
+   803→  walletId        String
+   804→  amount          Float
+   805→  currency        String
+   806→  paymentMethod   String   // bank_transfer, mobile_money, external
+   807→  provider        String?  // paystack, stripe, flutterwave, intasend, manual
+   808→  providerTxId    String?
+   809→  status          String   @default("pending") // pending, processing, completed, failed, reversed
+   810→  bankName        String?  // destination bank name
+   811→  bankAccount     String?  // destination bank account (masked)
+   812→  bankCode        String?  // bank sort/routing code
+   813→  recipientName   String?
+   814→  feeAmount       Float    @default(0)
+   815→  netAmount       Float?
+   816→  notes           String?
+   817→  completedAt     DateTime?
+   818→  failedReason    String?
+   819→  metadata        String?
+   820→  createdAt       DateTime @default(now())
+   821→  updatedAt       DateTime @updatedAt
+   822→
+   823→  wallet          Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+   824→
+   825→  @@index([walletId])
+   826→  @@index([status])
+   827→  @@index([paymentMethod])
+   828→  @@index([createdAt])
+   829→}
+   830→
+   831→// ── Crypto Withdrawal Model ───────────────────────────────────
+   832→
+   833→model CryptoWithdrawal {
+   834→  id              String   @id @default(cuid())
+   835→  withdrawalRef   String   @unique
+   836→  walletId        String
+   837→  amount          Float    // amount in wallet fiat currency to convert
+   838→  cryptoAmount    Float?   // amount in crypto after conversion
+   839→  currency        String   // wallet fiat currency (e.g. USD, KES)
+   840→  cryptoCurrency  String   // target crypto (USDT, USDC, BTC, ETH, SOL, BNB)
+   841→  network         String   // trc20, erc20, bsc, solana, bitcoin, bep2
+   842→  walletAddress   String   // destination crypto wallet address
+   843→  status          String   @default("pending") // pending, processing, completed, failed, reversed
+   844→  exchangeRate    Float?   // fiat-to-crypto rate at time of withdrawal
+   845→  networkFee      Float    @default(0) // blockchain network fee in crypto
+   846→  processingFee   Float    @default(0) // platform processing fee in fiat
+   847→  gasPrice        String?  // gwei/sats per byte at time of execution
+   848→  txHash          String?  // on-chain transaction hash
+   849→  explorerUrl     String?  // block explorer URL
+   850→  notes           String?
+   851→  completedAt     DateTime?
+   852→  failedReason    String?
+   853→  metadata        String?
+   854→  createdAt       DateTime @default(now())
+   855→  updatedAt       DateTime @updatedAt
+   856→
+   857→  wallet          Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+   858→
+   859→  @@index([walletId])
+   860→  @@index([status])
+   861→  @@index([cryptoCurrency])
+   862→  @@index([network])
+   863→  @@index([createdAt])
+   864→}
+   865→
+   866→// ── Currency Conversion Model ─────────────────────────────────
+   867→
+   868→model CurrencyConversion {
+   869→  id              String   @id @default(cuid())
+   870→  conversionRef   String   @unique
+   871→  fromWalletId    String
+   872→  toWalletId      String
+   873→  fromCurrency    String
+   874→  toCurrency      String
+   875→  fromAmount      Float
+   876→  toAmount        Float
+   877→  exchangeRate    Float
+   878→  feePercent      Float    @default(0.5) // 0.5% conversion fee
+   879→  feeAmount       Float
+   880→  netAmount       Float    // toAmount - feeAmount
+   881→  provider        String   @default("internal")
+   882→  status          String   @default("completed") // pending, completed, failed, reversed
+   883→  metadata        String?
+   884→  createdAt       DateTime @default(now())
+   885→
+   886→  fromWallet      Wallet @relation("ConversionFrom", fields: [fromWalletId], references: [id], onDelete: Cascade)
+   887→  toWallet        Wallet @relation("ConversionTo", fields: [toWalletId], references: [id], onDelete: Cascade)
+   888→
+   889→  @@index([fromWalletId])
+   890→  @@index([toWalletId])
+   891→  @@index([fromCurrency, toCurrency])
+   892→  @@index([status])
+   893→  @@index([createdAt])
+   894→}
+   895→
+   896→// ============================================================
+   897→// MODULE 10: AI FRAUD DETECTION
+   898→// ============================================================
+   899→
+   900→model FraudAlert {
+   901→  id              String   @id @default(cuid())
+   902→  alertRef        String   @unique
+   903→  businessId      String?
+   904→  relatedType     String   // escrow, payment_intent, payment_link, wallet
+   905→  relatedId       String?
+   906→  severity        String   @default("medium") // low, medium, high, critical
+   907→  fraudType       String   // unusual_amount, velocity_breach, geo_mismatch, sanctioned_entity, fake_identity, account_takeover, structure_pattern
+   908→  score           Float    // 0-100 fraud confidence score
+   909→  description     String
+   910→  recommendation  String?
+   911→  status          String   @default("open") // open, investigating, confirmed_fraud, false_positive, escalated, resolved
+   912→  resolvedBy      String?
+   913→  resolvedAt      DateTime?
+   914→  metadata        String?
+   915→  createdAt       DateTime @default(now())
+   916→  updatedAt       DateTime @updatedAt
+   917→
+   918→  @@index([businessId])
+   919→  @@index([severity])
+   920→  @@index([fraudType])
+   921→  @@index([status])
+   922→  @@index([score])
+   923→  @@index([createdAt])
+   924→}
+   925→
+   926→model FraudRule {
+   927→  id              String   @id @default(cuid())
+   928→  name            String
+   929→  description     String?
+   930→  condition       String   // JSON rule definition
+   931→  action          String   // alert, block, require_review, flag
+   932→  severity        String   @default("medium")
+   933→  isActive        Boolean  @default(true)
+   934→  triggerCount    Int      @default(0)
+   935→  lastTriggeredAt DateTime?
+   936→  createdAt       DateTime @default(now())
+   937→  updatedAt       DateTime @updatedAt
+   938→
+   939→  @@index([isActive])
+   940→  @@index([severity])
+   941→}
+   942→
+   943→// ============================================================
+   944→// MODULE 11: BUSINESS MATCHING — AI Buyer-Supplier Discovery
+   945→// ============================================================
+   946→
+   947→model BusinessMatch {
+   948→  id              String   @id @default(cuid())
+   949→  seekerId        String   // business looking for a match
+   950→  candidateId     String   // business being matched
+   951→  matchType       String   // supplier, buyer, partner, logistics, financial
+   952→  matchScore      Float    // 0-100 AI compatibility score
+   953→  reasons         String?  // JSON array of match reasons
+   954→  status          String   @default("suggested") // suggested, contacted, interested, declined, engaged
+   955→  seekerResponse  String?
+   956→  candidateResponse String?
+   957→  metadata        String?
+   958→  createdAt       DateTime @default(now())
+   959→  updatedAt       DateTime @updatedAt
+   960→
+   961→  @@unique([seekerId, candidateId, matchType])
+   962→  @@index([seekerId])
+   963→  @@index([candidateId])
+   964→  @@index([matchScore])
+   965→  @@index([status])
+   966→}
+   967→
+   968→// ============================================================
+   969→// MODULE 12: AI COLLECTIONS — Payment Reminders & Aging
+   970→// ============================================================
+   971→
+   972→model CollectionCase {
+   973→  id              String   @id @default(cuid())
+   974→  caseRef         String   @unique
+   975→  invoiceId       String?
+   976→  businessId      String   // creditor
+   977→  debtorId        String
+   978→  originalAmount  Float
+   979→  outstandingAmount Float
+   980→  currency        String
+   981→  agingBucket     String   @default("current") // current, 1-30, 31-60, 61-90, 90+
+   982→  priority        String   @default("normal") // low, normal, high, urgent
+   983→  status          String   @default("active") // active, paused, resolved, written_off, escalated
+   984→  reminderCount   Int      @default(0)
+   985→  lastReminderAt  DateTime?
+   986→  nextReminderDue DateTime?
+   987→  aiStrategy      String?  // AI-recommended collection strategy
+   988→  resolution      String?
+   989→  resolvedAt      DateTime?
+   990→  metadata        String?
+   991→  createdAt       DateTime @default(now())
+   992→  updatedAt       DateTime @updatedAt
+   993→
+   994→  reminders       CollectionReminder[]
+   995→
+   996→  @@index([businessId])
+   997→  @@index([debtorId])
+   998→  @@index([agingBucket])
+   999→  @@index([priority])
+  1000→  @@index([status])
+  1001→}
+  1002→
+  1003→model CollectionReminder {
+  1004→  id              String   @id @default(cuid())
+  1005→  caseId          String
+  1006→  channel         String   // email, sms, whatsapp, in_app
+  1007→  template        String   // friendly, firm, final, legal
+  1008→  status          String   @default("sent") // sent, delivered, read, failed
+  1009→  sentAt          DateTime @default(now())
+  1010→  response        String?
+  1011→  respondedAt     DateTime?
+  1012→  createdAt       DateTime @default(now())
+  1013→
+  1014→  case            CollectionCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  1015→
+  1016→  @@index([caseId])
+  1017→  @@index([channel])
+  1018→  @@index([status])
+  1019→}
+  1020→
+  1021→// ============================================================
+  1022→// MODULE 13: COMPLIANCE ENGINE — Rules & Screening
+  1023→// ============================================================
+  1024→
+  1025→model ComplianceRule {
+  1026→  id              String   @id @default(cuid())
+  1027→  name            String
+  1028→  description     String?
+  1029→  ruleType        String   // sanctions_check, kyc_requirement, aml_threshold, transaction_limit, country_restriction, industry_restriction
+  1030→  condition       String   // JSON rule definition
+  1031→  action          String   // block, flag_for_review, require_additional_doc, allow
+  1032→  severity        String   @default("medium") // low, medium, high, critical
+  1033→  isActive        Boolean  @default(true)
+  1034→  triggeredCount  Int      @default(0)
+  1035→  createdAt       DateTime @default(now())
+  1036→  updatedAt       DateTime @updatedAt
+  1037→
+  1038→  @@index([ruleType])
+  1039→  @@index([isActive])
+  1040→  @@index([severity])
+  1041→}
+  1042→
+  1043→model ComplianceScreening {
+  1044→  id              String   @id @default(cuid())
+  1045→  businessId      String?
+  1046→  transactionType String?  // escrow, payment, wallet
+  1047→  transactionId   String?
+  1048→  screeningType   String   // sanctions, pep, adverse_media, country_risk
+  1049→  result          String   // clear, match, potential_match, alert
+  1050→  riskLevel       String   // low, medium, high, critical
+  1051→  details         String?
+  1052→  matchedLists    String?  // JSON array of matched sanction/list names
+  1053→  status          String   @default("completed") // pending, in_progress, completed, escalated
+  1054→  reviewedBy      String?
+  1055→  reviewedAt      DateTime?
+  1056→  createdAt       DateTime @default(now())
+  1057→  updatedAt       DateTime @updatedAt
+  1058→
+  1059→  @@index([businessId])
+  1060→  @@index([screeningType])
+  1061→  @@index([result])
+  1062→  @@index([riskLevel])
+  1063→  @@index([status])
+  1064→  @@index([createdAt])
+  1065→}
+  1066→
+  1067→model Deposit {
+  1068→  id          String   @id @default(cuid())
+  1069→  accountId   String
+  1070→  tenantId    String
+  1071→  walletId    String
+  1072→  amount      Float
+  1073→  currency    String   @default("KES")
+  1074→  method      String   @default("manual")  // manual, bank_transfer, mobile_money, crypto
+  1075→  status      String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  1076→  referenceId String?  @unique
+  1077→  description String?
+  1078→  metadata    Json?
+  1079→  verifiedBy  String?
+  1080→  verifiedAt  DateTime?
+  1081→  createdAt   DateTime @default(now())
+  1082→  updatedAt   DateTime @updatedAt
+  1083→
+  1084→  account Account @relation(fields: [accountId], references: [id])
+  1085→  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  1086→  wallet  Wallet  @relation(fields: [walletId], references: [id])
+  1087→
+  1088→  @@index([accountId])
+  1089→  @@index([tenantId])
+  1090→  @@index([walletId])
+  1091→  @@index([status])
+  1092→}
+  1093→
+  1094→model Withdrawal {
+  1095→  id           String   @id @default(cuid())
+  1096→  accountId    String
+  1097→  tenantId     String
+  1098→  walletId     String
+  1099→  amount       Float
+  1100→  currency     String   @default("KES")
+  1101→  method       String   @default("bank_transfer") // bank_transfer, mobile_money, crypto
+  1102→  status       String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, REJECTED
+  1103→  referenceId  String?  @unique
+  1104→  destination  String?  // Bank account, mobile number, or crypto address
+  1105→  description  String?
+  1106→  metadata     Json?
+  1107→  processedBy  String?
+  1108→  processedAt  DateTime?
+  1109→  rejectionReason String?
+  1110→  createdAt    DateTime @default(now())
+  1111→  updatedAt    DateTime @updatedAt
+  1112→
+  1113→  account Account @relation(fields: [accountId], references: [id])
+  1114→  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  1115→  wallet  Wallet  @relation(fields: [walletId], references: [id])
+  1116→
+  1117→  @@index([accountId])
+  1118→  @@index([tenantId])
+  1119→  @@index([walletId])
+  1120→  @@index([status])
+  1121→}
+  1122→
+  1123→model CurrencyConversion {
+  1124→  id             String   @id @default(cuid())
+  1125→  accountId      String
+  1126→  tenantId       String
+  1127→  fromWalletId   String
+  1128→  toWalletId     String
+  1129→  fromCurrency   String
+  1130→  toCurrency     String
+  1131→  fromAmount     Float
+  1132→  toAmount       Float
+  1133→  exchangeRate   Float
+  1134→  fee            Float    @default(0)
+  1135→  status         String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  1136→  referenceId    String?  @unique
+  1137→  createdAt      DateTime @default(now())
+  1138→  updatedAt      DateTime @updatedAt
+  1139→
+  1140→  account   Account @relation(fields: [accountId], references: [id])
+  1141→  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  1142→  fromWallet Wallet  @relation("FromConversion", fields: [fromWalletId], references: [id])
+  1143→  toWallet   Wallet  @relation("ToConversion", fields: [toWalletId], references: [id])
+  1144→
+  1145→  @@index([accountId])
+  1146→  @@index([tenantId])
+  1147→  @@index([status])
+  1148→}
+  1149→

@@ -30,6 +30,9 @@ model Tenant {
 
   @@index([slug])
   @@index([status])
+  deposits    Deposit[]
+  withdrawals Withdrawal[]
+  currencyConversions CurrencyConversion[]
 }
 
 model Account {
@@ -57,6 +60,9 @@ model Account {
   referredBy      String?
   notificationsEnabled Boolean @default(true)
   twoFactorEnabled    Boolean @default(false)
+  deposits    Deposit[]
+  withdrawals Withdrawal[]
+  currencyConversions CurrencyConversion[]
 }
 
 // ============================================================
@@ -95,7 +101,6 @@ model Business {
   sentInvoices    Invoice[] @relation("InvoiceSender")
   receivedInvoices Invoice[] @relation("InvoiceReceiver")
   verifications   Verification[]
-  wallets         Wallet[]
 
   @@index([tenantId])
   @@index([country])
@@ -488,7 +493,7 @@ model FinancialDigitalTwin {
   predictions     FinancialPrediction[]
   snapshots       FinancialSnapshot[]
 
-  @@index([healthScore])
+  @@index(ealthScore])
   @@index([growthTrajectory])
 }
 
@@ -695,7 +700,7 @@ model GlobalPaymentMethod {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  @@unique([methodCode])
+  @@unique(ethodCode])
   @@index([type])
   @@index([isActive])
 }
@@ -715,7 +720,6 @@ model Wallet {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  business         Business  @relation(fields: [businessId], references: [id])
   transactions    WalletTransaction[]
   deposits        Deposit[]
   withdrawals     Withdrawal[]
@@ -723,12 +727,15 @@ model Wallet {
   conversionsOut  CurrencyConversion[] @relation("ConversionFrom")
   conversionsIn   CurrencyConversion[] @relation("ConversionTo")
 
-  label           String?
-
   @@unique([businessId, currency])
   @@index([businessId])
   @@index([currency])
   @@index([status])
+  label      String?
+  deposits    Deposit[]
+  withdrawals Withdrawal[]
+  fromConversions CurrencyConversion[] @relation("FromConversion")
+  toConversions   CurrencyConversion[] @relation("ToConversion")
 }
 
 model WalletTransaction {
@@ -954,7 +961,7 @@ model BusinessMatch {
   @@unique([seekerId, candidateId, matchType])
   @@index([seekerId])
   @@index([candidateId])
-  @@index([matchScore])
+  @@index(atchScore])
   @@index([status])
 }
 
@@ -1057,3 +1064,85 @@ model ComplianceScreening {
   @@index([createdAt])
 }
 
+model Deposit {
+  id          String   @id @default(cuid())
+  accountId   String
+  tenantId    String
+  walletId    String
+  amount      Float
+  currency    String   @default("KES")
+  method      String   @default("manual")  // manual, bank_transfer, mobile_money, crypto
+  status      String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  referenceId String?  @unique
+  description String?
+  metadata    Json?
+  verifiedBy  String?
+  verifiedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  wallet  Wallet  @relation(fields: [walletId], references: [id])
+
+  @@index([accountId])
+  @@index([tenantId])
+  @@index([walletId])
+  @@index([status])
+}
+
+model Withdrawal {
+  id           String   @id @default(cuid())
+  accountId    String
+  tenantId     String
+  walletId     String
+  amount       Float
+  currency     String   @default("KES")
+  method       String   @default("bank_transfer") // bank_transfer, mobile_money, crypto
+  status       String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, REJECTED
+  referenceId  String?  @unique
+  destination  String?  // Bank account, mobile number, or crypto address
+  description  String?
+  metadata     Json?
+  processedBy  String?
+  processedAt  DateTime?
+  rejectionReason String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id])
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  wallet  Wallet  @relation(fields: [walletId], references: [id])
+
+  @@index([accountId])
+  @@index([tenantId])
+  @@index([walletId])
+  @@index([status])
+}
+
+model CurrencyConversion {
+  id             String   @id @default(cuid())
+  accountId      String
+  tenantId       String
+  fromWalletId   String
+  toWalletId     String
+  fromCurrency   String
+  toCurrency     String
+  fromAmount     Float
+  toAmount       Float
+  exchangeRate   Float
+  fee            Float    @default(0)
+  status         String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  referenceId    String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  account   Account @relation(fields: [accountId], references: [id])
+  tenant    Tenant  @relation(fields: [tenantId], references: [id])
+  fromWallet Wallet  @relation("FromConversion", fields: [fromWalletId], references: [id])
+  toWallet   Wallet  @relation("ToConversion", fields: [toWalletId], references: [id])
+
+  @@index([accountId])
+  @@index([tenantId])
+  @@index([status])
+}

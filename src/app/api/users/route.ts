@@ -1,19 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, requireAdmin, tenantScope, errorResponse, successResponse } from '@/lib/auth/api-helpers';
-import { prisma } from '@/lib/prisma';
+import { NextRequest } from 'next/server';
+import { db } from '@/lib/db';
+import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import type { ApiUser } from '@/lib/auth/api-helpers';
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireAuth(req);
+    const user = await getApiUser(req);
+    if (!user) return errorResponse('Authentication required', 401);
 
-    if (user.role === 'SUPER_ADMIN') {
-      // Super admin can see all users
-      const users = await prisma.account.findMany({
-        include: {
+    if (user.role === 'admin') {
+      // Admin can see all users across tenants
+      const users = await db.account.findMany({
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          isActive: true,
+          avatarUrl: true,
+          createdAt: true,
+          lastLoginAt: true,
           tenant: { select: { id: true, name: true } },
-          _count: {
-            select: { wallets: true },
-          },
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -21,24 +28,24 @@ export async function GET(req: NextRequest) {
     }
 
     // Regular users see only users in their tenant
-    const users = await prisma.account.findMany({
-      where: tenantScope(user.tenantId),
+    const users = await db.account.findMany({
+      where: { tenantId: user.tenantId },
       select: {
         id: true,
         email: true,
         name: true,
         role: true,
-        active: true,
+        isActive: true,
+        avatarUrl: true,
         createdAt: true,
+        lastLoginAt: true,
         tenant: { select: { id: true, name: true } },
-        _count: { select: { wallets: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
 
     return successResponse({ users });
   } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
     console.error('Users GET error:', error);
     return errorResponse('Failed to fetch users', 500);
   }
@@ -46,31 +53,41 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireAdmin(req);
+    const user = await getApiUser(req);
+    if (!user) return errorResponse('Authentication required', 401);
+
+    if (user.role !== 'admin') {
+      return errorResponse('Insufficient permissions', 403);
+    }
+
     const body = await req.json();
     const { email, name, role } = body;
 
-    if (!email || !name) return errorResponse('email and name are required', 400);
+    if (!email || !name) {
+      return errorResponse('email and name are required', 400);
+    }
 
-    const existing = await prisma.account.findFirst({
-      where: { email, tenantId: user.tenantId },
+    // Check for duplicate within same tenant
+    const existing = await db.account.findFirst({
+      where: { email: email.toLowerCase(), tenantId: user.tenantId },
     });
-    if (existing) return errorResponse('User already exists in this tenant', 409);
+    if (existing) {
+      return errorResponse('User already exists in this tenant', 409);
+    }
 
-    const newUser = await prisma.account.create({
+    const newUser = await db.account.create({
       data: {
-        email,
+        email: email.toLowerCase(),
         name,
-        role: role || 'USER',
+        role: role || 'buyer',
         tenantId: user.tenantId,
-        active: true,
+        isActive: true,
+        passwordHash: '', // Placeholder — user should set password via invite flow
       },
     });
 
     return successResponse(newUser, 201);
   } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
-    if (error.message === 'Insufficient permissions') return errorResponse(error.message, 403);
     console.error('Users POST error:', error);
     return errorResponse('Failed to create user', 500);
   }

@@ -40,10 +40,16 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || ''
     const minScore = searchParams.get('minScore')
 
+    // BusinessMatch has no seeker/candidate relations, filter by tenant business IDs
+    const tenantBizIds = (await db.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })).map(b => b.id)
+
     const where: Record<string, unknown> = {
       OR: [
-        { seeker: { tenantId: user.tenantId } },
-        { candidate: { tenantId: user.tenantId } },
+        { seekerId: { in: tenantBizIds } },
+        { candidateId: { in: tenantBizIds } },
       ],
     }
 

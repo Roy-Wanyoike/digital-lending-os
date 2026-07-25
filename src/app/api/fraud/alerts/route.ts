@@ -34,8 +34,14 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || ''
     const businessId = searchParams.get('businessId') || ''
 
+    // FraudAlert has no business relation, filter by tenant business IDs
+    const tenantBizIds = (await db.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })).map(b => b.id)
+
     const where: Record<string, unknown> = {
-      business: { tenantId: user.tenantId },
+      businessId: { in: tenantBizIds },
     }
 
     if (severity) where.severity = severity

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import {
   getActiveProviderConfigs,
   getProvidersForCurrency,
@@ -9,9 +9,14 @@ import {
   PROVIDER_METHOD_MAP,
   type PaymentProviderCode,
 } from '@/lib/payment'
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 // ─── GET: List available payment providers ──────────────────
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const user = await getApiUser(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  }
   const { searchParams } = new URL(request.url)
   const currency = searchParams.get('currency') || ''
   const country = searchParams.get('country') || ''

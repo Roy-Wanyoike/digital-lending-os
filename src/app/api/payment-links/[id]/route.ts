@@ -1,81 +1,113 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, tenantScope, errorResponse, successResponse } from '@/lib/auth/api-helpers';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireAuth(req);
+    const user = await getApiUser(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    const { id } = await params;
 
-    const link = await prisma.paymentLink.findFirst({
-      where: { id: params.id, ...tenantScope(user.tenantId) },
+    const link = await db.paymentLink.findFirst({
+      where: { id },
       include: {
-        business: { select: { id: true, name: true } },
-        _count: { select: { transactions: true } },
+        business: { select: { id: true, name: true, tenantId: true } },
+        _count: { select: { payments: true } },
       },
     });
 
-    if (!link) return errorResponse('Payment link not found', 404);
-    return successResponse(link);
-  } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    if (!link || link.business.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ data: link });
+  } catch (error) {
     console.error('PaymentLink GET by ID error:', error);
-    return errorResponse('Failed to fetch payment link', 500);
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    return NextResponse.json({ error: 'Failed to fetch payment link' }, { status: 500 });
   }
 }
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireAuth(req);
+    const user = await getApiUser(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    const { id } = await params;
     const body = await req.json();
 
-    const link = await prisma.paymentLink.findFirst({
-      where: { id: params.id, ...tenantScope(user.tenantId) },
+    const existing = await db.paymentLink.findFirst({
+      where: { id },
+      include: { business: { select: { tenantId: true } } },
     });
 
-    if (!link) return errorResponse('Payment link not found', 404);
+    if (!existing || existing.business.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 });
+    }
 
-    const updated = await prisma.paymentLink.update({
-      where: { id: params.id },
-      data: {
-        ...(body.title !== undefined && { title: body.title }),
-        ...(body.amount !== undefined && { amount: parseFloat(body.amount) }),
-        ...(body.active !== undefined && { active: body.active }),
-        ...(body.description !== undefined && { description: body.description }),
-      },
+    const updateData: Record<string, unknown> = {};
+    if (body.title !== undefined) updateData.title = body.title;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.amount !== undefined) updateData.amount = parseFloat(body.amount);
+    if (body.status !== undefined) updateData.status = body.status;
+    if (body.allowedMethods !== undefined) updateData.allowedMethods = body.allowedMethods;
+    if (body.allowedCountries !== undefined) updateData.allowedCountries = body.allowedCountries;
+    if (body.maxPayments !== undefined) updateData.maxPayments = body.maxPayments;
+    if (body.expiresAt !== undefined) updateData.expiresAt = body.expiresAt ? new Date(body.expiresAt) : null;
+
+    const updated = await db.paymentLink.update({
+      where: { id },
+      data: updateData,
     });
 
-    return successResponse(updated);
-  } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    return NextResponse.json({ data: updated });
+  } catch (error) {
     console.error('PaymentLink PATCH error:', error);
-    return errorResponse('Failed to update payment link', 500);
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    return NextResponse.json({ error: 'Failed to update payment link' }, { status: 500 });
   }
 }
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await requireAuth(req);
+    const user = await getApiUser(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+    const { id } = await params;
 
-    const link = await prisma.paymentLink.findFirst({
-      where: { id: params.id, ...tenantScope(user.tenantId) },
+    const existing = await db.paymentLink.findFirst({
+      where: { id },
+      include: { business: { select: { tenantId: true } } },
     });
 
-    if (!link) return errorResponse('Payment link not found', 404);
+    if (!existing || existing.business.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Payment link not found' }, { status: 404 });
+    }
 
-    await prisma.paymentLink.delete({ where: { id: params.id } });
-    return successResponse({ message: 'Payment link deleted' });
-  } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    await db.paymentLink.delete({ where: { id } });
+    return NextResponse.json({ data: { message: 'Payment link deleted' } });
+  } catch (error) {
     console.error('PaymentLink DELETE error:', error);
-    return errorResponse('Failed to delete payment link', 500);
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    return NextResponse.json({ error: 'Failed to delete payment link' }, { status: 500 });
   }
 }

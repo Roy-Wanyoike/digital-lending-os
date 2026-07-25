@@ -1,96 +1,131 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, tenantScope, errorResponse, successResponse } from '@/lib/auth/api-helpers';
-import { prisma } from '@/lib/prisma';
+import { db } from '@/lib/db';
+import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
-export async function GET(req: NextRequest) {
+// GET /api/withdrawals — List withdrawals for the tenant's wallets
+export async function GET(request: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const { searchParams } = new URL(req.url);
+    const user = await getApiUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
     const status = searchParams.get('status');
+    const walletId = searchParams.get('walletId');
 
-    const where: any = { tenantId: user.tenantId };
-    if (user.role === 'USER' || user.role === 'VIEWER') {
-      where.accountId = user.id;
-    }
+    // Find wallet IDs belonging to businesses in this tenant
+    const tenantBusinessIds = (await db.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })).map(b => b.id);
+
+    const tenantWalletIds = (await db.wallet.findMany({
+      where: { businessId: { in: tenantBusinessIds } },
+      select: { id: true },
+    })).map(w => w.id);
+
+    // Build where clause — wallet-scoped
+    const where: any = {
+      walletId: { in: tenantWalletIds },
+    };
+    if (walletId) where.walletId = walletId;
     if (status) where.status = status;
 
     const [withdrawals, total] = await Promise.all([
-      prisma.withdrawal.findMany({
+      db.withdrawal.findMany({
         where,
         include: {
-          wallet: { select: { id: true, currency: true } },
-          account: { select: { id: true, email: true, name: true } },
+          wallet: { select: { id: true, currency: true, businessId: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      prisma.withdrawal.count({ where }),
+      db.withdrawal.count({ where }),
     ]);
 
-    return successResponse({
+    return NextResponse.json({
       withdrawals,
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
     });
-  } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Withdrawals GET error:', error);
-    return errorResponse('Failed to fetch withdrawals', 500);
+    return NextResponse.json({ error: 'Failed to fetch withdrawals' }, { status: 500 });
   }
 }
 
-export async function POST(req: NextRequest) {
+// POST /api/withdrawals — Create a new withdrawal
+export async function POST(request: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const body = await req.json();
-    const { walletId, amount, currency, method, destination, description } = body;
-
-    if (!walletId || !amount || !method) {
-      return errorResponse('walletId, amount, and method are required', 400);
+    const user = await getApiUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    // Verify wallet belongs to user's tenant and check balance
-    const wallet = await prisma.wallet.findFirst({
-      where: { id: walletId, ...tenantScope(user.tenantId) },
-    });
+    const body = await request.json();
+    const { walletId, amount, paymentMethod, provider, bankName, bankAccount, bankCode, recipientName, notes } = body;
 
-    if (!wallet) return errorResponse('Wallet not found', 404);
-
-    if (wallet.balance < parseFloat(amount)) {
-      return errorResponse('Insufficient wallet balance', 400);
+    if (!walletId || !amount || !paymentMethod) {
+      return NextResponse.json(
+        { error: 'walletId, amount, and paymentMethod are required' },
+        { status: 400 }
+      );
     }
 
-    // Create withdrawal in a transaction (deduct from wallet balance)
-    const withdrawal = await prisma.$transaction(async (tx) => {
-      // Deduct from wallet
-      await tx.wallet.update({
-        where: { id: walletId },
-        data: { balance: { decrement: parseFloat(amount) } },
-      });
-
-      // Create withdrawal record
-      return tx.withdrawal.create({
-        data: {
-          accountId: user.id,
-          tenantId: user.tenantId,
-          walletId,
-          amount: parseFloat(amount),
-          currency: currency || wallet.currency,
-          method, // bank_transfer, mobile_money, crypto
-          destination: destination || null,
-          description: description || `Withdrawal of ${amount} ${currency || wallet.currency}`,
-          referenceId: `WDR-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          status: 'PENDING',
-        },
-      });
+    // Verify wallet belongs to a business in the user's tenant
+    const wallet = await db.wallet.findFirst({
+      where: { id: walletId },
     });
 
-    return successResponse(withdrawal, 201);
-  } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    if (!wallet) {
+      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 });
+    }
+
+    // Check the wallet's business belongs to the user's tenant
+    const business = await db.business.findFirst({
+      where: { id: wallet.businessId, tenantId: user.tenantId },
+      select: { id: true },
+    });
+
+    if (!business) {
+      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 });
+    }
+
+    const parsedAmount = parseFloat(amount);
+    const feeAmount = 0; // fee calculation handled elsewhere if needed
+    const netAmount = parsedAmount - feeAmount;
+
+    const withdrawal = await db.withdrawal.create({
+      data: {
+        withdrawalRef: `WDR-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        walletId,
+        amount: parsedAmount,
+        currency: wallet.currency,
+        paymentMethod,
+        provider: provider || null,
+        bankName: bankName || null,
+        bankAccount: bankAccount || null,
+        bankCode: bankCode || null,
+        recipientName: recipientName || null,
+        feeAmount,
+        netAmount,
+        notes: notes || null,
+        status: 'pending',
+      },
+    });
+
+    return NextResponse.json(withdrawal, { status: 201 });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Withdrawals POST error:', error);
-    return errorResponse('Failed to create withdrawal', 500);
+    return NextResponse.json({ error: 'Failed to create withdrawal' }, { status: 500 });
   }
 }

@@ -6,6 +6,9 @@ import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 export async function GET(request: NextRequest) {
   try {
     const user = await getApiUser(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
 
     // Fetch business IDs belonging to the tenant
     const tenantBusinessIds = (await db.business.findMany({
@@ -20,6 +23,12 @@ export async function GET(request: NextRequest) {
       ],
     };
     const paymentIntentTenantFilter = {
+      OR: [
+        { fromBusinessId: { in: tenantBusinessIds } },
+        { toBusinessId: { in: tenantBusinessIds } },
+      ],
+    };
+    const relationshipTenantFilter = {
       OR: [
         { fromBusinessId: { in: tenantBusinessIds } },
         { toBusinessId: { in: tenantBusinessIds } },
@@ -77,7 +86,7 @@ export async function GET(request: NextRequest) {
       // Active relationships
       db.businessRelationship.count({
         where: {
-          ...paymentIntentTenantFilter,
+          ...relationshipTenantFilter,
           status: 'active',
         },
       }),

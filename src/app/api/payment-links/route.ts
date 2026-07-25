@@ -1,66 +1,91 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, tenantScope, errorResponse, successResponse } from '@/lib/auth/api-helpers';
-import { prisma } from '@/lib/prisma';
+import { getApiUser } from '@/lib/auth/api-helpers';
+import { db } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const where = tenantScope(user.tenantId);
+    const user = await getApiUser(req);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
-    const paymentLinks = await prisma.paymentLink.findMany({
-      where,
+    const businesses = await db.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    });
+    const businessIds = businesses.map((b) => b.id);
+
+    if (businessIds.length === 0) {
+      return NextResponse.json({ paymentLinks: [] });
+    }
+
+    const paymentLinks = await db.paymentLink.findMany({
+      where: { businessId: { in: businessIds } },
       include: {
         business: { select: { id: true, name: true } },
-        _count: {
-          select: { transactions: true },
-        },
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    return successResponse({ paymentLinks });
-  } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    return NextResponse.json({ paymentLinks });
+  } catch (error) {
     console.error('PaymentLinks GET error:', error);
-    return errorResponse('Failed to fetch payment links', 500);
+    return NextResponse.json({ error: 'Failed to fetch payment links' }, { status: 500 });
   }
+}
+
+function generateLinkRef(): string {
+  const random = String(Math.floor(Math.random() * 100000)).padStart(5, '0');
+  return `PL-${random}`;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireAuth(req);
+    const user = await getApiUser(req);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+
     const body = await req.json();
-    const { title, description, amount, currency, businessId, expiresIn, metadata } = body;
+    const { title, description, amount, currency, businessId, allowedMethods, allowedCountries, maxPayments, expiresIn } = body;
 
-    if (!title || !amount) return errorResponse('title and amount are required', 400);
-
-    // Verify business belongs to tenant if businessId provided
-    if (businessId) {
-      const business = await prisma.business.findFirst({
-        where: { id: businessId, ...tenantScope(user.tenantId) },
-      });
-      if (!business) return errorResponse('Business not found', 404);
+    if (!title || !amount) {
+      return NextResponse.json({ error: 'title and amount are required' }, { status: 400 });
     }
 
-    const paymentLink = await prisma.paymentLink.create({
+    if (!businessId) {
+      return NextResponse.json({ error: 'businessId is required' }, { status: 400 });
+    }
+
+    // Verify business belongs to tenant
+    const business = await db.business.findFirst({
+      where: { id: businessId, tenantId: user.tenantId },
+      select: { id: true },
+    });
+    if (!business) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+    }
+
+    const linkRef = generateLinkRef();
+
+    const paymentLink = await db.paymentLink.create({
       data: {
+        linkRef,
+        businessId,
         title,
-        description: description || '',
+        description: description || null,
         amount: parseFloat(amount),
-        currency: currency || 'KES',
-        businessId: businessId || null,
-        tenantId: user.tenantId,
-        createdBy: user.id,
-        active: true,
-        metadata: metadata || {},
+        currency: currency || 'USD',
+        status: 'active',
+        allowedMethods: allowedMethods || null,
+        allowedCountries: allowedCountries || null,
+        maxPayments: maxPayments ? parseInt(maxPayments, 10) : null,
         expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : null,
+      },
+      include: {
+        business: { select: { id: true, name: true } },
       },
     });
 
-    return successResponse(paymentLink, 201);
-  } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    return NextResponse.json(paymentLink, { status: 201 });
+  } catch (error) {
     console.error('PaymentLinks POST error:', error);
-    return errorResponse('Failed to create payment link', 500);
+    return NextResponse.json({ error: 'Failed to create payment link' }, { status: 500 });
   }
 }

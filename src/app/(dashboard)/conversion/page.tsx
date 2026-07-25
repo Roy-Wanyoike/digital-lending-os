@@ -58,7 +58,7 @@ export default function ConversionPage() {
     if (!fromWalletId || !toWalletId || !amount) return;
     try {
       setQuoteLoading(true);
-      const res = await fetch('/api/convert', {
+      const res = await fetch('/api/wallets/convert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fromWalletId, toWalletId, amount: parseFloat(amount) }),
@@ -77,7 +77,7 @@ export default function ConversionPage() {
     if (!confirm(`Convert ${amount} to ${quote.finalAmount.toFixed(2)} ${quote.to.currency}? Fee: ${quote.fee.toFixed(2)}`)) return;
     try {
       setConverting(true);
-      const res = await fetch('/api/convert', {
+      const res = await fetch('/api/wallets/convert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fromWalletId, toWalletId, amount: parseFloat(amount), execute: true }),

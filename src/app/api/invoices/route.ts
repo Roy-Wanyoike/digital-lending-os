@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth, tenantScope, errorResponse, successResponse } from '@/lib/auth/api-helpers';
-import { prisma } from '@/lib/prisma';
+import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { db } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const where = tenantScope(user.tenantId);
+    const user = await getApiUser(req);
+    if (!user) return errorResponse('Authentication required', 401);
 
-    const invoices = await prisma.invoice.findMany({
-      where,
-      include: {
-        subscription: { select: { id: true, name: true } },
-        account: { select: { id: true, email: true, name: true } },
-      },
+    // Get all business IDs belonging to this tenant
+    const businesses = await db.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    });
+    const businessIds = businesses.map((b) => b.id);
+
+    if (businessIds.length === 0) {
+      return successResponse({ invoices: [] });
+    }
+
+    const invoices = await db.invoice.findMany({
+      where: { senderId: { in: businessIds } },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -26,22 +33,36 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await requireAuth(req);
-    const body = await req.json();
-    const { amount, currency, description, subscriptionId, dueDate } = body;
+    const user = await getApiUser(req);
+    if (!user) return errorResponse('Authentication required', 401);
 
+    const body = await req.json();
+    const { businessId, amount, currency, description, dueDate } = body;
+
+    if (!businessId) return errorResponse('businessId is required', 400);
     if (!amount) return errorResponse('amount is required', 400);
 
-    const invoice = await prisma.invoice.create({
+    // Verify businessId belongs to the user's tenant
+    const business = await db.business.findFirst({
+      where: { id: businessId, tenantId: user.tenantId },
+    });
+
+    if (!business) return errorResponse('Business not found or not in your tenant', 403);
+
+    // Generate invoice reference
+    const count = await db.invoice.count();
+    const invoiceRef = `INV-${String(count + 1).padStart(6, '0')}`;
+
+    const invoice = await db.invoice.create({
       data: {
+        invoiceRef,
+        senderId: businessId,
+        receiverId: businessId, // self-invoice by default; can be updated later
         amount: parseFloat(amount),
-        currency: currency || 'KES',
-        description: description || '',
-        accountId: user.id,
-        tenantId: user.tenantId,
-        subscriptionId: subscriptionId || null,
+        currency: currency || 'USD',
+        notes: description || '',
         dueDate: dueDate ? new Date(dueDate) : null,
-        status: 'PENDING',
+        status: 'draft',
       },
     });
 

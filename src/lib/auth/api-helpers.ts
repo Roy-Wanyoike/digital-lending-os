@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from './auth';
-import { prisma } from '@/lib/prisma';
+import { authOptions } from '@/lib/auth';
 
 export interface ApiUser {
   id: string;
@@ -58,10 +57,10 @@ export async function requireRole(req: NextRequest, roles: string[]): Promise<Ap
 }
 
 /**
- * Require admin role (ADMIN or SUPER_ADMIN).
+ * Require admin role.
  */
 export async function requireAdmin(req: NextRequest): Promise<ApiUser> {
-  return requireRole(req, ['ADMIN', 'SUPER_ADMIN']);
+  return requireRole(req, ['admin']);
 }
 
 /**

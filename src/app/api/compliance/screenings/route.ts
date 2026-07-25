@@ -48,8 +48,14 @@ export async function GET(request: NextRequest) {
     const riskLevel = searchParams.get('riskLevel') || ''
     const status = searchParams.get('status') || ''
 
+    // ComplianceScreening has no business relation, filter by tenant business IDs
+    const tenantBizIds = (await db.business.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true },
+    })).map(b => b.id)
+
     const where: Record<string, unknown> = {
-      business: { tenantId: user.tenantId },
+      businessId: { in: tenantBizIds },
     }
 
     if (businessId) where.businessId = businessId
