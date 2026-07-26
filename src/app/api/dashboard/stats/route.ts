@@ -186,7 +186,7 @@ export async function GET(request: NextRequest) {
     const averageTrustScore =
       trustScores.length > 0
         ? Math.round(
-            (trustScores.reduce((sum, ts) => sum + ts.overallScore, 0) / trustScores.length) * 100
+            (trustScores.reduce((sum, ts) => sum + (ts.overallScore ?? 0), 0) / trustScores.length) * 100
           ) / 100
         : 0;
 
@@ -194,7 +194,7 @@ export async function GET(request: NextRequest) {
       totalBusinesses,
       verifiedBusinesses,
       activeEscrows,
-      totalEscrowVolume: totalEscrowVolume._sum.amount ?? 0,
+      totalEscrowVolume: totalEscrowVolume._sum?.amount ?? 0,
       totalPaymentsProcessed: completedPayments,
       averageTrustScore,
       recentDisputes,
@@ -206,7 +206,7 @@ export async function GET(request: NextRequest) {
       trustScoreDistribution,
     });
   } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
     console.error('Error fetching dashboard stats:', error);
     return NextResponse.json(
       { error: 'Failed to fetch dashboard stats' },

@@ -210,16 +210,18 @@ export interface Screening {
 // ─── Helper Functions ──────────────────────────────────────────────────────
 
 export function formatCurrency(value: number, currency = 'USD'): string {
-  if (currency === 'JPY' || value >= 1000000) {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0, notation: 'compact' }).format(value)
+  const safe = typeof value === 'number' && isFinite(value) ? value : 0
+  if (currency === 'JPY' || safe >= 1000000) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0, notation: 'compact' }).format(safe)
   }
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value)
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(safe)
 }
 
 export function abbreviateNumber(value: number): string {
-  if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`
-  if (value >= 1000) return `$${(value / 1000).toFixed(value >= 10000 ? 1 : 0)}K`
-  return value.toString()
+  const safe = typeof value === 'number' && isFinite(value) ? value : 0
+  if (safe >= 1000000) return `$${(safe / 1000000).toFixed(1)}M`
+  if (safe >= 1000) return `$${(safe / 1000).toFixed(safe >= 10000 ? 1 : 0)}K`
+  return safe.toString()
 }
 
 export function formatDate(dateStr: string): string {
