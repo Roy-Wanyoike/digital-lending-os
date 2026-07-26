@@ -65,7 +65,7 @@ export function TrustGraphTab() {
                     <TableCell>{biz.industry}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(biz.status)} className={getStatusColor(biz.status)}>{biz.status}</Badge></TableCell>
                     <TableCell>
-                      <span className={`font-bold ${getTrustScoreColor(biz.trustScore?.overallScore)}`}>{biz.trustScore?.overallScore ?? 'N/A'}</span>
+                      <span className={`font-bold ${getTrustScoreColor(biz.trustScore?.overallScore)}`}>{biz.trustScore?.overallScore ?? 0}</span>
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs">{biz.passport?.credentialLevel || 'N/A'}</Badge>

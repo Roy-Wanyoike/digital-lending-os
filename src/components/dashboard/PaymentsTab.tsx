@@ -79,17 +79,17 @@ export function PaymentsTab() {
                       </span>
                     </TableCell>
                     <TableCell className="font-medium">{formatCurrency(pi.sourceAmount, pi.sourceCurrency)}</TableCell>
-                    <TableCell><Badge variant="outline" className="text-xs">{pi.routingProvider}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className="text-xs">{pi.routingProvider || 'N/A'}</Badge></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${getTrustScoreBg(pi.routingScore)}`} style={{ width: `${pi.routingScore}%` }} />
+                          <div className={`h-full rounded-full ${getTrustScoreBg(pi.routingScore)}`} style={{ width: `${pi.routingScore ?? 0}%` }} />
                         </div>
-                        <span className={`text-xs font-medium ${getTrustScoreColor(pi.routingScore)}`}>{pi.routingScore}</span>
+                        <span className={`text-xs font-medium ${getTrustScoreColor(pi.routingScore)}`}>{pi.routingScore ?? 0}</span>
                       </div>
                     </TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(pi.status)} className={getStatusColor(pi.status)}>{pi.status}</Badge></TableCell>
-                    <TableCell className="text-xs">{formatCurrency(pi.estimatedFee)}</TableCell>
+                    <TableCell className="text-xs">{formatCurrency(pi.estimatedFee ?? 0)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

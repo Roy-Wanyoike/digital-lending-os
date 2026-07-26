@@ -302,7 +302,7 @@ export function WalletTab() {
       showToast('Conversion completed!')
       setConvertOpen(false); setCvtAmount('')
       setWalletKey(k => k + 1)
-      loadTransactions(selectedWalletId)
+      if (selectedWalletId) loadTransactions(selectedWalletId)
     } catch (e: any) { showToast(e.message) } finally { setCvtSubmitting(false) }
   }
 

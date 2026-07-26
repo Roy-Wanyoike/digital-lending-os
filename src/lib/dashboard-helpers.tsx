@@ -85,6 +85,7 @@ export interface EscrowTransaction {
   buyer?: { id: string; name: string } | null
   seller?: { id: string; name: string } | null
   milestones?: Array<{ id: string; sequence: number; title: string; amount: number; status: string }>
+  disputes?: Array<{ id: string; raisedBy: string; reason: string; description?: string | null; status: string; resolution?: string | null; aiRecommendation?: string | null; createdAt: string }>
 }
 
 // Matches /api/payments/intents response
@@ -139,6 +140,7 @@ export interface PaymentLink {
   amount?: number | null; currency: string;
   status: string; allowedMethods?: string | null;
   allowedCountries?: string | null; maxPayments: number;
+  totalCollected?: number;
   expiresAt?: string | null; createdAt: string; updatedAt: string;
   _paymentCount?: number
 }
@@ -196,7 +198,7 @@ export interface CollectionRecord {
 export interface ComplianceRule {
   id: string; name: string; description?: string | null;
   ruleType: string; condition: string; action: string;
-  severity: string; isActive: boolean;
+  severity: string; isActive: boolean; triggerCount?: number;
   createdAt: string; updatedAt: string
 }
 
@@ -259,31 +261,39 @@ export function getStatusColor(status: string): string {
   return 'bg-slate-100 text-slate-600 border-slate-200'
 }
 
-export function getTrustScoreColor(score: number): string {
-  if (score >= 80) return 'text-emerald-600'
-  if (score >= 60) return 'text-amber-600'
-  if (score >= 40) return 'text-orange-600'
+function safeNum(score: unknown): number {
+  return typeof score === 'number' && isFinite(score) ? score : 0
+}
+
+export function getTrustScoreColor(score: number | undefined | null): string {
+  const s = safeNum(score)
+  if (s >= 80) return 'text-emerald-600'
+  if (s >= 60) return 'text-amber-600'
+  if (s >= 40) return 'text-orange-600'
   return 'text-red-600'
 }
 
-export function getTrustScoreBg(score: number): string {
-  if (score >= 80) return 'bg-emerald-500'
-  if (score >= 60) return 'bg-amber-500'
-  if (score >= 40) return 'bg-orange-500'
+export function getTrustScoreBg(score: number | undefined | null): string {
+  const s = safeNum(score)
+  if (s >= 80) return 'bg-emerald-500'
+  if (s >= 60) return 'bg-amber-500'
+  if (s >= 40) return 'bg-orange-500'
   return 'bg-red-500'
 }
 
-export function getRiskColor(score: number): string {
-  if (score >= 80) return 'text-red-600'
-  if (score >= 60) return 'text-orange-600'
-  if (score >= 40) return 'text-amber-600'
+export function getRiskColor(score: number | undefined | null): string {
+  const s = safeNum(score)
+  if (s >= 80) return 'text-red-600'
+  if (s >= 60) return 'text-orange-600'
+  if (s >= 40) return 'text-amber-600'
   return 'text-emerald-600'
 }
 
-export function getRiskBg(score: number): string {
-  if (score >= 80) return 'bg-red-500'
-  if (score >= 60) return 'bg-orange-500'
-  if (score >= 40) return 'bg-amber-500'
+export function getRiskBg(score: number | undefined | null): string {
+  const s = safeNum(score)
+  if (s >= 80) return 'bg-red-500'
+  if (s >= 60) return 'bg-orange-500'
+  if (s >= 40) return 'bg-amber-500'
   return 'bg-emerald-500'
 }
 
@@ -397,11 +407,12 @@ export function ScoreBar({ score, maxScore = 100, label }: { score: number; maxS
   )
 }
 
-export function CircularScore({ score, size = 100, strokeWidth = 6 }: { score: number; size?: number; strokeWidth?: number }) {
+export function CircularScore({ score, size = 100, strokeWidth = 6 }: { score: number | undefined | null; size?: number; strokeWidth?: number }) {
+  const safe = typeof score === 'number' && isFinite(score) ? score : 0
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
-  const offset = circumference - (score / 100) * circumference
-  const color = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : score >= 40 ? '#f97316' : '#ef4444'
+  const offset = circumference - (safe / 100) * circumference
+  const color = safe >= 80 ? '#10b981' : safe >= 60 ? '#f59e0b' : safe >= 40 ? '#f97316' : '#ef4444'
 
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
@@ -415,7 +426,7 @@ export function CircularScore({ score, size = 100, strokeWidth = 6 }: { score: n
           style={{ transition: 'stroke-dashoffset 1s ease-out' }}
         />
       </svg>
-      <span className="absolute text-lg font-bold" style={{ color }}>{score}</span>
+      <span className="absolute text-lg font-bold" style={{ color }}>{safe}</span>
     </div>
   )
 }

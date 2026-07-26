@@ -83,7 +83,7 @@ export function FraudTab() {
                         <span className={`text-xs font-medium ${getRiskColor(a.score)}`}>{a.score}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-[100px] truncate">{a.businessId?.slice(0, 8) + '...' || '—'}</TableCell>
+                    <TableCell className="max-w-[100px] truncate">{a.businessId ? a.businessId.slice(0, 8) + '...' : '—'}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(a.status)} className={getStatusColor(a.status)}>{a.status}</Badge></TableCell>
                     <TableCell className="max-w-[150px] truncate text-xs">{truncate(a.description, 40)}</TableCell>
                     <TableCell className="text-xs text-slate-500">{formatDate(a.createdAt)}</TableCell>

@@ -97,7 +97,7 @@ export function CollectionsTab() {
                 {allCollections.map(c => (
                   <TableRow key={c.id} className="even:bg-muted/50">
                     <TableCell className="font-mono text-xs">{c.caseRef}</TableCell>
-                    <TableCell className="max-w-[100px] truncate">{c.debtorName}</TableCell>
+                    <TableCell className="max-w-[100px] truncate">{c.debtorName ?? '—'}</TableCell>
                     <TableCell className="text-sm">{formatCurrency(c.originalAmount, c.currency)}</TableCell>
                     <TableCell className="font-medium">{formatCurrency(c.outstandingAmount, c.currency)}</TableCell>
                     <TableCell><Badge variant="secondary" className={`text-[10px] ${agingBadgeColor(c.agingBucket ?? '')}`}>{c.agingBucket}</Badge></TableCell>

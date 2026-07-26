@@ -227,8 +227,8 @@ export function PaymentLinksTab() {
                   {selectedLink.payments && selectedLink.payments.length > 0 ? selectedLink.payments.map(p => (
                     <div key={p.id} className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0 text-sm">
                       <div>
-                        <p className="font-medium text-xs">{p.payerName} <span className="text-slate-400">({p.payerEmail})</span></p>
-                        <p className="text-xs text-slate-400">{p.paymentMethod} via {p.provider} · {formatDate(p.createdAt)}</p>
+                        <p className="font-medium text-xs">{p.payerName}{p.payerEmail ? <span className="text-slate-400"> ({p.payerEmail})</span> : ''}</p>
+                        <p className="text-xs text-slate-400">{p.paymentMethod}{p.provider ? ` via ${p.provider}` : ''} · {formatDate(p.createdAt)}</p>
                       </div>
                       <div className="text-right">
                         <p className="font-medium text-emerald-600">{formatCurrency(p.amount, p.currency)}</p>

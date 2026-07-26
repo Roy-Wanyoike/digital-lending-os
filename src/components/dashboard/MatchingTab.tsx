@@ -49,8 +49,8 @@ export function MatchingTab() {
               <TableBody>
                 {allMatches.map(m => (
                   <TableRow key={m.id} className={`even:bg-muted/50 ${m.matchScore > 85 ? 'bg-emerald-50/50' : ''}`}>
-                    <TableCell className="font-medium max-w-[120px] truncate">{m.seekerName}</TableCell>
-                    <TableCell className="max-w-[120px] truncate">{m.candidateName}</TableCell>
+                    <TableCell className="font-medium max-w-[120px] truncate">{m.seekerName ?? '—'}</TableCell>
+                    <TableCell className="max-w-[120px] truncate">{m.candidateName ?? '—'}</TableCell>
                     <TableCell><Badge variant="outline" className="text-xs">{m.matchType}</Badge></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

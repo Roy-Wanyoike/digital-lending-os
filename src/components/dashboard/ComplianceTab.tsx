@@ -61,7 +61,7 @@ export function ComplianceTab() {
                     <TableCell><Badge variant="outline" className="text-xs">{r.ruleType}</Badge></TableCell>
                     <TableCell><Badge variant="outline" className="text-xs">{r.action}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(r.severity)} className={getStatusColor(r.severity)}>{r.severity}</Badge></TableCell>
-                    <TableCell className="font-medium">{r.triggerCount}</TableCell>
+                    <TableCell className="font-medium">{r.triggerCount ?? 0}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
