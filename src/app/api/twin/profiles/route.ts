@@ -11,6 +11,7 @@ const createTwinSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get('businessId');
     const minHealthScore = searchParams.get('minHealthScore');
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const body = await request.json();
     const parsed = createTwinSchema.safeParse(body);
 

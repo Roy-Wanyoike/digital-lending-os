@@ -32,6 +32,7 @@ const createMatchSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('Error listing business matches:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     return NextResponse.json({ error: 'Failed to list business matches' }, { status: 500 })
   }
 }
@@ -102,6 +103,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const body = await request.json()
     const parsed = createMatchSchema.safeParse(body)
 
@@ -134,11 +136,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ data: match }, { status: 201 })
     }
 
-    // Auto-generate matches: find businesses in complementary industries/countries
+    // Auto-generate matches: find businesses in complementary industries/countries within same tenant
     const candidates = await db.business.findMany({
       where: {
         id: { not: data.seekerId },
         status: 'verified',
+        tenantId: user.tenantId,
       },
       take: 20,
     })
@@ -162,7 +165,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: matches }, { status: 201 })
   } catch (error: unknown) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json({ error: 'This match already exists' }, { status: 409 })
     }

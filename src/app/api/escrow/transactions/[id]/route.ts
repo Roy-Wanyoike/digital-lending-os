@@ -9,6 +9,7 @@ export async function GET(
 ) {
   try {
     const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { id } = await params;
 
     const escrow = await db.escrowTransaction.findFirst({
@@ -54,6 +55,7 @@ export async function PUT(
 ) {
   try {
     const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { id } = await params;
 
     const escrow = await db.escrowTransaction.findFirst({

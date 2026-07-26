@@ -17,11 +17,10 @@ import {
 
 export function TrustGraphTab() {
   const { data: businesses, loading: bLoading } = useApi<Business[]>('/api/businesses?limit=50')
-  const { data: _trustData, loading: tLoading } = useApi('/api/trust/scores')
   const [search, setSearch] = useState('')
   const [selectedBiz, setSelectedBiz] = useState<Business | null>(null)
 
-  if (bLoading || tLoading) return <LoadingSkeleton />
+  if (bLoading) return <LoadingSkeleton />
 
   const allBusinesses = businesses || []
   const filtered = allBusinesses.filter(b =>

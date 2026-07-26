@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const businessIds = businesses.map((b) => b.id);
 
     if (businessIds.length === 0) {
-      return successResponse({ wallets: [] });
+      return successResponse({ data: [] });
     }
 
     const wallets = await db.wallet.findMany({
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return successResponse({ wallets });
+    return successResponse({ data: wallets });
   } catch (error: any) {
     if (error.message === 'Authentication required') return errorResponse(error.message, 401);
     console.error('Wallets GET error:', error);

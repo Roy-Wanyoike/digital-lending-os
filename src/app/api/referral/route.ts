@@ -159,7 +159,6 @@ export async function POST(request: NextRequest) {
       referrer: {
         id: referrer.id,
         name: referrer.name,
-        email: referrer.email,
       },
       bonus: {
         amount: BONUS_AMOUNT,

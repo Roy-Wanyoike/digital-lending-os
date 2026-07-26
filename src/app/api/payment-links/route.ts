@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const businessIds = businesses.map((b) => b.id);
 
     if (businessIds.length === 0) {
-      return NextResponse.json({ paymentLinks: [] });
+      return NextResponse.json({ data: [] });
     }
 
     const paymentLinks = await db.paymentLink.findMany({
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ paymentLinks });
+    return NextResponse.json({ data: paymentLinks });
   } catch (error) {
     console.error('PaymentLinks GET error:', error);
     return NextResponse.json({ error: 'Failed to fetch payment links' }, { status: 500 });

@@ -14,6 +14,8 @@ const createFraudRuleSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!['admin', 'auditor'].includes(user.role)) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     const { searchParams } = new URL(request.url)
     const isActive = searchParams.get('isActive')
 
@@ -30,7 +32,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: rules })
   } catch (error) {
     console.error('Error listing fraud rules:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     return NextResponse.json({ error: 'Failed to list fraud rules' }, { status: 500 })
   }
 }
@@ -38,6 +40,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (user.role !== 'admin') return NextResponse.json({ error: 'Admin required' }, { status: 403 })
     const body = await request.json()
     const parsed = createFraudRuleSchema.safeParse(body)
 
@@ -72,7 +76,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: rule }, { status: 201 })
   } catch (error) {
     console.error('Error creating fraud rule:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     return NextResponse.json({ error: 'Failed to create fraud rule' }, { status: 500 })
   }
 }

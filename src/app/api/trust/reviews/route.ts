@@ -18,6 +18,7 @@ const createReviewSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url)
     const toBusinessId = searchParams.get('toBusinessId') || ''
     const fromBusinessId = searchParams.get('fromBusinessId') || ''
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const body = await request.json()
     const parsed = createReviewSchema.safeParse(body)
 

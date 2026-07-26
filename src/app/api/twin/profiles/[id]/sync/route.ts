@@ -56,6 +56,7 @@ export async function POST(
 ) {
   try {
     const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { id } = await params;
 
     const twin = await db.financialDigitalTwin.findUnique({

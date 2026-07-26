@@ -17,6 +17,7 @@ export async function GET(
 ) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { id } = await params
     const targetUser = await db.account.findUnique({
       where: { id },
@@ -41,7 +42,7 @@ export async function GET(
     return NextResponse.json({ data: { ...targetUser, businessName } })
   } catch (error) {
     console.error('Error fetching user:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 })
   }
 }
@@ -52,6 +53,8 @@ export async function PUT(
 ) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (user.role !== 'admin') return NextResponse.json({ error: 'Admin required to update users' }, { status: 403 })
     const { id } = await params
     const body = await request.json()
     const parsed = updateUserSchema.safeParse(body)
@@ -87,7 +90,7 @@ export async function PUT(
     return NextResponse.json({ data: updatedUser })
   } catch (error) {
     console.error('Error updating user:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
   }
 }
@@ -98,6 +101,8 @@ export async function DELETE(
 ) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (user.role !== 'admin') return NextResponse.json({ error: 'Admin required to deactivate users' }, { status: 403 })
     const { id } = await params
     const existing = await db.account.findUnique({ where: { id } })
     if (!existing) {
@@ -115,7 +120,7 @@ export async function DELETE(
     return NextResponse.json({ data: deletedUser })
   } catch (error) {
     console.error('Error deactivating user:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     return NextResponse.json({ error: 'Failed to deactivate user' }, { status: 500 })
   }
 }

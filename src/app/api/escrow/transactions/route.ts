@@ -42,6 +42,7 @@ function computeRiskScore(): { score: number; level: string } {
 export async function GET(request: NextRequest) {
   try {
     const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url);
 
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
     console.error("Error listing escrow transactions:", error);
     return NextResponse.json(
       { error: "Failed to list escrow transactions" },
@@ -101,6 +102,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const body = await request.json();
     const parsed = createEscrowSchema.safeParse(body);
 
@@ -112,6 +114,19 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parsed.data;
+
+    // Verify both buyer and seller belong to the current tenant
+    const [buyerBiz, sellerBiz] = await Promise.all([
+      db.business.findUnique({ where: { id: data.buyerId }, select: { id: true, tenantId: true } }),
+      db.business.findUnique({ where: { id: data.sellerId }, select: { id: true, tenantId: true } }),
+    ]);
+    if (!buyerBiz || buyerBiz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Buyer business not found' }, { status: 404 });
+    }
+    if (!sellerBiz || sellerBiz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Seller business not found' }, { status: 404 });
+    }
+
     const { score, level } = computeRiskScore();
     const txRef = generateTxRef();
     const now = new Date();
@@ -176,7 +191,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: escrow }, { status: 201 });
   } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
     console.error("Error creating escrow transaction:", error);
     return NextResponse.json(
       { error: "Failed to create escrow transaction" },

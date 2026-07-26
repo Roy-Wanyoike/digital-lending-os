@@ -18,6 +18,7 @@ export async function PUT(
 ) {
   try {
     const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { id, disputeId } = await params;
     const body = await request.json();
     const parsed = resolveDisputeSchema.safeParse(body);

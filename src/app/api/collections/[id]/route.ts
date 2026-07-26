@@ -29,6 +29,7 @@ export async function GET(
 ) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { id } = await params
 
     if (!(await verifyTenantAccess(id, user.tenantId)).ok) {
@@ -59,6 +60,7 @@ export async function PUT(
 ) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { id } = await params
     const body = await request.json()
     const parsed = updateCaseSchema.safeParse(body)

@@ -24,6 +24,7 @@ const addMethodSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get("businessId");
 
@@ -60,6 +61,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getApiUser(request);
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const body = await request.json();
     const parsed = addMethodSchema.safeParse(body);
 
