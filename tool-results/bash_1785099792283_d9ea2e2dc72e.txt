@@ -1,17 +1,5 @@
-generator client {
-  provider = "prisma-client-js"
-}
 
-datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}
-
-// ============================================================
-// MODULE 0: MULTI-TENANCY — Tenant & Account
-// ============================================================
-
-model Tenant {
+=== Tenant ===
   id            String   @id @default(cuid())
   name          String
   slug          String   @unique // used in subdomain/URL: youngsend.space-z.ai
@@ -24,15 +12,10 @@ model Tenant {
   ownerName     String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
   businesses Business[]
   accounts   Account[]
 
-  @@index([slug])
-  @@index([status])
-}
-
-model Account {
+=== Account ===
   id           String    @id @default(cuid())
   email        String
   passwordHash String
@@ -45,25 +28,13 @@ model Account {
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-
   tenant               Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   referralCode         String? @unique
   referredBy           String?
   notificationsEnabled Boolean @default(true)
   twoFactorEnabled     Boolean @default(false)
 
-  @@unique([tenantId, email])
-  @@index([tenantId])
-  @@index([email])
-  @@index([role])
-  @@index([isActive])
-}
-
-// ============================================================
-// MODULE 1: COMMERCE PASSPORT — Business Identity & Verification
-// ============================================================
-
-model Business {
+=== Business ===
   id             String    @id @default(cuid())
   tenantId       String
   name           String
@@ -82,8 +53,6 @@ model Business {
   verifiedAt     DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-
-  // Relations
   tenant                Tenant                 @relation(fields: [tenantId], references: [id])
   passport              CommercePassport?
   trustScore            TrustScore?
@@ -97,13 +66,7 @@ model Business {
   verifications         Verification[]
   wallets               Wallet[]
 
-  @@index([tenantId])
-  @@index([country])
-  @@index([industry])
-  @@index([status])
-}
-
-model CommercePassport {
+=== CommercePassport ===
   id              String    @id @default(cuid())
   businessId      String    @unique
   passportHash    String    @unique
@@ -117,15 +80,10 @@ model CommercePassport {
   nextAuditDue    DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-
   business       Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
   complianceDocs ComplianceDocument[]
 
-  @@index([credentialLevel])
-  @@index([riskRating])
-}
-
-model Verification {
+=== Verification ===
   id              String    @id @default(cuid())
   businessId      String
   type            String // identity, business_registration, tax, bank_account, address
@@ -138,14 +96,9 @@ model Verification {
   metadata        String? // JSON string for extra data
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
-  @@index([type])
-  @@index([status])
-}
-
-model ComplianceDocument {
+=== ComplianceDocument ===
   id         String    @id @default(cuid())
   passportId String
   docType    String // certificate_of_incorporation, tax_registration, bank_statement, proof_of_address, license
@@ -156,18 +109,9 @@ model ComplianceDocument {
   expiresAt  DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
-
   passport CommercePassport @relation(fields: [passportId], references: [id], onDelete: Cascade)
 
-  @@index([docType])
-  @@index([status])
-}
-
-// ============================================================
-// MODULE 2: TRUST GRAPH — Reputation & Relationship Network
-// ============================================================
-
-model TrustScore {
+=== TrustScore ===
   id                 String   @id @default(cuid())
   businessId         String   @unique
   overallScore       Float    @default(50.0)
@@ -182,14 +126,10 @@ model TrustScore {
   lastCalculated     DateTime @default(now())
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
-
   business         Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
   reputationEvents ReputationEvent[]
 
-  @@index([overallScore])
-}
-
-model BusinessRelationship {
+=== BusinessRelationship ===
   id             String    @id @default(cuid())
   fromBusinessId String
   toBusinessId   String
@@ -203,16 +143,10 @@ model BusinessRelationship {
   metadata       String? // JSON string
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-
   fromBusiness Business @relation("SentRelationships", fields: [fromBusinessId], references: [id], onDelete: Cascade)
   toBusiness   Business @relation("ReceivedRelationships", fields: [toBusinessId], references: [id], onDelete: Cascade)
 
-  @@unique([fromBusinessId, toBusinessId, type])
-  @@index([type])
-  @@index([trustLevel])
-}
-
-model ReputationEvent {
+=== ReputationEvent ===
   id           String   @id @default(cuid())
   trustScoreId String
   eventType    String // transaction_completed, review_received, dispute_resolved, verification_upgraded, penalty_applied
@@ -221,14 +155,9 @@ model ReputationEvent {
   sourceId     String? // ID of related entity (escrow_id, review_id, etc.)
   metadata     String? // JSON string
   createdAt    DateTime @default(now())
-
   trustScore TrustScore @relation(fields: [trustScoreId], references: [id], onDelete: Cascade)
 
-  @@index([eventType])
-  @@index([createdAt])
-}
-
-model Review {
+=== Review ===
   id                  String    @id @default(cuid())
   fromBusinessId      String
   toBusinessId        String
@@ -245,16 +174,7 @@ model Review {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  @@index([toBusinessId])
-  @@index([rating])
-  @@index([createdAt])
-}
-
-// ============================================================
-// MODULE 3: AI SMART ESCROW — Transaction State Machine
-// ============================================================
-
-model EscrowTransaction {
+=== EscrowTransaction ===
   id               String         @id @default(cuid())
   txRef            String         @unique
   buyerId          String
@@ -278,7 +198,6 @@ model EscrowTransaction {
   completedAt      DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
-
   buyer          Business          @relation("Buyer", fields: [buyerId], references: [id])
   seller         Business          @relation("Seller", fields: [sellerId], references: [id])
   milestones     EscrowMilestone[]
@@ -289,14 +208,7 @@ model EscrowTransaction {
   sellerWalletId String?
   releasedAt     DateTime?
 
-  @@index([status])
-  @@index([buyerId])
-  @@index([sellerId])
-  @@index([currency])
-  @@index([createdAt])
-}
-
-model EscrowMilestone {
+=== EscrowMilestone ===
   id          String    @id @default(cuid())
   escrowId    String
   sequence    Int
@@ -308,14 +220,9 @@ model EscrowMilestone {
   releasedAt  DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-
   escrow EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
 
-  @@index([escrowId])
-  @@index([status])
-}
-
-model Disbursement {
+=== Disbursement ===
   id          String    @id @default(cuid())
   escrowId    String
   milestoneId String?
@@ -328,14 +235,9 @@ model Disbursement {
   completedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-
   escrow EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
 
-  @@index([escrowId])
-  @@index([status])
-}
-
-model Dispute {
+=== Dispute ===
   id               String    @id @default(cuid())
   escrowId         String
   raisedBy         String // buyer or seller
@@ -348,14 +250,9 @@ model Dispute {
   metadata         String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
-
   escrow EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
 
-  @@index([escrowId])
-  @@index([status])
-}
-
-model EscrowAuditLog {
+=== EscrowAuditLog ===
   id        String   @id @default(cuid())
   escrowId  String
   action    String
@@ -363,19 +260,9 @@ model EscrowAuditLog {
   details   String?
   metadata  String?
   createdAt DateTime @default(now())
-
   escrow EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
 
-  @@index([escrowId])
-  @@index([action])
-  @@index([createdAt])
-}
-
-// ============================================================
-// MODULE 4: GLOBAL PAYMENT ROUTER — Multi-Currency & Routing
-// ============================================================
-
-model PaymentIntent {
+=== PaymentIntent ===
   id              String    @id @default(cuid())
   intentRef       String    @unique
   escrowId        String?   @unique
@@ -396,18 +283,10 @@ model PaymentIntent {
   completedAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-
   escrow       EscrowTransaction?   @relation(fields: [escrowId], references: [id])
   transactions PaymentTransaction[]
 
-  @@index([status])
-  @@index([fromBusinessId])
-  @@index([toBusinessId])
-  @@index([paymentMethod])
-  @@index([createdAt])
-}
-
-model PaymentTransaction {
+=== PaymentTransaction ===
   id           String    @id @default(cuid())
   intentId     String
   txRef        String    @unique
@@ -422,16 +301,9 @@ model PaymentTransaction {
   settledAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-
   intent PaymentIntent @relation(fields: [intentId], references: [id], onDelete: Cascade)
 
-  @@index([intentId])
-  @@index([status])
-  @@index([provider])
-  @@index([createdAt])
-}
-
-model CurrencyRate {
+=== CurrencyRate ===
   id           String   @id @default(cuid())
   fromCurrency String
   toCurrency   String
@@ -441,11 +313,7 @@ model CurrencyRate {
   expiresAt    DateTime
   createdAt    DateTime @default(now())
 
-  @@unique([fromCurrency, toCurrency, provider, createdAt])
-  @@index([fromCurrency, toCurrency])
-}
-
-model PaymentMethod {
+=== PaymentMethod ===
   id         String   @id @default(cuid())
   businessId String
   type       String // bank_account, card, crypto_wallet, mobile_money, digital_wallet
@@ -460,16 +328,7 @@ model PaymentMethod {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@index([businessId])
-  @@index([type])
-  @@index([status])
-}
-
-// ============================================================
-// MODULE 5: FINANCIAL DIGITAL TWIN — AI-Powered Financial Profile
-// ============================================================
-
-model FinancialDigitalTwin {
+=== FinancialDigitalTwin ===
   id               String   @id @default(cuid())
   businessId       String   @unique
   healthScore      Float    @default(50.0)
@@ -482,17 +341,12 @@ model FinancialDigitalTwin {
   lastSyncAt       DateTime @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-
   business    Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   metrics     FinancialMetric[]
   predictions FinancialPrediction[]
   snapshots   FinancialSnapshot[]
 
-  @@index([healthScore])
-  @@index([growthTrajectory])
-}
-
-model FinancialMetric {
+=== FinancialMetric ===
   id                      String   @id @default(cuid())
   twinId                  String
   period                  String // daily, weekly, monthly, quarterly, yearly
@@ -512,15 +366,9 @@ model FinancialMetric {
   customerCount           Int?
   supplierCount           Int?
   createdAt               DateTime @default(now())
-
   twin FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
 
-  @@unique([twinId, period, periodDate])
-  @@index([twinId])
-  @@index([period])
-}
-
-model FinancialPrediction {
+=== FinancialPrediction ===
   id             String   @id @default(cuid())
   twinId         String
   predictionType String // revenue, cash_flow, risk, default_probability, growth_rate
@@ -529,17 +377,11 @@ model FinancialPrediction {
   confidence     Float // 0-1
   lowerBound     Float?
   upperBound     Float?
-  model          String   @default("ensemble")
   metadata       String?
   createdAt      DateTime @default(now())
-
   twin FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
 
-  @@index([twinId])
-  @@index([predictionType])
-}
-
-model FinancialSnapshot {
+=== FinancialSnapshot ===
   id               String   @id @default(cuid())
   twinId           String
   snapshotType     String // daily, weekly, event_driven
@@ -552,19 +394,9 @@ model FinancialSnapshot {
   aiSummary        String?
   metadata         String?
   createdAt        DateTime @default(now())
-
   twin FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
 
-  @@index([twinId])
-  @@index([snapshotType])
-  @@index([createdAt])
-}
-
-// ============================================================
-// SHARED: Invoice Module
-// ============================================================
-
-model Invoice {
+=== Invoice ===
   id         String    @id @default(cuid())
   invoiceRef String    @unique
   senderId   String
@@ -580,22 +412,11 @@ model Invoice {
   paidAt     DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
-
   sender         Business @relation("InvoiceSender", fields: [senderId], references: [id])
   receiver       Business @relation("InvoiceReceiver", fields: [receiverId], references: [id])
   subscriptionId String?
 
-  @@index([senderId])
-  @@index([receiverId])
-  @@index([status])
-  @@index([dueDate])
-}
-
-// ============================================================
-// MODULE 6: USERS & ROLES — Multi-view Access Control
-// ============================================================
-
-model User {
+=== User ===
   id          String    @id @default(cuid())
   email       String    @unique
   name        String
@@ -607,16 +428,7 @@ model User {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  @@index([role])
-  @@index([businessId])
-  @@index([isActive])
-}
-
-// ============================================================
-// MODULE 7: PAYMENT LINKS — Shareable Payment URLs
-// ============================================================
-
-model PaymentLink {
+=== PaymentLink ===
   id               String    @id @default(cuid())
   linkRef          String    @unique
   businessId       String
@@ -634,17 +446,10 @@ model PaymentLink {
   metadata         String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
-
   payments  PaymentLinkPayment[]
   createdBy String?
 
-  @@index([businessId])
-  @@index([status])
-  @@index([currency])
-  @@index([createdAt])
-}
-
-model PaymentLinkPayment {
+=== PaymentLinkPayment ===
   id            String    @id @default(cuid())
   paymentLinkId String
   payerName     String?
@@ -662,21 +467,9 @@ model PaymentLinkPayment {
   completedAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
   paymentLink PaymentLink @relation(fields: [paymentLinkId], references: [id], onDelete: Cascade)
 
-  @@index([paymentLinkId])
-  @@index([status])
-  @@index([payerCountry])
-  @@index([paymentMethod])
-  @@index([createdAt])
-}
-
-// ============================================================
-// MODULE 8: GLOBAL PAYMENT METHODS CATALOG
-// ============================================================
-
-model GlobalPaymentMethod {
+=== GlobalPaymentMethod ===
   id             String   @id @default(cuid())
   methodCode     String // mpesa, upi, pix, alipay, wechat_pay, gcash, grabpay, ovo, dana, bca, promptpay, fps, sepa, ach, swift, etc.
   methodName     String // M-Pesa, UPI, PIX, Alipay, etc.
@@ -695,14 +488,7 @@ model GlobalPaymentMethod {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@unique([methodCode])
-  @@index([type])
-  @@index([isActive])
-}
-
-// ============================================================// MODULE 9: MULTI-CURRENCY WALLET// ============================================================
-
-model Wallet {
+=== Wallet ===
   id               String   @id @default(cuid())
   businessId       String
   currency         String
@@ -714,7 +500,6 @@ model Wallet {
   status           String   @default("active") // active, frozen, closed
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-
   business          Business             @relation(fields: [businessId], references: [id])
   transactions      WalletTransaction[]
   deposits          Deposit[]
@@ -722,16 +507,9 @@ model Wallet {
   cryptoWithdrawals CryptoWithdrawal[]
   conversionsOut    CurrencyConversion[] @relation("ConversionFrom")
   conversionsIn     CurrencyConversion[] @relation("ConversionTo")
-
   label String?
 
-  @@unique([businessId, currency])
-  @@index([businessId])
-  @@index([currency])
-  @@index([status])
-}
-
-model WalletTransaction {
+=== WalletTransaction ===
   id             String   @id @default(cuid())
   walletId       String
   txRef          String   @unique
@@ -747,19 +525,9 @@ model WalletTransaction {
   status         String   @default("completed") // pending, completed, failed, reversed
   metadata       String?
   createdAt      DateTime @default(now())
-
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
-  @@index([walletId])
-  @@index([type])
-  @@index([referenceType])
-  @@index([status])
-  @@index([createdAt])
-}
-
-// ── Deposit Model ─────────────────────────────────────────────
-
-model Deposit {
+=== Deposit ===
   id            String    @id @default(cuid())
   depositRef    String    @unique
   walletId      String
@@ -778,19 +546,9 @@ model Deposit {
   metadata      String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
-  @@index([walletId])
-  @@index([status])
-  @@index([paymentMethod])
-  @@index([provider])
-  @@index([createdAt])
-}
-
-// ── Withdrawal Model ──────────────────────────────────────────
-
-model Withdrawal {
+=== Withdrawal ===
   id            String    @id @default(cuid())
   withdrawalRef String    @unique
   walletId      String
@@ -812,18 +570,9 @@ model Withdrawal {
   metadata      String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
-  @@index([walletId])
-  @@index([status])
-  @@index([paymentMethod])
-  @@index([createdAt])
-}
-
-// ── Crypto Withdrawal Model ───────────────────────────────────
-
-model CryptoWithdrawal {
+=== CryptoWithdrawal ===
   id             String    @id @default(cuid())
   withdrawalRef  String    @unique
   walletId       String
@@ -846,19 +595,9 @@ model CryptoWithdrawal {
   metadata       String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
-
   wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
-  @@index([walletId])
-  @@index([status])
-  @@index([cryptoCurrency])
-  @@index([network])
-  @@index([createdAt])
-}
-
-// ── Currency Conversion Model ─────────────────────────────────
-
-model CurrencyConversion {
+=== CurrencyConversion ===
   id            String   @id @default(cuid())
   conversionRef String   @unique
   fromWalletId  String
@@ -875,22 +614,10 @@ model CurrencyConversion {
   status        String   @default("completed") // pending, completed, failed, reversed
   metadata      String?
   createdAt     DateTime @default(now())
-
   fromWallet Wallet @relation("ConversionFrom", fields: [fromWalletId], references: [id], onDelete: Cascade)
   toWallet   Wallet @relation("ConversionTo", fields: [toWalletId], references: [id], onDelete: Cascade)
 
-  @@index([fromWalletId])
-  @@index([toWalletId])
-  @@index([fromCurrency, toCurrency])
-  @@index([status])
-  @@index([createdAt])
-}
-
-// ============================================================
-// MODULE 10: AI FRAUD DETECTION
-// ============================================================
-
-model FraudAlert {
+=== FraudAlert ===
   id             String    @id @default(cuid())
   alertRef       String    @unique
   businessId     String?
@@ -908,15 +635,7 @@ model FraudAlert {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  @@index([businessId])
-  @@index([severity])
-  @@index([fraudType])
-  @@index([status])
-  @@index([score])
-  @@index([createdAt])
-}
-
-model FraudRule {
+=== FraudRule ===
   id              String    @id @default(cuid())
   name            String
   description     String?
@@ -929,15 +648,7 @@ model FraudRule {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  @@index([isActive])
-  @@index([severity])
-}
-
-// ============================================================
-// MODULE 11: BUSINESS MATCHING — AI Buyer-Supplier Discovery
-// ============================================================
-
-model BusinessMatch {
+=== BusinessMatch ===
   id                String   @id @default(cuid())
   seekerId          String // business looking for a match
   candidateId       String // business being matched
@@ -951,18 +662,7 @@ model BusinessMatch {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  @@unique([seekerId, candidateId, matchType])
-  @@index([seekerId])
-  @@index([candidateId])
-  @@index([matchScore])
-  @@index([status])
-}
-
-// ============================================================
-// MODULE 12: AI COLLECTIONS — Payment Reminders & Aging
-// ============================================================
-
-model CollectionCase {
+=== CollectionCase ===
   id                String    @id @default(cuid())
   caseRef           String    @unique
   invoiceId         String?
@@ -983,17 +683,9 @@ model CollectionCase {
   metadata          String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
-
   reminders CollectionReminder[]
 
-  @@index([businessId])
-  @@index([debtorId])
-  @@index([agingBucket])
-  @@index([priority])
-  @@index([status])
-}
-
-model CollectionReminder {
+=== CollectionReminder ===
   id          String    @id @default(cuid())
   caseId      String
   channel     String // email, sms, whatsapp, in_app
@@ -1003,19 +695,9 @@ model CollectionReminder {
   response    String?
   respondedAt DateTime?
   createdAt   DateTime  @default(now())
-
   case CollectionCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
 
-  @@index([caseId])
-  @@index([channel])
-  @@index([status])
-}
-
-// ============================================================
-// MODULE 13: COMPLIANCE ENGINE — Rules & Screening
-// ============================================================
-
-model ComplianceRule {
+=== ComplianceRule ===
   id             String   @id @default(cuid())
   name           String
   description    String?
@@ -1028,12 +710,7 @@ model ComplianceRule {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@index([ruleType])
-  @@index([isActive])
-  @@index([severity])
-}
-
-model ComplianceScreening {
+=== ComplianceScreening ===
   id              String    @id @default(cuid())
   businessId      String?
   transactionType String? // escrow, payment, wallet
@@ -1049,19 +726,7 @@ model ComplianceScreening {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  @@index([businessId])
-  @@index([screeningType])
-  @@index([result])
-  @@index([riskLevel])
-  @@index([status])
-  @@index([createdAt])
-}
-
-// ============================================================
-// MODULE 14: REFERRAL SYSTEM — Referral Links & Bonuses
-// ============================================================
-
-model ReferralBonus {
+=== ReferralBonus ===
   id            String   @id @default(cuid())
   bonusRef      String   @unique
   referrerId    String // Account who referred
@@ -1074,9 +739,3 @@ model ReferralBonus {
   creditedAt    DateTime @default(now())
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-
-  @@index([referrerId])
-  @@index([refereeId])
-  @@index([status])
-  @@index([creditedAt])
-}
