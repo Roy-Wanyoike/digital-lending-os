@@ -41,7 +41,7 @@ export default function ConversionPage() {
       const res = await fetch('/api/wallets');
       if (res.ok) {
         const data = await res.json();
-        setWallets(data.wallets || []);
+        setWallets(Array.isArray(data.data) ? data.data : (Array.isArray(data.wallets) ? data.wallets : []));
       }
     } catch (err) { setError('Failed to load wallets'); }
     finally { setLoading(false); }

@@ -46,7 +46,7 @@ export default function WithdrawalsPage() {
       const res = await fetch('/api/wallets');
       if (res.ok) {
         const data = await res.json();
-        setWallets((data.wallets || []).map((w: any) => ({ id: w.id, currency: w.currency, balance: w.balance || 0 })));
+        setWallets(((Array.isArray(data.data) ? data.data : (data.wallets || [])) as any[]).map((w: any) => ({ id: w.id, currency: w.currency, balance: w.balance || 0 })));
       }
     } catch (e) { /* ignore */ }
   }
@@ -150,7 +150,7 @@ export default function WithdrawalsPage() {
             <tbody className="divide-y">
               {withdrawals.map((w) => (
                 <tr key={w.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-mono text-gray-500">{w.referenceId?.slice(0, 16) || w.id.slice(0, 8)}</td>
+                  <td className="px-6 py-4 text-sm font-mono text-gray-500">{w.withdrawalRef?.slice(0, 16) || w.id.slice(0, 8)}</td>
                   <td className="px-6 py-4 text-right text-sm font-semibold text-red-600">-{w.amount.toLocaleString()} {w.currency}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{w.method.replace('_', ' ')}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 font-mono">{w.destination ? (w.destination.length > 20 ? w.destination.slice(0, 20) + '...' : w.destination) : 'N/A'}</td>
@@ -159,7 +159,7 @@ export default function WithdrawalsPage() {
                       {statusIcon(w.status)}
                       <span className="text-sm">{w.status}</span>
                     </div>
-                    {w.rejectionReason && <p className="text-xs text-red-500 mt-1">{w.rejectionReason}</p>}
+                    {w.failedReason && <p className="text-xs text-red-500 mt-1">{w.failedReason}</p>}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">{new Date(w.createdAt).toLocaleDateString()}</td>
                 </tr>

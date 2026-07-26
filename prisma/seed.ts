@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 import { createHash } from 'crypto'
 
 const db = new PrismaClient()
@@ -9,7 +10,7 @@ const rf = (min: number, max: number) => Math.round((Math.random() * (max - min)
 const ri = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min
 const daysAgo = (d: number) => new Date(Date.now() - ri(0, d) * 86400000)
 const futureDays = (d: number) => new Date(Date.now() + ri(1, d) * 86400000)
-const pwd = (s: string) => createHash('sha256').update(s).digest('hex')
+const pwd = (s: string) => bcrypt.hashSync(s, 10)
 
 const CURRENCIES = ['USD','EUR','GBP','KES','NGN','GHS','UGX','TZS']
 const CURRENCIES_MAJOR = ['USD','EUR','GBP']

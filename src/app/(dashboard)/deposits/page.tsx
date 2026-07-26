@@ -48,7 +48,7 @@ export default function DepositsPage() {
       const res = await fetch('/api/wallets');
       if (res.ok) {
         const data = await res.json();
-        setWallets((data.wallets || []).map((w: any) => ({ id: w.id, currency: w.currency })));
+        setWallets(((Array.isArray(data.data) ? data.data : (data.wallets || [])) as any[]).map((w: any) => ({ id: w.id, currency: w.currency })));
       }
     } catch (e) { /* ignore */ }
   }
@@ -143,7 +143,7 @@ export default function DepositsPage() {
             <tbody className="divide-y">
               {deposits.map((d) => (
                 <tr key={d.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-mono text-gray-500">{d.referenceId?.slice(0, 16) || d.id.slice(0, 8)}</td>
+                  <td className="px-6 py-4 text-sm font-mono text-gray-500">{d.depositRef?.slice(0, 16) || d.id.slice(0, 8)}</td>
                   <td className="px-6 py-4 text-sm text-gray-900">{d.wallet?.currency || d.currency}</td>
                   <td className="px-6 py-4 text-right text-sm font-semibold text-green-600">+{d.amount.toLocaleString()} {d.currency}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">{d.method.replace('_', ' ')}</td>
