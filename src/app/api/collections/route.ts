@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('Error listing collection cases:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     return NextResponse.json({ error: 'Failed to list collection cases' }, { status: 500 })
   }
 }
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data: collectionCase }, { status: 201 })
   } catch (error: unknown) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json({ error: 'Case reference collision, please retry' }, { status: 409 })
     }

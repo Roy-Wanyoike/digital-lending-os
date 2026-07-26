@@ -10,6 +10,9 @@ export async function GET(req: NextRequest) {
     const businesses = await db.business.findMany({
       where: { tenantId: user.tenantId },
       include: {
+        passport: { select: { credentialLevel: true, kycStatus: true, amlStatus: true, riskRating: true } },
+        trustScore: { select: { overallScore: true } },
+        digitalTwin: { select: { healthScore: true, growthTrajectory: true, riskAppetite: true } },
         _count: {
           select: {
             sentInvoices: true,

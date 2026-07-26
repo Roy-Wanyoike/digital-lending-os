@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
           buyer: { select: { id: true, name: true } },
           seller: { select: { id: true, name: true } },
           milestones: true,
+          disputes: true,
           disbursements: true,
         },
       }),

@@ -25,7 +25,14 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ data: paymentLinks });
+    // Map DB fields to expected frontend fields
+    const linksWithExtras = paymentLinks.map(link => ({
+      ...link,
+      _paymentCount: link.paymentCount,
+      totalCollected: link.totalCollected,
+    }));
+
+    return NextResponse.json({ data: linksWithExtras });
   } catch (error) {
     console.error('PaymentLinks GET error:', error);
     return NextResponse.json({ error: 'Failed to fetch payment links' }, { status: 500 });

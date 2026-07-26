@@ -191,19 +191,21 @@ export async function GET(request: NextRequest) {
         : 0;
 
     return NextResponse.json({
-      totalBusinesses,
-      verifiedBusinesses,
-      activeEscrows,
-      totalEscrowVolume: totalEscrowVolume._sum?.amount ?? 0,
-      totalPaymentsProcessed: completedPayments,
-      averageTrustScore,
-      recentDisputes,
-      activeRelationships,
-      escrowsByStatus,
-      businessesByCountry,
-      paymentsByMethod,
-      recentTransactions: recentTransactionsFlat,
-      trustScoreDistribution,
+      data: {
+        totalBusinesses,
+        verifiedBusinesses,
+        activeEscrows,
+        totalEscrowVolume: totalEscrowVolume._sum?.amount ?? 0,
+        totalPaymentsProcessed: completedPayments,
+        averageTrustScore,
+        recentDisputes,
+        activeRelationships,
+        escrowsByStatus,
+        businessesByCountry,
+        paymentsByMethod,
+        recentTransactions: recentTransactionsFlat,
+        trustScoreDistribution,
+      },
     });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
