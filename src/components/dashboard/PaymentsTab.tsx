@@ -33,16 +33,15 @@ export function PaymentsTab() {
         <h3 className="text-sm font-semibold text-slate-700 mb-3">Live Exchange Rates</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {allRates.slice(0, 5).map(rate => (
-            <Card key={rate.id} className="hover:shadow-md transition-shadow">
+            <Card key={`${rate.from}-${rate.to}`} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
-                  <span>{CURRENCY_FLAGS[rate.from]}</span>
+                  <span>{CURRENCY_FLAGS[rate.from] || '💱'}</span>
                   <ArrowRight className="h-3 w-3 text-slate-400" />
-                  <span>{CURRENCY_FLAGS[rate.to]}</span>
+                  <span>{CURRENCY_FLAGS[rate.to] || '💱'}</span>
                 </div>
                 <p className="text-lg font-bold">{rate.from}/{rate.to}</p>
-                <p className="text-2xl font-bold text-emerald-600">{rate.rate?.toFixed(4)}</p>
-                <p className="text-xs text-slate-500 mt-1">{rate.provider}</p>
+                <p className="text-2xl font-bold text-emerald-600">{(rate.rate ?? 0).toFixed(4)}</p>
               </CardContent>
             </Card>
           ))}

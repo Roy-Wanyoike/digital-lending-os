@@ -128,6 +128,8 @@ export interface TwinProfile {
   growthTrajectory: string; aiModelVersion: string;
   lastSyncAt?: string | null; createdAt: string; updatedAt: string;
   business?: { id: string; name: string; country: string; industry: string } | null
+  metrics?: Array<{ period: string; periodDate: string; revenue?: number | null; expenses?: number | null; netIncome?: number | null; transactionCount?: number | null; paymentSuccessRate?: number | null }> | null
+  predictions?: Array<{ predictionType: string; timeframe: string; predictedValue: number; confidence: number }> | null
 }
 
 // Matches /api/payment-links response

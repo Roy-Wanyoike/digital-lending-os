@@ -40,6 +40,11 @@ export async function GET(request: NextRequest) {
             industry: true,
           },
         },
+        metrics: {
+          orderBy: { periodDate: 'asc' },
+          take: 6,
+        },
+        predictions: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -47,7 +52,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(twins);
   } catch (error) {
     console.error('Error listing digital twins:', error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
     return NextResponse.json(
       { error: 'Failed to list digital twins' },
       { status: 500 }
@@ -122,7 +127,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(twin, { status: 201 });
   } catch (error) {
     console.error('Error creating digital twin:', error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
     return NextResponse.json(
       { error: 'Failed to create digital twin' },
       { status: 500 }
