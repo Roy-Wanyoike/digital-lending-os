@@ -95,7 +95,7 @@ export function ComplianceTab() {
                     <TableCell><Badge variant="secondary" className={`text-xs ${screeningResultColor(s.result)}`}>{s.result}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(s.riskLevel)} className={getStatusColor(s.riskLevel)}>{s.riskLevel}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(s.status)} className={getStatusColor(s.status)}>{s.status}</Badge></TableCell>
-                    <TableCell className="text-xs text-slate-500">{formatDate(s.createdAt)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDate(s.createdAt)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

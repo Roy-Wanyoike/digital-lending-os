@@ -158,7 +158,7 @@ export function PaymentLinksTab() {
 
       {/* Toolbar */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-500">{allLinks.length} payment links</p>
+        <p className="text-sm text-muted-foreground">{allLinks.length} payment links</p>
         <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-1" /> New Link</Button>
       </div>
 
@@ -195,7 +195,7 @@ export function PaymentLinksTab() {
                         {link.status === 'active' && <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openLink(link)}>Pay</Button>}
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs text-slate-500">{formatDate(link.createdAt)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDate(link.createdAt)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -207,7 +207,7 @@ export function PaymentLinksTab() {
       {/* Detail Dialog */}
       <Dialog open={!!selectedLink || detailLoading} onOpenChange={(open) => { if (!open) setSelectedLink(null) }}>
         <DialogContent className="max-w-lg">
-          {detailLoading && <p className="text-center py-8 text-slate-400">Loading...</p>}
+          {detailLoading && <p className="text-center py-8 text-muted-foreground">Loading...</p>}
           {selectedLink && (
             <>
               <DialogHeader>
@@ -216,26 +216,26 @@ export function PaymentLinksTab() {
               </DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><p className="text-slate-500">Amount</p><p className="font-medium">{selectedLink.amount ? formatCurrency(selectedLink.amount, selectedLink.currency) : 'Open Amount'}</p></div>
-                  <div><p className="text-slate-500">Collected</p><p className="font-medium text-emerald-600">{formatCurrency(selectedLink.totalCollected || 0, selectedLink.currency)}</p></div>
-                  <div><p className="text-slate-500">Status</p><Badge variant={getStatusBadgeVariant(selectedLink.status)} className={getStatusColor(selectedLink.status)}>{selectedLink.status}</Badge></div>
-                  <div><p className="text-slate-500">Payments</p><p className="font-medium">{selectedLink.payments?.length || 0}{selectedLink.maxPayments ? ` / ${selectedLink.maxPayments}` : ' (unlimited)'}</p></div>
+                  <div><p className="text-muted-foreground">Amount</p><p className="font-medium">{selectedLink.amount ? formatCurrency(selectedLink.amount, selectedLink.currency) : 'Open Amount'}</p></div>
+                  <div><p className="text-muted-foreground">Collected</p><p className="font-medium text-emerald-600">{formatCurrency(selectedLink.totalCollected || 0, selectedLink.currency)}</p></div>
+                  <div><p className="text-muted-foreground">Status</p><Badge variant={getStatusBadgeVariant(selectedLink.status)} className={getStatusColor(selectedLink.status)}>{selectedLink.status}</Badge></div>
+                  <div><p className="text-muted-foreground">Payments</p><p className="font-medium">{selectedLink.payments?.length || 0}{selectedLink.maxPayments ? ` / ${selectedLink.maxPayments}` : ' (unlimited)'}</p></div>
                 </div>
                 <Separator />
                 <h4 className="text-sm font-semibold">Payment History</h4>
                 <div className="max-h-64 overflow-y-auto">
                   {selectedLink.payments && selectedLink.payments.length > 0 ? selectedLink.payments.map(p => (
-                    <div key={p.id} className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0 text-sm">
+                    <div key={p.id} className="flex justify-between items-center py-2 border-b border-border last:border-0 text-sm">
                       <div>
-                        <p className="font-medium text-xs">{p.payerName}{p.payerEmail ? <span className="text-slate-400"> ({p.payerEmail})</span> : ''}</p>
-                        <p className="text-xs text-slate-400">{p.paymentMethod}{p.provider ? ` via ${p.provider}` : ''} · {formatDate(p.createdAt)}</p>
+                        <p className="font-medium text-xs">{p.payerName}{p.payerEmail ? <span className="text-muted-foreground"> ({p.payerEmail})</span> : ''}</p>
+                        <p className="text-xs text-muted-foreground">{p.paymentMethod}{p.provider ? ` via ${p.provider}` : ''} · {formatDate(p.createdAt)}</p>
                       </div>
                       <div className="text-right">
                         <p className="font-medium text-emerald-600">{formatCurrency(p.amount, p.currency)}</p>
-                        <p className="text-xs text-slate-400">fee: {p.feeAmount || 0}</p>
+                        <p className="text-xs text-muted-foreground">fee: {p.feeAmount || 0}</p>
                       </div>
                     </div>
-                  )) : <p className="text-sm text-slate-400 text-center py-4">No payments yet</p>}
+                  )) : <p className="text-sm text-muted-foreground text-center py-4">No payments yet</p>}
                 </div>
               </div>
             </>
@@ -305,7 +305,7 @@ export function PaymentLinksTab() {
                     {payProviders.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-slate-400">Auto-selected based on link currency ({payLinkCurrency})</p>
+                <p className="text-xs text-muted-foreground">Auto-selected based on link currency ({payLinkCurrency})</p>
               </div>
             )}
             {payProviders.length === 0 && (

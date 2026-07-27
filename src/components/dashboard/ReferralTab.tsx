@@ -86,10 +86,10 @@ export function ReferralTab() {
       <div className="space-y-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-32 rounded-xl bg-slate-100 animate-pulse" />
+            <div key={i} className="h-32 rounded-xl bg-muted animate-pulse" />
           ))}
         </div>
-        <div className="h-64 rounded-xl bg-slate-100 animate-pulse" />
+        <div className="h-64 rounded-xl bg-muted animate-pulse" />
       </div>
     )
   }
@@ -97,7 +97,7 @@ export function ReferralTab() {
   if (!data) {
     return (
       <div className="text-center py-16">
-        <p className="text-slate-500">Failed to load referral information.</p>
+        <p className="text-muted-foreground">Failed to load referral information.</p>
         <Button variant="outline" className="mt-4" onClick={() => refetch()}>Retry</Button>
       </div>
     )
@@ -155,9 +155,9 @@ export function ReferralTab() {
           <CardContent className="p-4 sm:p-6 space-y-4">
             {/* Referral Link Box */}
             <div className="flex items-center gap-2">
-              <div className="flex-1 min-w-0 bg-slate-50 border rounded-lg px-4 py-3 flex items-center gap-2">
-                <Link2 className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                <span className="text-sm font-mono text-slate-700 truncate">
+              <div className="flex-1 min-w-0 bg-muted border rounded-lg px-4 py-3 flex items-center gap-2">
+                <Link2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <span className="text-sm font-mono text-foreground truncate">
                   {referralLink}
                 </span>
               </div>
@@ -181,13 +181,13 @@ export function ReferralTab() {
             )}
             {/* Code + How it works */}
             <div className="flex flex-col sm:flex-row gap-4">
-              <div className="flex-1 bg-slate-50 rounded-lg p-4">
-                <p className="text-xs text-slate-500 mb-1">Your Referral Code</p>
-                <p className="text-2xl font-bold font-mono tracking-wider text-slate-900">{referralCode}</p>
+              <div className="flex-1 bg-muted rounded-lg p-4">
+                <p className="text-xs text-muted-foreground mb-1">Your Referral Code</p>
+                <p className="text-2xl font-bold font-mono tracking-wider text-foreground">{referralCode}</p>
               </div>
               <div className="flex-1">
-                <p className="text-xs text-slate-500 mb-2">How It Works</p>
-                <ol className="text-sm text-slate-700 space-y-1.5">
+                <p className="text-xs text-muted-foreground mb-2">How It Works</p>
+                <ol className="text-sm text-foreground space-y-1.5">
                   <li className="flex items-start gap-2">
                     <span className="h-5 w-5 rounded-full bg-emerald-100 text-emerald-700 text-xs flex items-center justify-center font-bold flex-shrink-0 mt-0.5">1</span>
                     Share your link with a friend
@@ -254,16 +254,16 @@ export function ReferralTab() {
           <CardContent>
             {recentReferrals.length === 0 ? (
               <div className="text-center py-8">
-                <Users className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-                <p className="text-sm text-slate-500">No referrals yet</p>
-                <p className="text-xs text-slate-400 mt-1">Share your link to start earning!</p>
+                <Users className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">No referrals yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Share your link to start earning!</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {recentReferrals.map((ref) => (
                   <div
                     key={ref.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors"
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted hover:bg-muted transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
@@ -272,11 +272,11 @@ export function ReferralTab() {
                         </span>
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate">{ref.name}</p>
-                        <p className="text-xs text-slate-500 truncate">{ref.email}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{ref.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{ref.email}</p>
                       </div>
                     </div>
-                    <span className="text-xs text-slate-400 flex-shrink-0">{formatDate(ref.createdAt)}</span>
+                    <span className="text-xs text-muted-foreground flex-shrink-0">{formatDate(ref.createdAt)}</span>
                   </div>
                 ))}
               </div>
@@ -295,9 +295,9 @@ export function ReferralTab() {
           <CardContent>
             {recentBonuses.length === 0 ? (
               <div className="text-center py-8">
-                <Gift className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-                <p className="text-sm text-slate-500">No bonuses yet</p>
-                <p className="text-xs text-slate-400 mt-1">Bonuses are credited when referrals deposit</p>
+                <Gift className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">No bonuses yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Bonuses are credited when referrals deposit</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -311,10 +311,10 @@ export function ReferralTab() {
                         <DollarSign className="h-4 w-4 text-white" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900">
+                        <p className="text-sm font-medium text-foreground">
                           +${bonus.bonusAmount.toFixed(2)} {bonus.bonusCurrency}
                         </p>
-                        <p className="text-xs text-slate-500">Ref: {bonus.bonusRef}</p>
+                        <p className="text-xs text-muted-foreground">Ref: {bonus.bonusRef}</p>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
@@ -329,7 +329,7 @@ export function ReferralTab() {
                       >
                         {bonus.status}
                       </Badge>
-                      <p className="text-[10px] text-slate-400 mt-1">{formatDate(bonus.creditedAt)}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">{formatDate(bonus.creditedAt)}</p>
                     </div>
                   </div>
                 ))}

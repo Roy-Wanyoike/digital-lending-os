@@ -55,12 +55,12 @@ export function MatchingTab() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Progress value={m.matchScore} className="h-2 w-16" />
-                        <span className={`text-xs font-bold ${m.matchScore > 85 ? 'text-emerald-600' : m.matchScore > 60 ? 'text-amber-600' : 'text-slate-500'}`}>{m.matchScore}%</span>
+                        <span className={`text-xs font-bold ${m.matchScore > 85 ? 'text-emerald-600' : m.matchScore > 60 ? 'text-amber-600' : 'text-muted-foreground'}`}>{m.matchScore}%</span>
                       </div>
                     </TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(m.status)} className={getStatusColor(m.status)}>{m.status}</Badge></TableCell>
                     <TableCell className="text-xs max-w-[200px] truncate">{(() => { try { const r = JSON.parse(m.reasons || '[]'); return Array.isArray(r) ? r.slice(0,2).join(', ') : m.reasons } catch { return m.reasons } })()}</TableCell>
-                    <TableCell className="text-xs text-slate-500">{formatDate(m.createdAt)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDate(m.createdAt)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

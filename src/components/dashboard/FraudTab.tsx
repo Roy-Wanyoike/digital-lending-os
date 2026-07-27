@@ -33,7 +33,7 @@ export function FraudTab() {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Alerts by Severity</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-3">Alerts by Severity</h3>
         <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
           {severityCounts.map(p => (
             <PipelineCard key={p.severity} label={p.severity} count={p.count} color={severityColors[p.severity]} />
@@ -42,7 +42,7 @@ export function FraudTab() {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Alerts by Status</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-3">Alerts by Status</h3>
         <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
           {statusCounts.map((p, i) => (
             <PipelineCard key={p.status} label={p.status} count={p.count} color={['#94a3b8', '#f59e0b', '#ef4444', '#10b981'][i]} />
@@ -77,7 +77,7 @@ export function FraudTab() {
                     <TableCell className="text-sm">{a.fraudType}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
                           <div className={`h-full rounded-full ${getRiskBg(a.score)}`} style={{ width: `${a.score}%` }} />
                         </div>
                         <span className={`text-xs font-medium ${getRiskColor(a.score)}`}>{a.score}</span>
@@ -86,7 +86,7 @@ export function FraudTab() {
                     <TableCell className="max-w-[100px] truncate">{a.businessId ? a.businessId.slice(0, 8) + '...' : '—'}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(a.status)} className={getStatusColor(a.status)}>{a.status}</Badge></TableCell>
                     <TableCell className="max-w-[150px] truncate text-xs">{truncate(a.description, 40)}</TableCell>
-                    <TableCell className="text-xs text-slate-500">{formatDate(a.createdAt)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDate(a.createdAt)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

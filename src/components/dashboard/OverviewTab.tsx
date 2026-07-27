@@ -17,8 +17,8 @@ export function OverviewTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Verified Commerce Volume</h1>
-        <p className="text-slate-500 text-sm">Total value of verified transactions</p>
+        <h1 className="text-2xl font-bold text-foreground">Verified Commerce Volume</h1>
+        <p className="text-muted-foreground text-sm">Total value of verified transactions</p>
       </div>
       <div className="text-4xl font-bold text-emerald-600">{formatCurrency(stats.totalEscrowVolume)}</div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -42,7 +42,7 @@ export function OverviewTab() {
                 <TableCell className="text-sm">{tx.sellerName}</TableCell>
                 <TableCell className="text-sm font-medium">{formatCurrency(tx.amount, tx.currency)}</TableCell>
                 <TableCell><Badge variant={getStatusBadgeVariant(tx.status)}>{tx.status}</Badge></TableCell>
-                <TableCell className="text-xs text-slate-500">{formatDate(tx.createdAt)}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{formatDate(tx.createdAt)}</TableCell>
               </TableRow>
             ))}
           </TableBody></Table>

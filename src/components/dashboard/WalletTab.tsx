@@ -347,7 +347,7 @@ export function WalletTab() {
       {/* Business selector */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-500">Business:</span>
+          <span className="text-sm text-muted-foreground">Business:</span>
           <Select value={selectedBizId || businesses?.[0]?.id} onValueChange={setSelectedBizId}>
             <SelectTrigger className="w-64"><SelectValue placeholder="Select business" /></SelectTrigger>
             <SelectContent>{safeBusinesses.map(b => (<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>))}</SelectContent>
@@ -360,7 +360,7 @@ export function WalletTab() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-white">
           <CardContent className="p-4 sm:p-6 text-center">
-            <p className="text-xs text-slate-500 mb-1">Portfolio (USD)</p>
+            <p className="text-xs text-muted-foreground mb-1">Portfolio (USD)</p>
             <p className="text-2xl font-bold text-emerald-700">{formatCurrency(totalPortfolio)}</p>
           </CardContent>
         </Card>
@@ -383,7 +383,7 @@ export function WalletTab() {
                 <Badge variant={w.status === 'active' ? 'default' : 'destructive'}>{w.status}</Badge>
               </div>
               <p className="text-2xl sm:text-3xl font-bold">{formatCurrency(w.balance, w.currency)}</p>
-              <div className="mt-3 space-y-1 text-xs text-slate-500">
+              <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                 <div className="flex justify-between"><span>Available</span><span className="text-emerald-600 font-medium">{formatCurrency(w.availableBalance, w.currency)}</span></div>
                 <div className="flex justify-between"><span>Pending</span><span className="text-amber-600 font-medium">{formatCurrency(w.pendingBalance, w.currency)}</span></div>
                 <div className="flex justify-between"><span>Frozen</span><span className="text-red-600 font-medium">{formatCurrency(w.frozenBalance, w.currency)}</span></div>
@@ -394,7 +394,7 @@ export function WalletTab() {
       </div>
 
       {allWallets.length === 0 && bizId && !wLoading && (
-        <Card className="border-dashed"><CardContent className="p-12 text-center"><p className="text-slate-500">No wallets for this business.</p></CardContent></Card>
+        <Card className="border-dashed"><CardContent className="p-12 text-center"><p className="text-muted-foreground">No wallets for this business.</p></CardContent></Card>
       )}
 
       {/* Action Buttons + Transaction History */}
@@ -427,8 +427,8 @@ export function WalletTab() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {txLoading && <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-400">Loading...</TableCell></TableRow>}
-                      {!txLoading && txns.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-slate-400">No transactions yet</TableCell></TableRow>}
+                      {txLoading && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading...</TableCell></TableRow>}
+                      {!txLoading && txns.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No transactions yet</TableCell></TableRow>}
                       {txns.map(tx => {
                         const badge = TX_TYPE_BADGE[tx.type] || { label: tx.type, variant: 'secondary' as const }
                         const isCredit = tx.type === 'credit' || tx.type === 'transfer_in' || tx.type === 'refund' || tx.type === 'deposit'
@@ -440,7 +440,7 @@ export function WalletTab() {
                             <TableCell className={`text-right font-medium ${isCredit ? 'text-emerald-600' : 'text-red-600'}`}>{isCredit ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}</TableCell>
                             <TableCell className="text-right text-sm">{formatCurrency(tx.balanceAfter, tx.currency)}</TableCell>
                             <TableCell><Badge variant={tx.status === 'completed' ? 'default' : 'secondary'}>{tx.status}</Badge></TableCell>
-                            <TableCell className="text-xs text-slate-500">{formatDate(tx.createdAt)}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground">{formatDate(tx.createdAt)}</TableCell>
                           </TableRow>
                         )
                       })}
@@ -497,7 +497,7 @@ export function WalletTab() {
             <div className="space-y-2"><Label>Notes (optional)</Label>
               <Input placeholder="Reference or description" value={depNotes} onChange={e => setDepNotes(e.target.value)} />
             </div>
-            <div className="bg-slate-50 rounded-md p-3 text-xs text-slate-500 space-y-1">
+            <div className="bg-muted rounded-md p-3 text-xs text-muted-foreground space-y-1">
               <p><Info className="h-3 w-3 inline mr-1" />Deposits via <b>demo provider</b> complete instantly. In production, bank transfers take 1–3 business days, cards are instant.</p>
             </div>
           </div>
@@ -513,8 +513,8 @@ export function WalletTab() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle><Upload className="h-4 w-4 inline mr-2 text-red-500" />Withdraw Funds</DialogTitle><DialogDescription>Withdraw from your {selectedWallet?.currency} wallet</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <div className="bg-slate-50 rounded-md p-3 flex justify-between text-sm">
-              <span className="text-slate-500">Available</span>
+            <div className="bg-muted rounded-md p-3 flex justify-between text-sm">
+              <span className="text-muted-foreground">Available</span>
               <span className="font-semibold text-emerald-700">{formatCurrency(selectedWallet?.availableBalance || 0, selectedWallet?.currency)}</span>
             </div>
             <div className="space-y-2"><Label>Amount ({selectedWallet?.currency || '—'}) *</Label>
@@ -560,7 +560,7 @@ export function WalletTab() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle><ArrowLeftRight className="h-4 w-4 inline mr-2 text-amber-500" />Convert Currency</DialogTitle><DialogDescription>Convert between your multi-currency wallets</DialogDescription></DialogHeader>
           {allWallets.length < 2 ? (
-            <p className="text-sm text-slate-500 py-4">You need at least 2 wallets in different currencies to convert.</p>
+            <p className="text-sm text-muted-foreground py-4">You need at least 2 wallets in different currencies to convert.</p>
           ) : (
             <div className="space-y-4">
               <div className="space-y-2"><Label>From Wallet *</Label>
@@ -571,7 +571,7 @@ export function WalletTab() {
                   ))}</SelectContent>
                 </Select>
               </div>
-              <div className="flex justify-center"><ArrowDownRight className="h-5 w-5 text-slate-400 rotate-90" /></div>
+              <div className="flex justify-center"><ArrowDownRight className="h-5 w-5 text-muted-foreground rotate-90" /></div>
               <div className="space-y-2"><Label>To Wallet *</Label>
                 <Select value={cvtToWalletId} onValueChange={setCvtToWalletId}>
                   <SelectTrigger><SelectValue placeholder="Select destination wallet" /></SelectTrigger>
@@ -606,8 +606,8 @@ export function WalletTab() {
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle><Bitcoin className="h-4 w-4 inline mr-2 text-orange-500" />Withdraw via Crypto</DialogTitle><DialogDescription>Convert wallet balance to cryptocurrency and send to an external wallet</DialogDescription></DialogHeader>
           <div className="space-y-4">
-            <div className="bg-slate-50 rounded-md p-3 flex justify-between text-sm">
-              <span className="text-slate-500">Available</span>
+            <div className="bg-muted rounded-md p-3 flex justify-between text-sm">
+              <span className="text-muted-foreground">Available</span>
               <span className="font-semibold text-emerald-700">{formatCurrency(selectedWallet?.availableBalance || 0, selectedWallet?.currency)}</span>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -676,21 +676,21 @@ export function WalletTab() {
               <TabsContent value="transactions" className="mt-0">
                 <Table><TableHeader><TableRow><TableHead>Ref</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Balance</TableHead><TableHead>Date</TableHead></TableRow></TableHeader><TableBody>
                   {txns.map(tx => { const isC = ['credit','transfer_in','refund','deposit'].includes(tx.type); return (
-                    <TableRow key={tx.id}><TableCell className="font-mono text-xs">{tx.txRef}</TableCell><TableCell><Badge variant={TX_TYPE_BADGE[tx.type]?.variant || 'secondary'}>{TX_TYPE_BADGE[tx.type]?.label || tx.type}</Badge></TableCell><TableCell className={`text-right ${isC ? 'text-emerald-600' : 'text-red-600'}`}>{isC ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}</TableCell><TableCell>{formatCurrency(tx.balanceAfter, tx.currency)}</TableCell><TableCell className="text-xs text-slate-500">{formatDate(tx.createdAt)}</TableCell></TableRow>
+                    <TableRow key={tx.id}><TableCell className="font-mono text-xs">{tx.txRef}</TableCell><TableCell><Badge variant={TX_TYPE_BADGE[tx.type]?.variant || 'secondary'}>{TX_TYPE_BADGE[tx.type]?.label || tx.type}</Badge></TableCell><TableCell className={`text-right ${isC ? 'text-emerald-600' : 'text-red-600'}`}>{isC ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}</TableCell><TableCell>{formatCurrency(tx.balanceAfter, tx.currency)}</TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(tx.createdAt)}</TableCell></TableRow>
                   )})}
                 </TableBody></Table>
               </TabsContent>
               <TabsContent value="deposits" className="mt-0">
                 <Table><TableHeader><TableRow><TableHead>Ref</TableHead><TableHead>Method</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader><TableBody>
                   {deposits.map(d => (
-                    <TableRow key={d.id}><TableCell className="font-mono text-xs">{d.depositRef}</TableCell><TableCell>{d.paymentMethod}{d.provider ? ` (${d.provider})` : ''}</TableCell><TableCell className="text-right text-emerald-600">+{formatCurrency(d.amount, d.currency)}</TableCell><TableCell><Badge variant={d.status === 'completed' ? 'default' : 'secondary'}>{d.status}</Badge></TableCell><TableCell className="text-xs text-slate-500">{formatDate(d.createdAt)}</TableCell></TableRow>
+                    <TableRow key={d.id}><TableCell className="font-mono text-xs">{d.depositRef}</TableCell><TableCell>{d.paymentMethod}{d.provider ? ` (${d.provider})` : ''}</TableCell><TableCell className="text-right text-emerald-600">+{formatCurrency(d.amount, d.currency)}</TableCell><TableCell><Badge variant={d.status === 'completed' ? 'default' : 'secondary'}>{d.status}</Badge></TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(d.createdAt)}</TableCell></TableRow>
                   ))}
                 </TableBody></Table>
               </TabsContent>
               <TabsContent value="withdrawals" className="mt-0">
                 <Table><TableHeader><TableRow><TableHead>Ref</TableHead><TableHead>Details</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Fee</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader><TableBody>
                   {withdrawals.map(w => (
-                    <TableRow key={w.id}><TableCell className="font-mono text-xs">{w.withdrawalRef}</TableCell><TableCell className="text-xs max-w-[150px] truncate">{w.bankName || w.recipientName || w.paymentMethod}</TableCell><TableCell className="text-right text-red-600">-{formatCurrency(w.amount, w.currency)}</TableCell><TableCell className="text-right text-red-400">{formatCurrency(w.feeAmount, w.currency)}</TableCell><TableCell><Badge variant={w.status === 'completed' ? 'default' : 'secondary'}>{w.status}</Badge></TableCell><TableCell className="text-xs text-slate-500">{formatDate(w.createdAt)}</TableCell></TableRow>
+                    <TableRow key={w.id}><TableCell className="font-mono text-xs">{w.withdrawalRef}</TableCell><TableCell className="text-xs max-w-[150px] truncate">{w.bankName || w.recipientName || w.paymentMethod}</TableCell><TableCell className="text-right text-red-600">-{formatCurrency(w.amount, w.currency)}</TableCell><TableCell className="text-right text-red-400">{formatCurrency(w.feeAmount, w.currency)}</TableCell><TableCell><Badge variant={w.status === 'completed' ? 'default' : 'secondary'}>{w.status}</Badge></TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(w.createdAt)}</TableCell></TableRow>
                   ))}
                 </TableBody></Table>
               </TabsContent>

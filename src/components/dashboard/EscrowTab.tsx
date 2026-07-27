@@ -73,22 +73,6 @@ export function EscrowTab() {
 
   const showToast = useCallback((msg: string) => { setToastMsg(msg); setToastVis(true); setTimeout(() => setToastVis(false), 3000) }, [])
 
-  if (loading) return <LoadingSkeleton />
-
-  const allTxns = transactions || []
-  const filtered = statusFilter === 'all' ? allTxns : allTxns.filter(t => t.status?.toLowerCase() === statusFilter.toLowerCase())
-
-  const pipelineCounts = ESCROW_STATUSES.map(s => ({
-    status: s,
-    count: allTxns.filter(t => t.status?.toLowerCase() === s.toLowerCase().replace(/\s/g, '_') || t.status?.toLowerCase().replace(/\s/g, '') === s.toLowerCase().replace(/\s/g, '')).length,
-  }))
-  const pipelineColors = ['#94a3b8', '#3b82f6', '#f59e0b', '#10b981', '#ef4444']
-
-  const totalVolume = allTxns.reduce((s, t) => s + t.amount, 0)
-  const activeEscrows = allTxns.filter(t => ['funded', 'in_escrow'].includes(t.status?.toLowerCase())).length
-  const disputed = allTxns.filter(t => t.status?.toLowerCase() === 'disputed').length
-
-  // ─── Actions ─────────────────────────────────────────────
   const doAction = useCallback(async (id: string, action: string, body?: Record<string, string>) => {
     try {
       const res = await fetch(`/api/escrow/transactions/${id}/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
@@ -111,6 +95,23 @@ export function EscrowTab() {
       if (providers.length > 0) setFundProvider(providers[0].code)
     } catch { setFundProviders([]) }
   }, [])
+
+  if (loading) return <LoadingSkeleton />
+
+  const allTxns = transactions || []
+  const filtered = statusFilter === 'all' ? allTxns : allTxns.filter(t => t.status?.toLowerCase() === statusFilter.toLowerCase())
+
+  const pipelineCounts = ESCROW_STATUSES.map(s => ({
+    status: s,
+    count: allTxns.filter(t => t.status?.toLowerCase() === s.toLowerCase().replace(/\s/g, '_') || t.status?.toLowerCase().replace(/\s/g, '') === s.toLowerCase().replace(/\s/g, '')).length,
+  }))
+  const pipelineColors = ['#94a3b8', '#3b82f6', '#f59e0b', '#10b981', '#ef4444']
+
+  const totalVolume = allTxns.reduce((s, t) => s + t.amount, 0)
+  const activeEscrows = allTxns.filter(t => ['funded', 'in_escrow'].includes(t.status?.toLowerCase())).length
+  const disputed = allTxns.filter(t => t.status?.toLowerCase() === 'disputed').length
+
+  // ─── Derived data ────────────────────────────────────────
 
   const handleFund = async () => {
     if (!fundEscrowId || !fundEmail) return
@@ -199,7 +200,7 @@ export function EscrowTab() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-500">Status:</span>
+          <span className="text-sm text-muted-foreground">Status:</span>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -239,15 +240,15 @@ export function EscrowTab() {
                     <TableRow key={txn.id} className="even:bg-muted/50">
                       <TableCell className="font-mono text-xs">{txn.txRef}</TableCell>
                       <TableCell className="max-w-[160px] truncate text-xs">
-                        <span className="text-slate-700">{txn.buyer?.name}</span>
-                        <span className="text-slate-400 mx-1">→</span>
-                        <span className="text-slate-700">{txn.seller?.name}</span>
+                        <span className="text-foreground">{txn.buyer?.name}</span>
+                        <span className="text-muted-foreground mx-1">→</span>
+                        <span className="text-foreground">{txn.seller?.name}</span>
                       </TableCell>
                       <TableCell className="text-right font-medium">{formatCurrency(txn.amount, txn.currency)}</TableCell>
                       <TableCell><Badge variant={getStatusBadgeVariant(txn.status)} className={getStatusColor(txn.status)}>{txn.status}</Badge></TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className="w-10 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="w-10 h-1.5 bg-muted rounded-full overflow-hidden">
                             <div className={`h-full rounded-full ${getRiskBg(txn.aiRiskScore || 0)}`} style={{ width: `${txn.aiRiskScore || 0}%` }} />
                           </div>
                           <span className={`text-xs font-medium ${getRiskColor(txn.aiRiskScore || 0)}`}>{txn.aiRiskLevel}</span>
@@ -267,7 +268,7 @@ export function EscrowTab() {
                           {canDispute && <Button variant="outline" size="sm" className="h-7 text-xs text-red-600" onClick={() => { setSelectedId(txn.id); setDisputeOpen(true) }}><AlertTriangle className="h-3 w-3 mr-1" />Dispute</Button>}
                         </div>
                       </TableCell>
-                      <TableCell className="text-xs text-slate-500 whitespace-nowrap">{formatDate(txn.createdAt)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(txn.createdAt)}</TableCell>
                     </TableRow>
                   )
                 })}
@@ -282,11 +283,11 @@ export function EscrowTab() {
         {selectedTxn && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex justify-end">
             <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedId(null)} />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative w-full max-w-xl bg-white shadow-xl h-full overflow-y-auto">
-              <div className="sticky top-0 z-10 bg-white border-b px-6 py-4 flex items-center justify-between">
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative w-full max-w-xl bg-background shadow-xl h-full overflow-y-auto border-l">
+              <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold">{selectedTxn.txRef}</h3>
-                  <p className="text-xs text-slate-500">{formatDate(selectedTxn.createdAt)}</p>
+                  <p className="text-xs text-muted-foreground">{formatDate(selectedTxn.createdAt)}</p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setSelectedId(null)}><X className="h-4 w-4" /></Button>
               </div>
@@ -297,10 +298,10 @@ export function EscrowTab() {
                   <p className="text-2xl font-bold">{formatCurrency(selectedTxn.amount, selectedTxn.currency)}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><p className="text-slate-500">Buyer</p><p className="font-medium">{selectedTxn.buyer?.name}</p></div>
-                  <div><p className="text-slate-500">Seller</p><p className="font-medium">{selectedTxn.seller?.name}</p></div>
-                  <div><p className="text-slate-500">Funded</p><p className="font-medium text-blue-600">{formatCurrency(selectedTxn.fundedAmount, selectedTxn.currency)}</p></div>
-                  <div><p className="text-slate-500">Released</p><p className="font-medium text-emerald-600">{formatCurrency(selectedTxn.releasedAmount, selectedTxn.currency)}</p></div>
+                  <div><p className="text-muted-foreground">Buyer</p><p className="font-medium">{selectedTxn.buyer?.name}</p></div>
+                  <div><p className="text-muted-foreground">Seller</p><p className="font-medium">{selectedTxn.seller?.name}</p></div>
+                  <div><p className="text-muted-foreground">Funded</p><p className="font-medium text-blue-600 dark:text-blue-400">{formatCurrency(selectedTxn.fundedAmount, selectedTxn.currency)}</p></div>
+                  <div><p className="text-muted-foreground">Released</p><p className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(selectedTxn.releasedAmount, selectedTxn.currency)}</p></div>
                 </div>
 
                 {/* Risk Score */}
@@ -315,9 +316,9 @@ export function EscrowTab() {
                     <p className="text-sm font-medium mb-2">Milestones</p>
                     <div className="space-y-2">
                       {selectedTxn.milestones.map((m: any) => (
-                        <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                        <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-muted">
                           <div className="flex items-center gap-2">
-                            {m.status === 'released' ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Clock className="h-4 w-4 text-slate-400" />}
+                            {m.status === 'released' ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Clock className="h-4 w-4 text-muted-foreground" />}
                             <span className="text-sm font-medium">{m.title}</span>
                           </div>
                           <span className="text-sm font-medium">{formatCurrency(m.amount, selectedTxn.currency)}</span>
@@ -332,13 +333,13 @@ export function EscrowTab() {
                   <div>
                     <p className="text-sm font-medium mb-2">Disputes</p>
                     {selectedTxn.disputes.map((d: any) => (
-                      <div key={d.id} className="p-3 rounded-lg bg-red-50 border border-red-100 mb-2">
+                      <div key={d.id} className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 mb-2">
                         <div className="flex items-center justify-between mb-1">
                           <Badge variant={d.status === 'open' ? 'destructive' : 'secondary'}>{d.status}</Badge>
-                          <span className="text-xs text-slate-500">{formatDate(d.createdAt)}</span>
+                          <span className="text-xs text-muted-foreground">{formatDate(d.createdAt)}</span>
                         </div>
                         <p className="text-sm font-medium">{d.reason}</p>
-                        {d.aiRecommendation && <p className="text-xs text-slate-500 mt-1">AI: {d.aiRecommendation}</p>}
+                        {d.aiRecommendation && <p className="text-xs text-muted-foreground mt-1">AI: {d.aiRecommendation}</p>}
                         {d.resolution && <p className="text-xs text-emerald-600 mt-1">Resolution: {d.resolution}</p>}
                       </div>
                     ))}
@@ -349,14 +350,14 @@ export function EscrowTab() {
                 {selectedTxn.description && (
                   <div>
                     <p className="text-sm font-medium mb-1">Description</p>
-                    <p className="text-sm text-slate-600">{selectedTxn.description}</p>
+                    <p className="text-sm text-muted-foreground">{selectedTxn.description}</p>
                   </div>
                 )}
 
                 {/* Fees */}
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><p className="text-slate-500">Fee</p><p>{formatCurrency(selectedTxn.feeAmount, selectedTxn.feeCurrency)}</p></div>
-                  <div><p className="text-slate-500">Refunded</p><p>{formatCurrency(selectedTxn.refundedAmount, selectedTxn.currency)}</p></div>
+                  <div><p className="text-muted-foreground">Fee</p><p>{formatCurrency(selectedTxn.feeAmount, selectedTxn.feeCurrency)}</p></div>
+                  <div><p className="text-muted-foreground">Refunded</p><p>{formatCurrency(selectedTxn.refundedAmount, selectedTxn.currency)}</p></div>
                 </div>
               </div>
             </motion.div>
@@ -380,11 +381,11 @@ export function EscrowTab() {
                     {fundProviders.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-slate-400">Auto-selected based on escrow currency. Fees apply per provider.</p>
+                <p className="text-xs text-muted-foreground">Auto-selected based on escrow currency. Fees apply per provider.</p>
               </div>
             )}
             {fundProviders.length === 0 && (
-              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-700">
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-300">
                 No payment providers configured. Payments will use demo mode. Add provider keys in .env to enable real payments.
               </div>
             )}

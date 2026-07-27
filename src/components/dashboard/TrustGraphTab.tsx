@@ -34,10 +34,10 @@ export function TrustGraphTab() {
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">Trust Network</h2>
-          <p className="text-sm text-slate-500">{filtered.length} businesses in the trust graph</p>
+          <p className="text-sm text-muted-foreground">{filtered.length} businesses in the trust graph</p>
         </div>
         <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search businesses..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
@@ -70,7 +70,7 @@ export function TrustGraphTab() {
                     <TableCell>
                       <Badge variant="outline" className="text-xs">{biz.passport?.credentialLevel || 'N/A'}</Badge>
                     </TableCell>
-                    <TableCell><ChevronRight className="h-4 w-4 text-slate-400" /></TableCell>
+                    <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -90,8 +90,8 @@ export function TrustGraphTab() {
               <div className="flex items-center gap-3">
                 <CircularScore score={selectedBiz.trustScore?.overallScore} size={80} />
                 <div>
-                  <p className="text-2xl font-bold">{selectedBiz.trustScore?.overallScore ?? 'N/A'}<span className="text-sm text-slate-500 font-normal">/100</span></p>
-                  <p className="text-sm text-slate-500">Overall Trust Score</p>
+                  <p className="text-2xl font-bold">{selectedBiz.trustScore?.overallScore ?? 'N/A'}<span className="text-sm text-muted-foreground font-normal">/100</span></p>
+                  <p className="text-sm text-muted-foreground">Overall Trust Score</p>
                 </div>
               </div>
               <Separator />

@@ -57,7 +57,7 @@ export function PassportTab() {
                     <Avatar className="h-8 w-8"><AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs">{biz.name?.charAt(0)}</AvatarFallback></Avatar>
                     <div className="min-w-0">
                       <p className="font-medium text-sm truncate">{biz.name}</p>
-                      <p className="text-xs text-slate-500">{getCountryFlag(biz.country)} {biz.country}</p>
+                      <p className="text-xs text-muted-foreground">{getCountryFlag(biz.country)} {biz.country}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
@@ -104,7 +104,7 @@ export function PassportTab() {
                     <TableCell className="max-w-[120px] truncate">{v.business?.name}</TableCell>
                     <TableCell>{v.type}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(v.status)} className={getStatusColor(v.status)}>{v.status}</Badge></TableCell>
-                    <TableCell className="text-xs text-slate-500">{formatDate(v.createdAt)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDate(v.createdAt)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -50,15 +50,15 @@ export function CollectionsTab() {
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Aging Summary</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-3">Aging Summary</h3>
         <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
           {agingCounts.map((a, i) => (
             <div key={a.bucket} className="flex-1 min-w-0">
               <Card className="hover:shadow-md transition-shadow">
                 <CardContent className="p-3 sm:p-4 text-center">
                   <p className="text-2xl sm:text-3xl font-bold" style={{ color: agingColors[i] }}>{a.count}</p>
-                  <p className="text-xs text-slate-500">{a.bucket} days</p>
-                  <p className="text-[10px] text-slate-400 mt-1">{formatCurrency(a.total)}</p>
+                  <p className="text-xs text-muted-foreground">{a.bucket} days</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">{formatCurrency(a.total)}</p>
                 </CardContent>
               </Card>
             </div>
@@ -67,7 +67,7 @@ export function CollectionsTab() {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Priority Distribution</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-3">Priority Distribution</h3>
         <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
           {priorityCounts.map(p => (
             <PipelineCard key={p.priority} label={p.priority} count={p.count} color={priorityColors[p.priority]} />
@@ -104,8 +104,8 @@ export function CollectionsTab() {
                     <TableCell><Badge variant="secondary" className={`text-[10px] ${priorityBadgeColor(c.priority)}`}>{c.priority}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(c.status)} className={getStatusColor(c.status)}>{c.status}</Badge></TableCell>
                     <TableCell className="text-center">{c.reminderCount ?? 0}</TableCell>
-                    <TableCell className="max-w-[150px] truncate text-xs text-slate-500">{truncate(c.aiStrategy || '—', 35)}</TableCell>
-                    <TableCell className="text-xs text-slate-500">{formatDate(c.createdAt)}</TableCell>
+                    <TableCell className="max-w-[150px] truncate text-xs text-muted-foreground">{truncate(c.aiStrategy || '—', 35)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDate(c.createdAt)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

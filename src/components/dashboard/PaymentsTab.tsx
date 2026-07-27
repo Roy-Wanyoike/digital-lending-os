@@ -30,14 +30,14 @@ export function PaymentsTab() {
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       {/* Exchange Rate Cards */}
       <div>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Live Exchange Rates</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-3">Live Exchange Rates</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {allRates.slice(0, 5).map(rate => (
             <Card key={`${rate.from}-${rate.to}`} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2 mb-1">
                   <span>{CURRENCY_FLAGS[rate.from] || '💱'}</span>
-                  <ArrowRight className="h-3 w-3 text-slate-400" />
+                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
                   <span>{CURRENCY_FLAGS[rate.to] || '💱'}</span>
                 </div>
                 <p className="text-lg font-bold">{rate.from}/{rate.to}</p>
@@ -74,7 +74,7 @@ export function PaymentsTab() {
                     <TableCell className="text-xs">
                       <span className="flex items-center gap-1">
                         {CURRENCY_FLAGS[pi.sourceCurrency]} {pi.sourceCurrency}
-                        <ArrowRight className="h-3 w-3 text-slate-400" />
+                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
                         {CURRENCY_FLAGS[pi.targetCurrency]} {pi.targetCurrency}
                       </span>
                     </TableCell>
@@ -82,7 +82,7 @@ export function PaymentsTab() {
                     <TableCell><Badge variant="outline" className="text-xs">{pi.routingProvider || 'N/A'}</Badge></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
                           <div className={`h-full rounded-full ${getTrustScoreBg(pi.routingScore)}`} style={{ width: `${pi.routingScore ?? 0}%` }} />
                         </div>
                         <span className={`text-xs font-medium ${getTrustScoreColor(pi.routingScore)}`}>{pi.routingScore ?? 0}</span>
@@ -121,12 +121,12 @@ export function PaymentsTab() {
                     <span className="text-2xl">{m.icon || '💳'}</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{m.methodName}</p>
-                      <p className="text-xs text-slate-500">{m.provider}</p>
+                      <p className="text-xs text-muted-foreground">{m.provider}</p>
                       <div className="flex flex-wrap gap-1 mt-2">
                         <Badge variant="secondary" className="text-[10px]">{m.type}</Badge>
-                        <span className="text-[10px] text-slate-500">{(() => { try { return JSON.parse(m.countries || '[]').length } catch { return 0 } })()} countries</span>
+                        <span className="text-[10px] text-muted-foreground">{(() => { try { return JSON.parse(m.countries || '[]').length } catch { return 0 } })()} countries</span>
                       </div>
-                      <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-500">
+                      <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground">
                         <span>Fee: {m.feePercent ?? 0}% + {formatCurrency(m.fixedFee)}</span>
                         <span>·</span>
                         <span>{m.settlementTime}</span>
