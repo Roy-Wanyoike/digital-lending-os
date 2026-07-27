@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     if (data.network === 'erc20' && !addr.startsWith('0x')) {
       return NextResponse.json({ error: 'Invalid ERC20 address — must start with 0x' }, { status: 400 })
     }
-    if (data.network === 'solana' && addr.length < 32 && addr.length > 44) {
+    if (data.network === 'solana' && (addr.length < 32 || addr.length > 44)) {
       return NextResponse.json({ error: 'Invalid Solana address length' }, { status: 400 })
     }
 
