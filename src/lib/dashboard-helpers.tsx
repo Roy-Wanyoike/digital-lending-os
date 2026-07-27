@@ -317,19 +317,38 @@ export function useApi<T>(url: string) {
     let cancelled = false
     setLoading(true)
     fetch(url)
-      .then(r => r.json())
-      .then(d => {
-        if (!cancelled) {
-          // Auto-unwrap { data: T, pagination? } envelope
-          if (d && typeof d === 'object' && !Array.isArray(d) && 'data' in d) {
-            setData(d.data as T)
-          } else {
-            setData(d as T)
-          }
-          setLoading(false)
-        }
+      .then(r => {
+        if (!r.ok) return null // Non-2xx → treat as error, return null data
+        return r.json()
       })
-      .catch(() => { if (!cancelled) setLoading(false) })
+      .then(d => {
+        if (cancelled) return
+        // Handle non-OK responses (d is null)
+        if (d === null) {
+          setData(null)
+          setLoading(false)
+          return
+        }
+        // Auto-unwrap { data: T, pagination? } envelope
+        if (d && typeof d === 'object' && !Array.isArray(d) && 'data' in d) {
+          const unwrapped = (d as any).data
+          // Safety: if unwrapped is not the expected type (e.g. error object leaked through), use null
+          if (unwrapped === undefined || unwrapped === null) {
+            setData(null)
+          } else if (Array.isArray(unwrapped) || typeof unwrapped !== 'object' || !('error' in unwrapped)) {
+            setData(unwrapped as T)
+          } else {
+            setData(null)
+          }
+        } else if (d && typeof d === 'object' && 'error' in d) {
+          // Error response object — don't set as data
+          setData(null)
+        } else {
+          setData(d as T)
+        }
+        setLoading(false)
+      })
+      .catch(() => { if (!cancelled) { setData(null); setLoading(false) } })
     return () => { cancelled = true }
   }, [url, key])
 

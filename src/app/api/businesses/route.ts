@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return successResponse({ data: businesses });
+    return successResponse(businesses);
   } catch (error: any) {
     console.error('Businesses GET error:', error);
     return errorResponse('Failed to fetch businesses', 500);
