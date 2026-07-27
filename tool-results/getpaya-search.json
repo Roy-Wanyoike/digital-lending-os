@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://developers.korapay.com/docs/payout-via-api",
+    "name": "Payout API",
+    "snippet": "Use Bank Account Resolve API to resolve the bank accounts (Kenya and Nigeria ) before you request the payout . See the Verification request and response below. Read more",
+    "host_name": "developers.korapay.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://pawapay.io",
+    "name": "Mobile Money Payments API for Africa — PawaPay",
+    "snippet": "Collect and send mobile money payments across 20+ African markets through one API. Collect and send payments through PawaPay. Full deposit / refund / payout ...",
+    "host_name": "pawapay.io",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developers.monnify.com/docs/disbursements",
+    "name": "Transfer/Payout",
+    "snippet": "The Monnify transfer API enables you to initiate payouts from your Monnify Wallet to any bank account in Nigeria . Create and manage paycodes that enable your ...",
+    "host_name": "developers.monnify.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs-v1.fedapay.com/payments/payouts",
+    "name": "Payouts",
+    "snippet": "1 - Request to create a deposit . You must first send a request to create a deposit via the API . This request must contain the parameters such as the deposit ... Read more",
+    "host_name": "docs-v1.fedapay.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.wapipay.com",
+    "name": "Wapi Pay",
+    "snippet": "Send, collect, and settle cross-border payments with upfront rates, local payout routes, Available options like bank transfer, mobile money, WapiPay account  ...",
+    "host_name": "www.wapipay.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.b2core.b2broker.com/how-to-articles/manage-payment-methods/how-to-add-deposit-and-withdrawal-methods-through-pss/how-to-integrate-korapay",
+    "name": "How to integrate KoraPay - B2CORE docs",
+    "snippet": "Oct 15, 2025 — Follow the instructions below to configure the KoraPay connection and set up the deposit and withdrawal methods in the B2CORE Back Office. Read more",
+    "host_name": "docs.b2core.b2broker.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://elipa.global/dev/ng/ng-payouts-rest-api",
+    "name": "Payouts REST API | eLipa Docs",
+    "snippet": "The eLipa Nigeria Payout API enables your system to programmatically initiate transfers to recipients across the region. Use this API to automate: Vendor ... Read more",
+    "host_name": "elipa.global",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://documentation.xixapay.com/service/payout-withdrawal-integration",
+    "name": "Payout (Withdrawal) Integration",
+    "snippet": "Jan 14, 2026 — This document describes how to integrate Xixapay Payout API to transfer funds from your platform to Nigerian bank accounts. Authentication. Read more",
+    "host_name": "documentation.xixapay.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  }
+]
