@@ -9,6 +9,7 @@ import {
   Bell, Gift, Recurring, FileText, LogOut, Menu, X
 } from 'lucide-react';
 import { useState } from 'react';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -35,16 +36,16 @@ export default function DashboardSidebar() {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside className={`${collapsed ? 'w-16' : 'w-64'} bg-white border-r h-screen flex flex-col transition-all duration-200`}>
+    <aside className={`${collapsed ? 'w-16' : 'w-64'} bg-background border-r h-screen flex flex-col transition-all duration-200`}>
       {/* Header */}
       <div className="p-4 border-b flex items-center justify-between">
         {!collapsed && (
           <div>
-            <h2 className="font-bold text-gray-900">Youngsend</h2>
-            <p className="text-xs text-gray-500">Financial OS</p>
+            <h2 className="font-bold text-foreground">Youngsend</h2>
+            <p className="text-xs text-muted-foreground">Financial OS</p>
           </div>
         )}
-        <button onClick={() => setCollapsed(!collapsed)} className="p-1 hover:bg-gray-100 rounded">
+        <button onClick={() => setCollapsed(!collapsed)} className="p-1 hover:bg-muted rounded">
           {collapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
         </button>
       </div>
@@ -59,8 +60,8 @@ export default function DashboardSidebar() {
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                 isActive
-                  ? 'bg-blue-50 text-blue-700 font-medium'
-                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  ? 'bg-primary/10 text-primary font-medium'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
               title={collapsed ? item.label : undefined}
             >
@@ -75,18 +76,22 @@ export default function DashboardSidebar() {
       <div className="p-4 border-t">
         {!collapsed && (
           <div className="mb-3">
-            <p className="text-sm font-medium text-gray-900 truncate">{session?.user?.name || 'User'}</p>
-            <p className="text-xs text-gray-500 truncate">{session?.user?.email}</p>
+            <p className="text-sm font-medium text-foreground truncate">{session?.user?.name || 'User'}</p>
+            <p className="text-xs text-muted-foreground truncate">{session?.user?.email}</p>
           </div>
         )}
-        <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg w-full transition-colors"
-          title={collapsed ? 'Sign Out' : undefined}
-        >
-          <LogOut className="h-4 w-4 flex-shrink-0" />
-          {!collapsed && <span>Sign Out</span>}
-        </button>
+        <div className={"flex items-center gap-2 w-full" + (collapsed ? ' justify-center' : '')}>
+          {!collapsed && <div className="flex-1" />}
+          <ThemeToggle />
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+            title={collapsed ? 'Sign Out' : undefined}
+          >
+            <LogOut className="h-4 w-4 flex-shrink-0" />
+            {!collapsed && <span>Sign Out</span>}
+          </button>
+        </div>
       </div>
     </aside>
   );

@@ -113,14 +113,14 @@ function RegisterPageInner() {
   }, [referralCode])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 px-4 py-12">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted px-4 py-12">
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="flex items-center justify-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-white font-bold text-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-foreground text-background font-bold text-sm">
               YS
             </div>
-            <span className="text-2xl font-bold text-slate-900">Youngsend</span>
+            <span className="text-2xl font-bold text-foreground">Youngsend</span>
           </div>
           <div>
             <CardTitle className="text-xl">Create your account</CardTitle>
@@ -133,7 +133,7 @@ function RegisterPageInner() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Referral Banner */}
             {referralInfo && (
-              <div className="rounded-md bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 flex items-center gap-2">
+              <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
                 <span className="text-lg">🎁</span>
                 <div>
                   <p className="font-medium">Referred by {referralInfo.name}</p>
@@ -143,7 +143,7 @@ function RegisterPageInner() {
             )}
 
             {error && (
-              <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              <div className="rounded-md bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
                 {error}
               </div>
             )}
@@ -236,11 +236,11 @@ function RegisterPageInner() {
               {loading ? 'Creating account...' : 'Create Account'}
             </Button>
           </form>
-          <p className="mt-6 text-center text-sm text-slate-600">
+          <p className="mt-6 text-center text-sm text-muted-foreground">
             Already have an account?{' '}
             <Link
               href="/login"
-              className="font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+              className="font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
             >
               Sign in
             </Link>

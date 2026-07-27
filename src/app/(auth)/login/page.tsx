@@ -52,10 +52,10 @@ function LoginForm() {
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="text-center space-y-4 pb-2">
         <div className="flex items-center justify-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-white font-bold text-sm">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-foreground text-background font-bold text-sm">
             YS
           </div>
-          <span className="text-2xl font-bold text-slate-900">Youngsend</span>
+          <span className="text-2xl font-bold text-foreground">Youngsend</span>
         </div>
         <div>
           <CardTitle className="text-xl">Welcome back</CardTitle>
@@ -66,13 +66,13 @@ function LoginForm() {
       </CardHeader>
       <CardContent>
         {registered && (
-          <div className="rounded-md bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700 mb-4">
+          <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 mb-4">
             Account created successfully. Please sign in.
           </div>
         )}
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+            <div className="rounded-md bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
               {error}
             </div>
           )}
@@ -111,11 +111,11 @@ function LoginForm() {
             {loading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
-        <p className="mt-6 text-center text-sm text-slate-600">
+        <p className="mt-6 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}
           <Link
             href="/register"
-            className="font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+            className="font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
           >
             Sign up
           </Link>
@@ -127,11 +127,11 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 px-4 py-12">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted px-4 py-12">
       <Suspense fallback={
         <Card className="w-full max-w-md shadow-lg">
           <CardContent className="p-12 text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-400 mx-auto" />
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
           </CardContent>
         </Card>
       }>
