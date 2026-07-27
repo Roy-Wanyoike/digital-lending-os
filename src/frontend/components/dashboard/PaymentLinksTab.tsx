@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label'
 import {
   useApi, formatCurrency, formatDate, CURRENCY_FLAGS, getStatusBadgeVariant, getStatusColor,
-  KPICard, LoadingSkeleton, Toast, type Business, type PaymentLink,
+  KPICard, LoadingSkeleton, ErrorState, Toast, type Business, type PaymentLink,
 } from '@/lib/dashboard-helpers'
 
 interface LinkPayment {
@@ -29,8 +29,8 @@ interface PaymentLinkDetail extends PaymentLink {
 
 export function PaymentLinksTab() {
   const [linkKey, setLinkKey] = useState(0)
-  const { data: links, loading } = useApi<PaymentLink[]>(`/api/payment-links?limit=50&k=${linkKey}`)
-  const { data: businesses } = useApi<Business[]>('/api/businesses?limit=50')
+  const { data: links, loading, error: linksError, refetch: refetchLinks } = useApi<PaymentLink[]>(`/api/payment-links?limit=50&k=${linkKey}`)
+  const { data: businesses, error: bizError } = useApi<Business[]>('/api/businesses?limit=50')
   const [selectedLink, setSelectedLink] = useState<PaymentLinkDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -62,6 +62,7 @@ export function PaymentLinksTab() {
   const showToast = useCallback((msg: string) => { setToastMsg(msg); setToastVis(true); setTimeout(() => setToastVis(false), 3000) }, [])
 
   if (loading) return <LoadingSkeleton />
+  if (linksError || bizError) return <ErrorState message={linksError || bizError || ''} onRetry={refetchLinks} />
 
   const allLinks = links || []
   const totalLinks = allLinks.length

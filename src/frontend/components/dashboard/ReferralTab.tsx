@@ -9,7 +9,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { KPICard, formatDate, useApi } from '@/lib/dashboard-helpers'
+import { KPICard, formatDate, useApi, ErrorState } from '@/lib/dashboard-helpers'
 
 interface ReferralData {
   referralCode: string
@@ -41,7 +41,7 @@ interface ReferralData {
 }
 
 export function ReferralTab() {
-  const { data, loading, refetch } = useApi<ReferralData>('/api/referral')
+  const { data, loading, error, refetch } = useApi<ReferralData>('/api/referral')
   const [copied, setCopied] = useState(false)
   const [shareMsg, setShareMsg] = useState('')
 
@@ -92,6 +92,10 @@ export function ReferralTab() {
         <div className="h-64 rounded-xl bg-muted animate-pulse" />
       </div>
     )
+  }
+
+  if (error) {
+    return <ErrorState message={error} onRetry={refetch} />
   }
 
   if (!data) {

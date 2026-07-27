@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { useSession, signOut } from 'next-auth/react'
-import { Menu, LogOut, Wallet, CreditCard, Shield } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { useSession, signIn, signOut } from 'next-auth/react'
+import { Menu, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRealtime } from '@/hooks/use-realtime'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { ROLE_TABS, ROLE_LABELS, NAV_ITEMS, Toast, type Role } from '@/lib/dashboard-helpers'
+import { ROLE_TABS, ROLE_LABELS, NAV_ITEMS, type Role } from '@/lib/dashboard-helpers'
 import { OverviewTab } from '@/components/dashboard/OverviewTab'
 import { TrustGraphTab } from '@/components/dashboard/TrustGraphTab'
 import { EscrowTab } from '@/components/dashboard/EscrowTab'
@@ -50,16 +50,10 @@ export default function YoungsendDashboard() {
   const [activeTab, setActiveTab] = useState('overview')
   const [currentRole, setCurrentRole] = useState<Role>('admin')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [socketConnected, setSocketConnected] = useState(false)
   const { isConnected: sseConnected, subscribe, unsubscribe } = useRealtime({
     enabled: status === 'authenticated',
     tenantId: (session?.user as any)?.tenantId,
   })
-
-  // Sync SSE connection state with the UI badge
-  useEffect(() => {
-    setSocketConnected(sseConnected)
-  }, [sseConnected])
 
   // Subscribe to realtime events and show toast notifications
   useEffect(() => {
@@ -104,8 +98,6 @@ export default function YoungsendDashboard() {
       unsubscribe('escrow.updated', handleEscrow)
     }
   }, [sseConnected, subscribe, unsubscribe])
-  const [toastMessage, setToastMessage] = useState('')
-  const [toastVisible, setToastVisible] = useState(false)
 
   // Set role from session
   useEffect(() => {
@@ -119,10 +111,9 @@ export default function YoungsendDashboard() {
 
   const visibleTabs = ROLE_TABS[currentRole] || []
   const safeTab = visibleTabs.includes(activeTab) ? activeTab : (visibleTabs[0] || 'overview')
-  const prevSafeTab = useRef(safeTab)
   useEffect(() => {
     if (safeTab !== activeTab) setActiveTab(safeTab)
-  }, [currentRole]) // only re-evaluate when role changes
+  }, [safeTab, activeTab, currentRole])
   const activeNav = NAV_ITEMS.find(n => n.id === activeTab)
 
   const handleTabChange = useCallback((tabId: string) => {
@@ -139,6 +130,18 @@ export default function YoungsendDashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="h-8 w-8 border-4 border-muted border-t-emerald-600 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (status === 'unauthenticated') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <h2 className="text-xl font-semibold text-foreground">Sign in required</h2>
+          <p className="text-sm text-muted-foreground">Please sign in to access the dashboard.</p>
+          <Button onClick={() => signIn()}>Sign In</Button>
+        </div>
       </div>
     )
   }
@@ -173,12 +176,12 @@ export default function YoungsendDashboard() {
                   )}
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-colors ${socketConnected ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-red-50 dark:bg-red-950/30'}`}>
-                        <div className={`h-2 w-2 rounded-full transition-colors ${socketConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-                        <span className={`text-[10px] font-medium hidden sm:inline ${socketConnected ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>{socketConnected ? 'Live' : 'Offline'}</span>
+                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-colors ${sseConnected ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-red-50 dark:bg-red-950/30'}`}>
+                        <div className={`h-2 w-2 rounded-full transition-colors ${sseConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                        <span className={`text-[10px] font-medium hidden sm:inline ${sseConnected ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>{sseConnected ? 'Live' : 'Offline'}</span>
                       </div>
                     </TooltipTrigger>
-                    <TooltipContent><p>Trust Network {socketConnected ? 'connected' : 'disconnected'}</p></TooltipContent>
+                    <TooltipContent><p>Trust Network {sseConnected ? 'connected' : 'disconnected'}</p></TooltipContent>
                   </Tooltip>
 
                   <ThemeToggle />
@@ -225,7 +228,7 @@ export default function YoungsendDashboard() {
             </footer>
           </div>
         </div>
-        <Toast message={toastMessage} visible={toastVisible} />
+
       </div>
     </TooltipProvider>
   )

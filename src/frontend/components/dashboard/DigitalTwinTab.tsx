@@ -8,13 +8,14 @@ import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
-import { useApi, CircularScore, LoadingSkeleton, type TwinProfile, formatCurrency } from '@/lib/dashboard-helpers'
+import { useApi, CircularScore, LoadingSkeleton, ErrorState, type TwinProfile, formatCurrency } from '@/lib/dashboard-helpers'
 
 export function DigitalTwinTab() {
-  const { data: twins, loading } = useApi<TwinProfile[]>('/api/twin/profiles?limit=20')
+  const { data: twins, loading, error, refetch } = useApi<TwinProfile[]>('/api/twin/profiles?limit=20')
   const [selectedTwin, setSelectedTwin] = useState<TwinProfile | null>(null)
 
   if (loading) return <LoadingSkeleton />
+  if (error) return <ErrorState message={error} onRetry={refetch} />
 
   const allTwins = twins || []
 

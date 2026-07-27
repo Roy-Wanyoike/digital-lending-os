@@ -11,16 +11,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import {
   useApi, getCountryFlag, getStatusBadgeVariant, getStatusColor,
-  getTrustScoreColor, ScoreBar, CircularScore, LoadingSkeleton,
+  getTrustScoreColor, ScoreBar, CircularScore, LoadingSkeleton, ErrorState,
   type Business,
 } from '@/lib/dashboard-helpers'
 
 export function TrustGraphTab() {
-  const { data: businesses, loading: bLoading } = useApi<Business[]>('/api/businesses?limit=50')
+  const { data: businesses, loading: bLoading, error, refetch } = useApi<Business[]>('/api/businesses?limit=50')
   const [search, setSearch] = useState('')
   const [selectedBiz, setSelectedBiz] = useState<Business | null>(null)
 
   if (bLoading) return <LoadingSkeleton />
+  if (error) return <ErrorState message={error} onRetry={refetch} />
 
   const allBusinesses = businesses || []
   const filtered = allBusinesses.filter(b =>

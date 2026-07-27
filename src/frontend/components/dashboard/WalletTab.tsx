@@ -21,7 +21,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   useApi, formatCurrency, CURRENCY_FLAGS, formatDate,
-  KPICard, LoadingSkeleton, Toast, type Business, type WalletData,
+  KPICard, LoadingSkeleton, ErrorState, Toast, type Business, type WalletData,
 } from '@/lib/dashboard-helpers'
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -95,13 +95,13 @@ const NETWORK_LABELS: Record<string, string> = {
 // ─── Component ──────────────────────────────────────────────────
 
 export function WalletTab() {
-  const { data: businesses, loading: bLoading } = useApi<Business[]>('/api/businesses?limit=50')
-  const { data: rates } = useApi<RatesData>('/api/wallets/rates')
+  const { data: businesses, loading: bLoading, error: bizError, refetch } = useApi<Business[]>('/api/businesses?limit=50')
+  const { data: rates, error: ratesError } = useApi<RatesData>('/api/wallets/rates')
   const [selectedBizId, setSelectedBizId] = useState<string>('')
   const safeBusinesses = Array.isArray(businesses) ? businesses : []
   const bizId = selectedBizId || safeBusinesses?.[0]?.id || ''
   const [walletKey, setWalletKey] = useState(0)
-  const { data: wallets, loading: wLoading } = useApi<WalletData[]>(bizId ? `/api/wallets?businessId=${bizId}&k=${walletKey}` : '')
+  const { data: wallets, loading: wLoading, error: walletsError } = useApi<WalletData[]>(bizId ? `/api/wallets?businessId=${bizId}&k=${walletKey}` : '')
   const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null)
   const [txns, setTxns] = useState<WalletTransaction[]>([])
   const [txLoading, setTxLoading] = useState(false)
@@ -341,6 +341,7 @@ export function WalletTab() {
   }, [cvtFromWalletId])
 
   if (bLoading || (bizId && wLoading)) return <LoadingSkeleton />
+  if (bizError || ratesError || walletsError) return <ErrorState message={bizError || ratesError || walletsError || ''} onRetry={refetch} />
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">

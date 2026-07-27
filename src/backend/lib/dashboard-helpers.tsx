@@ -6,10 +6,11 @@ import { format } from 'date-fns'
 import {
   LayoutDashboard, Network, Shield, ArrowLeftRight, IdCard as PassportIcon,
   Brain, Link2, Wallet, ShieldAlert, UserCheck, BellRing, Scale,
-  TrendingUp, Building2, ArrowUpRight, ArrowDownRight, Zap, Star, Gift,
+  ArrowUpRight, ArrowDownRight, Gift, AlertTriangle, RotateCcw,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Button } from '@/components/ui/button'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -308,6 +309,7 @@ export function truncate(str: string, len: number): string {
 export function useApi<T>(url: string) {
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [key, setKey] = useState(0)
 
   const refetch = useCallback(() => setKey(k => k + 1), [])
@@ -315,51 +317,76 @@ export function useApi<T>(url: string) {
   useEffect(() => {
     if (!url) return
     let cancelled = false
-    // Mark this fetch as in-flight. We intentionally call setState here to
-    // transition into the loading state whenever the URL or refetch key
-    // changes. This is the canonical "fetch on URL change" pattern.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    const controller = new AbortController()
     setLoading(true)
-    fetch(url)
+    setError(null)
+    fetch(url, { signal: controller.signal })
       .then(r => {
-        if (!r.ok) return null // Non-2xx → treat as error, return null data
+        if (!r.ok) {
+          setError(`Request failed with status ${r.status}`)
+          return null
+        }
         return r.json()
       })
       .then(d => {
         if (cancelled) return
-        // Handle non-OK responses (d is null)
         if (d === null) {
           setData(null)
           setLoading(false)
           return
         }
-        // Auto-unwrap { data: T, pagination? } envelope
         if (d && typeof d === 'object' && !Array.isArray(d) && 'data' in d) {
           const unwrapped = (d as any).data
-          // Safety: if unwrapped is not the expected type (e.g. error object leaked through), use null
           if (unwrapped === undefined || unwrapped === null) {
             setData(null)
           } else if (Array.isArray(unwrapped) || typeof unwrapped !== 'object' || !('error' in unwrapped)) {
             setData(unwrapped as T)
           } else {
+            setError('Unexpected response format')
             setData(null)
           }
         } else if (d && typeof d === 'object' && 'error' in d) {
-          // Error response object — don't set as data
+          setError((d as any).error || 'Request failed')
           setData(null)
         } else {
           setData(d as T)
         }
         setLoading(false)
       })
-      .catch(() => { if (!cancelled) { setData(null); setLoading(false) } })
-    return () => { cancelled = true }
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err.name === 'AbortError' ? null : 'Network error — check your connection')
+          setData(null)
+          setLoading(false)
+        }
+      })
+    return () => { cancelled = true; controller.abort() }
   }, [url, key])
 
-  return { data, loading, refetch }
+  return { data, loading, error, refetch }
 }
 
 // ─── Shared Sub-Components ───────────────────────────────────────
+
+export function ErrorState({ message, onRetry }: { message?: string; onRetry?: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 space-y-4">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+        <AlertTriangle className="h-6 w-6 text-destructive" />
+      </div>
+      <div className="text-center">
+        <p className="text-sm font-medium text-foreground">Failed to load data</p>
+        <p className="text-xs text-muted-foreground mt-1">{message || 'An error occurred while fetching data. Please try again.'}</p>
+      </div>
+      {onRetry && (
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <RotateCcw className="h-3 w-3 mr-1.5" />
+          Retry
+        </Button>
+      )}
+    </div>
+  )
+}
 
 export function LoadingSkeleton() {
   return (
@@ -382,10 +409,10 @@ export function KPICard({ title, value, subtitle, icon: Icon, trend }: {
       <CardContent className="p-4 sm:p-6">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
-            <p className="text-xs sm:text-sm font-medium text-slate-500">{title}</p>
-            <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900">{value}</p>
+            <p className="text-xs sm:text-sm font-medium text-muted-foreground">{title}</p>
+            <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">{value}</p>
             {subtitle && (
-              <p className="text-xs text-slate-500 flex items-center gap-1">
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
                 {trend === 'up' && <ArrowUpRight className="h-3 w-3 text-emerald-500" />}
                 {trend === 'down' && <ArrowDownRight className="h-3 w-3 text-red-500" />}
                 {subtitle}
@@ -408,7 +435,7 @@ export function PipelineCard(props: { title?: string; value?: number; label?: st
       <Card className="hover:shadow-md transition-shadow">
         <CardContent className="p-3 sm:p-4 text-center">
           <p className="text-2xl sm:text-3xl font-bold" style={{ color: props.color }}>{value}</p>
-          <p className="text-xs text-slate-500 mt-1 truncate">{title}</p>
+          <p className="text-xs text-muted-foreground mt-1 truncate">{title}</p>
         </CardContent>
       </Card>
     </div>
@@ -419,8 +446,8 @@ export function ScoreBar({ score, maxScore = 100, label }: { score: number; maxS
   const pct = Math.min(100, Math.max(0, (score / maxScore) * 100))
   return (
     <div className="space-y-1">
-      {label && <div className="flex justify-between text-xs"><span className="text-slate-600">{label}</span><span className="font-medium">{score}/{maxScore}</span></div>}
-      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+      {label && <div className="flex justify-between text-xs"><span className="text-muted-foreground">{label}</span><span className="font-medium">{score}/{maxScore}</span></div>}
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-700 ease-out ${score >= 80 ? 'bg-emerald-500' : score >= 60 ? 'bg-amber-500' : score >= 40 ? 'bg-orange-500' : 'bg-red-500'}`}
           style={{ width: `${pct}%` }}
@@ -440,7 +467,7 @@ export function CircularScore({ score, size = 100, strokeWidth = 6 }: { score: n
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#e2e8f0" strokeWidth={strokeWidth} />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-muted" />
         <circle
           cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth}
           strokeLinecap="round"

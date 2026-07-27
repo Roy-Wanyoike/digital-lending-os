@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   useApi, formatCurrency, getStatusBadgeVariant, getStatusColor,
   getRiskBg, getRiskColor, formatDate, ESCROW_STATUSES, PipelineCard,
-  LoadingSkeleton, KPICard, CURRENCY_FLAGS, ScoreBar, Toast,
+  LoadingSkeleton, ErrorState, KPICard, CURRENCY_FLAGS, ScoreBar, Toast,
   type EscrowTransaction, type Business,
 } from '@/lib/dashboard-helpers'
 
@@ -37,8 +37,8 @@ interface EscrowDetail extends EscrowTransaction {
 
 export function EscrowTab() {
   const [refreshKey, setRefreshKey] = useState(0)
-  const { data: transactions, loading } = useApi<EscrowTransaction[]>(`/api/escrow/transactions?limit=50&k=${refreshKey}`)
-  const { data: businesses } = useApi<Business[]>('/api/businesses?limit=50')
+  const { data: transactions, loading, error: txError, refetch } = useApi<EscrowTransaction[]>(`/api/escrow/transactions?limit=50&k=${refreshKey}`)
+  const { data: businesses, error: bizError } = useApi<Business[]>('/api/businesses?limit=50')
   const [statusFilter, setStatusFilter] = useState('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
@@ -97,6 +97,7 @@ export function EscrowTab() {
   }, [])
 
   if (loading) return <LoadingSkeleton />
+  if (txError || bizError) return <ErrorState message={txError || bizError || ''} onRetry={refetch} />
 
   const allTxns = transactions || []
   const filtered = statusFilter === 'all' ? allTxns : allTxns.filter(t => t.status?.toLowerCase() === statusFilter.toLowerCase())
@@ -441,7 +442,7 @@ export function EscrowTab() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={!formBuyer || !formSeller || !formAmount || creating}>{creating ? 'Creating...' : 'Create Escrow'}</Button>
+            <Button onClick={handleCreate} disabled={!formBuyer || !formSeller || !formAmount || isNaN(parseFloat(formAmount)) || parseFloat(formAmount) <= 0 || creating}>{creating ? 'Creating...' : 'Create Escrow'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

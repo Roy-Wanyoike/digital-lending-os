@@ -6,15 +6,16 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   useApi, getStatusBadgeVariant, getStatusColor, getRiskBg, getRiskColor,
-  truncate, FRAUD_SEVERITIES, FRAUD_STATUSES, PipelineCard, LoadingSkeleton, formatDate,
+  truncate, FRAUD_SEVERITIES, FRAUD_STATUSES, PipelineCard, LoadingSkeleton, ErrorState, formatDate,
   type FraudAlert, type FraudRule,
 } from '@/lib/dashboard-helpers'
 
 export function FraudTab() {
-  const { data: alerts, loading: aLoading } = useApi<FraudAlert[]>('/api/fraud/alerts?limit=20')
-  const { data: rules, loading: rLoading } = useApi<FraudRule[]>('/api/fraud/rules')
+  const { data: alerts, loading: aLoading, error: alertsError } = useApi<FraudAlert[]>('/api/fraud/alerts?limit=20')
+  const { data: rules, loading: rLoading, error: rulesError, refetch } = useApi<FraudRule[]>('/api/fraud/rules')
 
   if (aLoading || rLoading) return <LoadingSkeleton />
+  if (alertsError || rulesError) return <ErrorState message={alertsError || rulesError || ''} onRetry={refetch} />
 
   const allAlerts = alerts || []
   const allRules = rules || []

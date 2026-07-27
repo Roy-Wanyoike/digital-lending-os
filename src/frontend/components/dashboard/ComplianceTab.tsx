@@ -7,14 +7,15 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   useApi, formatDate, getStatusBadgeVariant, getStatusColor,
-  KPICard, LoadingSkeleton, type ComplianceRule, type Screening,
+  KPICard, LoadingSkeleton, ErrorState, type ComplianceRule, type Screening,
 } from '@/lib/dashboard-helpers'
 
 export function ComplianceTab() {
-  const { data: rules, loading: rLoading } = useApi<ComplianceRule[]>('/api/compliance/rules')
-  const { data: screenings, loading: sLoading } = useApi<Screening[]>('/api/compliance/screenings?limit=20')
+  const { data: rules, loading: rLoading, error: rulesError, refetch } = useApi<ComplianceRule[]>('/api/compliance/rules')
+  const { data: screenings, loading: sLoading, error: screeningsError } = useApi<Screening[]>('/api/compliance/screenings?limit=20')
 
   if (rLoading || sLoading) return <LoadingSkeleton />
+  if (rulesError || screeningsError) return <ErrorState message={rulesError || screeningsError || ''} onRetry={refetch} />
 
   const allRules = rules || []
   const allScreenings = screenings || []

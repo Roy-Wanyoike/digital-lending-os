@@ -10,16 +10,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
   useApi, formatCurrency, getStatusBadgeVariant, getStatusColor,
   getTrustScoreBg, getTrustScoreColor, CURRENCY_FLAGS, PAYMENT_METHOD_TYPES,
-  LoadingSkeleton, type PaymentIntent, type ExchangeRate, type PaymentMethod,
+  LoadingSkeleton, ErrorState, type PaymentIntent, type ExchangeRate, type PaymentMethod,
 } from '@/lib/dashboard-helpers'
 
 export function PaymentsTab() {
-  const { data: intents, loading: iLoading } = useApi<PaymentIntent[]>('/api/payments/intents?limit=15')
-  const { data: rates, loading: rLoading } = useApi<ExchangeRate[]>('/api/payments/rates')
-  const { data: methods, loading: mLoading } = useApi<PaymentMethod[]>('/api/payment-methods/global')
+  const { data: intents, loading: iLoading, error: intentsError } = useApi<PaymentIntent[]>('/api/payments/intents?limit=15')
+  const { data: rates, loading: rLoading, error: ratesError } = useApi<ExchangeRate[]>('/api/payments/rates')
+  const { data: methods, loading: mLoading, error: methodsError, refetch } = useApi<PaymentMethod[]>('/api/payment-methods/global')
   const [methodFilter, setMethodFilter] = useState('All')
 
   if (iLoading || rLoading || mLoading) return <LoadingSkeleton />
+  if (intentsError || ratesError || methodsError) return <ErrorState message={intentsError || ratesError || methodsError || ''} onRetry={refetch} />
 
   const allIntents = intents || []
   const allRates = rates || []

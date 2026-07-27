@@ -120,3 +120,36 @@ Stage Summary:
 - 4-phase remediation roadmap proposed
 - All temp files cleaned
 All tasks completed for PAYA assessment
+---
+Task ID: qa-audit-fixes
+Agent: Main Agent
+Task: QA Audit — Fix 20 issues across critical/high/medium/low severity
+
+Work Log:
+- Ran comprehensive QA audit: 39 issues found across codebase
+- **C1**: Fixed TOAST_REMOVE_DELAY from 1000000ms to 5000ms (toasts now auto-dismiss)
+- **C2**: Fixed useToast useEffect dependency — removed `[state]` dep to prevent listener leak
+- **C3**: Removed dead state variables `toastMessage`/`toastVisible` and unused `<Toast>` from page.tsx
+- **C4**: Fixed missing useEffect dependencies `[safeTab, activeTab, currentRole]` for tab guard
+- **C5**: Added unauthenticated redirect — shows "Sign in required" with button instead of blank dashboard
+- **H1**: Removed unused imports `Wallet`, `CreditCard`, `Shield` from page.tsx
+- **H3**: Removed redundant `socketConnected` state — now uses `sseConnected` directly
+- **H4**: Enhanced `useApi` hook with `error` state, `AbortController`, and descriptive error messages
+- **H5**: Added `ErrorState` component with retry button to dashboard-helpers
+- **H6**: Fixed dark mode — replaced `text-slate-500`/`text-slate-900` with `text-muted-foreground`/`text-foreground`
+- **H7**: Fixed SVG circle stroke to use `currentColor` + `text-muted` class for dark mode
+- **L4/L5**: Removed unused imports `TrendingUp`, `Building2`, `Zap`, `Star` from dashboard-helpers
+- **L6**: Deleted `page.tsx.bak`, `page-full.tsx`, `dashboard-helpers.tsx.bak`
+- **M7**: Added NaN/zero validation to EscrowTab create form disabled check
+- **M10**: Created `not-found.tsx` with branded 404 page
+- **M11**: Created `loading.tsx` for `/withdrawals` and `/conversion` routes
+- **M12**: Removed raw `error.message` exposure from error.tsx, shows only digest for support
+- Updated ALL 13 dashboard tabs to use `ErrorState` component with error from `useApi`
+
+Stage Summary:
+- 20 issues fixed across 20+ files
+- All 13 dashboard tabs now show error states with retry on API failure
+- Toast system fully functional (auto-dismiss in 5s, no listener leak)
+- Dark mode now works correctly in KPI cards, score bars, and circular scores
+- Unauthenticated users see sign-in prompt instead of blank dashboard
+- Build passes: `✓ Compiled successfully in 22.6s`

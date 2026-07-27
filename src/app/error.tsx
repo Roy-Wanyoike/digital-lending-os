@@ -40,15 +40,12 @@ export default function GlobalError({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {error.message && (
-            <div className="rounded-md bg-destructive/5 border border-border px-4 py-3 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground mb-1">Error details:</p>
-              <p className="font-mono text-xs break-all">{error.message}</p>
-              {error.digest && (
-                <p className="mt-2 text-xs">
-                  Digest: <code className="font-mono">{error.digest}</code>
-                </p>
-              )}
+          {error.digest && (
+            <div className="rounded-md bg-muted border border-border px-4 py-3 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">For support reference:</p>
+              <p className="text-xs">
+                Error ID: <code className="font-mono">{error.digest}</code>
+              </p>
             </div>
           )}
 

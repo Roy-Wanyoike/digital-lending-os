@@ -7,13 +7,14 @@ import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   useApi, formatDate, getStatusBadgeVariant, getStatusColor,
-  MATCHING_STATUSES, PipelineCard, LoadingSkeleton, type MatchingRecord,
+  MATCHING_STATUSES, PipelineCard, LoadingSkeleton, ErrorState, type MatchingRecord,
 } from '@/lib/dashboard-helpers'
 
 export function MatchingTab() {
-  const { data: matches, loading } = useApi<MatchingRecord[]>('/api/matching?limit=20')
+  const { data: matches, loading, error, refetch } = useApi<MatchingRecord[]>('/api/matching?limit=20')
 
   if (loading) return <LoadingSkeleton />
+  if (error) return <ErrorState message={error} onRetry={refetch} />
 
   const allMatches = matches || []
 

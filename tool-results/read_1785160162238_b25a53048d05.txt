@@ -1,0 +1,477 @@
+     1→'use client'
+     2→
+     3→import { useState, useCallback } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import { Shield, Plus, Eye, DollarSign, Play, ChevronRight, AlertTriangle, CheckCircle, Clock, X, ExternalLink, CreditCard } from 'lucide-react'
+     6→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+    11→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    12→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+    13→import { Label } from '@/components/ui/label'
+    14→import { Separator } from '@/components/ui/separator'
+    15→import { ScrollArea } from '@/components/ui/scroll-area'
+    16→import {
+    17→  useApi, formatCurrency, getStatusBadgeVariant, getStatusColor,
+    18→  getRiskBg, getRiskColor, formatDate, ESCROW_STATUSES, PipelineCard,
+    19→  LoadingSkeleton, KPICard, CURRENCY_FLAGS, ScoreBar, Toast,
+    20→  type EscrowTransaction, type Business,
+    21→} from '@/lib/dashboard-helpers'
+    22→
+    23→// ─── Types ────────────────────────────────────────────────────
+    24→
+    25→interface Milestone { id: string; sequence: number; title: string; amount: number; status: string; releasedAt?: string | null }
+    26→interface Disbursement { id: string; amount: number; currency: string; status: string; paymentRef?: string | null }
+    27→interface Dispute { id: string; raisedBy: string; reason: string; description?: string | null; status: string; resolution?: string | null; aiRecommendation?: string | null; createdAt: string }
+    28→interface AuditEntry { id: string; action: string; actor?: string | null; details: string; createdAt: string }
+    29→interface EscrowDetail extends EscrowTransaction {
+    30→  milestones: Milestone[]
+    31→  disbursements: Disbursement[]
+    32→  disputes: Dispute[]
+    33→  auditLog: AuditEntry[]
+    34→}
+    35→
+    36→// ─── Component ────────────────────────────────────────────────
+    37→
+    38→export function EscrowTab() {
+    39→  const [refreshKey, setRefreshKey] = useState(0)
+    40→  const { data: transactions, loading } = useApi<EscrowTransaction[]>(`/api/escrow/transactions?limit=50&k=${refreshKey}`)
+    41→  const { data: businesses } = useApi<Business[]>('/api/businesses?limit=50')
+    42→  const [statusFilter, setStatusFilter] = useState('all')
+    43→  const [selectedId, setSelectedId] = useState<string | null>(null)
+    44→  const [createOpen, setCreateOpen] = useState(false)
+    45→  const [disputeOpen, setDisputeOpen] = useState(false)
+    46→  const [fundOpen, setFundOpen] = useState(false)
+    47→  const [fundEscrowId, setFundEscrowId] = useState<string | null>(null)
+    48→  const [toastMsg, setToastMsg] = useState('')
+    49→  const [toastVis, setToastVis] = useState(false)
+    50→
+    51→  // Fund form state
+    52→  const [fundEmail, setFundEmail] = useState('')
+    53→  const [fundFirstName, setFundFirstName] = useState('')
+    54→  const [fundLastName, setFundLastName] = useState('')
+    55→  const [fundProvider, setFundProvider] = useState('')
+    56→  const [fundProviders, setFundProviders] = useState<Array<{code: string; name: string}>>([])
+    57→  const [funding, setFunding] = useState(false)
+    58→
+    59→  // Create form state
+    60→  const [formBuyer, setFormBuyer] = useState('')
+    61→  const [formSeller, setFormSeller] = useState('')
+    62→  const [formAmount, setFormAmount] = useState('')
+    63→  const [formCurrency, setFormCurrency] = useState('USD')
+    64→  const [formDesc, setFormDesc] = useState('')
+    65→  const [formMilestones, setFormMilestones] = useState('1')
+    66→  const [creating, setCreating] = useState(false)
+    67→
+    68→  // Dispute form state
+    69→  const [disputeRaisedBy, setDisputeRaisedBy] = useState('buyer')
+    70→  const [disputeReason, setDisputeReason] = useState('')
+    71→  const [disputeDesc, setDisputeDesc] = useState('')
+    72→  const [disputing, setDisputing] = useState(false)
+    73→
+    74→  const showToast = useCallback((msg: string) => { setToastMsg(msg); setToastVis(true); setTimeout(() => setToastVis(false), 3000) }, [])
+    75→
+    76→  const doAction = useCallback(async (id: string, action: string, body?: Record<string, string>) => {
+    77→    try {
+    78→      const res = await fetch(`/api/escrow/transactions/${id}/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+    79→      const json = await res.json()
+    80→      if (!res.ok) throw new Error(json.error || 'Action failed')
+    81→      showToast(`${action} successful!`)
+    82→      setRefreshKey(k => k + 1)
+    83→      return json.data
+    84→    } catch (e: any) { showToast(e.message); return null }
+    85→  }, [showToast])
+    86→
+    87→  const openFundDialog = useCallback(async (escrowId: string, currency: string) => {
+    88→    setFundEscrowId(escrowId)
+    89→    setFundOpen(true)
+    90→    try {
+    91→      const res = await fetch(`/api/payments/providers?currency=${currency}`)
+    92→      const json = await res.json()
+    93→      const providers = (json.data || []).map((p: any) => ({ code: p.code, name: p.name }))
+    94→      setFundProviders(providers)
+    95→      if (providers.length > 0) setFundProvider(providers[0].code)
+    96→    } catch { setFundProviders([]) }
+    97→  }, [])
+    98→
+    99→  if (loading) return <LoadingSkeleton />
+   100→
+   101→  const allTxns = transactions || []
+   102→  const filtered = statusFilter === 'all' ? allTxns : allTxns.filter(t => t.status?.toLowerCase() === statusFilter.toLowerCase())
+   103→
+   104→  const pipelineCounts = ESCROW_STATUSES.map(s => ({
+   105→    status: s,
+   106→    count: allTxns.filter(t => t.status?.toLowerCase() === s.toLowerCase().replace(/\s/g, '_') || t.status?.toLowerCase().replace(/\s/g, '') === s.toLowerCase().replace(/\s/g, '')).length,
+   107→  }))
+   108→  const pipelineColors = ['#94a3b8', '#3b82f6', '#f59e0b', '#10b981', '#ef4444']
+   109→
+   110→  const totalVolume = allTxns.reduce((s, t) => s + t.amount, 0)
+   111→  const activeEscrows = allTxns.filter(t => ['funded', 'in_escrow'].includes(t.status?.toLowerCase())).length
+   112→  const disputed = allTxns.filter(t => t.status?.toLowerCase() === 'disputed').length
+   113→
+   114→  // ─── Derived data ────────────────────────────────────────
+   115→
+   116→  const handleFund = async () => {
+   117→    if (!fundEscrowId || !fundEmail) return
+   118→    setFunding(true)
+   119→    try {
+   120→      const body: Record<string, string> = { email: fundEmail }
+   121→      if (fundFirstName) body.firstName = fundFirstName
+   122→      if (fundLastName) body.lastName = fundLastName
+   123→      if (fundProvider) body.provider = fundProvider
+   124→      const res = await fetch(`/api/escrow/transactions/${fundEscrowId}/fund`, {
+   125→        method: 'POST', headers: { 'Content-Type': 'application/json' },
+   126→        body: JSON.stringify(body),
+   127→      })
+   128→      const json = await res.json()
+   129→      if (!res.ok) throw new Error(json.error || 'Funding failed')
+   130→      const data = json.data
+   131→      if (data?.checkoutUrl) {
+   132→        window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer')
+   133→        showToast(`Redirecting to ${data.providerName}...`)
+   134→      } else if (data?.status === 'awaiting_payment') {
+   135→        showToast('Payment initiated! Complete it via the provider.')
+   136→      } else {
+   137→        showToast('Escrow funding initiated!')
+   138→      }
+   139→      setFundOpen(false)
+   140→      setFundEmail(''); setFundFirstName(''); setFundLastName(''); setFundProvider('')
+   141→      setRefreshKey(k => k + 1)
+   142→    } catch (e: any) { showToast(e.message) } finally { setFunding(false) }
+   143→  }
+   144→
+   145→  const handleCreate = async () => {
+   146→    setCreating(true)
+   147→    try {
+   148→      const milestones = Array.from({ length: parseInt(formMilestones) }, (_, i) => ({
+   149→        title: `Milestone ${i + 1}`,
+   150→        amount: Math.round((parseFloat(formAmount) / parseInt(formMilestones)) * 100) / 100,
+   151→      }))
+   152→      const res = await fetch('/api/escrow/transactions', {
+   153→        method: 'POST', headers: { 'Content-Type': 'application/json' },
+   154→        body: JSON.stringify({ buyerId: formBuyer, sellerId: formSeller, amount: parseFloat(formAmount), currency: formCurrency, description: formDesc || undefined, milestones }),
+   155→      })
+   156→      const json = await res.json()
+   157→      if (!res.ok) throw new Error(json.error || json.details?.[0]?.message || 'Create failed')
+   158→      showToast('Escrow created!')
+   159→      setCreateOpen(false)
+   160→      setFormBuyer(''); setFormSeller(''); setFormAmount(''); setFormDesc(''); setFormMilestones('1')
+   161→      setRefreshKey(k => k + 1)
+   162→    } catch (e: any) { showToast(e.message) } finally { setCreating(false) }
+   163→  }
+   164→
+   165→  const handleDispute = async () => {
+   166→    if (!selectedId || !disputeReason) return
+   167→    setDisputing(true)
+   168→    try {
+   169→      const res = await fetch(`/api/escrow/transactions/${selectedId}/disputes`, {
+   170→        method: 'POST', headers: { 'Content-Type': 'application/json' },
+   171→        body: JSON.stringify({ raisedBy: disputeRaisedBy, reason: disputeReason, description: disputeDesc || undefined }),
+   172→      })
+   173→      const json = await res.json()
+   174→      if (!res.ok) throw new Error(json.error || 'Dispute failed')
+   175→      showToast('Dispute raised!')
+   176→      setDisputeOpen(false); setDisputeReason(''); setDisputeDesc('')
+   177→      setRefreshKey(k => k + 1)
+   178→    } catch (e: any) { showToast(e.message) } finally { setDisputing(false) }
+   179→  }
+   180→
+   181→  const selectedTxn = allTxns.find(t => t.id === selectedId)
+   182→
+   183→  return (
+   184→    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+   185→      {/* KPIs */}
+   186→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+   187→        <KPICard title="Total Volume" value={formatCurrency(totalVolume)} icon={DollarSign} />
+   188→        <KPICard title="Active Escrows" value={activeEscrows.toString()} icon={Shield} />
+   189→        <KPICard title="Disputed" value={disputed.toString()} icon={AlertTriangle} />
+   190→        <KPICard title="Total Deals" value={allTxns.length.toString()} icon={ChevronRight} />
+   191→      </div>
+   192→
+   193→      {/* Pipeline */}
+   194→      <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
+   195→        {pipelineCounts.map((p, i) => (
+   196→          <PipelineCard key={p.status} label={p.status} count={p.count} color={pipelineColors[i]} />
+   197→        ))}
+   198→      </div>
+   199→
+   200→      {/* Toolbar */}
+   201→      <div className="flex flex-wrap items-center justify-between gap-3">
+   202→        <div className="flex items-center gap-3">
+   203→          <span className="text-sm text-muted-foreground">Status:</span>
+   204→          <Select value={statusFilter} onValueChange={setStatusFilter}>
+   205→            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+   206→            <SelectContent>
+   207→              <SelectItem value="all">All Statuses</SelectItem>
+   208→              {ESCROW_STATUSES.map(s => <SelectItem key={s} value={s.toLowerCase().replace(/\s/g, '_')}>{s}</SelectItem>)}
+   209→            </SelectContent>
+   210→          </Select>
+   211→        </div>
+   212→        <Button size="sm" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-1" /> New Escrow</Button>
+   213→      </div>
+   214→
+   215→      {/* Table */}
+   216→      <Card>
+   217→        <CardContent className="p-0">
+   218→          <div className="overflow-x-auto">
+   219→            <Table>
+   220→              <TableHeader>
+   221→                <TableRow>
+   222→                  <TableHead>Reference</TableHead>
+   223→                  <TableHead>Buyer → Seller</TableHead>
+   224→                  <TableHead className="text-right">Amount</TableHead>
+   225→                  <TableHead>Status</TableHead>
+   226→                  <TableHead>AI Risk</TableHead>
+   227→                  <TableHead>Milestones</TableHead>
+   228→                  <TableHead>Actions</TableHead>
+   229→                  <TableHead>Date</TableHead>
+   230→                </TableRow>
+   231→              </TableHeader>
+   232→              <TableBody>
+   233→                {filtered.slice(0, 20).map(txn => {
+   234→                  const st = txn.status?.toLowerCase() || ''
+   235→                  const canFund = st === 'created'
+   236→                  const canActivate = st === 'funded'
+   237→                  const canRelease = st === 'in_escrow'
+   238→                  const canDispute = ['funded', 'in_escrow'].includes(st)
+   239→                  return (
+   240→                    <TableRow key={txn.id} className="even:bg-muted/50">
+   241→                      <TableCell className="font-mono text-xs">{txn.txRef}</TableCell>
+   242→                      <TableCell className="max-w-[160px] truncate text-xs">
+   243→                        <span className="text-foreground">{txn.buyer?.name}</span>
+   244→                        <span className="text-muted-foreground mx-1">→</span>
+   245→                        <span className="text-foreground">{txn.seller?.name}</span>
+   246→                      </TableCell>
+   247→                      <TableCell className="text-right font-medium">{formatCurrency(txn.amount, txn.currency)}</TableCell>
+   248→                      <TableCell><Badge variant={getStatusBadgeVariant(txn.status)} className={getStatusColor(txn.status)}>{txn.status}</Badge></TableCell>
+   249→                      <TableCell>
+   250→                        <div className="flex items-center gap-2">
+   251→                          <div className="w-10 h-1.5 bg-muted rounded-full overflow-hidden">
+   252→                            <div className={`h-full rounded-full ${getRiskBg(txn.aiRiskScore || 0)}`} style={{ width: `${txn.aiRiskScore || 0}%` }} />
+   253→                          </div>
+   254→                          <span className={`text-xs font-medium ${getRiskColor(txn.aiRiskScore || 0)}`}>{txn.aiRiskLevel}</span>
+   255→                        </div>
+   256→                      </TableCell>
+   257→                      <TableCell className="text-xs">{txn.currentMilestone}/{txn.totalMilestones}</TableCell>
+   258→                      <TableCell>
+   259→                        <div className="flex items-center gap-1">
+   260→                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSelectedId(txn.id)} title="View details"><Eye className="h-3.5 w-3.5" /></Button>
+   261→                          {canFund && <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openFundDialog(txn.id, txn.currency)}><CreditCard className="h-3 w-3 mr-1" />Fund</Button>}
+   262→                          {canActivate && <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => doAction(txn.id, 'activate')}><Play className="h-3 w-3 mr-1" />Activate</Button>}
+   263→                          {canRelease && <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => {
+   264→                            const ms = txn.milestones?.find((m: any) => m.status === 'ready' || m.status === 'pending')
+   265→                            if (ms) doAction(txn.id, 'release', { milestoneId: ms.id })
+   266→                            else showToast('No pending milestones')
+   267→                          }}><CheckCircle className="h-3 w-3 mr-1" />Release</Button>}
+   268→                          {canDispute && <Button variant="outline" size="sm" className="h-7 text-xs text-red-600" onClick={() => { setSelectedId(txn.id); setDisputeOpen(true) }}><AlertTriangle className="h-3 w-3 mr-1" />Dispute</Button>}
+   269→                        </div>
+   270→                      </TableCell>
+   271→                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(txn.createdAt)}</TableCell>
+   272→                    </TableRow>
+   273→                  )
+   274→                })}
+   275→              </TableBody>
+   276→            </Table>
+   277→          </div>
+   278→        </CardContent>
+   279→      </Card>
+   280→
+   281→      {/* Detail Drawer */}
+   282→      <AnimatePresence>
+   283→        {selectedTxn && (
+   284→          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex justify-end">
+   285→            <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedId(null)} />
+   286→            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative w-full max-w-xl bg-background shadow-xl h-full overflow-y-auto border-l">
+   287→              <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
+   288→                <div>
+   289→                  <h3 className="font-semibold">{selectedTxn.txRef}</h3>
+   290→                  <p className="text-xs text-muted-foreground">{formatDate(selectedTxn.createdAt)}</p>
+   291→                </div>
+   292→                <Button variant="ghost" size="icon" onClick={() => setSelectedId(null)}><X className="h-4 w-4" /></Button>
+   293→              </div>
+   294→              <div className="p-6 space-y-6">
+   295→                {/* Status & Amount */}
+   296→                <div className="flex items-center justify-between">
+   297→                  <Badge variant={getStatusBadgeVariant(selectedTxn.status)} className={getStatusColor(selectedTxn.status)}>{selectedTxn.status}</Badge>
+   298→                  <p className="text-2xl font-bold">{formatCurrency(selectedTxn.amount, selectedTxn.currency)}</p>
+   299→                </div>
+   300→                <div className="grid grid-cols-2 gap-4 text-sm">
+   301→                  <div><p className="text-muted-foreground">Buyer</p><p className="font-medium">{selectedTxn.buyer?.name}</p></div>
+   302→                  <div><p className="text-muted-foreground">Seller</p><p className="font-medium">{selectedTxn.seller?.name}</p></div>
+   303→                  <div><p className="text-muted-foreground">Funded</p><p className="font-medium text-blue-600 dark:text-blue-400">{formatCurrency(selectedTxn.fundedAmount, selectedTxn.currency)}</p></div>
+   304→                  <div><p className="text-muted-foreground">Released</p><p className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(selectedTxn.releasedAmount, selectedTxn.currency)}</p></div>
+   305→                </div>
+   306→
+   307→                {/* Risk Score */}
+   308→                <div>
+   309→                  <p className="text-sm font-medium mb-2">AI Risk Assessment</p>
+   310→                  <ScoreBar score={selectedTxn.aiRiskScore || 0} label="Risk Score" />
+   311→                </div>
+   312→
+   313→                {/* Milestones */}
+   314→                {selectedTxn.milestones && selectedTxn.milestones.length > 0 && (
+   315→                  <div>
+   316→                    <p className="text-sm font-medium mb-2">Milestones</p>
+   317→                    <div className="space-y-2">
+   318→                      {selectedTxn.milestones.map((m: any) => (
+   319→                        <div key={m.id} className="flex items-center justify-between p-3 rounded-lg bg-muted">
+   320→                          <div className="flex items-center gap-2">
+   321→                            {m.status === 'released' ? <CheckCircle className="h-4 w-4 text-emerald-500" /> : <Clock className="h-4 w-4 text-muted-foreground" />}
+   322→                            <span className="text-sm font-medium">{m.title}</span>
+   323→                          </div>
+   324→                          <span className="text-sm font-medium">{formatCurrency(m.amount, selectedTxn.currency)}</span>
+   325→                        </div>
+   326→                      ))}
+   327→                    </div>
+   328→                  </div>
+   329→                )}
+   330→
+   331→                {/* Disputes */}
+   332→                {selectedTxn.disputes && selectedTxn.disputes.length > 0 && (
+   333→                  <div>
+   334→                    <p className="text-sm font-medium mb-2">Disputes</p>
+   335→                    {selectedTxn.disputes.map((d: any) => (
+   336→                      <div key={d.id} className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 mb-2">
+   337→                        <div className="flex items-center justify-between mb-1">
+   338→                          <Badge variant={d.status === 'open' ? 'destructive' : 'secondary'}>{d.status}</Badge>
+   339→                          <span className="text-xs text-muted-foreground">{formatDate(d.createdAt)}</span>
+   340→                        </div>
+   341→                        <p className="text-sm font-medium">{d.reason}</p>
+   342→                        {d.aiRecommendation && <p className="text-xs text-muted-foreground mt-1">AI: {d.aiRecommendation}</p>}
+   343→                        {d.resolution && <p className="text-xs text-emerald-600 mt-1">Resolution: {d.resolution}</p>}
+   344→                      </div>
+   345→                    ))}
+   346→                  </div>
+   347→                )}
+   348→
+   349→                {/* Description */}
+   350→                {selectedTxn.description && (
+   351→                  <div>
+   352→                    <p className="text-sm font-medium mb-1">Description</p>
+   353→                    <p className="text-sm text-muted-foreground">{selectedTxn.description}</p>
+   354→                  </div>
+   355→                )}
+   356→
+   357→                {/* Fees */}
+   358→                <div className="grid grid-cols-2 gap-4 text-sm">
+   359→                  <div><p className="text-muted-foreground">Fee</p><p>{formatCurrency(selectedTxn.feeAmount, selectedTxn.feeCurrency)}</p></div>
+   360→                  <div><p className="text-muted-foreground">Refunded</p><p>{formatCurrency(selectedTxn.refundedAmount, selectedTxn.currency)}</p></div>
+   361→                </div>
+   362→              </div>
+   363→            </motion.div>
+   364→          </motion.div>
+   365→        )}
+   366→      </AnimatePresence>
+   367→
+   368→      {/* Fund Dialog */}
+   369→      <Dialog open={fundOpen} onOpenChange={setFundOpen}>
+   370→        <DialogContent className="max-w-md">
+   371→          <DialogHeader>
+   372→            <DialogTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5" /> Fund Escrow</DialogTitle>
+   373→            <DialogDescription>Pay via a payment provider to fund this escrow. You will be redirected to complete payment.</DialogDescription>
+   374→          </DialogHeader>
+   375→          <div className="space-y-4">
+   376→            {fundProviders.length > 0 && (
+   377→              <div className="space-y-2"><Label>Payment Provider</Label>
+   378→                <Select value={fundProvider} onValueChange={setFundProvider}>
+   379→                  <SelectTrigger><SelectValue placeholder="Select provider" /></SelectTrigger>
+   380→                  <SelectContent>
+   381→                    {fundProviders.map(p => <SelectItem key={p.code} value={p.code}>{p.name}</SelectItem>)}
+   382→                  </SelectContent>
+   383→                </Select>
+   384→                <p className="text-xs text-muted-foreground">Auto-selected based on escrow currency. Fees apply per provider.</p>
+   385→              </div>
+   386→            )}
+   387→            {fundProviders.length === 0 && (
+   388→              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-300">
+   389→                No payment providers configured. Payments will use demo mode. Add provider keys in .env to enable real payments.
+   390→              </div>
+   391→            )}
+   392→            <div className="space-y-2"><Label>Email *</Label><Input type="email" placeholder="payer@email.com" value={fundEmail} onChange={e => setFundEmail(e.target.value)} /></div>
+   393→            <div className="grid grid-cols-2 gap-3">
+   394→              <div className="space-y-2"><Label>First Name</Label><Input placeholder="John" value={fundFirstName} onChange={e => setFundFirstName(e.target.value)} /></div>
+   395→              <div className="space-y-2"><Label>Last Name</Label><Input placeholder="Doe" value={fundLastName} onChange={e => setFundLastName(e.target.value)} /></div>
+   396→            </div>
+   397→          </div>
+   398→          <DialogFooter>
+   399→            <Button variant="outline" onClick={() => setFundOpen(false)}>Cancel</Button>
+   400→            <Button onClick={handleFund} disabled={!fundEmail || funding}>{funding ? 'Initiating...' : 'Pay Now'}</Button>
+   401→          </DialogFooter>
+   402→        </DialogContent>
+   403→      </Dialog>
+   404→
+   405→      {/* Create Dialog */}
+   406→      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+   407→        <DialogContent className="max-w-md">
+   408→          <DialogHeader>
+   409→            <DialogTitle>Create New Escrow</DialogTitle>
+   410→            <DialogDescription>Set up a secure transaction between buyer and seller</DialogDescription>
+   411→          </DialogHeader>
+   412→          <div className="space-y-4">
+   413→            <div className="space-y-2"><Label>Buyer *</Label>
+   414→              <Select value={formBuyer} onValueChange={setFormBuyer}>
+   415→                <SelectTrigger><SelectValue placeholder="Select buyer business" /></SelectTrigger>
+   416→                <SelectContent>{(businesses || []).map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+   417→              </Select>
+   418→            </div>
+   419→            <div className="space-y-2"><Label>Seller *</Label>
+   420→              <Select value={formSeller} onValueChange={setFormSeller}>
+   421→                <SelectTrigger><SelectValue placeholder="Select seller business" /></SelectTrigger>
+   422→                <SelectContent>{(businesses || []).map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent>
+   423→              </Select>
+   424→            </div>
+   425→            <div className="grid grid-cols-2 gap-3">
+   426→              <div className="space-y-2"><Label>Amount *</Label><Input type="number" min="1" step="0.01" placeholder="0.00" value={formAmount} onChange={e => setFormAmount(e.target.value)} /></div>
+   427→              <div className="space-y-2"><Label>Currency</Label>
+   428→                <Select value={formCurrency} onValueChange={setFormCurrency}>
+   429→                  <SelectTrigger><SelectValue /></SelectTrigger>
+   430→                  <SelectContent>{['USD','EUR','GBP','CNY','JPY','SGD','AED','NGN','KES','BRL','AUD'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+   431→                </Select>
+   432→              </div>
+   433→            </div>
+   434→            <div className="space-y-2"><Label>Description</Label><Input placeholder="What is this escrow for?" value={formDesc} onChange={e => setFormDesc(e.target.value)} /></div>
+   435→            <div className="space-y-2"><Label>Milestones</Label>
+   436→              <Select value={formMilestones} onValueChange={setFormMilestones}>
+   437→                <SelectTrigger><SelectValue /></SelectTrigger>
+   438→                <SelectContent>{['1','2','3','4','5'].map(n => <SelectItem key={n} value={n}>{n} milestone{n !== '1' ? 's' : ''} (equal split)</SelectItem>)}</SelectContent>
+   439→              </Select>
+   440→            </div>
+   441→          </div>
+   442→          <DialogFooter>
+   443→            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+   444→            <Button onClick={handleCreate} disabled={!formBuyer || !formSeller || !formAmount || creating}>{creating ? 'Creating...' : 'Create Escrow'}</Button>
+   445→          </DialogFooter>
+   446→        </DialogContent>
+   447→      </Dialog>
+   448→
+   449→      {/* Dispute Dialog */}
+   450→      <Dialog open={disputeOpen} onOpenChange={setDisputeOpen}>
+   451→        <DialogContent className="max-w-md">
+   452→          <DialogHeader>
+   453→            <DialogTitle>Raise Dispute</DialogTitle>
+   454→            <DialogDescription>Report an issue with escrow {selectedTxn?.txRef}</DialogDescription>
+   455→          </DialogHeader>
+   456→          <div className="space-y-4">
+   457→            <div className="space-y-2"><Label>Raised By</Label>
+   458→              <Select value={disputeRaisedBy} onValueChange={setDisputeRaisedBy}>
+   459→                <SelectTrigger><SelectValue /></SelectTrigger>
+   460→                <SelectContent><SelectItem value="buyer">Buyer ({selectedTxn?.buyer?.name})</SelectItem><SelectItem value="seller">Seller ({selectedTxn?.seller?.name})</SelectItem></SelectContent>
+   461→              </Select>
+   462→            </div>
+   463→            <div className="space-y-2"><Label>Reason *</Label><Input placeholder="Brief reason for dispute" value={disputeReason} onChange={e => setDisputeReason(e.target.value)} /></div>
+   464→            <div className="space-y-2"><Label>Description</Label><Input placeholder="Detailed description (optional)" value={disputeDesc} onChange={e => setDisputeDesc(e.target.value)} /></div>
+   465→          </div>
+   466→          <DialogFooter>
+   467→            <Button variant="outline" onClick={() => setDisputeOpen(false)}>Cancel</Button>
+   468→            <Button variant="destructive" onClick={handleDispute} disabled={!disputeReason || disputing}>{disputing ? 'Submitting...' : 'Raise Dispute'}</Button>
+   469→          </DialogFooter>
+   470→        </DialogContent>
+   471→      </Dialog>
+   472→
+   473→      <Toast message={toastMsg} visible={toastVis} />
+   474→    </motion.div>
+   475→  )
+   476→}
+   477→

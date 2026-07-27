@@ -6,14 +6,15 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   useApi, formatCurrency, formatDate, getStatusBadgeVariant, getStatusColor,
-  truncate, AGING_BUCKETS, PRIORITY_LEVELS, PipelineCard, LoadingSkeleton,
+  truncate, AGING_BUCKETS, PRIORITY_LEVELS, PipelineCard, LoadingSkeleton, ErrorState,
   type CollectionRecord,
 } from '@/lib/dashboard-helpers'
 
 export function CollectionsTab() {
-  const { data: collections, loading } = useApi<CollectionRecord[]>('/api/collections?limit=20')
+  const { data: collections, loading, error, refetch } = useApi<CollectionRecord[]>('/api/collections?limit=20')
 
   if (loading) return <LoadingSkeleton />
+  if (error) return <ErrorState message={error} onRetry={refetch} />
 
   const allCollections = collections || []
 

@@ -8,14 +8,15 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   useApi, getCountryFlag, formatDate, getStatusBadgeVariant, getStatusColor,
-  KPICard, LoadingSkeleton, type Business, type Verification,
+  KPICard, LoadingSkeleton, ErrorState, type Business, type Verification,
 } from '@/lib/dashboard-helpers'
 
 export function PassportTab() {
-  const { data: businesses, loading: bLoading } = useApi<Business[]>('/api/businesses?limit=20')
-  const { data: verifications, loading: vLoading } = useApi<Verification[]>('/api/passport/verifications?limit=15')
+  const { data: businesses, loading: bLoading, error: bizError } = useApi<Business[]>('/api/businesses?limit=20')
+  const { data: verifications, loading: vLoading, error: verifError, refetch } = useApi<Verification[]>('/api/passport/verifications?limit=15')
 
   if (bLoading || vLoading) return <LoadingSkeleton />
+  if (bizError || verifError) return <ErrorState message={bizError || verifError || ''} onRetry={refetch} />
 
   const allBiz = businesses || []
   const allVerif = verifications || []

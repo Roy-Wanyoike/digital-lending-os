@@ -1,14 +1,15 @@
 'use client'
 
-import { useApi, LoadingSkeleton, type DashboardStats, formatCurrency, formatDate, getStatusBadgeVariant, ESCROW_STATUSES, KPICard, PipelineCard } from '@/lib/dashboard-helpers'
+import { useApi, LoadingSkeleton, ErrorState, type DashboardStats, formatCurrency, formatDate, getStatusBadgeVariant, ESCROW_STATUSES, KPICard, PipelineCard } from '@/lib/dashboard-helpers'
 import { TrendingUp, Building2, Shield, Star } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 export function OverviewTab() {
-  const { data: stats, loading } = useApi<DashboardStats>('/api/dashboard/stats')
+  const { data: stats, loading, error, refetch } = useApi<DashboardStats>('/api/dashboard/stats')
   if (loading || !stats) return <LoadingSkeleton />
+  if (error) return <ErrorState message={error} onRetry={refetch} />
   const pipelineData = ESCROW_STATUSES.map(s => ({
     status: s,
     count: stats.escrowsByStatus?.[s.toLowerCase().replace(/\s/g, '_')] || stats.escrowsByStatus?.[s] || 0,
