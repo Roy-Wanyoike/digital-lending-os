@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://developers.korapay.com/docs/payout-via-api",
+    "name": "Payout API",
+    "snippet": "Use Bank Account Resolve API to resolve the bank accounts (Kenya and Nigeria) before you request the payout. See the Verification request and response below.\nThe Payout History API allows you to fetch all the payout transactions made from your Kora account without having to get them from the dashboard. Use the endpoint below to fetch your payout history.",
+    "host_name": "developers.korapay.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://depasify.readme.io/reference/post_accounts-account-id-withdraw",
+    "name": "Withdraw funds - API Reference",
+    "snippet": "Initiates a withdrawal of funds to the user's main source bank account. This endpoint allows users to transfer funds from their Depasify account to their ...",
+    "host_name": "depasify.readme.io",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.instagram.com/reel/DGk5k7GNebZ/?hl=en",
+    "name": "Wapipay Payment App on Instagram: \"Need to add funds to",
+    "snippet": "Click on banks and card to set up your withdrawal account. Proceed to funding your savings wallet via pay with card, bank transfer or pay from ...",
+    "host_name": "www.instagram.com",
+    "rank": 2,
+    "date": "Jul 27, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.b2core.b2broker.com/how-to-articles/manage-payment-methods/how-to-add-deposit-and-withdrawal-methods-through-pss/how-to-integrate-korapay",
+    "name": "How to integrate KoraPay - B2CORE docs",
+    "snippet": "Learn how to integrate KoraPay with B2CORE via PSS, including configuring connections and adding deposit and withdrawal methods with supported",
+    "host_name": "docs.b2core.b2broker.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://docs.pawapay.io/using_the_api",
+    "name": "Using the API - PawaPay Merchant API",
+    "snippet": "The PawaPay API is secured by the API token as explained in Authentication. To add a second layer of security, you can optionally sign your financial requests ...",
+    "host_name": "docs.pawapay.io",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=l7Q7n4ulkBw",
+    "name": "How To Create & Verify Epay Account | How To Withdraw With",
+    "snippet": "In this video, I practically show you the step-by-step process of How To Create epay wallet, Verify Epay Account | How To Withdraw on epay ...",
+    "host_name": "www.youtube.com",
+    "rank": 5,
+    "date": "Jul 27, 2025",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer-docs.paga.com/docs/business-rest-api-operations",
+    "name": "Business API Operations - Create a Paga Business Account",
+    "snippet": "Paga Business API operation provides all relevant endpoints needed to complete a debit transaction on the partner's account.",
+    "host_name": "developer-docs.paga.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.linkedin.com/posts/wapsecure_apis-every-nigerian-fintech-dev-should-know-activity-7454797849957117952-9acK",
+    "name": "Essential APIs for Nigerian Fintech Devs",
+    "snippet": "APIs every Nigerian fintech dev should know before writing a single line of payment code: 1. Mono — bank account linking and statement ...",
+    "host_name": "www.linkedin.com",
+    "rank": 7,
+    "date": "Apr 28, 2026",
+    "favicon": ""
+  },
+  {
+    "url": "https://parse.bot/marketplace/21a93a49-b84d-4c8c-ba3c-cec31d781647/developers-korapay-com-api",
+    "name": "Korapay API – Payments, Payouts & Virtual Accounts - Parse.bot",
+    "snippet": "Access Korapay's payments platform via API: initialize checkouts, manage virtual bank accounts and cards, initiate payouts, verify Nigerian bank ...",
+    "host_name": "parse.bot",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://documenter.getpostman.com/view/10058163/SWLk4RPL",
+    "name": "Wallets for Developers",
+    "snippet": "Implement Wallets seamlessly into your products using our APIs and Webhooks. Build better, smarter and faster.",
+    "host_name": "documenter.getpostman.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]
