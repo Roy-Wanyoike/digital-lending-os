@@ -1,6 +1,6 @@
 // ─── Payment Provider Types ──────────────────────────────────────
 
-export type PaymentProviderCode = 'stripe' | 'paystack' | 'intasend' | 'flutterwave'
+export type PaymentProviderCode = 'stripe' | 'paystack' | 'intasend' | 'flutterwave' | 'paya'
 
 export type PaymentMethod =
   | 'card'

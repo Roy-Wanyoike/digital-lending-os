@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
+import { logAudit } from '@/lib/audit-logger';
 
 export async function GET(req: NextRequest) {
   try {
@@ -65,6 +66,14 @@ export async function POST(req: NextRequest) {
         pendingBalance: 0,
         frozenBalance: 0,
       },
+    });
+
+    // Audit log the wallet creation
+    logAudit('wallet.create', user.id, `Wallet created for currency ${currency}`, {
+      walletId: wallet.id,
+      businessId,
+      currency,
+      tenantId: user.tenantId,
     });
 
     return successResponse(wallet, 201);

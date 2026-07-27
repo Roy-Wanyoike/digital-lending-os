@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { providerRegistry, type PaymentProviderCode } from '@/lib/payment'
+import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted } from '@/lib/payment'
 import { db } from '@/lib/db'
 
 // ─── Paystack Webhook ────────────────────────────────────
@@ -132,6 +132,24 @@ export async function POST(request: NextRequest) {
             },
           })
         }
+
+        // ─── Emit realtime event ────────────────────────────
+        let paystackTenantId: string | undefined
+        if (tx.intentId) {
+          try {
+            const psIntent = await db.paymentIntent.findUnique({ where: { id: tx.intentId }, select: { fromBusinessId: true } })
+            if (psIntent?.fromBusinessId) {
+              const biz = await db.business.findUnique({ where: { id: psIntent.fromBusinessId }, select: { tenantId: true } })
+              paystackTenantId = biz?.tenantId
+            }
+          } catch { /* non-fatal */ }
+        }
+        emitPaymentCompleted({
+          id: tx.id, txRef: tx.txRef, providerTxId: tx.providerTxId,
+          provider: tx.provider, amount: tx.amount, currency: tx.currency,
+          status: 'settled', intentId: tx.intentId,
+          settledAt: data.paid_at ? new Date(data.paid_at).toISOString() : new Date().toISOString(),
+        }, paystackTenantId)
       }
     }
 

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { logAudit } from '@/lib/audit-logger';
 
 function generateSlug(name: string): string {
   const base = name
@@ -140,6 +141,14 @@ export async function POST(req: NextRequest) {
         return { tenant, account, business };
       });
 
+      // Audit log the registration
+      logAudit('tenant.register', result.account.id, `Tenant "${name}" registered by ${result.account.email}`, {
+        tenantId: result.tenant.id,
+        accountId: result.account.id,
+        tenantSlug: result.tenant.slug,
+        plan: result.tenant.plan,
+      });
+
       // Return tenant info (don't expose password hash)
       return successResponse(
         {
@@ -173,6 +182,14 @@ export async function POST(req: NextRequest) {
         ownerEmail: user.email,
         ownerName: user.email, // fallback to email; caller can update later
       },
+    });
+
+    // Audit log the admin tenant creation
+    logAudit('tenant.create', user.id, `Admin created tenant "${name}"`, {
+      tenantId: tenant.id,
+      tenantSlug: tenant.slug,
+      plan: tenant.plan,
+      createdBy: user.email,
     });
 
     return successResponse(tenant, 201);

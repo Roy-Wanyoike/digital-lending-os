@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+import { eventBus } from "@/backend/services/event-bus";
+import { processEscrow } from "@/backend/services/temporal-bridge";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const releaseSchema = z.object({
@@ -156,6 +158,25 @@ export async function POST(
         },
       });
     }
+
+    // ─── Emit realtime event ────────────────────────────
+    try {
+      eventBus.emit('escrow.updated', {
+        id: updatedEscrow.id,
+        txRef: updatedEscrow.txRef,
+        amount: updatedEscrow.amount,
+        currency: updatedEscrow.currency,
+        status: updatedEscrow.status,
+        action: 'milestone_released',
+        milestoneId,
+        milestoneTitle: milestone.title,
+      }, user.tenantId);
+    } catch (err) {
+      console.error('[escrow.updated] emit failed:', err);
+    }
+
+    // Wire to Temporal workflow (falls back to direct execution if Temporal is unavailable)
+    void processEscrow({ escrowId: id, milestoneId, milestoneSequence: milestone.sequence, tenantId: user.tenantId });
 
     return NextResponse.json({ data: updatedEscrow });
   } catch (error) {

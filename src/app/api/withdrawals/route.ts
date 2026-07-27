@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
+import { logAudit } from '@/lib/audit-logger';
 
 // GET /api/withdrawals — List withdrawals for the tenant's wallets
 export async function GET(request: NextRequest) {
@@ -118,6 +119,17 @@ export async function POST(request: NextRequest) {
         notes: notes || null,
         status: 'pending',
       },
+    });
+
+    // Audit log the withdrawal initiation
+    logAudit('withdrawal.initiate', user.id, `Withdrawal of ${wallet.currency} ${parsedAmount} initiated`, {
+      withdrawalId: withdrawal.id,
+      withdrawalRef: withdrawal.withdrawalRef,
+      walletId,
+      amount: parsedAmount,
+      currency: wallet.currency,
+      paymentMethod,
+      tenantId: user.tenantId,
     });
 
     return NextResponse.json(withdrawal, { status: 201 });

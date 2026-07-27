@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { providerRegistry, type PaymentProviderCode } from '@/lib/payment'
+import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted, emitPaymentFailed } from '@/lib/payment'
 import { db } from '@/lib/db'
 
 // ─── Stripe Webhook ──────────────────────────────────────────
@@ -132,6 +132,33 @@ export async function POST(request: NextRequest) {
               }
             }
           }
+
+          // ─── Emit realtime event ────────────────────────────
+          // Best-effort tenantId lookup so SSE clients can filter by tenant
+          let stripeTenantId: string | undefined
+          if (intent?.fromBusinessId) {
+            try {
+              const biz = await db.business.findUnique({
+                where: { id: intent.fromBusinessId },
+                select: { tenantId: true },
+              })
+              stripeTenantId = biz?.tenantId
+            } catch {
+              // Non-fatal — emit without tenantId (broadcasts to all)
+            }
+          }
+
+          emitPaymentCompleted({
+            id: tx.id,
+            txRef: tx.txRef,
+            providerTxId: tx.providerTxId,
+            provider: tx.provider,
+            amount: tx.amount,
+            currency: tx.currency,
+            status: 'settled',
+            intentId: tx.intentId,
+            settledAt: new Date().toISOString(),
+          }, stripeTenantId)
         }
       }
     }

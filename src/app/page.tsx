@@ -2,7 +2,9 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import { Menu, LogOut } from 'lucide-react'
+import { Menu, LogOut, Wallet, CreditCard, Shield } from 'lucide-react'
+import { toast } from 'sonner'
+import { useRealtime } from '@/hooks/use-realtime'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -48,7 +50,60 @@ export default function YoungsendDashboard() {
   const [activeTab, setActiveTab] = useState('overview')
   const [currentRole, setCurrentRole] = useState<Role>('admin')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [socketConnected] = useState(true)
+  const [socketConnected, setSocketConnected] = useState(false)
+  const { isConnected: sseConnected, subscribe, unsubscribe } = useRealtime({
+    enabled: status === 'authenticated',
+    tenantId: (session?.user as any)?.tenantId,
+  })
+
+  // Sync SSE connection state with the UI badge
+  useEffect(() => {
+    setSocketConnected(sseConnected)
+  }, [sseConnected])
+
+  // Subscribe to realtime events and show toast notifications
+  useEffect(() => {
+    if (!sseConnected) return
+
+    const handleDeposit = (evt: any) => {
+      const d = evt.data
+      toast.success(`Deposit Confirmed`, {
+        description: `${d.amount?.toFixed(2)} ${d.currency} deposited to wallet`,
+      })
+    }
+
+    const handlePayment = (evt: any) => {
+      const d = evt.data
+      toast.success(`Payment Completed`, {
+        description: `${d.amount?.toFixed(2)} ${d.currency} via ${d.provider}`,
+      })
+    }
+
+    const handleEscrow = (evt: any) => {
+      const d = evt.data
+      const actionLabels: Record<string, string> = {
+        created: 'Created',
+        activated: 'Activated',
+        funded: 'Funded',
+        cancelled: 'Cancelled',
+        milestone_released: 'Milestone Released',
+      }
+      const label = actionLabels[d.action] || d.status || 'Updated'
+ toast.info(`Escrow ${label}`, {
+        description: `${d.txRef} — ${d.amount?.toFixed(2)} ${d.currency}`,
+      })
+    }
+
+    subscribe('wallet.deposit', handleDeposit)
+    subscribe('payment.completed', handlePayment)
+    subscribe('escrow.updated', handleEscrow)
+
+    return () => {
+      unsubscribe('wallet.deposit', handleDeposit)
+      unsubscribe('payment.completed', handlePayment)
+      unsubscribe('escrow.updated', handleEscrow)
+    }
+  }, [sseConnected, subscribe, unsubscribe])
   const [toastMessage, setToastMessage] = useState('')
   const [toastVisible, setToastVisible] = useState(false)
 
@@ -118,9 +173,9 @@ export default function YoungsendDashboard() {
                   )}
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-muted">
-                        <div className={`h-2 w-2 rounded-full ${socketConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-                        <span className="text-[10px] text-muted-foreground hidden sm:inline">{socketConnected ? 'Live' : 'Offline'}</span>
+                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-colors ${socketConnected ? 'bg-emerald-50 dark:bg-emerald-950/30' : 'bg-red-50 dark:bg-red-950/30'}`}>
+                        <div className={`h-2 w-2 rounded-full transition-colors ${socketConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                        <span className={`text-[10px] font-medium hidden sm:inline ${socketConnected ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>{socketConnected ? 'Live' : 'Offline'}</span>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent><p>Trust Network {socketConnected ? 'connected' : 'disconnected'}</p></TooltipContent>

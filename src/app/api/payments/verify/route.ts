@@ -6,7 +6,7 @@ import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
 const verifySchema = z.object({
   providerPaymentId: z.string().min(1, 'Provider payment ID is required'),
-  provider: z.enum(['stripe', 'paystack', 'intasend', 'flutterwave'] as const),
+  provider: z.enum(['stripe', 'paystack', 'intasend', 'flutterwave', 'paya'] as const),
   paymentIntentId: z.string().optional(),
 })
 

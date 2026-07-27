@@ -2,6 +2,7 @@ import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
+import { logAudit } from '@/lib/audit-logger'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -16,12 +17,15 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
+        const email = credentials.email.toLowerCase()
+
         // Find account by email — may be multiple tenants, take first active one
         const account = await db.account.findFirst({
-          where: { email: credentials.email.toLowerCase(), isActive: true },
+          where: { email, isActive: true },
         })
 
         if (!account) {
+          logAudit('login.failed', 'anonymous', `Failed login for ${email} — account not found`, { email })
           return null
         }
 
@@ -31,6 +35,7 @@ export const authOptions: NextAuthOptions = {
         )
 
         if (!isValidPassword) {
+          logAudit('login.failed', account.id, `Failed login for ${email} — invalid password`, { email, accountId: account.id })
           return null
         }
 
@@ -39,6 +44,8 @@ export const authOptions: NextAuthOptions = {
           where: { id: account.id },
           data: { lastLoginAt: new Date() },
         })
+
+        logAudit('login.success', account.id, `User ${email} signed in`, { email, accountId: account.id, tenantId: account.tenantId })
 
         return {
           id: account.id,

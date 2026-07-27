@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { eventBus } from '@/backend/services/event-bus'
 
 const REFERRAL_BONUS_AMOUNT = 100.00
 const REFERRAL_BONUS_CURRENCY = 'USD'
@@ -195,6 +196,24 @@ export async function POST(request: NextRequest) {
         where: { refereeId: user.id, depositId: deposit.id },
       })
       referralBonusCredited = !!newBonus
+    }
+
+    // ─── Emit realtime event ────────────────────────────
+    if (isAutoComplete) {
+      try {
+        eventBus.emit('wallet.deposit', {
+          id: deposit.id,
+          depositRef,
+          walletId: data.walletId,
+          amount: data.amount,
+          currency: wallet.currency,
+          paymentMethod: data.paymentMethod,
+          provider: data.provider,
+          status: 'completed',
+        }, user.tenantId)
+      } catch (err) {
+        console.error('[wallet.deposit] emit failed:', err)
+      }
     }
 
     return NextResponse.json({

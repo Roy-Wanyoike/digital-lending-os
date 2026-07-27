@@ -72,6 +72,20 @@ export function getProviderConfigs(): Record<PaymentProviderCode, ProviderConfig
       fixedFee: 0,
       testMode: getEnvBool('FLW_TEST_MODE', true),
     },
+    paya: {
+      code: 'paya',
+      name: 'Paya',
+      publicKey: '',
+      secretKey: getEnv('PAYA_API_KEY', ''),
+      webhookSecret: getEnv('PAYA_WEBHOOK_SECRET', ''),
+      isActive: !!(getEnv('PAYA_API_KEY') || (getEnv('PAYA_EMAIL') && getEnv('PAYA_PASSWORD'))),
+      supportedCurrencies: ['NGN', 'KES'],
+      supportedCountries: ['NG', 'KE'],
+      supportedMethods: ['bank_transfer', 'mobile_money', 'digital_wallet'],
+      feePercent: 1.5,
+      fixedFee: 0,
+      testMode: getEnvBool('PAYA_TEST_MODE', true),
+    },
   }
 }
 
@@ -107,6 +121,7 @@ export function getProviderLogo(code: PaymentProviderCode): string {
     paystack: '/providers/paystack.svg',
     intasend: '/providers/intasend.svg',
     flutterwave: '/providers/flutterwave.svg',
+    paya: '/providers/paya.svg',
   }
   return logos[code]
 }
@@ -147,6 +162,7 @@ export const PROVIDER_METHOD_MAP: Record<PaymentProviderCode, string[]> = {
   paystack: ['card', 'bank_transfer', 'mobile_money', 'ussd'],
   intasend: ['card', 'mobile_money', 'bank_transfer', 'mpesa'],
   flutterwave: ['card', 'mobile_money', 'bank_transfer', 'ussd', 'mpesa'],
+  paya: ['bank_transfer', 'mobile_money', 'digital_wallet'],
 }
 
-export const ALL_PROVIDER_CODES: PaymentProviderCode[] = ['stripe', 'paystack', 'intasend', 'flutterwave']
+export const ALL_PROVIDER_CODES: PaymentProviderCode[] = ['stripe', 'paystack', 'intasend', 'flutterwave', 'paya']

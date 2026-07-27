@@ -62,7 +62,7 @@ export function ReferralTab() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     }
-  }, [data?.referralLink])
+  }, [data])
 
   const shareLink = useCallback(async () => {
     if (!data?.referralLink) return
@@ -79,7 +79,7 @@ export function ReferralTab() {
       setShareMsg('Link copied to clipboard!')
       setTimeout(() => setShareMsg(''), 3000)
     }
-  }, [data?.referralLink, copyLink])
+  }, [data, copyLink])
 
   if (loading) {
     return (

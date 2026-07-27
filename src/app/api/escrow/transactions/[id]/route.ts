@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+import { eventBus } from "@/backend/services/event-bus";
 
 // ── GET: Single escrow transaction ───────────────────────────
 export async function GET(
@@ -103,6 +104,20 @@ export async function PUT(
         details: `Escrow transaction ${escrow.txRef} cancelled from status '${escrow.status}'`,
       },
     });
+
+    // ─── Emit realtime event ────────────────────────────
+    try {
+      eventBus.emit('escrow.updated', {
+        id: updated.id,
+        txRef: updated.txRef,
+        amount: updated.amount,
+        currency: updated.currency,
+        status: 'cancelled',
+        action: 'cancelled',
+      }, user.tenantId);
+    } catch (err) {
+      console.error('[escrow.updated] emit failed:', err);
+    }
 
     return NextResponse.json({ data: updated });
   } catch (error) {

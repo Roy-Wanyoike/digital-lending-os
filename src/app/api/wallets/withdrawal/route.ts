@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { processWithdrawal } from '@/backend/services/temporal-bridge'
 
 const withdrawalSchema = z.object({
   walletId: z.string().min(1, 'Wallet ID is required'),
@@ -142,6 +143,9 @@ export async function POST(request: NextRequest) {
 
       return wdr
     })
+
+    // Wire to Temporal workflow (falls back to direct execution if Temporal is unavailable)
+    void processWithdrawal({ walletId: data.walletId, withdrawalId: withdrawal.id, withdrawalRef, amount: data.amount, currency: wallet.currency, tenantId: user.tenantId });
 
     return NextResponse.json({ data: withdrawal }, { status: 201 })
   } catch (error) {

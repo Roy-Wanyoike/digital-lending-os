@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { providerRegistry, type PaymentProviderCode } from '@/lib/payment'
+import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted } from '@/lib/payment'
 import { db } from '@/lib/db'
 
 // ─── Flutterwave Webhook ─────────────────────────────────
@@ -115,6 +115,24 @@ export async function POST(request: NextRequest) {
             })
           }
         }
+
+        // ─── Emit realtime event ────────────────────────────
+        let fwTenantId: string | undefined
+        if (tx.intentId) {
+          try {
+            const fwIntent = await db.paymentIntent.findUnique({ where: { id: tx.intentId }, select: { fromBusinessId: true } })
+            if (fwIntent?.fromBusinessId) {
+              const biz = await db.business.findUnique({ where: { id: fwIntent.fromBusinessId }, select: { tenantId: true } })
+              fwTenantId = biz?.tenantId
+            }
+          } catch { /* non-fatal */ }
+        }
+        emitPaymentCompleted({
+          id: tx.id, txRef: tx.txRef, providerTxId: tx.providerTxId,
+          provider: tx.provider, amount: tx.amount, currency: tx.currency,
+          status: 'settled', intentId: tx.intentId,
+          settledAt: new Date().toISOString(),
+        }, fwTenantId)
       }
     }
 

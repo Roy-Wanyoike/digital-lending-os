@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 import { createHash } from 'crypto'
 
@@ -785,7 +785,6 @@ async function main() {
   console.log('  ✓ 10 currency rates')
 
   // ─── FINAL COUNT ─────────────────────────────────────────
-  const { Prisma } = require('@prisma/client')
   let total = 0
   for (const m of Prisma.dmmf.datamodel.models) {
     try {

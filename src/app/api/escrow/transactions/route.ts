@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+import { eventBus } from "@/backend/services/event-bus";
 
 // ── Zod Schemas ──────────────────────────────────────────────
 const milestoneSchema = z.object({
@@ -189,6 +190,22 @@ export async function POST(request: NextRequest) {
         disbursements: true,
       },
     });
+
+    // ─── Emit realtime event ────────────────────────────
+    try {
+      eventBus.emit('escrow.updated', {
+        id: escrow.id,
+        txRef: escrow.txRef,
+        buyerId: escrow.buyerId,
+        sellerId: escrow.sellerId,
+        amount: escrow.amount,
+        currency: escrow.currency,
+        status: escrow.status,
+        action: 'created',
+      }, user.tenantId);
+    } catch (err) {
+      console.error('[escrow.updated] emit failed:', err);
+    }
 
     return NextResponse.json({ data: escrow }, { status: 201 });
   } catch (error) {

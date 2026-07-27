@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+import { processPayment } from "@/backend/services/temporal-bridge";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const createIntentSchema = z.object({
@@ -164,6 +165,9 @@ export async function POST(request: NextRequest) {
         status: "created",
       },
     });
+
+    // Wire to Temporal workflow (falls back to direct execution if Temporal is unavailable)
+    void processPayment({ paymentIntentId: intent.id, amount: data.sourceAmount, currency: data.sourceCurrency, payerEmail: user.email, payerName: user.email, provider: routingProvider, tenantId: user.tenantId });
 
     return NextResponse.json({ data: intent }, { status: 201 });
   } catch (error) {

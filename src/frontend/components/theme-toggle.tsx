@@ -2,16 +2,20 @@
 
 import { Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { Button } from '@/components/ui/button'
+
+// `useSyncExternalStore` is the React 18+ canonical way to detect
+// whether we are on the client (post-hydration) without calling setState
+// inside an effect (which the react-hooks/set-state-in-effect rule forbids).
+// On the server we return false, on the client (after hydration) we return true.
+const emptySubscribe = () => () => {}
+const getClientSnapshot = () => true
+const getServerSnapshot = () => false
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const mounted = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot)
 
   if (!mounted) {
     return (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+import { eventBus } from "@/backend/services/event-bus";
 
 // ── POST: Activate escrow (move to in_escrow) ───────────────
 export async function POST(
@@ -57,6 +58,20 @@ export async function POST(
         details: `Escrow ${escrow.txRef} activated and moved to 'in_escrow' status. Funds are now held.`,
       },
     });
+
+    // ─── Emit realtime event ────────────────────────────
+    try {
+      eventBus.emit('escrow.updated', {
+        id: updated.id,
+        txRef: escrow.txRef,
+        amount: updated.amount,
+        currency: updated.currency,
+        status: 'in_escrow',
+        action: 'activated',
+      }, user.tenantId);
+    } catch (err) {
+      console.error('[escrow.updated] emit failed:', err);
+    }
 
     return NextResponse.json({ data: updated });
   } catch (error) {

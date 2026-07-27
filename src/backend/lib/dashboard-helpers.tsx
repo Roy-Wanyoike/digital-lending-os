@@ -315,6 +315,10 @@ export function useApi<T>(url: string) {
   useEffect(() => {
     if (!url) return
     let cancelled = false
+    // Mark this fetch as in-flight. We intentionally call setState here to
+    // transition into the loading state whenever the URL or refetch key
+    // changes. This is the canonical "fetch on URL change" pattern.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     fetch(url)
       .then(r => {

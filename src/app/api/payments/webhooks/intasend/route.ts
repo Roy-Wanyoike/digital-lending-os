@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { providerRegistry, type PaymentProviderCode } from '@/lib/payment'
+import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted } from '@/lib/payment'
 import { db } from '@/lib/db'
 
 // ─── IntaSend Webhook ────────────────────────────────────
@@ -110,6 +110,24 @@ export async function POST(request: NextRequest) {
             })
           }
         }
+
+        // ─── Emit realtime event ────────────────────────────
+        let isTenantId: string | undefined
+        if (tx.intentId) {
+          try {
+            const isIntent = await db.paymentIntent.findUnique({ where: { id: tx.intentId }, select: { fromBusinessId: true } })
+            if (isIntent?.fromBusinessId) {
+              const biz = await db.business.findUnique({ where: { id: isIntent.fromBusinessId }, select: { tenantId: true } })
+              isTenantId = biz?.tenantId
+            }
+          } catch { /* non-fatal */ }
+        }
+        emitPaymentCompleted({
+          id: tx.id, txRef: tx.txRef, providerTxId: tx.providerTxId,
+          provider: tx.provider, amount: tx.amount, currency: tx.currency,
+          status: 'settled', intentId: tx.intentId,
+          settledAt: new Date().toISOString(),
+        }, isTenantId)
       }
     }
 
