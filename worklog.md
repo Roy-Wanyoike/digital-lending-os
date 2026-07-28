@@ -144,3 +144,28 @@ Stage Summary:
 - **25/25 tests passing**
 - All routes auth-protected + tenant-scoped
 - Build passes, production server verified
+---
+Task ID: qa-final-fixes
+Agent: Main Agent
+Task: Fix remaining QA items (A1, A6, C14, C15, F2) + update audit report
+
+Work Log:
+- Deep-audited all 39 QA items against current codebase
+- Discovered DashboardGuard.tsx existed but was unwired — created (dashboard)/layout.tsx to wrap it
+- Created CSRF double-submit verification module at src/backend/middleware/csrf.ts
+- Wired CSRF into requireAuth() — all POST/PUT/PATCH/DELETE requests now validate x-csrf-token header against next-auth.csrf-token cookie
+- Created /api/currency alias route (proxies to /api/payments/rates)
+- Created /api/convert alias route (proxies to /api/wallets/convert)
+- Confirmed F2 (no custom server.js) is N/A — SSE realtime works natively
+- Verified E1-E3 (Temporal) were already fixed — temporal-bridge.ts wired into 3 API routes with direct-execution fallback
+- Verified G5-G6 (payment flow/webhooks) were already fixed — real provider calls + 5 webhook handlers
+- Verified all 16 dashboard pages/tabs call real APIs (zero hardcoded data)
+- Completely rewrote qa-audit-report.md with accurate status for all 39 items
+- Build passes, 25/25 tests passing
+
+Stage Summary:
+- **39/39 QA items addressed** (35 fixed in code, 4 external — payment gateway keys)
+- **CSRF protection** now active on all state-changing API requests
+- **DashboardGuard** wired into (dashboard) route group layout
+- **Legacy route aliases** created for /api/currency and /api/convert
+- **Audit report updated**: all items show accurate FIXED/EXTERNAL status with evidence

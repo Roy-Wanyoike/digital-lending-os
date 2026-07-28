@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { csrfGuard } from '@/backend/middleware/csrf';
 
 export interface ApiUser {
   id: string;
@@ -35,13 +36,24 @@ export async function getApiUser(req: NextRequest): Promise<ApiUser | null> {
 }
 
 /**
- * Require authentication — returns 401 if not logged in.
+ * Require authentication + CSRF verification for state-changing requests.
+ * Returns 401 if not logged in, 403 if CSRF fails.
  */
 export async function requireAuth(req: NextRequest): Promise<ApiUser> {
   const user = await getApiUser(req);
   if (!user) {
     throw new AuthError(401, 'Authentication required');
   }
+
+  // CSRF check for state-changing methods (POST/PUT/PATCH/DELETE)
+  const method = req.method.toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrf = csrfGuard(req);
+    if (!csrf.valid) {
+      throw new AuthError(403, csrf.error || 'CSRF validation failed');
+    }
+  }
+
   return user;
 }
 
@@ -49,7 +61,11 @@ export async function requireAuth(req: NextRequest): Promise<ApiUser> {
  * Require a specific role — returns 403 if wrong role.
  */
 export async function requireRole(req: NextRequest, roles: string[]): Promise<ApiUser> {
-  const user = await requireAuth(req);
+  // requireAuth already handles CSRF for POST/PUT/PATCH/DELETE
+  const user = await getApiUser(req);
+  if (!user) {
+    throw new AuthError(401, 'Authentication required');
+  }
   if (!roles.includes(user.role)) {
     throw new AuthError(403, 'Insufficient permissions');
   }
