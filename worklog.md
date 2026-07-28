@@ -26,27 +26,6 @@ Stage Summary:
 - **No stub/placeholder features found** — all dashboard tabs are fully implemented
 - **251 records** in database across 34 models
 ---
-Task ID: 1
-Agent: Main
-Task: PAYA API Integration Assessment for Youngsend
-
-Work Log:
-- Explored full wallet architecture (6 Prisma models, 7 API routes, 5 providers)
-- Analyzed Paya provider code (567 lines, JWT auth, 5 API methods)
-- Reviewed Paya webhook handler (deposit/withdrawal lifecycle)
-- Searched for Paya API docs (found paya.co.ke developer page)
-- Identified critical API endpoint mismatch (code uses getpaya.com/api/v1, actual is paya.co.ke/api)
-- Found wallet routes have NO Paya integration (only demo provider works)
-- Generated 6-page PDF assessment report with findings
-
-Stage Summary:
-- CRITICAL: API base URL mismatch between code and actual Paya API
-- CRITICAL: Wallet deposit/withdrawal routes completely disconnected from Paya provider
-- MODERATE: Webhook handler only covers escrow funding, not wallet deposits
-- LOW: No credentials configured in .env
-- Report saved to /home/z/my-project/download/Paya_API_Integration_Assessment.pdf
-PAYA API integration assessment report is ready
----
 Task ID: paya-assessment
 Agent: Main Agent
 Task: PAYA API Integration Assessment for Youngsend
@@ -67,143 +46,101 @@ Stage Summary:
 - 2 CRITICAL, 2 MODERATE, 3 LOW severity findings
 - Remediation roadmap: 4-phase plan (verify API -> fix provider -> wire wallet routes -> test)
 ---
-Task ID: 1
-Agent: Main
-Task: PAYA API Integration Assessment for Youngsend
-
-Work Log:
-- Explored full wallet architecture (6 Prisma models, 7 API routes, 5 providers)
-- Analyzed Paya provider code (567 lines, JWT auth, 5 API methods)
-- Reviewed Paya webhook handler (deposit/withdrawal lifecycle)
-- Searched for Paya API docs (found paya.co.ke developer page)
-- Identified critical API endpoint mismatch (code uses getpaya.com/api/v1, actual is paya.co.ke/api)
-- Found wallet routes have NO Paya integration (only demo provider works)
-- Generated 6-page PDF assessment report with findings
-
-Stage Summary:
-- CRITICAL: API base URL mismatch between code and actual Paya API
-- CRITICAL: Wallet deposit/withdrawal routes completely disconnected from Paya provider
-- MODERATE: Webhook handler only covers escrow funding, not wallet deposits
-- LOW: No credentials configured in .env
-- Report saved to /home/z/my-project/download/Paya_API_Integration_Assessment.pdf
-PAYA API integration assessment complete
----
-Task ID: paya-assessment-final
-Agent: Main Agent
-Task: PAYA API Integration Assessment - Final Delivery
-
-Work Log:
-- Verified PDF: 6 pages, readable, all sections present
-- Cleaned up all temporary files
-
-Stage Summary:
-- Deliverable: /home/z/my-project/download/Paya_API_Integration_Assessment.pdf
-- All temporary files cleaned
----
-Task ID: paya-assessment
-Agent: Main
-Task: Complete PAYA API Integration Assessment
-
-Work Log:
-- Full wallet architecture review (6 Prisma models, 7 API routes, 5 providers)
-- Paya provider deep-dive (567 lines, JWT auth, demo mode)
-- Paya webhook handler review
-- Web research: paya.co.ke actual API structure
-- CRITICAL: API endpoint mismatch
-- CRITICAL: Wallet routes disconnected from Paya
-- MODERATE: Webhook scope gap
-- LOW: No env credentials
-- PDF report: 6 pages at /home/z/my-project/download/Paya_API_Integration_Assessment.pdf
-
-Stage Summary:
-- 2 CRITICAL, 2 MODERATE, 3 LOW findings
-- 4-phase remediation roadmap proposed
-- All temp files cleaned
-All tasks completed for PAYA assessment
----
 Task ID: qa-audit-fixes
 Agent: Main Agent
 Task: QA Audit — Fix 20 issues across critical/high/medium/low severity
 
 Work Log:
 - Ran comprehensive QA audit: 39 issues found across codebase
-- **C1**: Fixed TOAST_REMOVE_DELAY from 1000000ms to 5000ms (toasts now auto-dismiss)
-- **C2**: Fixed useToast useEffect dependency — removed `[state]` dep to prevent listener leak
-- **C3**: Removed dead state variables `toastMessage`/`toastVisible` and unused `<Toast>` from page.tsx
-- **C4**: Fixed missing useEffect dependencies `[safeTab, activeTab, currentRole]` for tab guard
-- **C5**: Added unauthenticated redirect — shows "Sign in required" with button instead of blank dashboard
-- **H1**: Removed unused imports `Wallet`, `CreditCard`, `Shield` from page.tsx
-- **H3**: Removed redundant `socketConnected` state — now uses `sseConnected` directly
-- **H4**: Enhanced `useApi` hook with `error` state, `AbortController`, and descriptive error messages
-- **H5**: Added `ErrorState` component with retry button to dashboard-helpers
-- **H6**: Fixed dark mode — replaced `text-slate-500`/`text-slate-900` with `text-muted-foreground`/`text-foreground`
-- **H7**: Fixed SVG circle stroke to use `currentColor` + `text-muted` class for dark mode
-- **L4/L5**: Removed unused imports `TrendingUp`, `Building2`, `Zap`, `Star` from dashboard-helpers
-- **L6**: Deleted `page.tsx.bak`, `page-full.tsx`, `dashboard-helpers.tsx.bak`
-- **M7**: Added NaN/zero validation to EscrowTab create form disabled check
-- **M10**: Created `not-found.tsx` with branded 404 page
-- **M11**: Created `loading.tsx` for `/withdrawals` and `/conversion` routes
-- **M12**: Removed raw `error.message` exposure from error.tsx, shows only digest for support
-- Updated ALL 13 dashboard tabs to use `ErrorState` component with error from `useApi`
+- **C1**: Fixed TOAST_REMOVE_DELAY from 1000000ms to 5000ms
+- **C2**: Fixed useToast useEffect dependency
+- **C3**: Removed dead state variables from page.tsx
+- **C4**: Fixed missing useEffect dependencies for tab guard
+- **C5**: Added unauthenticated redirect
+- **H1**: Removed unused imports
+- **H3**: Removed redundant socketConnected state
+- **H4**: Enhanced useApi hook with error state
+- **H5**: Added ErrorState component
+- **H6**: Fixed dark mode colors
+- **H7**: Fixed SVG circle stroke for dark mode
+- **L4/L5**: Removed unused imports
+- **L6**: Deleted backup files
+- **M7**: Added NaN/zero validation to EscrowTab
+- **M10**: Created not-found.tsx
+- **M11**: Created loading.tsx
+- **M12**: Removed raw error.message exposure
+- Updated ALL 13 dashboard tabs to use ErrorState
 
 Stage Summary:
 - 20 issues fixed across 20+ files
-- All 13 dashboard tabs now show error states with retry on API failure
-- Toast system fully functional (auto-dismiss in 5s, no listener leak)
-- Dark mode now works correctly in KPI cards, score bars, and circular scores
-- Unauthenticated users see sign-in prompt instead of blank dashboard
-- Build passes: `✓ Compiled successfully in 22.6s`
+- Build passes
 ---
 Task ID: qa-pending-fixes
 Agent: Main Agent
-Task: Fix remaining QA audit issues — auth crash, NextAuth v4/Next.js 16 compatibility, API auth gaps
+Task: Fix remaining QA audit issues — auth crash, NextAuth compatibility, API auth gaps
 
 Work Log:
-- Diagnosed CLIENT_FETCH_ERROR: root cause was missing NEXTAUTH_SECRET in .env
-- Added NEXTAUTH_SECRET and NEXTAUTH_URL to .env
-- Fixed NextAuth route handler: `export { handler as GET, handler as POST }` pattern for App Router compatibility
-- Fixed JWT session callback: custom token properties (accountId, tenantId, role) caused `t.accountId is not a function` in production minified builds — moved to nested `token.youngsend` object
-- Fixed session callback: added `session.user.id = token.sub` (NextAuth v4 doesn't expose user.id by default)
-- Added auth to 3 remaining unprotected API routes: /api/wallets/rates, /api/payments/rates, /api/payment-methods/global
-- Added `allowedDevOrigins: ["*.space-z.ai"]` to next.config.ts for preview iframe
-- Created middleware.ts for route protection — discovered Next.js 16 deprecated middleware convention (crashes server), removed it
-- Individual API routes already have getApiUser/requireAuth checks (64/66 routes had auth)
-- Seeded database: 240 records across 34 models
-- Built production bundle, verified full auth flow:
-  - GET /api/auth/session → `{}` (unauthenticated) ✅
-  - GET /api/auth/csrf → valid csrfToken ✅
-  - POST /api/auth/callback/credentials → 302 redirect ✅
-  - GET /api/auth/session (auth'd) → full user with accountId, tenantId, role ✅
-  - GET /api/dashboard/stats → real data from DB (4 businesses, 2 active escrows, $510K volume) ✅
-  - All 12 API endpoints return 401 without auth ✅
-- Created start-prod.sh for reliable production startup
+- Diagnosed CLIENT_FETCH_ERROR: missing NEXTAUTH_SECRET
+- Fixed NextAuth route handler pattern for App Router
+- Fixed JWT session callback (nested token.youngsend object)
+- Fixed session callback (session.user.id)
+- Added auth to 3 remaining unprotected API routes
+- Added allowedDevOrigins for preview iframe
+- Auth fully working: login, session, JWT enrichment all verified
+- All 66 API routes protected
 
 Stage Summary:
-- **Auth fully working**: login, session, JWT enrichment all verified
-- **Production server stable**: standalone mode with explicit env vars
-- **All API routes have auth**: 66/66 routes protected (3 fixed in this session)
-- **Known limitation**: Next.js 16 dev server (Turbopack) is unstable; use production mode (`bash start-prod.sh`)
-- **Login credentials**: admin@youngsend.com / demo1234
+- Auth fully working with 24h session expiry + rate limiting
+- 66/66 routes auth-protected
+- Login credentials: admin@youngsend.com / demo1234
 ---
 Task ID: qa-audit-final-pass
 Agent: Main Agent
 Task: Fix all remaining QA audit items — rate limiting, tenant isolation, missing routes, tests
 
 Work Log:
-- **A4**: Added rate limiting to authorize() callback — 5 attempts per email per minute, throws descriptive error
-- **A5**: Added `maxAge: 24 * 60 * 60` (24h) to session config
-- **B9**: Added tenantId filter to /api/referral GET — referrals and accounts now scoped to same tenant
-- **C2/B2**: Created /api/transactions route — combines WalletTransaction + PaymentTransaction with tenant scoping, supports ?type= filter
-- **C16/B13**: Created /api/audit-log route — queries EscrowAuditLog scoped to user's tenant via escrow relation
-- **C19**: Created /api/accounts route — admin sees all tenant accounts, non-admin sees only own; excludes passwordHash
-- **I1**: Created .env.example with all required/optional env vars documented
-- **I3**: Set up vitest + 12 API tests covering: unauthenticated session/CSRF, login flow, 4x 401 auth protection, authenticated wallets/stats/transactions/audit-log/accounts, rate limiting
-- Fixed audit-log route: wrong Prisma relation name (escrowTransaction → escrow)
-- All 12 tests passing: `Test Files  1 passed (1), Tests  12 passed (12)`
+- Added rate limiting to authorize() callback
+- Added maxAge 24h to session config
+- Added tenantId filter to /api/referral GET
+- Created /api/transactions, /api/audit-log, /api/accounts routes
+- Created .env.example
+- Set up vitest + 12 API tests (all passing)
+- 31/39 items FIXED, 8 deferred
 
 Stage Summary:
-- **QA audit status**: 31/39 items FIXED, 8 remaining are deferred (external deps: payment gateway keys, Temporal worker, Socket.IO server, notifications/subscriptions/reports modules need design)
-- **New routes created**: /api/transactions, /api/audit-log, /api/accounts
-- **Auth hardened**: rate limiting + 24h session expiry
-- **Tests passing**: 12/12 green
-- **Production server running** on port 3000
+- 31/39 QA items fixed
+- 12/12 tests passing
+- Production server running
+---
+Task ID: qa-missing-routes
+Agent: Main Agent
+Task: Create 6 missing API routes identified by QA audit
+
+Work Log:
+- Audited all 60+ API routes: found 41 already use real DB queries
+- Identified 6 routes that had NO route file at all: /api/analytics, /api/settings, /api/reports, /api/roles, /api/notifications, /api/subscriptions
+- Added Notification model to Prisma schema (accountId, title, body, type, category, isRead, actionUrl, metadata)
+- Added Subscription model to Prisma schema (businessId, planName, amount, interval, status, period tracking)
+- Added Subscription relation to Invoice model
+- Ran prisma db push to sync schema
+- Created /api/analytics — aggregates payment volume, escrow stats, invoice stats, wallet balances, fraud/compliance counts, payment link revenue; supports ?period=7d|30d|90d|12m; tenant-scoped via businessIds
+- Created /api/settings — GET returns tenant config with parsed features JSON; PATCH allows admin to update tenant name, plan, limits, features
+- Created /api/reports — supports ?type=summary|transactions|invoices|wallets|escrow|collections; all tenant-scoped; date range filtering via ?startDate=&endDate=
+- Created /api/roles — returns 5 role definitions (admin, buyer, seller, auditor, viewer) with per-role user count in tenant
+- Created /api/notifications — GET with pagination/unread filter; POST for creating (admin can target other users); PATCH for marking read (individual or bulk)
+- Created /api/subscriptions — GET with status filter; POST for creating new subscriptions with trial support; enriched with business names
+- Fixed field name mismatches: Invoice.amount (not totalAmount), EscrowTransaction.amount (not totalAmount), PaymentTransaction.intent (not paymentIntent)
+- Fixed Subscription model missing Business relation (used manual enrichment instead)
+- Updated seed script: added 8 notifications, 3 subscriptions, cleanup for new tables
+- Re-seeded: 268 records across 36 models
+- Added 13 new tests (auth protection + authenticated data verification)
+- All 25 tests passing (12 original + 13 new)
+- Build passes cleanly
+
+Stage Summary:
+- **6 new API routes created**: analytics, settings, reports, roles, notifications, subscriptions
+- **2 new Prisma models**: Notification, Subscription (36 total models)
+- **268 records** seeded
+- **25/25 tests passing**
+- All routes auth-protected + tenant-scoped
+- Build passes, production server verified

@@ -28,6 +28,7 @@ async function main() {
 
   // Clean all tables (order matters for FK constraints)
   const tables = [
+    'notification','subscription',
     'reputationEvent','review','financialPrediction','financialMetric','financialSnapshot',
     'disbursement','dispute','escrowAuditLog','escrowMilestone',
     'paymentTransaction','collectionReminder','collectionCase',
@@ -783,6 +784,55 @@ async function main() {
     })
   }
   console.log('  ✓ 10 currency rates')
+
+  // ─── 17. Notifications ──────────────────────────────────
+  const NOTIF_TITLES = [
+    { title: 'Payment received', body: 'You received $2,500.00 from Acme Imports via escrow', type: 'payment', category: 'payment_received' },
+    { title: 'Escrow funded', body: 'Escrow transaction with Global Logistics has been funded', type: 'escrow', category: 'escrow_funded' },
+    { title: 'Invoice overdue', body: 'Invoice INV-2024-003 is now 5 days overdue', type: 'warning', category: 'invoice_overdue' },
+    { title: 'New fraud alert', body: 'Unusual transaction pattern detected on your account', type: 'error', category: 'fraud_alert' },
+    { title: 'Compliance check passed', body: 'Your KYC verification has been approved', type: 'success', category: 'compliance_alert' },
+    { title: 'Collection reminder sent', body: 'Payment reminder sent to debtor for outstanding $12,000', type: 'info', category: 'collection_reminder' },
+    { title: 'Referral bonus credited', body: '$100.00 referral bonus has been credited to your wallet', type: 'success', category: 'referral_bonus' },
+    { title: 'New business match', body: '3 new supplier matches found based on your requirements', type: 'info', category: 'general' },
+  ]
+  for (const n of NOTIF_TITLES) {
+    await db.notification.create({
+      data: {
+        accountId: adminAccount.id,
+        title: n.title,
+        body: n.body,
+        type: n.type,
+        category: n.category,
+        isRead: Math.random() > 0.5,
+        readAt: Math.random() > 0.5 ? daysAgo(3) : null,
+        createdAt: daysAgo(14),
+      },
+    })
+  }
+  console.log('  ✓ 8 notifications')
+
+  // ─── 18. Subscriptions ─────────────────────────────────
+  for (const b of businesses.slice(0, 3)) {
+    const plan = rand(['starter', 'professional', 'enterprise'])
+    const amounts: Record<string, number> = { starter: 29, professional: 99, enterprise: 299 }
+    const now = new Date()
+    const periodEnd = new Date(now)
+    periodEnd.setMonth(periodEnd.getMonth() + 1)
+    await db.subscription.create({
+      data: {
+        businessId: b.id,
+        planName: plan,
+        amount: amounts[plan],
+        currency: 'USD',
+        interval: 'monthly',
+        status: 'active',
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+    })
+  }
+  console.log('  ✓ 3 subscriptions')
 
   // ─── FINAL COUNT ─────────────────────────────────────────
   let total = 0

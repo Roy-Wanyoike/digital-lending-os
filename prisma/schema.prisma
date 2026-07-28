@@ -583,6 +583,7 @@ model Invoice {
 
   sender         Business @relation("InvoiceSender", fields: [senderId], references: [id])
   receiver       Business @relation("InvoiceReceiver", fields: [receiverId], references: [id])
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
   subscriptionId String?
 
   @@index([senderId])
@@ -1079,4 +1080,60 @@ model ReferralBonus {
   @@index([refereeId])
   @@index([status])
   @@index([creditedAt])
+}
+
+// ============================================================
+// MODULE 15: NOTIFICATIONS — In-App & Push Notifications
+// ============================================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  accountId  String
+  title     String
+  body      String
+  type      String   @default("info") // info, success, warning, error, payment, escrow, invoice, system
+  category  String   @default("general") // payment_received, payment_sent, escrow_created, escrow_funded, escrow_released, invoice_created, invoice_paid, invoice_overdue, collection_reminder, fraud_alert, compliance_alert, system_maintenance, referral_bonus
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  actionUrl String? // deep link to relevant page
+  metadata  String? // JSON with additional context
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+  @@index([type])
+  @@index([category])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// ============================================================
+// MODULE 16: SUBSCRIPTIONS — Recurring Billing Plans
+// ============================================================
+
+model Subscription {
+  id          String   @id @default(cuid())
+  businessId  String
+  planName    String // starter, professional, enterprise, custom
+  amount      Float
+  currency    String   @default("USD")
+  interval    String   @default("monthly") // daily, weekly, monthly, quarterly, yearly
+  status      String   @default("active") // active, past_due, cancelled, paused, trialing
+  startDate   DateTime @default(now())
+  endDate     DateTime?
+  trialEndsAt DateTime?
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd   DateTime
+  cancelledAt DateTime?
+  cancellationReason String?
+  metadata    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  invoices Invoice[]
+
+  @@index([businessId])
+  @@index([status])
+  @@index([planName])
+  @@index([interval])
+  @@index([currentPeriodEnd])
 }
