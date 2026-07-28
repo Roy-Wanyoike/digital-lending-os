@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { getApiUser } from '@/lib/auth/api-helpers'
 
 // Demo exchange rates — used by convert endpoint and the UI preview
 const RATES: Record<string, Record<string, number>> = {
@@ -33,7 +34,9 @@ const CRYPTO_NETWORKS: Record<string, string[]> = {
   BNB: ['bsc', 'bep2'],
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const user = await getApiUser(req)
+  if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   return NextResponse.json({
     data: {
       fiatRates: RATES,

@@ -63,25 +63,32 @@ export const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user }) {
       if (user) {
         // On first sign-in, fetch account details to enrich token
         const account = await db.account.findUnique({ where: { id: user.id } })
         if (account) {
-          token.accountId = account.id
-          token.tenantId = account.tenantId
-          token.role = account.role
-          token.businessId = account.businessId || null
+          // Use nested object to avoid property name collisions with
+          // NextAuth internals in production minified builds
+          token.youngsend = {
+            accountId: account.id,
+            tenantId: account.tenantId,
+            role: account.role,
+            businessId: account.businessId || null,
+          }
         }
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).accountId = token.accountId
-        (session.user as any).tenantId = token.tenantId
-        (session.user as any).role = token.role
-        (session.user as any).businessId = token.businessId
+        const ys = (token as any).youngsend || {}
+        // NextAuth v4 doesn't expose user.id by default — add it from token.sub
+        ;(session.user as any).id = token.sub
+        ;(session.user as any).accountId = ys.accountId
+        ;(session.user as any).tenantId = ys.tenantId
+        ;(session.user as any).role = ys.role
+        ;(session.user as any).businessId = ys.businessId
       }
       return session
     },

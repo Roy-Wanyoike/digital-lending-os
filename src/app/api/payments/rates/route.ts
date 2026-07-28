@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getApiUser } from "@/lib/auth/api-helpers";
 
 // ── Hardcoded popular rates ────────────────────────────────
 const POPULAR_RATES: { from: string; to: string; rate: number }[] = [
@@ -35,6 +36,8 @@ const ALL_RATES: Record<string, number> = {
 
 // ── GET: Get exchange rates ─────────────────────────────────
 export async function GET(request: NextRequest) {
+  const user = await getApiUser(request);
+  if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   try {
     const { searchParams } = new URL(request.url);
     const from = searchParams.get("from")?.toUpperCase();
