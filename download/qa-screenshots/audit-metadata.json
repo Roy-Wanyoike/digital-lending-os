@@ -1,0 +1,242 @@
+[
+  {
+    "name": "light-01-landing.png",
+    "url": "http://localhost:3000/",
+    "path": "/home/z/my-project/download/qa-screenshots/light-01-landing.png",
+    "text_preview": "Sign in required\n\nPlease sign in to access the dashboard.\n\nSign In"
+  },
+  {
+    "name": "light-02-login.png",
+    "url": "http://localhost:3000/login",
+    "path": "/home/z/my-project/download/qa-screenshots/light-02-login.png",
+    "text_preview": "YS\nYoungsend\nWelcome back\nFinancial Operating System for Global Commerce\nEmail\nPassword\nSign In\n\nDon't have an account? Sign up"
+  },
+  {
+    "name": "light-03-pay.png",
+    "url": "http://localhost:3000/pay",
+    "path": "/home/z/my-project/download/qa-screenshots/light-03-pay.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-04-dashboard-overview.png",
+    "url": "http://localhost:3000/dashboard",
+    "path": "/home/z/my-project/download/qa-screenshots/light-04-dashboard-overview.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-05-wallets.png",
+    "url": "http://localhost:3000/dashboard?tab=wallets",
+    "path": "/home/z/my-project/download/qa-screenshots/light-05-wallets.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-06-transactions.png",
+    "url": "http://localhost:3000/dashboard?tab=transactions",
+    "path": "/home/z/my-project/download/qa-screenshots/light-06-transactions.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-07-payment-links.png",
+    "url": "http://localhost:3000/dashboard?tab=payment-links",
+    "path": "/home/z/my-project/download/qa-screenshots/light-07-payment-links.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-08-escrow.png",
+    "url": "http://localhost:3000/dashboard?tab=escrow",
+    "path": "/home/z/my-project/download/qa-screenshots/light-08-escrow.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-09-analytics.png",
+    "url": "http://localhost:3000/dashboard?tab=analytics",
+    "path": "/home/z/my-project/download/qa-screenshots/light-09-analytics.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-10-settings.png",
+    "url": "http://localhost:3000/dashboard?tab=settings",
+    "path": "/home/z/my-project/download/qa-screenshots/light-10-settings.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-11-businesses.png",
+    "url": "http://localhost:3000/dashboard?tab=businesses",
+    "path": "/home/z/my-project/download/qa-screenshots/light-11-businesses.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-12-team.png",
+    "url": "http://localhost:3000/dashboard?tab=team",
+    "path": "/home/z/my-project/download/qa-screenshots/light-12-team.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-13-notifications.png",
+    "url": "http://localhost:3000/dashboard?tab=notifications",
+    "path": "/home/z/my-project/download/qa-screenshots/light-13-notifications.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-14-referrals.png",
+    "url": "http://localhost:3000/dashboard?tab=referrals",
+    "path": "/home/z/my-project/download/qa-screenshots/light-14-referrals.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-15-subscriptions.png",
+    "url": "http://localhost:3000/dashboard?tab=subscriptions",
+    "path": "/home/z/my-project/download/qa-screenshots/light-15-subscriptions.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-16-invoices.png",
+    "url": "http://localhost:3000/dashboard?tab=invoices",
+    "path": "/home/z/my-project/download/qa-screenshots/light-16-invoices.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-17-trust-graph.png",
+    "url": "http://localhost:3000/dashboard?tab=trust-graph",
+    "path": "/home/z/my-project/download/qa-screenshots/light-17-trust-graph.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "light-18-deposits.png",
+    "url": "http://localhost:3000/deposits",
+    "path": "/home/z/my-project/download/qa-screenshots/light-18-deposits.png",
+    "text_preview": "Deposits\n\nAdd funds to your wallets\n\nRefresh\nNew Deposit\nFailed to fetch"
+  },
+  {
+    "name": "light-19-withdrawals.png",
+    "url": "http://localhost:3000/withdrawals",
+    "path": "/home/z/my-project/download/qa-screenshots/light-19-withdrawals.png",
+    "text_preview": "Withdrawals\n\nWithdraw funds from your wallets\n\nRefresh\nNew Withdrawal\nFailed"
+  },
+  {
+    "name": "light-20-conversion.png",
+    "url": "http://localhost:3000/conversion",
+    "path": "/home/z/my-project/download/qa-screenshots/light-20-conversion.png",
+    "text_preview": "Currency Conversion\n\nConvert between currencies at market rates\n\nRefresh\n\nYou need at least 2 wallets with different currencies to convert"
+  },
+  {
+    "name": "dark-01-landing.png",
+    "url": "http://localhost:3000/",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-01-landing.png",
+    "text_preview": "Sign in required\n\nPlease sign in to access the dashboard.\n\nSign In"
+  },
+  {
+    "name": "dark-02-login.png",
+    "url": "http://localhost:3000/login",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-02-login.png",
+    "text_preview": "YS\nYoungsend\nWelcome back\nFinancial Operating System for Global Commerce\nEmail\nPassword\nSign In\n\nDon't have an account? Sign up"
+  },
+  {
+    "name": "dark-03-pay.png",
+    "url": "http://localhost:3000/pay",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-03-pay.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-04-dashboard-overview.png",
+    "url": "http://localhost:3000/dashboard",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-04-dashboard-overview.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-05-wallets.png",
+    "url": "http://localhost:3000/dashboard?tab=wallets",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-05-wallets.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-06-transactions.png",
+    "url": "http://localhost:3000/dashboard?tab=transactions",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-06-transactions.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-07-payment-links.png",
+    "url": "http://localhost:3000/dashboard?tab=payment-links",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-07-payment-links.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-08-escrow.png",
+    "url": "http://localhost:3000/dashboard?tab=escrow",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-08-escrow.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-09-analytics.png",
+    "url": "http://localhost:3000/dashboard?tab=analytics",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-09-analytics.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-10-settings.png",
+    "url": "http://localhost:3000/dashboard?tab=settings",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-10-settings.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-11-businesses.png",
+    "url": "http://localhost:3000/dashboard?tab=businesses",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-11-businesses.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-12-team.png",
+    "url": "http://localhost:3000/dashboard?tab=team",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-12-team.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-13-notifications.png",
+    "url": "http://localhost:3000/dashboard?tab=notifications",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-13-notifications.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-14-referrals.png",
+    "url": "http://localhost:3000/dashboard?tab=referrals",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-14-referrals.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-15-subscriptions.png",
+    "url": "http://localhost:3000/dashboard?tab=subscriptions",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-15-subscriptions.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-16-invoices.png",
+    "url": "http://localhost:3000/dashboard?tab=invoices",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-16-invoices.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-17-trust-graph.png",
+    "url": "http://localhost:3000/dashboard?tab=trust-graph",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-17-trust-graph.png",
+    "text_preview": "Page not found\nThe page you are looking for does not exist or has been moved.\nGo to Dashboard"
+  },
+  {
+    "name": "dark-18-deposits.png",
+    "url": "http://localhost:3000/deposits",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-18-deposits.png",
+    "text_preview": "Deposits\n\nAdd funds to your wallets\n\nRefresh\nNew Deposit\nFailed to fetch"
+  },
+  {
+    "name": "dark-19-withdrawals.png",
+    "url": "http://localhost:3000/withdrawals",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-19-withdrawals.png",
+    "text_preview": "Withdrawals\n\nWithdraw funds from your wallets\n\nRefresh\nNew Withdrawal\nFailed"
+  },
+  {
+    "name": "dark-20-conversion.png",
+    "url": "http://localhost:3000/conversion",
+    "path": "/home/z/my-project/download/qa-screenshots/dark-20-conversion.png",
+    "text_preview": "Currency Conversion\n\nConvert between currencies at market rates\n\nRefresh\n\nYou need at least 2 wallets with different currencies to convert"
+  }
+]
