@@ -57,9 +57,9 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Count stats
+    // Count stats (scoped to same tenant)
     const totalReferred = await db.account.count({
-      where: { referredBy: user.id },
+      where: { referredBy: user.id, tenantId: user.tenantId },
     })
 
     // Get bonuses earned by this user (as referrer)
@@ -72,9 +72,9 @@ export async function GET(request: NextRequest) {
     const totalBonusEarned = bonuses.reduce((sum, b) => sum + b.bonusAmount, 0)
     const activeBonusCount = bonuses.filter(b => b.status === 'credited').length
 
-    // Get recent referrals (accounts that used this user's code)
+    // Get recent referrals (accounts that used this user's code, same tenant)
     const recentReferrals = await db.account.findMany({
-      where: { referredBy: user.id },
+      where: { referredBy: user.id, tenantId: user.tenantId },
       select: {
         id: true,
         name: true,

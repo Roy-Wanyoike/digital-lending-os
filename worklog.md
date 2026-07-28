@@ -184,3 +184,26 @@ Stage Summary:
 - **All API routes have auth**: 66/66 routes protected (3 fixed in this session)
 - **Known limitation**: Next.js 16 dev server (Turbopack) is unstable; use production mode (`bash start-prod.sh`)
 - **Login credentials**: admin@youngsend.com / demo1234
+---
+Task ID: qa-audit-final-pass
+Agent: Main Agent
+Task: Fix all remaining QA audit items — rate limiting, tenant isolation, missing routes, tests
+
+Work Log:
+- **A4**: Added rate limiting to authorize() callback — 5 attempts per email per minute, throws descriptive error
+- **A5**: Added `maxAge: 24 * 60 * 60` (24h) to session config
+- **B9**: Added tenantId filter to /api/referral GET — referrals and accounts now scoped to same tenant
+- **C2/B2**: Created /api/transactions route — combines WalletTransaction + PaymentTransaction with tenant scoping, supports ?type= filter
+- **C16/B13**: Created /api/audit-log route — queries EscrowAuditLog scoped to user's tenant via escrow relation
+- **C19**: Created /api/accounts route — admin sees all tenant accounts, non-admin sees only own; excludes passwordHash
+- **I1**: Created .env.example with all required/optional env vars documented
+- **I3**: Set up vitest + 12 API tests covering: unauthenticated session/CSRF, login flow, 4x 401 auth protection, authenticated wallets/stats/transactions/audit-log/accounts, rate limiting
+- Fixed audit-log route: wrong Prisma relation name (escrowTransaction → escrow)
+- All 12 tests passing: `Test Files  1 passed (1), Tests  12 passed (12)`
+
+Stage Summary:
+- **QA audit status**: 31/39 items FIXED, 8 remaining are deferred (external deps: payment gateway keys, Temporal worker, Socket.IO server, notifications/subscriptions/reports modules need design)
+- **New routes created**: /api/transactions, /api/audit-log, /api/accounts
+- **Auth hardened**: rate limiting + 24h session expiry
+- **Tests passing**: 12/12 green
+- **Production server running** on port 3000

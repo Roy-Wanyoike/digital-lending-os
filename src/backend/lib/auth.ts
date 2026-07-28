@@ -3,6 +3,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { logAudit } from '@/lib/audit-logger'
+import { rateLimit } from '@/backend/middleware/rate-limiter'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -18,6 +19,13 @@ export const authOptions: NextAuthOptions = {
         }
 
         const email = credentials.email.toLowerCase()
+
+        // Rate-limit login attempts per email (5 per minute)
+        const rl = rateLimit(`login:${email}`, 5, 60 * 1000)
+        if (!rl.allowed) {
+          logAudit('login.rate_limited', 'anonymous', `Rate-limited login for ${email}`, { email, retryAfterMs: rl.retryAfterMs })
+          throw new Error(`Too many login attempts. Try again in ${Math.ceil((rl.retryAfterMs ?? 60000) / 1000)} seconds.`)
+        }
 
         // Find account by email — may be multiple tenants, take first active one
         const account = await db.account.findFirst({
@@ -57,6 +65,7 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
+    maxAge: 24 * 60 * 60, // 24 hours
   },
   pages: {
     signIn: '/login',
