@@ -27,8 +27,8 @@ export default function GlobalError({
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-12">
       <Card className="w-full max-w-md shadow-lg border-border">
         <CardHeader className="text-center space-y-4 pb-2">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
-            <AlertTriangle className="h-7 w-7 text-destructive" />
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-destructive/15 dark:bg-destructive/20">
+            <AlertTriangle className="h-7 w-7 text-destructive dark:text-red-400" />
           </div>
           <div>
             <CardTitle className="text-xl text-foreground">
