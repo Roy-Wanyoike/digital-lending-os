@@ -109,5 +109,9 @@ import { getServerSession } from 'next-auth'
 export { getServerSession }
 
 export async function auth() {
-  return getServerSession(authOptions)
+  try {
+    return await getServerSession(authOptions)
+  } catch {
+    return null
+  }
 }
