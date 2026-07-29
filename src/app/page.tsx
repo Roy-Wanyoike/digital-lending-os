@@ -50,6 +50,7 @@ export default function YoungsendDashboard() {
   const [activeTab, setActiveTab] = useState('overview')
   const [currentRole, setCurrentRole] = useState<Role>('admin')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const { isConnected: sseConnected, subscribe, unsubscribe } = useRealtime({
     enabled: status === 'authenticated',
     tenantId: (session?.user as any)?.tenantId,
@@ -137,20 +138,36 @@ export default function YoungsendDashboard() {
   if (status === 'unauthenticated') {
     return (
       <div className="min-h-screen flex flex-col bg-background">
-        {/* V1+V2: Public header with branding */}
+        {/* V1+V2: Public header with branding + M2: Mobile hamburger */}
         <header className="border-b">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-sm">YS</div>
               <span className="text-lg font-bold text-foreground">Youngsend</span>
             </div>
-            <nav className="flex items-center gap-4">
+            {/* Desktop nav */}
+            <nav className="hidden sm:flex items-center gap-4">
               <a href="https://youngsend.com" className="text-sm text-muted-foreground hover:text-foreground transition-colors">About</a>
               <a href="https://youngsend.com/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
               <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => signIn()}>Sign In</Button>
               <Button size="sm" className="bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => signIn()}>Get Started</Button>
             </nav>
+            {/* M2: Mobile hamburger */}
+            <Button variant="ghost" size="icon" className="sm:hidden" onClick={() => setMobileNavOpen(!mobileNavOpen)} aria-label="Toggle menu">
+              <Menu className="h-5 w-5" />
+            </Button>
           </div>
+          {/* M2: Mobile nav dropdown */}
+          {mobileNavOpen && (
+            <nav className="sm:hidden border-t bg-card px-4 py-3 space-y-3">
+              <a href="https://youngsend.com" className="block text-sm text-muted-foreground hover:text-foreground transition-colors" onClick={() => setMobileNavOpen(false)}>About</a>
+              <a href="https://youngsend.com/pricing" className="block text-sm text-muted-foreground hover:text-foreground transition-colors" onClick={() => setMobileNavOpen(false)}>Pricing</a>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => { setMobileNavOpen(false); signIn() }}>Sign In</Button>
+                <Button size="sm" className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white" onClick={() => { setMobileNavOpen(false); signIn() }}>Get Started</Button>
+              </div>
+            </nav>
+          )}
         </header>
 
         {/* Hero section */}

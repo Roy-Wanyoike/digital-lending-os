@@ -90,7 +90,8 @@
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.78 0 0);
+  /* H3: Bumped from 0.78 to 0.82 for WCAG AA contrast on dark backgrounds */
+  --muted-foreground: oklch(0.82 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
@@ -138,6 +139,19 @@
 @layer base {
   ::placeholder {
     @apply text-gray-500 dark:text-gray-400;
+  }
+}
+
+/* M4: Dark mode icon background fix — prevent washed-out icon containers */
+@layer base {
+  .dark .bg-emerald-50 {
+    background-color: oklch(0.25 0.05 160) !important;
+  }
+  .dark .bg-red-50 {
+    background-color: oklch(0.25 0.04 25) !important;
+  }
+  .dark .bg-amber-50 {
+    background-color: oklch(0.25 0.04 85) !important;
   }
 }
 
