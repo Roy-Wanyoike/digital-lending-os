@@ -1,0 +1,817 @@
+    40→    40→    40→    'trustScore','financialDigitalTwin','commercePassport','verification','complianceDocument',
+    41→    41→    41→    'businessRelationship','business','account','currencyRate','paymentMethod','globalPaymentMethod',
+    42→    42→    42→    'tenant',
+    43→    43→    43→  ]
+    44→    44→    44→  for (const t of tables) {
+    45→    45→    45→    try { await (db as any)[t].deleteMany() } catch {}
+    46→    46→    46→  }
+    47→    47→    47→  console.log('  ✓ Cleared all tables')
+    48→    48→    48→
+    49→    49→    49→  // ─── 1. Tenant ───────────────────────────────────────────
+    50→    50→    50→  const tenant = await db.tenant.create({
+    51→    51→    51→    data: {
+    52→    52→    52→      name: 'Youngsend Demo',
+    53→    53→    53→      slug: 'youngsend-demo',
+    54→    54→    54→      ownerName: 'Alice Mwangi',
+    55→    55→    55→      ownerEmail: 'alice@youngsend.com',
+    56→    56→    56→      plan: 'business',
+    57→    57→    57→      maxBusinesses: 50,
+    58→    58→    58→      maxUsers: 100,
+    59→    59→    59→    },
+    60→    60→    60→  })
+    61→    61→    61→  console.log('  ✓ Tenant: ' + tenant.id)
+    62→    62→    62→
+    63→    63→    63→  // ─── 2. Account (for auth/login) ─────────────────────────
+    64→    64→    64→  const adminAccount = await db.account.create({
+    65→    65→    65→    data: {
+    66→    66→    66→      email: 'admin@youngsend.com',
+    67→    67→    67→      passwordHash: pwd('demo1234'),
+    68→    68→    68→      name: 'Alice Mwangi',
+    69→    69→    69→      role: 'admin',
+    70→    70→    70→      tenantId: tenant.id,
+    71→    71→    71→      referralCode: 'ALICE2024',
+    72→    72→    72→    },
+    73→    73→    73→  })
+    74→    74→    74→  console.log('  ✓ Admin account: ' + adminAccount.email)
+    75→    75→    75→
+    76→    76→    76→  // ─── 3. Businesses (4 African businesses) ────────────────
+    77→    77→    77→  const bizData = [
+    78→    78→    78→    { name: 'AfriPay Solutions',   country: 'KE', city: 'Nairobi',    currency: 'KES', industry: 'FinTech',              annualRevenue: 2500000 },
+    79→    79→    79→    { name: 'Lagos Trade Hub',     country: 'NG', city: 'Lagos',      currency: 'NGN', industry: 'Trading & Commerce',   annualRevenue: 5800000 },
+    80→    80→    80→    { name: 'Accra Digital Ltd',   country: 'GH', city: 'Accra',      currency: 'GHS', industry: 'IT Services',          annualRevenue: 1200000 },
+    81→    81→    81→    { name: 'Nairobi Electronics', country: 'KE', city: 'Nairobi',    currency: 'KES', industry: 'Electronics Retail',   annualRevenue: 3400000 },
+    82→    82→    82→  ]
+    83→    83→    83→  const businesses: any[] = []
+    84→    84→    84→  for (const bd of bizData) {
+    85→    85→    85→    const biz = await db.business.create({
+    86→    86→    86→      data: {
+    87→    87→    87→        tenantId: tenant.id,
+    88→    88→    88→        name: bd.name,
+    89→    89→    89→        legalName: bd.name + ' Ltd',
+    90→    90→    90→        registrationNo: 'REG-' + ri(100000, 999999),
+    91→    91→    91→        taxId: 'TAX-' + ri(10000, 99999),
+    92→    92→    92→        country: bd.country,
+    93→    93→    93→        city: bd.city,
+    94→    94→    94→        industry: bd.industry,
+    95→    95→    95→        website: 'https://' + bd.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com',
+    96→    96→    96→        employeeCount: ri(5, 200),
+    97→    97→    97→        annualRevenue: bd.annualRevenue,
+    98→    98→    98→        description: bd.name + ' - leading ' + bd.industry + ' company in ' + bd.city,
+    99→    99→    99→        status: 'verified',
+   100→   100→   100→        verifiedAt: daysAgo(90),
+   101→   101→   101→      },
+   102→   102→   102→    })
+   103→   103→   103→    businesses.push({ ...biz, _currency: bd.currency })
+   104→   104→   104→  }
+   105→   105→   105→  console.log('  ✓ ' + businesses.length + ' businesses')
+   106→   106→   106→
+   107→   107→   107→  // ─── 4. Users (linked to businesses) ─────────────────────
+   108→   108→   108→  const users = []
+   109→   109→   109→  const userData = [
+   110→   110→   110→    { name: 'Alice Mwangi',    email: 'alice@afripay.ke',    businessIdx: 0, role: 'admin' },
+   111→   111→   111→    { name: 'Bob Ochieng',     email: 'bob@afripay.ke',      businessIdx: 0, role: 'operator' },
+   112→   112→   112→    { name: 'Carol Njeri',     email: 'carol@nairobi-elec.ke', businessIdx: 3, role: 'admin' },
+   113→   113→   113→    { name: 'David Okonkwo',   email: 'david@lagos-trade.ng', businessIdx: 1, role: 'admin' },
+   114→   114→   114→    { name: 'Eva Mensah',      email: 'eva@accra-digital.gh',  businessIdx: 2, role: 'operator' },
+   115→   115→   115→    { name: 'Frank Kamau',     email: 'frank@afripay.ke',     businessIdx: 0, role: 'viewer' },
+   116→   116→   116→  ]
+   117→   117→   117→  for (const ud of userData) {
+   118→   118→   118→    const user = await db.user.create({
+   119→   119→   119→      data: {
+   120→   120→   120→        email: ud.email,
+   121→   121→   121→        name: ud.name,
+   122→   122→   122→        role: ud.role,
+   123→   123→   123→        businessId: businesses[ud.businessIdx].id,
+   124→   124→   124→        isActive: true,
+   125→   125→   125→        lastLoginAt: daysAgo(3),
+   126→   126→   126→      },
+   127→   127→   127→    })
+   128→   128→   128→    users.push(user)
+   129→   129→   129→  }
+   130→   130→   130→  console.log('  ✓ ' + users.length + ' users')
+   131→   131→   131→
+   132→   132→   132→  // ─── 5. Wallets (2 per business) ─────────────────────────
+   133→   133→   133→  const wallets: any[] = []
+   134→   134→   134→  for (const biz of businesses) {
+   135→   135→   135→    // Primary wallet in local currency
+   136→   136→   136→    wallets.push(await db.wallet.create({
+   137→   137→   137→      data: {
+   138→   138→   138→        businessId: biz.id,
+   139→   139→   139→        currency: biz._currency,
+   140→   140→   140→        balance: rf(50000, 500000),
+   141→   141→   141→        availableBalance: rf(40000, 400000),
+   142→   142→   142→        pendingBalance: rf(1000, 50000),
+   143→   143→   143→        frozenBalance: rf(0, 5000),
+   144→   144→   144→        isDefault: true,
+   145→   145→   145→        status: 'active',
+   146→   146→   146→        label: 'Primary ' + biz._currency + ' Wallet',
+   147→   147→   147→      },
+   148→   148→   148→    }))
+   149→   149→   149→    // USD wallet
+   150→   150→   150→    wallets.push(await db.wallet.create({
+   151→   151→   151→      data: {
+   152→   152→   152→        businessId: biz.id,
+   153→   153→   153→        currency: 'USD',
+   154→   154→   154→        balance: rf(1000, 50000),
+   155→   155→   155→        availableBalance: rf(800, 40000),
+   156→   156→   156→        pendingBalance: rf(100, 5000),
+   157→   157→   157→        frozenBalance: rf(0, 1000),
+   158→   158→   158→        isDefault: false,
+   159→   159→   159→        status: 'active',
+   160→   160→   160→        label: 'USD Wallet',
+   161→   161→   161→      },
+   162→   162→   162→    }))
+   163→   163→   163→  }
+   164→   164→   164→  console.log('  ✓ ' + wallets.length + ' wallets')
+   165→   165→   165→
+   166→   166→   166→  // ─── 6. Wallet Transactions (20+) ────────────────────────
+   167→   167→   167→  for (let i = 0; i < 25; i++) {
+   168→   168→   168→    const wallet = rand(wallets)
+   169→   169→   169→    const type = rand(['credit','credit','credit','debit','debit'])
+   170→   170→   170→    const amount = rf(100, 25000)
+   171→   171→   171→    const balBefore = rf(1000, 100000)
+   172→   172→   172→    const balAfter = type === 'credit' ? balBefore + amount : Math.max(0, balBefore - amount)
+   173→   173→   173→    await db.walletTransaction.create({
+   174→   174→   174→      data: {
+   175→   175→   175→        walletId: wallet.id,
+   176→   176→   176→        txRef: 'WTX-' + Date.now().toString(36) + '-' + ri(1000,9999),
+   177→   177→   177→        type,
+   178→   178→   178→        amount,
+   179→   179→   179→        balanceBefore: balBefore,
+   180→   180→   180→        balanceAfter: balAfter,
+   181→   181→   181→        currency: wallet.currency,
+   182→   182→   182→        description: type === 'credit' ? 'Payment received' : 'Payment sent',
+   183→   183→   183→        referenceType: rand(['payment','escrow','deposit','withdrawal','transfer']),
+   184→   184→   184→        status: 'completed',
+   185→   185→   185→      },
+   186→   186→   186→    })
+   187→   187→   187→  }
+   188→   188→   188→  console.log('  ✓ 25 wallet transactions')
+   189→   189→   189→
+   190→   190→   190→  // ─── 7. Deposits (5) ─────────────────────────────────────
+   191→   191→   191→  for (let i = 0; i < 5; i++) {
+   192→   192→   192→    const wallet = rand(wallets)
+   193→   193→   193→    const statuses = ['completed','completed','completed','pending','failed']
+   194→   194→   194→    const st = rand(statuses)
+   195→   195→   195→    await db.deposit.create({
+   196→   196→   196→      data: {
+   197→   197→   197→        depositRef: 'DEP-' + ri(100000,999999),
+   198→   198→   198→        walletId: wallet.id,
+   199→   199→   199→        amount: rf(5000, 100000),
+   200→   200→   200→        currency: wallet.currency,
+   201→   201→   201→        paymentMethod: rand(PAYMENT_METHODS),
+   202→   202→   202→        provider: rand(ROUTING_PROVIDERS),
+   203→   203→   203→        status: st,
+   204→   204→   204→        bankName: rand(['Equity Bank','KCB','GTBank','Access Bank','GCB Bank']),
+   205→   205→   205→        completedAt: st === 'completed' ? daysAgo(10) : null,
+   206→   206→   206→        failedReason: st === 'failed' ? 'Insufficient funds' : null,
+   207→   207→   207→      },
+   208→   208→   208→    })
+   209→   209→   209→  }
+   210→   210→   210→  console.log('  ✓ 5 deposits')
+   211→   211→   211→
+   212→   212→   212→  // ─── 8. Withdrawals (4) ──────────────────────────────────
+   213→   213→   213→  for (let i = 0; i < 4; i++) {
+   214→   214→   214→    const wallet = rand(wallets)
+   215→   215→   215→    const st = rand(['completed','completed','pending','processing'])
+   216→   216→   216→    await db.withdrawal.create({
+   217→   217→   217→      data: {
+   218→   218→   218→        withdrawalRef: 'WDR-' + ri(100000,999999),
+   219→   219→   219→        walletId: wallet.id,
+   220→   220→   220→        amount: rf(2000, 50000),
+   221→   221→   221→        currency: wallet.currency,
+   222→   222→   222→        paymentMethod: rand(['bank_transfer','mobile_money']),
+   223→   223→   223→        provider: rand(ROUTING_PROVIDERS),
+   224→   224→   224→        status: st,
+   225→   225→   225→        bankName: rand(['Equity Bank','KCB','GTBank','GCB Bank']),
+   226→   226→   226→        bankAccount: '****' + ri(1000,9999),
+   227→   227→   227→        recipientName: rand(['Alice Mwangi','David Okonkwo','Eva Mensah','Carol Njeri']),
+   228→   228→   228→        completedAt: st === 'completed' ? daysAgo(5) : null,
+   229→   229→   229→      },
+   230→   230→   230→    })
+   231→   231→   231→  }
+   232→   232→   232→  console.log('  ✓ 4 withdrawals')
+   233→   233→   233→
+   234→   234→   234→  // ─── 9. Escrow Transactions (8) ──────────────────────────
+   235→   235→   235→  const escrows: any[] = []
+   236→   236→   236→  for (let i = 0; i < 8; i++) {
+   237→   237→   237→    const buyer = rand(businesses)
+   238→   238→   238→    let seller = rand(businesses)
+   239→   239→   239→    while (seller.id === buyer.id) seller = rand(businesses)
+   240→   240→   240→    const amount = rf(1000, 200000)
+   241→   241→   241→    const st = rand(['created','funded','in_escrow','completed','completed','completed','disputed','cancelled'])
+   242→   242→   242→    const escrow = await db.escrowTransaction.create({
+   243→   243→   243→      data: {
+   244→   244→   244→        buyerId: buyer.id,
+   245→   245→   245→        sellerId: seller.id,
+   246→   246→   246→        txRef: 'ESC-' + Date.now().toString(36).slice(-6) + '-' + ri(1000,9999),
+   247→   247→   247→        amount,
+   248→   248→   248→        currency: rand(CURRENCIES_MAJOR),
+   249→   249→   249→        description: 'Trade order #' + (i + 1) + ' - ' + rand(['Electronics','Textiles','Agricultural products','Auto parts','Chemicals']),
+   250→   250→   250→        status: st,
+   251→   251→   251→        currentMilestone: st === 'completed' ? 3 : ri(0, 2),
+   252→   252→   252→        totalMilestones: 3,
+   253→   253→   253→        fundedAmount: ['funded','in_escrow','completed'].includes(st) ? amount : rf(0, amount * 0.5),
+   254→   254→   254→        releasedAmount: st === 'completed' ? amount * 0.8 : rf(0, amount * 0.3),
+   255→   255→   255→        refundedAmount: st === 'cancelled' ? amount : 0,
+   256→   256→   256→        feeAmount: rf(amount * 0.01, amount * 0.03),
+   257→   257→   257→        aiRiskScore: rf(10, 85),
+   258→   258→   258→        aiRiskLevel: rand(['low','low','medium','medium','high']),
+   259→   259→   259→        expiresAt: futureDays(30),
+   260→   260→   260→        completedAt: st === 'completed' ? daysAgo(15) : null,
+   261→   261→   261→      },
+   262→   262→   262→    })
+   263→   263→   263→    escrows.push(escrow)
+   264→   264→   264→  }
+   265→   265→   265→  console.log('  ✓ 8 escrow transactions')
+   266→   266→   266→
+   267→   267→   267→  // ─── 10. Disputes (3) ─────────────────────────────────────
+   268→   268→   268→  for (let i = 0; i < 3; i++) {
+   269→   269→   269→    const escrow = rand(escrows.filter(e => e.status !== 'cancelled'))
+   270→   270→   270→    const st = rand(['open','open','under_review','resolved'])
+   271→   271→   271→    await db.dispute.create({
+   272→   272→   272→      data: {
+   273→   273→   273→        escrowId: escrow.id,
+   274→   274→   274→        raisedBy: escrow.buyerId,
+   275→   275→   275→        reason: rand(['Goods not delivered','Quality below standard','Wrong items shipped','Late delivery by 3 weeks']),
+   276→   276→   276→        description: 'Dispute regarding escrow ' + escrow.txRef,
+   277→   277→   277→        status: st,
+   278→   278→   278→        resolution: st === 'resolved' ? 'Partial refund issued to buyer' : null,
+   279→   279→   279→        resolvedAt: st === 'resolved' ? daysAgo(5) : null,
+   280→   280→   280→        aiRecommendation: st === 'resolved' ? 'Mediated settlement' : 'Review evidence and negotiate',
+   281→   281→   281→      },
+   282→   282→   282→    })
+   283→   283→   283→  }
+   284→   284→   284→  console.log('  ✓ 3 disputes')
+   285→   285→   285→
+   286→   286→   286→  // ─── 11. Escrow Milestones (for completed escrows) ───────
+   287→   287→   287→  for (const esc of escrows.filter(e => e.status === 'completed')) {
+   288→   288→   288→    for (let s = 0; s < 3; s++) {
+   289→   289→   289→      await db.escrowMilestone.create({
+   290→   290→   290→        data: {
+   291→   291→   291→          escrowId: esc.id,
+   292→   292→   292→          sequence: s + 1,
+   293→   293→   293→          title: ['Order Confirmation','Production & Quality Check','Final Delivery & Release'][s],
+   294→   294→   294→          amount: Math.round(esc.amount * [0.3, 0.3, 0.4][s] * 100) / 100,
+   295→   295→   295→          status: 'released',
+   296→   296→   296→          releasedAt: daysAgo(20 - s * 5),
+   297→   297→   297→        },
+   298→   298→   298→      })
+   299→   299→   299→    }
+   300→   300→   300→  }
+   301→   301→   301→  console.log('  ✓ Escrow milestones')
+   302→   302→   302→
+   303→   303→   303→  // ─── 12. Disbursements (for completed escrows) ───────────
+   304→   304→   304→  for (const esc of escrows.filter(e => e.status === 'completed')) {
+   305→   305→   305→    await db.disbursement.create({
+   306→   306→   306→      data: {
+   307→   307→   307→        escrowId: esc.id,
+   308→   308→   308→        amount: esc.releasedAmount,
+   309→   309→   309→        currency: esc.currency,
+   310→   310→   310→        fromAccount: 'ESCROW_POOL',
+   311→   311→   311→        toAccount: 'SELLER_' + esc.sellerId.slice(-6),
+   312→   312→   312→        status: 'completed',
+   313→   313→   313→        paymentRef: 'DISB-' + ri(100000,999999),
+   314→   314→   314→        completedAt: daysAgo(10),
+   315→   315→   315→      },
+   316→   316→   316→    })
+   317→   317→   317→  }
+   318→   318→   318→  console.log('  ✓ Disbursements')
+   319→   319→   319→
+   320→   320→   320→  // ─── 13. Payment Intents (12) ────────────────────────────
+   321→   321→   321→  const intents: any[] = []
+   322→   322→   322→  const rates: Record<string, number> = {
+   323→   323→   323→    'USD-EUR': 0.92, 'USD-GBP': 0.79, 'USD-KES': 153.5, 'USD-NGN': 1580,
+   324→   324→   324→    'USD-GHS': 15.2, 'EUR-USD': 1.087, 'GBP-USD': 1.266,
+   325→   325→   325→    'KES-USD': 0.0065, 'NGN-USD': 0.00063, 'GHS-USD': 0.066,
+   326→   326→   326→  }
+   327→   327→   327→  for (let i = 0; i < 12; i++) {
+   328→   328→   328→    const fromBiz = rand(businesses)
+   329→   329→   329→    let toBiz = rand(businesses)
+   330→   330→   330→    while (toBiz.id === fromBiz.id) toBiz = rand(businesses)
+   331→   331→   331→    const srcCur = rand(CURRENCIES)
+   332→   332→   332→    let tgtCur = rand(CURRENCIES)
+   333→   333→   333→    while (tgtCur === srcCur) tgtCur = rand(CURRENCIES)
+   334→   334→   334→    const srcAmt = rf(500, 100000)
+   335→   335→   335→    const rate = rates[srcCur + '-' + tgtCur] || rf(0.5, 2.0)
+   336→   336→   336→    const st = rand(['created','processing','completed','completed','completed','failed','cancelled'])
+   337→   337→   337→    const intent = await db.paymentIntent.create({
+   338→   338→   338→      data: {
+   339→   339→   339→        fromBusinessId: fromBiz.id,
+   340→   340→   340→        toBusinessId: toBiz.id,
+   341→   341→   341→        intentRef: 'PAY-' + Date.now().toString(36).slice(-6) + '-' + ri(1000,9999),
+   342→   342→   342→        sourceAmount: srcAmt,
+   343→   343→   343→        sourceCurrency: srcCur,
+   344→   344→   344→        targetAmount: Math.round(srcAmt * rate * 100) / 100,
+   345→   345→   345→        targetCurrency: tgtCur,
+   346→   346→   346→        exchangeRate: rate,
+   347→   347→   347→        paymentMethod: rand(PAYMENT_METHODS),
+   348→   348→   348→        routingProvider: rand(ROUTING_PROVIDERS),
+   349→   349→   349→        routingScore: rf(0.6, 0.99),
+   350→   350→   350→        estimatedFee: rf(srcAmt * 0.005, srcAmt * 0.025),
+   351→   351→   351→        actualFee: st === 'completed' ? rf(srcAmt * 0.005, srcAmt * 0.025) : null,
+   352→   352→   352→        estimatedTime: ri(5, 120),
+   353→   353→   353→        status: st,
+   354→   354→   354→        completedAt: st === 'completed' ? daysAgo(15) : null,
+   355→   355→   355→      },
+   356→   356→   356→    })
+   357→   357→   357→    intents.push(intent)
+   358→   358→   358→  }
+   359→   359→   359→  console.log('  ✓ 12 payment intents')
+   360→   360→   360→
+   361→   361→   361→  // ─── 14. Payment Transactions (for completed intents) ────
+   362→   362→   362→  for (const intent of intents.filter(p => p.status === 'completed')) {
+   363→   363→   363→    await db.paymentTransaction.create({
+   364→   364→   364→      data: {
+   365→   365→   365→        intentId: intent.id,
+   366→   366→   366→        txRef: 'PTX-' + ri(100000,999999),
+   367→   367→   367→        provider: intent.routingProvider,
+   368→   368→   368→        providerTxId: 'prov_' + ri(10000000,99999999),
+   369→   369→   369→        amount: intent.sourceAmount,
+   370→   370→   370→        currency: intent.sourceCurrency,
+   371→   371→   371→        status: 'settled',
+   372→   372→   372→        settledAt: daysAgo(10),
+   373→   373→   373→      },
+   374→   374→   374→    })
+   375→   375→   375→  }
+   376→   376→   376→  console.log('  ✓ Payment transactions')
+   377→   377→   377→
+   378→   378→   378→  // ─── 15. Invoices (8) ────────────────────────────────────
+   379→   379→   379→  const invoices: any[] = []
+   380→   380→   380→  for (let i = 0; i < 8; i++) {
+   381→   381→   381→    const sender = rand(businesses)
+   382→   382→   382→    let receiver = rand(businesses)
+   383→   383→   383→    while (receiver.id === sender.id) receiver = rand(businesses)
+   384→   384→   384→    const amount = rf(5000, 150000)
+   385→   385→   385→    const st = rand(['paid','paid','paid','pending','pending','overdue','cancelled'])
+   386→   386→   386→    const inv = await db.invoice.create({
+   387→   387→   387→      data: {
+   388→   388→   388→        invoiceRef: 'INV-' + String(i + 1).padStart(4, '0') + '-' + ri(1000,9999),
+   389→   389→   389→        senderId: sender.id,
+   390→   390→   390→        receiverId: receiver.id,
+   391→   391→   391→        amount,
+   392→   392→   392→        status: st,
+   393→   393→   393→        dueDate: futureDays(30),
+   394→   394→   394→        paidAmount: st === 'paid' ? amount : rf(0, amount * 0.3),
+   395→   395→   395→        notes: 'Payment for goods/services - Order #' + ri(10000, 99999),
+   396→   396→   396→        paidAt: st === 'paid' ? daysAgo(7) : null,
+   397→   397→   397→      },
+   398→   398→   398→    })
+   399→   399→   399→    invoices.push(inv)
+   400→   400→   400→  }
+   401→   401→   401→  console.log('  ✓ 8 invoices')
+   402→   402→   402→
+   403→   403→   403→  // ─── 16. Payment Links (5) ───────────────────────────────
+   404→   404→   404→  for (let i = 0; i < 5; i++) {
+   405→   405→   405→    const biz = rand(businesses)
+   406→   406→   406→    const collected = rf(0, 30000)
+   407→   407→   407→    const pl = await db.paymentLink.create({
+   408→   408→   408→      data: {
+   409→   409→   409→        linkRef: 'PLINK-' + ri(100000,999999),
+   410→   410→   410→        businessId: biz.id,
+   411→   411→   411→        title: rand(['Invoice Payment','Service Fee','Product Order','Subscription','Deposit']),
+   412→   412→   412→        description: 'Payment link for ' + biz.name,
+   413→   413→   413→        amount: rf(1000, 50000),
+   414→   414→   414→        currency: biz._currency,
+   415→   415→   415→        paymentCount: ri(1, 15),
+   416→   416→   416→        totalCollected: collected,
+   417→   417→   417→        status: ri(0, 10) > 2 ? 'active' : 'expired',
+   418→   418→   418→        expiresAt: futureDays(60),
+   419→   419→   419→        createdBy: rand(users).id,
+   420→   420→   420→      },
+   421→   421→   421→    })
+   422→   422→   422→    // Add some payments to the link
+   423→   423→   423→    for (let j = 0; j < ri(1, 4); j++) {
+   424→   424→   424→      await db.paymentLinkPayment.create({
+   425→   425→   425→        data: {
+   426→   426→   426→          paymentLinkId: pl.id,
+   427→   427→   427→          amount: rf(500, 10000),
+   428→   428→   428→          currency: biz._currency,
+   429→   429→   429→          paymentMethod: rand(PAYMENT_METHODS),
+   430→   430→   430→          status: 'completed',
+   431→   431→   431→        },
+   432→   432→   432→      })
+   433→   433→   433→    }
+   434→   434→   434→  }
+   435→   435→   435→  console.log('  ✓ 5 payment links with payments')
+   436→   436→   436→
+   437→   437→   437→  // ─── 17. Collection Cases (5) ────────────────────────────
+   438→   438→   438→  for (let i = 0; i < 5; i++) {
+   439→   439→   439→    const biz = rand(businesses)
+   440→   440→   440→    let debtor = rand(businesses)
+   441→   441→   441→    while (debtor.id === biz.id) debtor = rand(businesses)
+   442→   442→   442→    const origAmt = rf(10000, 200000)
+   443→   443→   443→    const st = rand(['active','active','pending','resolved','written_off'])
+   444→   444→   444→    const bucket = rand(['current','30_days','60_days','90_days','120_plus_days'])
+   445→   445→   445→    const cc = await db.collectionCase.create({
+   446→   446→   446→      data: {
+   447→   447→   447→        caseRef: 'COL-' + ri(100000,999999),
+   448→   448→   448→        businessId: biz.id,
+   449→   449→   449→        debtorId: debtor.id,
+   450→   450→   450→        originalAmount: origAmt,
+   451→   451→   451→        outstandingAmount: st === 'resolved' ? 0 : rf(origAmt * 0.3, origAmt * 0.9),
+   452→   452→   452→        currency: biz._currency,
+   453→   453→   453→        agingBucket: bucket,
+   454→   454→   454→        priority: bucket === '120_plus_days' ? 'high' : bucket === '90_days' ? 'medium' : 'low',
+   455→   455→   455→        status: st,
+   456→   456→   456→        reminderCount: ri(1, 5),
+   457→   457→   457→        lastReminderAt: daysAgo(7),
+   458→   458→   458→        nextReminderDue: futureDays(3),
+   459→   459→   459→        aiStrategy: rand(['friendly_reminder','formal_notice','escalation','legal_notice']),
+   460→   460→   460→        resolution: st === 'resolved' ? 'Full payment received' : null,
+   461→   461→   461→        resolvedAt: st === 'resolved' ? daysAgo(3) : null,
+   462→   462→   462→      },
+   463→   463→   463→    })
+   464→   464→   464→    // Add reminders
+   465→   465→   465→    for (let r = 0; r < ri(1, 3); r++) {
+   466→   466→   466→      await db.collectionReminder.create({
+   467→   467→   467→        data: {
+   468→   468→   468→          caseId: cc.id,
+   469→   469→   469→          channel: rand(COLLECTION_CHANNELS),
+   470→   470→   470→          template: rand(['first_reminder','second_reminder','final_notice','payment_plan_offer']),
+   471→   471→   471→          status: 'sent',
+   472→   472→   472→          sentAt: daysAgo(ri(1, 14)),
+   473→   473→   473→        },
+   474→   474→   474→      })
+   475→   475→   475→    }
+   476→   476→   476→  }
+   477→   477→   477→  console.log('  ✓ 5 collection cases with reminders')
+   478→   478→   478→
+   479→   479→   479→  // ─── 18. Fraud Alerts (6) ────────────────────────────────
+   480→   480→   480→  for (let i = 0; i < 6; i++) {
+   481→   481→   481→    const biz = rand(businesses)
+   482→   482→   482→    const sev = rand(['low','low','medium','medium','high','critical'])
+   483→   483→   483→    const st = rand(['new','new','investigating','resolved','dismissed'])
+   484→   484→   484→    await db.fraudAlert.create({
+   485→   485→   485→      data: {
+   486→   486→   486→        alertRef: 'FRD-' + ri(100000,999999),
+   487→   487→   487→        businessId: biz.id,
+   488→   488→   488→        relatedType: rand(['transaction','account','payment','escrow']),
+   489→   489→   489→        fraudType: rand(FRAUD_TYPES),
+   490→   490→   490→        score: rf(20, 95),
+   491→   491→   491→        description: 'Suspicious ' + rand(['activity','transaction','login','payment']) + ' detected on ' + biz.name,
+   492→   492→   492→        recommendation: sev === 'high' || sev === 'critical'
+   493→   493→   493→          ? 'Immediate investigation required'
+   494→   494→   494→          : 'Monitor and review',
+   495→   495→   495→        status: st,
+   496→   496→   496→        resolvedBy: st === 'resolved' ? 'alice@afripay.ke' : null,
+   497→   497→   497→        resolvedAt: st === 'resolved' ? daysAgo(2) : null,
+   498→   498→   498→      },
+   499→   499→   499→    })
+   500→   500→   500→  }
+   501→   501→   501→  console.log('  ✓ 6 fraud alerts')
+   502→   502→   502→
+   503→   503→   503→  // ─── 19. Fraud Rules (5) ─────────────────────────────────
+   504→   504→   504→  for (let i = 0; i < 5; i++) {
+   505→   505→   505→    await db.fraudRule.create({
+   506→   506→   506→      data: {
+   507→   507→   507→        name: ['Velocity Check','Large Amount Alert','Geo Mismatch','New Device','Rapid Succession'][i],
+   508→   508→   508→        description: ['Detect rapid transactions in short window','Flag transactions above threshold','Alert on location/device changes','Flag logins from new devices','Detect multiple rapid actions'][i],
+   509→   509→   509→        condition: ['count > 5 in 1h','amount > 50000','ip_country != account_country','device_fingerprint is new','actions > 10 in 5m'][i],
+   510→   510→   510→        action: rand(['block','flag','flag','monitor','require_review']),
+   511→   511→   511→        severity: rand(['low','medium','medium','high','high']),
+   512→   512→   512→        isActive: i < 4,
+   513→   513→   513→        triggerCount: ri(0, 25),
+   514→   514→   514→        lastTriggeredAt: daysAgo(3),
+   515→   515→   515→      },
+   516→   516→   516→    })
+   517→   517→   517→  }
+   518→   518→   518→  console.log('  ✓ 5 fraud rules')
+   519→   519→   519→
+   520→   520→   520→  // ─── 20. Compliance Rules (5) ─────────────────────────────
+   521→   521→   521→  for (let i = 0; i < 5; i++) {
+   522→   522→   522→    await db.complianceRule.create({
+   523→   523→   523→      data: {
+   524→   524→   524→        name: ['Sanctions Screening','PEP Check','AML Monitoring','KYC Verification','Adverse Media Check'][i],
+   525→   525→   525→        description: ['Screen against OFAC/EU/UN sanctions lists','Check Politically Exposed Persons status','Monitor for money laundering patterns','Verify customer identity documents','Screen for negative news coverage'][i],
+   526→   526→   526→        ruleType: COMPLIANCE_TYPES[i],
+   527→   527→   527→        condition: ['entity in sanctions_list','is_pep == true','suspicious_pattern_score > 70','kyc_status != verified','adverse_media_found == true'][i],
+   528→   528→   528→        action: rand(['block','flag','flag','require_review','escalate']),
+   529→   529→   529→        severity: rand(['low','medium','medium','high','critical']),
+   530→   530→   530→        isActive: true,
+   531→   531→   531→        triggeredCount: ri(0, 15),
+   532→   532→   532→      },
+   533→   533→   533→    })
+   534→   534→   534→  }
+   535→   535→   535→  console.log('  ✓ 5 compliance rules')
+   536→   536→   536→
+   537→   537→   537→  // ─── 21. Compliance Screenings (6) ───────────────────────
+   538→   538→   538→  for (let i = 0; i < 6; i++) {
+   539→   539→   539→    const biz = rand(businesses)
+   540→   540→   540→    const result = rand(['clear','clear','clear','potential_match','match','hit'])
+   541→   541→   541→    await db.complianceScreening.create({
+   542→   542→   542→      data: {
+   543→   543→   543→        businessId: biz.id,
+   544→   544→   544→        screeningType: rand(COMPLIANCE_TYPES),
+   545→   545→   545→        result,
+   546→   546→   546→        riskLevel: result === 'clear' ? 'low' : result === 'potential_match' ? 'medium' : 'high',
+   547→   547→   547→        details: 'Screening result for ' + biz.name + ' - ' + result,
+   548→   548→   548→        matchedLists: result !== 'clear' ? 'OFAC SDN List, EU Consolidated List' : null,
+   549→   549→   549→        status: result === 'clear' ? 'approved' : rand(['pending_review','escalated','approved']),
+   550→   550→   550→        reviewedBy: result === 'clear' ? 'system' : rand(['alice@afripay.ke','david@lagos-trade.ng']),
+   551→   551→   551→        reviewedAt: daysAgo(5),
+   552→   552→   552→      },
+   553→   553→   553→    })
+   554→   554→   554→  }
+   555→   555→   555→  console.log('  ✓ 6 compliance screenings')
+   556→   556→   556→
+   557→   557→   557→  // ─── 22. Trust Scores (one per business) ─────────────────
+   558→   558→   558→  for (const biz of businesses) {
+   559→   559→   559→    const overall = rf(55, 95)
+   560→   560→   560→    const ts = await db.trustScore.create({
+   561→   561→   561→      data: {
+   562→   562→   562→        businessId: biz.id,
+   563→   563→   563→        overallScore: overall,
+   564→   564→   564→        paymentScore: Math.min(100, Math.max(0, overall + rf(-10, 10))),
+   565→   565→   565→        deliveryScore: Math.min(100, Math.max(0, overall + rf(-15, 10))),
+   566→   566→   566→        qualityScore: Math.min(100, Math.max(0, overall + rf(-10, 15))),
+   567→   567→   567→        communicationScore: Math.min(100, Math.max(0, overall + rf(-8, 8))),
+   568→   568→   568→        complianceScore: Math.min(100, Math.max(0, overall + rf(-5, 10))),
+   569→   569→   569→        totalReviews: ri(5, 80),
+   570→   570→   570→        totalTransactions: ri(10, 300),
+   571→   571→   571→        scoreVersion: 2,
+   572→   572→   572→        lastCalculated: daysAgo(1),
+   573→   573→   573→      },
+   574→   574→   574→    })
+   575→   575→   575→    // Add reputation events
+   576→   576→   576→    const events = ['positive_review','successful_payment','dispute_resolved','verification_completed','on_time_delivery']
+   577→   577→   577→    for (let e = 0; e < 3; e++) {
+   578→   578→   578→      await db.reputationEvent.create({
+   579→   579→   579→        data: {
+   580→   580→   580→          trustScoreId: ts.id,
+   581→   581→   581→          eventType: rand(events),
+   582→   582→   582→          scoreImpact: rf(0.5, 3.0),
+   583→   583→   583→          description: rand(['Positive review received','Payment completed on time','Dispute resolved amicably','Business verification completed','Delivery ahead of schedule']),
+   584→   584→   584→          sourceId: 'evt_' + ri(10000, 99999),
+   585→   585→   585→        },
+   586→   586→   586→      })
+   587→   587→   587→    }
+   588→   588→   588→  }
+   589→   589→   589→  console.log('  ✓ 4 trust scores + reputation events')
+   590→   590→   590→
+   591→   591→   591→  // ─── 23. Reviews (8) ──────────────────────────────────────
+   592→   592→   592→  for (let i = 0; i < 8; i++) {
+   593→   593→   593→    const fromBiz = rand(businesses)
+   594→   594→   594→    let toBiz = rand(businesses)
+   595→   595→   595→    while (toBiz.id === fromBiz.id) toBiz = rand(businesses)
+   596→   596→   596→    const rating = rf(2.5, 5.0)
+   597→   597→   597→    const st = rand(['published','published','published','pending','moderated'])
+   598→   598→   598→    await db.review.create({
+   599→   599→   599→      data: {
+   600→   600→   600→        fromBusinessId: fromBiz.id,
+   601→   601→   601→        toBusinessId: toBiz.id,
+   602→   602→   602→        rating,
+   603→   603→   603→        paymentRating: rf(2, 5),
+   604→   604→   604→        deliveryRating: rf(2, 5),
+   605→   605→   605→        qualityRating: rf(2, 5),
+   606→   606→   606→        communicationRating: rf(2, 5),
+   607→   607→   607→        comment: rand([
+   608→   608→   608→          'Excellent partner, highly recommended for cross-border trade',
+   609→   609→   609→          'Good communication and timely delivery',
+   610→   610→   610→          'Products met quality standards as agreed',
+   611→   611→   611→          'Payment was processed smoothly and on time',
+   612→   612→   612→          'Reliable supplier with consistent quality',
+   613→   613→   613→          'Professional service throughout the transaction',
+   614→   614→   614→        ]),
+   615→   615→   615→        status: st,
+   616→   616→   616→      },
+   617→   617→   617→    })
+   618→   618→   618→  }
+   619→   619→   619→  console.log('  ✓ 8 reviews')
+   620→   620→   620→
+   621→   621→   621→  // ─── 24. Business Relationships (6) ───────────────────────
+   622→   622→   622→  for (let i = 0; i < 6; i++) {
+   623→   623→   623→    const from = rand(businesses)
+   624→   624→   624→    let to = rand(businesses)
+   625→   625→   625→    while (to.id === from.id) to = rand(businesses)
+   626→   626→   626→    try {
+   627→   627→   627→      await db.businessRelationship.create({
+   628→   628→   628→        data: {
+   629→   629→   629→          fromBusinessId: from.id,
+   630→   630→   630→          toBusinessId: to.id,
+   631→   631→   631→          type: rand(['supplier','buyer','partner','logistics','financial']),
+   632→   632→   632→          trustLevel: rf(40, 95),
+   633→   633→   633→          totalTxVolume: rf(50000, 2000000),
+   634→   634→   634→          totalTxCount: ri(5, 100),
+   635→   635→   635→          firstTxDate: daysAgo(180),
+   636→   636→   636→          lastTxDate: daysAgo(3),
+   637→   637→   637→          status: rand(['active','active','active','paused']),
+   638→   638→   638→        },
+   639→   639→   639→      })
+   640→   640→   640→    } catch { /* unique constraint skip */ }
+   641→   641→   641→  }
+   642→   642→   642→  console.log('  ✓ Business relationships')
+   643→   643→   643→
+   644→   644→   644→  // ─── 25. Business Matches (6) ─────────────────────────────
+   645→   645→   645→  const matchTypes = ['supplier','buyer','partner','logistics','financial']
+   646→   646→   646→  for (let i = 0; i < 10; i++) {
+   647→   647→   647→    const seeker = businesses[i % businesses.length]
+   648→   648→   648→    const candidate = businesses[(i + 1 + Math.floor(i / businesses.length)) % businesses.length]
+   649→   649→   649→    if (seeker.id === candidate.id) continue
+   650→   650→   650→    const matchType = matchTypes[i % matchTypes.length]
+   651→   651→   651→    const st = rand(['pending','pending','accepted','rejected','expired'])
+   652→   652→   652→    try {
+   653→   653→   653→      await db.businessMatch.create({
+   654→   654→   654→        data: {
+   655→   655→   655→          seekerId: seeker.id,
+   656→   656→   656→          candidateId: candidate.id,
+   657→   657→   657→          matchType,
+   658→   658→   658→          matchScore: rf(60, 98),
+   659→   659→   659→          reasons: JSON.stringify(['Industry match','Geographic proximity','Trust score compatible','Payment history good','Verified business'].slice(0, ri(1,3))),
+   660→   660→   660→          status: st,
+   661→   661→   661→          seekerResponse: st !== 'pending' ? rand(['interested','not_interested']) : null,
+   662→   662→   662→          candidateResponse: st === 'accepted' ? 'interested' : null,
+   663→   663→   663→        },
+   664→   664→   664→      })
+   665→   665→   665→    } catch { /* unique constraint skip */ }
+   666→   666→   666→  }
+   667→   667→   667→  console.log('  ✓ 6 business matches')
+   668→   668→   668→
+   669→   669→   669→  // ─── 26. Referral Bonuses (4) ─────────────────────────────
+   670→   670→   670→  for (let i = 0; i < 4; i++) {
+   671→   671→   671→    const wallet = rand(wallets.filter(w => w.currency === 'USD'))
+   672→   672→   672→    await db.referralBonus.create({
+   673→   673→   673→      data: {
+   674→   674→   674→        bonusRef: 'REF-' + ri(100000,999999),
+   675→   675→   675→        referrerId: adminAccount.id,
+   676→   676→   676→        refereeId: rand(users.slice(1)).id,
+   677→   677→   677→        depositId: 'dep_' + ri(10000, 99999),
+   678→   678→   678→        walletId: wallet.id,
+   679→   679→   679→        bonusAmount: 100,
+   680→   680→   680→        status: rand(['credited','credited','pending','processed']),
+   681→   681→   681→        creditedAt: daysAgo(10),
+   682→   682→   682→      },
+   683→   683→   683→    })
+   684→   684→   684→  }
+   685→   685→   685→  console.log('  ✓ 4 referral bonuses')
+   686→   686→   686→
+   687→   687→   687→  // ─── 27. Commerce Passports (one per business) ────────────
+   688→   688→   688→  for (const biz of businesses) {
+   689→   689→   689→    const credLevel = rand(['basic','standard','enhanced','premium'])
+   690→   690→   690→    await db.commercePassport.create({
+   691→   691→   691→      data: {
+   692→   692→   692→        businessId: biz.id,
+   693→   693→   693→        passportHash: createHash('sha256').update(biz.id + '-passport').digest('hex'),
+   694→   694→   694→        credentialLevel: credLevel,
+   695→   695→   695→        kycStatus: credLevel !== 'basic' ? 'verified' : 'in_progress',
+   696→   696→   696→        kycVerifiedAt: credLevel !== 'basic' ? daysAgo(30) : null,
+   697→   697→   697→        amlStatus: credLevel === 'premium' ? 'cleared' : rand(['cleared','not_started']),
+   698→   698→   698→        amlCheckedAt: daysAgo(14),
+   699→   699→   699→        riskRating: credLevel === 'premium' ? 'low' : rand(['low','medium']),
+   700→   700→   700→        lastAuditAt: daysAgo(30),
+   701→   701→   701→        nextAuditDue: futureDays(90),
+   702→   702→   702→      },
+   703→   703→   703→    })
+   704→   704→   704→  }
+   705→   705→   705→  console.log('  ✓ 4 commerce passports')
+   706→   706→   706→
+   707→   707→   707→  // ─── 28. Verifications (10) ───────────────────────────────
+   708→   708→   708→  for (let i = 0; i < 10; i++) {
+   709→   709→   709→    const biz = rand(businesses)
+   710→   710→   710→    const st = rand(['approved','approved','approved','pending','in_progress','rejected'])
+   711→   711→   711→    await db.verification.create({
+   712→   712→   712→      data: {
+   713→   713→   713→        businessId: biz.id,
+   714→   714→   714→        type: rand(['identity','business_registration','tax','bank_account','address']),
+   715→   715→   715→        method: rand(['document','api','manual','third_party']),
+   716→   716→   716→        status: st,
+   717→   717→   717→        submittedAt: daysAgo(30),
+   718→   718→   718→        verifiedAt: st === 'approved' ? daysAgo(15) : null,
+   719→   719→   719→        verifiedBy: st === 'approved' ? 'system' : null,
+   720→   720→   720→        rejectionReason: st === 'rejected' ? 'Document expired or unclear' : null,
+   721→   721→   721→      },
+   722→   722→   722→    })
+   723→   723→   723→  }
+   724→   724→   724→  console.log('  ✓ 10 verifications')
+   725→   725→   725→
+   726→   726→   726→  // ─── 29. Financial Digital Twins (one per business) ──────
+   727→   727→   727→  for (const biz of businesses) {
+   728→   728→   728→    const health = rf(50, 95)
+   729→   729→   729→    const twin = await db.financialDigitalTwin.create({
+   730→   730→   730→      data: {
+   731→   731→   731→        businessId: biz.id,
+   732→   732→   732→        healthScore: health,
+   733→   733→   733→        cashFlowHealth: Math.min(100, Math.max(0, health + rf(-15, 15))),
+   734→   734→   734→        riskAppetite: rand(['conservative','moderate','moderate','aggressive']),
+   735→   735→   735→        creditWorthiness: Math.min(100, Math.max(0, health + rf(-10, 10))),
+   736→   736→   736→        liquidityScore: Math.min(100, Math.max(0, health + rf(-20, 15))),
+   737→   737→   737→        growthTrajectory: rand(['stable','growing','growing','rapid_growth']),
+   738→   738→   738→        aiModelVersion: 'v2.1',
+   739→   739→   739→        lastSyncAt: daysAgo(1),
+   740→   740→   740→      },
+   741→   741→   741→    })
+   742→   742→   742→    // Add 3 months of financial metrics
+   743→   743→   743→    for (let m = 2; m >= 0; m--) {
+   744→   744→   744→      const d = new Date()
+   745→   745→   745→      d.setMonth(d.getMonth() - m)
+   746→   746→   746→      const periodDate = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+   747→   747→   747→      const rev = rf(100000, 800000)
+   748→   748→   748→      await db.financialMetric.create({
+   749→   749→   749→        data: {
+   750→   750→   750→          twinId: twin.id,
+   751→   751→   751→          period: 'monthly',
+   752→   752→   752→          periodDate,
+   753→   753→   753→          revenue: rev,
+   754→   754→   754→          expenses: rev * rf(0.5, 0.8),
+   755→   755→   755→          netIncome: rev * rf(0.1, 0.4),
+   756→   756→   756→          cashBalance: rf(50000, 500000),
+   757→   757→   757→          transactionCount: ri(20, 200),
+   758→   758→   758→          averageTransactionValue: rf(1000, 25000),
+   759→   759→   759→          paymentSuccessRate: rf(0.88, 0.98),
+   760→   760→   760→          disputeRate: rf(0.01, 0.06),
+   761→   761→   761→          customerCount: ri(10, 100),
+   762→   762→   762→          supplierCount: ri(5, 30),
+   763→   763→   763→        },
+   764→   764→   764→      })
+   765→   765→   765→    }
+   766→   766→   766→  }
+   767→   767→   767→  console.log('  ✓ 4 digital twins + financial metrics')
+   768→   768→   768→
+   769→   769→   769→  // ─── 30. Currency Rates ───────────────────────────────────
+   770→   770→   770→  const ratePairs = [
+   771→   771→   771→    ['USD','EUR',0.92],['USD','GBP',0.79],['USD','KES',153.5],['USD','NGN',1580],
+   772→   772→   772→    ['USD','GHS',15.2],['EUR','GBP',0.86],['EUR','KES',166.8],['GBP','KES',194.3],
+   773→   773→   773→    ['USD','UGX',3800],['USD','TZS',2650],
+   774→   774→   774→  ]
+   775→   775→   775→  for (const [from, to, rate] of ratePairs) {
+   776→   776→   776→    await db.currencyRate.create({
+   777→   777→   777→      data: {
+   778→   778→   778→        fromCurrency: from as string,
+   779→   779→   779→        toCurrency: to as string,
+   780→   780→   780→        rate: rate as number,
+   781→   781→   781→        provider: 'youngsend-rates',
+   782→   782→   782→        expiresAt: futureDays(1),
+   783→   783→   783→      },
+   784→   784→   784→    })
+   785→   785→   785→  }
+   786→   786→   786→  console.log('  ✓ 10 currency rates')
+   787→   787→   787→
+   788→   788→   788→  // ─── 17. Notifications ──────────────────────────────────
+   789→   789→   789→  const NOTIF_TITLES = [
+   790→   790→   790→    { title: 'Payment received', body: 'You received $2,500.00 from Acme Imports via escrow', type: 'payment', category: 'payment_received' },
+   791→   791→   791→    { title: 'Escrow funded', body: 'Escrow transaction with Global Logistics has been funded', type: 'escrow', category: 'escrow_funded' },
+   792→   792→   792→    { title: 'Invoice overdue', body: 'Invoice INV-2024-003 is now 5 days overdue', type: 'warning', category: 'invoice_overdue' },
+   793→   793→   793→    { title: 'New fraud alert', body: 'Unusual transaction pattern detected on your account', type: 'error', category: 'fraud_alert' },
+   794→   794→   794→    { title: 'Compliance check passed', body: 'Your KYC verification has been approved', type: 'success', category: 'compliance_alert' },
+   795→   795→   795→    { title: 'Collection reminder sent', body: 'Payment reminder sent to debtor for outstanding $12,000', type: 'info', category: 'collection_reminder' },
+   796→   796→   796→    { title: 'Referral bonus credited', body: '$100.00 referral bonus has been credited to your wallet', type: 'success', category: 'referral_bonus' },
+   797→   797→   797→    { title: 'New business match', body: '3 new supplier matches found based on your requirements', type: 'info', category: 'general' },
+   798→   798→   798→  ]
+   799→   799→   799→  for (const n of NOTIF_TITLES) {
+   800→   800→   800→    await db.notification.create({
+   801→   801→   801→      data: {
+   802→   802→   802→        accountId: adminAccount.id,
+   803→   803→   803→        title: n.title,
+   804→   804→   804→        body: n.body,
+   805→   805→   805→        type: n.type,
+   806→   806→   806→        category: n.category,
+   807→   807→   807→        isRead: Math.random() > 0.5,
+   808→   808→   808→        readAt: Math.random() > 0.5 ? daysAgo(3) : null,
+   809→   809→   809→        createdAt: daysAgo(14),
+   810→   810→   810→      },
+   811→   811→   811→    })
+   812→   812→   812→  }
+   813→   813→   813→  console.log('  ✓ 8 notifications')
+   814→   814→   814→
+   815→   815→   815→  // ─── 18. Subscriptions ─────────────────────────────────
+   816→   816→   816→  for (const b of businesses.slice(0, 3)) {
+   817→   817→   817→    const plan = rand(['starter', 'professional', 'enterprise'])
+   818→   818→   818→    const amounts: Record<string, number> = { starter: 29, professional: 99, enterprise: 299 }
+   819→   819→   819→    const now = new Date()
+   820→   820→   820→    const periodEnd = new Date(now)
+   821→   821→   821→    periodEnd.setMonth(periodEnd.getMonth() + 1)
+   822→   822→   822→    await db.subscription.create({
+   823→   823→   823→      data: {
+   824→   824→   824→        businessId: b.id,
+   825→   825→   825→        planName: plan,
+   826→   826→   826→        amount: amounts[plan],
+   827→   827→   827→        currency: 'USD',
+   828→   828→   828→        interval: 'monthly',
+   829→   829→   829→        status: 'active',
+   830→   830→   830→        currentPeriodStart: now,
+   831→   831→   831→        currentPeriodEnd: periodEnd,
+   832→   832→   832→      },
+   833→   833→   833→    })
+   834→   834→   834→  }
+   835→   835→   835→  console.log('  ✓ 3 subscriptions')
+   836→   836→   836→
+   837→   837→   837→  // ─── FINAL COUNT ─────────────────────────────────────────
+   838→   838→   838→  let total = 0
+   839→   839→   839→  for (const m of Prisma.dmmf.datamodel.models) {
+   840→   840→   840→    try {
+   841→   841→   841→      const name = m.name.charAt(0).toLowerCase() + m.name.slice(1)
+   842→   842→   842→      const c = await (db as any)[name].count()
+   843→   843→   843→      if (c > 0) {
+   844→   844→   844→        console.log('    ' + m.name.padEnd(28) + c)
+   845→   845→   845→        total += c
+   846→   846→   846→      }
+   847→   847→   847→    } catch {}
+   848→   848→   848→  }
+   849→   849→   849→  console.log('\n  TOTAL: ' + total + ' records seeded\n')
+   850→   850→   850→  console.log('✅ Seeding complete!')
+   851→   851→   851→}
+   852→   852→   852→
+   853→   853→   853→main()
+   854→   854→   854→  .catch((e) => { console.error('Seed error:', e); process.exit(1) })
+   855→   855→   855→  .finally(async () => { await db.$disconnect() })
+   856→   856→   856→
