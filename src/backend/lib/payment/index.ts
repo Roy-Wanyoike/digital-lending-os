@@ -72,6 +72,30 @@ export const providerRegistry = {
 export type { PaymentProviderCode, PaymentMethod, InitializePaymentInput, InitializePaymentResult, VerifyPaymentInput, VerifyPaymentResult, FeeBreakdown, PaymentProvider } from './types'
 export { getProviderConfig, getActiveProviderConfigs, getProvidersForCurrency, getProvidersForCountry, getProviderName, getProviderLogo, calculateFee, PROVIDER_METHOD_MAP, ALL_PROVIDER_CODES } from './config'
 
+// ─── State Machine ──────────────────────────────────────────────
+export { PaymentStateMachine, getPaymentStateMachine } from './state-machine'
+export type { PaymentStateValue, TransitionGuard, TransitionContext, TransitionResult, HistoryEntry } from './state-machine'
+
+// ─── Idempotency ────────────────────────────────────────────────
+export { IdempotencyGuard, getIdempotencyGuard, withIdempotency, withIdempotentOperation } from './idempotency'
+export type { IdempotencyEntry, AcquireResult, IdempotencyMiddlewareOptions } from './idempotency'
+
+// ─── Encryption ───────────────────────────────────────────────
+export { encryptField, decryptField, deriveKey, getEncryptionKey, generateSecureToken, generatePaymentReference, hashWithBcrypt, compareWithBcrypt, sha256, hmacSha256, maskValue, maskEmail } from './encryption'
+export type { EncryptedField, KeyDerivationResult } from './encryption'
+
+// ─── Validation ───────────────────────────────────────────────
+export { PaymentInitiationSchema, validatePaymentInitiation, PaystackWebhookSchema, StripeWebhookSchema, FlutterwaveWebhookSchema, IntasendWebhookSchema, PayaWebhookSchema, verifyPaystackSignature, verifyStripeSignature, verifyFlutterwaveSignature, verifyIntasendSignature, verifyPayaSignature, verifyWebhookPayload, sanitizeInput, sanitizeObject } from './validation'
+export type { PaymentInitiationInput, PaystackWebhookPayload, StripeWebhookPayload, FlutterwaveWebhookPayload, IntasendWebhookPayload, PayaWebhookPayload, SignatureVerificationResult } from './validation'
+
+// ─── Security Middleware ────────────────────────────────────────
+export { securePaymentHandler, getSecurityHeaders, handleCors, InMemoryRateLimiter } from './security-middleware'
+export type { SecurityConfig, CorsConfig, RateLimitConfig, SecurePaymentHandlerOptions } from './security-middleware'
+
+// ─── Audit Trail ───────────────────────────────────────────────
+export { AuditTrail, getAuditTrail } from './audit-trail'
+export type { AuditAction, AuditEntry, AuditQuery, AuditVerificationResult } from './audit-trail'
+
 // ─── Realtime Event Emission Helpers ───────────────────────────
 // Centralized so webhook routes can fire a single call after a successful
 // (or failed) payment. The event bus forwards these to connected SSE clients.

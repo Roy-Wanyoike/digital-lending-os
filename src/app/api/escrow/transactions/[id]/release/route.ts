@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 import { eventBus } from "@/backend/services/event-bus";
 import { processEscrow } from "@/backend/services/temporal-bridge";
+import { recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const releaseSchema = z.object({
@@ -177,6 +178,9 @@ export async function POST(
 
     // Wire to Temporal workflow (falls back to direct execution if Temporal is unavailable)
     void processEscrow({ escrowId: id, milestoneId, milestoneSequence: milestone.sequence, tenantId: user.tenantId });
+
+    // ── State machine: record payment transition (release) ──
+    void recordPaymentTransition(id, 'in_escrow', updatedEscrow.status, user.email || user.id || 'authenticated');
 
     return NextResponse.json({ data: updatedEscrow });
   } catch (error) {

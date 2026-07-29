@@ -1,0 +1,20 @@
+# Youngsend ConfigMap - non-sensitive configuration
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: youngsend-config
+  namespace: youngsend-prod
+  labels:
+    app.kubernetes.io/name: youngsend
+data:
+  NODE_ENV: "production"
+  NEXT_PUBLIC_APP_URL: "https://youngsend.io"
+  DATABASE_URL: "postgresql://youngsend:REPLACE_WITH_SECRET@youngsend-postgresql-primary.youngsend-prod.svc.cluster.local:5432/youngsend?schema=public&sslmode=require"
+  REDIS_URL: "redis://youngsend-redis-0.youngsend-redis-headless.youngsend-prod.svc.cluster.local:6379"
+  KAFKA_BROKERS: "youngsend-kafka-0.youngsend-kafka-headless.youngsend-prod.svc.cluster.local:9092,youngsend-kafka-1.youngsend-kafka-headless.youngsend-prod.svc.cluster.local:9092,youngsend-kafka-2.youngsend-kafka-headless.youngsend-prod.svc.cluster.local:9092"
+  OPENSEARCH_URL: "https://youngsend-opensearch.youngsend-prod.svc.cluster.local:9200"
+  KAFKA_CLIENT_ID: "youngsend-nextjs"
+  KAFKA_GROUP_ID: "youngsend-nextjs-group"
+  LOG_LEVEL: "info"
+  NEXT_TELEMETRY_DISABLED: "1"

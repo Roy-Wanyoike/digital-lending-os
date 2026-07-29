@@ -1,0 +1,47 @@
+# Youngsend PodDisruptionBudgets
+# maxUnavailable: 1 for all StatefulSets
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: youngsend-redis-pdb
+  namespace: youngsend-prod
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-redis
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: youngsend-postgresql-pdb
+  namespace: youngsend-prod
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-postgresql
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: youngsend-kafka-pdb
+  namespace: youngsend-prod
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-kafka
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: youngsend-zookeeper-pdb
+  namespace: youngsend-prod
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-zookeeper

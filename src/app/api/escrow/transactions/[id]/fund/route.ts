@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { providerRegistry, getProvidersForCurrency, calculateFee, getProviderName, type PaymentProviderCode } from "@/lib/payment";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+import { recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
 
 // ── Zod Schema ───────────────────────────────────────────────
 const fundSchema = z.object({
@@ -184,6 +185,9 @@ export async function POST(
         }),
       },
     });
+
+    // ── State machine: record payment transition (fund) ───────
+    void recordPaymentTransition(paymentIntent.id, 'CREATED', 'PENDING_PROVIDER', user.email || user.id || 'authenticated');
 
     // ─── Return checkout info ─────────────────────────────────
     return NextResponse.json({

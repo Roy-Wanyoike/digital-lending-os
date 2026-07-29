@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getApiUser } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 
+// Lazy-load cache manager — graceful fallback if Redis/OTel not installed
+let _cacheManager: any = undefined;
+let _cacheAttempted = false;
+async function getCache() {
+  if (_cacheAttempted) return _cacheManager;
+  _cacheAttempted = true;
+  try {
+    const mod = await import('@/backend/lib/cache/cache-manager');
+    _cacheManager = mod.default;
+  } catch {
+    _cacheManager = undefined;
+  }
+  return _cacheManager;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getApiUser(req);
@@ -17,7 +32,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ escrows: [] });
     }
 
-    const escrows = await db.escrowTransaction.findMany({
+    const cacheManager = await getCache();
+    const fetchEscrows = () => db.escrowTransaction.findMany({
       where: {
         OR: [
           { buyerId: { in: businessIds } },
@@ -30,6 +46,10 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const escrows = cacheManager
+      ? await cacheManager.getOrSet(`escrows:${user.tenantId}`, fetchEscrows, { ttl: 30_000 })
+      : await fetchEscrows();
 
     return NextResponse.json({ escrows });
   } catch (error) {

@@ -1,0 +1,211 @@
+# Alertmanager Configuration — Youngsend Fintech Platform
+#
+# Alerting rules and notification routing for:
+# - Payment error rate > 5%
+# - API latency p99 > 2s
+# - Kafka consumer lag > 10,000
+# - Cache hit ratio < 80%
+# - Pod restart count > 3 in 10min
+#
+# Notifications: Slack + PagerDuty
+
+global:
+  # Default resolve timeout
+  resolve_timeout: 5m
+  # SMTP config (optional, for email alerts)
+  smtp_smarthost: "${SMTP_HOST:localhost}:587"
+  smtp_from: "${SMTP_FROM:alerts@youngsend.com}"
+  smtp_auth_username: "${SMTP_USERNAME:}"
+  smtp_auth_password: "${SMTP_PASSWORD:}"
+  smtp_require_tls: true
+
+# ─── Routing Tree ─────────────────────────────────────────────────────────────
+
+route:
+  receiver: "default"
+  group_by: ["alertname", "deployment_environment"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # ── Critical Payment Alerts → PagerDuty + Slack ──────────────────
+    - match:
+        severity: critical
+        category: payments
+      receiver: "pagerduty-payments"
+      group_by: ["alertname", "provider"]
+      group_wait: 15s
+      repeat_interval: 30m
+      continue: true
+
+    # ── Fraud Alerts → PagerDuty (immediate) ───────────────────────────
+    - match:
+        severity: critical
+        category: fraud
+      receiver: "pagerduty-fraud"
+      group_by: ["alertname", "severity", "type"]
+      group_wait: 0s
+      repeat_interval: 15m
+      continue: true
+
+    # ── Infrastructure Alerts → Slack + PagerDuty ────────────────────────
+    - match:
+        severity: warning
+        category: infrastructure
+      receiver: "slack-infra"
+      group_by: ["alertname"]
+      group_wait: 1m
+      repeat_interval: 2h
+
+    # ── Performance Alerts → Slack ──────────────────────────────────────
+    - match:
+        severity: warning
+        category: performance
+      receiver: "slack-performance"
+      group_by: ["alertname", "route"]
+      group_wait: 2m
+      repeat_interval: 1h
+
+    # ── All alerts → Slack #alerts channel ────────────────────────────
+    - match:
+        severity: critical
+      receiver: "slack-critical"
+      continue: true
+
+# ─── Inhibition Rules (prevent alert storms) ──────────────────────────────────
+
+inhibit_rules:
+  # If payment_error_rate is critical, suppress provider-specific alerts
+  - source_match:
+      alertname: HighPaymentErrorRate
+      severity: critical
+    target_match_re:
+      alertname: HighPaymentErrorRateByProvider
+    equal: ["deployment_environment"]
+
+  # If pod is down, suppress container-restart alerts
+  - source_match:
+      alertname: PodCrashLooping
+    target_match:
+      alertname: HighPodRestartCount
+    equal: ["namespace", "pod"]
+
+# ─── Receivers ─────────────────────────────────────────────────────────────────
+
+receivers:
+  # ── Default (catch-all) ─────────────────────────────────────────────
+  - name: "default"
+    webhook_configs:
+      - url: "${DEFAULT_WEBHOOK_URL:}"
+        send_resolved: true
+
+  # ── Slack: Critical Alerts ──────────────────────────────────────────
+  - name: "slack-critical"
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL_CRITICAL:}"
+        channel: "#alerts-critical"
+        title: "🔴 {{ .GroupLabels.alertname }}"
+        text: |
+          *Alert:* {{ .CommonAnnotations.summary }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Environment:* {{ .CommonLabels.deployment_environment }}
+          {{ range .Alerts }}
+          - *{{ .Labels.alertname }}*: {{ .Annotations.description }} ({{ .State }}) {{ end }}
+        send_resolved: true
+        color: "{{ if eq .Status \"firing\" }}danger{{ else }}good{{ end }}"
+        actions:
+          - type: button
+            text: "View Dashboard"
+            url: "${GRAFANA_URL:}/d/youngsend-overview"
+
+  # ── Slack: Infrastructure ──────────────────────────────────────────
+  - name: "slack-infra"
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL_INFRA:}"
+        channel: "#alerts-infra"
+        title: "⚠️ {{ .GroupLabels.alertname }}"
+        text: |
+          *Alert:* {{ .CommonAnnotations.summary }}
+          *Details:* {{ .CommonAnnotations.description }}
+          {{ range .Alerts }}
+          - {{ .Labels.alertname }}: {{ .Annotations.description }} {{ end }}
+        send_resolved: true
+        color: "{{ if eq .Status \"firing\" }}warning{{ else }}good{{ end }}"
+
+  # ── Slack: Performance ──────────────────────────────────────────────
+  - name: "slack-performance"
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL_PERF:}"
+        channel: "#alerts-performance"
+        title: "📈 {{ .GroupLabels.alertname }}"
+        text: |
+          *Alert:* {{ .CommonAnnotations.summary }}
+          {{ range .Alerts }}
+          - {{ .Labels.alertname }}: {{ .Annotations.description }} {{ end }}
+        send_resolved: true
+        color: "{{ if eq .Status \"firing\" }}warning{{ else }}good{{ end }}"
+
+  # ── PagerDuty: Payments ──────────────────────────────────────────────
+  - name: "pagerduty-payments"
+    pagerduty_configs:
+      - service_key: "${PAGERDUTY_SERVICE_KEY_PAYMENTS:}"
+        severity: "{{ if eq .CommonLabels.severity \"critical\" }}critical{{ else }}warning{{ end }}"
+        description: "{{ .CommonLabels.alertname }} - {{ .CommonAnnotations.summary }}"
+        details:
+          environment: "{{ .CommonLabels.deployment_environment }}"
+          provider: "{{ .CommonLabels.provider }}"
+          alert_url: "${GRAFANA_URL:}/d/payments-overview"
+        group: "{{ .CommonLabels.category }}"
+        class: "{{ .CommonLabels.alertname }}"
+        component: "{{ .CommonLabels.provider }}"
+      - events_api_url: "${PAGERDUTY_EVENTS_API_V2_URL:https://events.pagerduty.com/v2/enqueue}"
+        routing_key: "${PAGERDUTY_ROUTING_KEY_PAYMENTS:}"
+        severity: "critical"
+        summary: "{{ .CommonLabels.alertname }} - {{ .CommonAnnotations.summary }}"
+        source: "youngsend-api"
+        custom_details:
+          environment: "{{ .CommonLabels.deployment_environment }}"
+          provider: "{{ .CommonLabels.provider }}"
+          grafana_link: "${GRAFANA_URL:}/d/payments-overview"
+    # Also send to Slack
+    slack_configs:
+      - api_url: "${SLACK_WEBHOOK_URL_CRITICAL:}"
+        channel: "#alerts-payments"
+        title: "💰 {{ .GroupLabels.alertname }}"
+        text: |
+          *Alert:* {{ .CommonAnnotations.summary }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Provider:* {{ .CommonLabels.provider }}
+          *Environment:* {{ .CommonLabels.deployment_environment }}
+        send_resolved: true
+        color: "danger"
+
+  # ── PagerDuty: Fraud (immediate escalation) ─────────────────────────
+  - name: "pagerduty-fraud"
+    pagerduty_configs:
+      - service_key: "${PAGERDUTY_SERVICE_KEY_FRAUD:}"
+        severity: "critical"
+        description: "FRAUD ALERT: {{ .CommonLabels.alertname }} - {{ .CommonAnnotations.summary }}"
+        details:
+          environment: "{{ .CommonLabels.deployment_environment }}"
+          severity: "{{ .CommonLabels.severity }}"
+          type: "{{ .CommonLabels.type }}"
+          alert_url: "${GRAFANA_URL:}/d/payments-overview"
+        group: "fraud"
+        class: "{{ .CommonLabels.alertname }}"
+      - events_api_url: "${PAGERDUTY_EVENTS_API_V2_URL:https://events.pagerduty.com/v2/enqueue}"
+        routing_key: "${PAGERDUTY_ROUTING_KEY_FRAUD:}"
+        severity: "critical"
+        summary: "FRAUD: {{ .CommonLabels.alertname }} - {{ .CommonAnnotations.summary }}"
+        source: "youngsend-fraud-engine"
+        custom_details:
+          environment: "{{ .CommonLabels.deployment_environment }}"
+          fraud_type: "{{ .CommonLabels.type }}"
+          fraud_severity: "{{ .CommonLabels.severity }}"
+          grafana_link: "${GRAFANA_URL:}/d/payments-overview"
+
+# ─── Templates ───────────────────────────────────────────────────────────────
+
+templates:
+  - "/etc/alertmanager/templates/*.tmpl"

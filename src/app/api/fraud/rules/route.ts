@@ -3,6 +3,21 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+// Lazy-load cache manager — graceful fallback if Redis/OTel not installed
+let _cacheManager: any = undefined
+let _cacheAttempted = false
+async function getCache() {
+  if (_cacheAttempted) return _cacheManager
+  _cacheAttempted = true
+  try {
+    const mod = await import('@/backend/lib/cache/cache-manager')
+    _cacheManager = mod.default
+  } catch {
+    _cacheManager = undefined
+  }
+  return _cacheManager
+}
+
 const createFraudRuleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
@@ -24,10 +39,15 @@ export async function GET(request: NextRequest) {
       where.isActive = isActive === 'true'
     }
 
-    const rules = await db.fraudRule.findMany({
+    const cacheManager = await getCache()
+    const fetchRules = () => db.fraudRule.findMany({
       where,
       orderBy: { createdAt: 'desc' },
     })
+
+    const rules = cacheManager
+      ? await cacheManager.getOrSet(`fraud:rules:${user.tenantId}`, fetchRules, { ttl: 5 * 60_000 })
+      : await fetchRules()
 
     return NextResponse.json({ data: rules })
   } catch (error) {
@@ -54,14 +74,12 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data
 
-    // Validate condition is valid JSON
     try {
       JSON.parse(data.condition)
     } catch {
       return NextResponse.json({ error: 'Condition must be a valid JSON string' }, { status: 400 })
     }
 
-    // FraudRule is a global/system-level entity — no tenant filtering on creation
     const rule = await db.fraudRule.create({
       data: {
         name: data.name,

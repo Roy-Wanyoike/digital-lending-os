@@ -1,0 +1,254 @@
+# Youngsend Network Policies
+# Default deny-all with specific allow rules
+
+---
+# Default deny all ingress and egress in the namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: youngsend-prod
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# Allow Next.js pods to receive traffic from ingress controller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nextjs-ingress
+  namespace: youngsend-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-nextjs
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 3000
+---
+# Allow Next.js to talk to PostgreSQL
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nextjs-to-postgresql
+  namespace: youngsend-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-postgresql
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: youngsend-nextjs
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# Allow Next.js to talk to Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nextjs-to-redis
+  namespace: youngsend-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: youngsend-nextjs
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# Allow Next.js to talk to Kafka
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nextjs-to-kafka
+  namespace: youngsend-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-kafka
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: youngsend-nextjs
+      ports:
+        - protocol: TCP
+          port: 9092
+---
+# Allow Kafka to talk to Zookeeper
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kafka-to-zookeeper
+  namespace: youngsend-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-zookeeper
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: youngsend-kafka
+      ports:
+        - protocol: TCP
+          port: 2181
+---
+# Allow Redis replicas to talk to each other and sentinel
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-internal
+  namespace: youngsend-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-redis
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: youngsend-redis
+      ports:
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 26379
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: youngsend-redis
+      ports:
+        - protocol: TCP
+          port: 6379
+        - protocol: TCP
+          port: 26379
+---
+# Allow PostgreSQL replicas to talk to each other
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgresql-internal
+  namespace: youngsend-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-postgresql
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: youngsend-postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 8008
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: youngsend-postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 8008
+---
+# Allow Kafka brokers to talk to each other
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kafka-internal
+  namespace: youngsend-prod
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-kafka
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: youngsend-kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+        - protocol: TCP
+          port: 9093
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: youngsend-kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+        - protocol: TCP
+          port: 9093
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: youngsend-zookeeper
+      ports:
+        - protocol: TCP
+          port: 2181
+---
+# Allow DNS egress for all pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: youngsend-prod
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

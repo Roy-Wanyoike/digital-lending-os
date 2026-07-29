@@ -1,0 +1,450 @@
+{
+  "index_templates": [
+    {
+      "name": "youngsend-payments-template",
+      "index_patterns": ["payments*"],
+      "template": {
+        "settings": {
+          "number_of_shards": 3,
+          "number_of_replicas": 1,
+          "refresh_interval": "5s",
+          "index": {
+            "max_result_window": 10000,
+            "routing": {
+              "allocation": {
+                "enable": "all"
+              }
+            }
+          },
+          "analysis": {
+            "analyzer": {
+              "name_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": ["lowercase", "edge_ngram_filter"]
+              },
+              "email_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": ["lowercase", "email_normalizer"]
+              },
+              "autocomplete_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": ["lowercase", "shingle_filter"]
+              }
+            },
+            "filter": {
+              "edge_ngram_filter": {
+                "type": "edge_ngram",
+                "min_gram": 2,
+                "max_gram": 20
+              },
+              "email_normalizer": {
+                "type": "pattern_capture",
+                "patterns": ["([^@]+)", "(\\w+)", "([^.]+)"],
+                "preserve_original": true
+              },
+              "shingle_filter": {
+                "type": "shingle",
+                "min_shingle_size": 2,
+                "max_shingle_size": 3
+              }
+            }
+          }
+        },
+        "mappings": {
+          "dynamic": "strict",
+          "properties": {
+            "amount": { "type": "double" },
+            "currency": {
+              "type": "text",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "status": { "type": "keyword" },
+            "provider": {
+              "type": "text",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "description": {
+              "type": "text",
+              "analyzer": "standard",
+              "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+            },
+            "createdAt": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+            "updatedAt": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+            "userId": { "type": "keyword" },
+            "tenantId": { "type": "keyword" },
+            "fromBusinessName": {
+              "type": "text",
+              "analyzer": "name_analyzer",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "toBusinessName": {
+              "type": "text",
+              "analyzer": "name_analyzer",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "paymentMethod": { "type": "keyword" },
+            "escrowId": { "type": "keyword" },
+            "intentRef": { "type": "keyword" },
+            "txRef": { "type": "keyword" },
+            "sourceAmount": { "type": "double" },
+            "sourceCurrency": { "type": "keyword" },
+            "targetAmount": { "type": "double" },
+            "targetCurrency": { "type": "keyword" }
+          },
+          "dynamic_templates": [
+            {
+              "string_fields": {
+                "match_mapping_type": "string",
+                "mapping": {
+                  "type": "text",
+                  "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+                }
+              }
+            },
+            {
+              "metadata_fields": {
+                "match": "metadata.*",
+                "mapping": {
+                  "type": "text",
+                  "fields": { "keyword": { "type": "keyword" } },
+                  "index": false
+                }
+              }
+            }
+          ]
+        }
+      },
+      "priority": 200,
+      "composed_of": []
+    },
+    {
+      "name": "youngsend-transactions-template",
+      "index_patterns": ["transactions*"],
+      "template": {
+        "settings": {
+          "number_of_shards": 3,
+          "number_of_replicas": 1,
+          "refresh_interval": "5s",
+          "index": {
+            "max_result_window": 10000
+          },
+          "analysis": {
+            "analyzer": {
+              "name_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": ["lowercase", "edge_ngram_filter"]
+              }
+            },
+            "filter": {
+              "edge_ngram_filter": {
+                "type": "edge_ngram",
+                "min_gram": 2,
+                "max_gram": 20
+              }
+            }
+          }
+        },
+        "mappings": {
+          "dynamic": "strict",
+          "properties": {
+            "type": { "type": "keyword" },
+            "amount": { "type": "double" },
+            "currency": {
+              "type": "text",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "status": { "type": "keyword" },
+            "walletId": { "type": "keyword" },
+            "businessId": { "type": "keyword" },
+            "createdAt": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+            "reference": {
+              "type": "text",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "txRef": { "type": "keyword" },
+            "description": {
+              "type": "text",
+              "analyzer": "standard"
+            },
+            "counterpartyId": { "type": "keyword" },
+            "referenceType": { "type": "keyword" },
+            "balanceBefore": { "type": "double" },
+            "balanceAfter": { "type": "double" },
+            "provider": { "type": "keyword" },
+            "tenantId": { "type": "keyword" }
+          },
+          "dynamic_templates": [
+            {
+              "string_fields": {
+                "match_mapping_type": "string",
+                "mapping": {
+                  "type": "text",
+                  "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "priority": 200,
+      "composed_of": []
+    },
+    {
+      "name": "youngsend-businesses-template",
+      "index_patterns": ["businesses*"],
+      "template": {
+        "settings": {
+          "number_of_shards": 3,
+          "number_of_replicas": 1,
+          "refresh_interval": "5s",
+          "index": {
+            "max_result_window": 10000
+          },
+          "analysis": {
+            "analyzer": {
+              "name_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": ["lowercase", "edge_ngram_filter"]
+              },
+              "autocomplete_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": ["lowercase", "shingle_filter"]
+              }
+            },
+            "filter": {
+              "edge_ngram_filter": {
+                "type": "edge_ngram",
+                "min_gram": 2,
+                "max_gram": 20
+              },
+              "shingle_filter": {
+                "type": "shingle",
+                "min_shingle_size": 2,
+                "max_shingle_size": 3
+              }
+            }
+          }
+        },
+        "mappings": {
+          "dynamic": "strict",
+          "properties": {
+            "name": {
+              "type": "text",
+              "analyzer": "name_analyzer",
+              "fields": {
+                "keyword": { "type": "keyword" },
+                "autocomplete": { "type": "text", "analyzer": "autocomplete_analyzer" }
+              }
+            },
+            "legalName": {
+              "type": "text",
+              "analyzer": "name_analyzer",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "industry": {
+              "type": "text",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "country": {
+              "type": "text",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "city": {
+              "type": "text",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "status": { "type": "keyword" },
+            "tenantId": { "type": "keyword" },
+            "createdAt": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+            "description": {
+              "type": "text",
+              "analyzer": "standard"
+            },
+            "website": { "type": "keyword" },
+            "employeeCount": { "type": "integer" },
+            "annualRevenue": { "type": "double" },
+            "trustScore": { "type": "float" },
+            "credentialLevel": { "type": "keyword" },
+            "kycStatus": { "type": "keyword" },
+            "riskRating": { "type": "keyword" }
+          },
+          "dynamic_templates": [
+            {
+              "string_fields": {
+                "match_mapping_type": "string",
+                "mapping": {
+                  "type": "text",
+                  "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "priority": 200,
+      "composed_of": []
+    },
+    {
+      "name": "youngsend-users-template",
+      "index_patterns": ["users*"],
+      "template": {
+        "settings": {
+          "number_of_shards": 3,
+          "number_of_replicas": 1,
+          "refresh_interval": "5s",
+          "index": {
+            "max_result_window": 10000
+          },
+          "analysis": {
+            "analyzer": {
+              "name_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": ["lowercase", "edge_ngram_filter"]
+              },
+              "autocomplete_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": ["lowercase", "shingle_filter"]
+              },
+              "email_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": ["lowercase", "email_normalizer"]
+              }
+            },
+            "filter": {
+              "edge_ngram_filter": {
+                "type": "edge_ngram",
+                "min_gram": 2,
+                "max_gram": 20
+              },
+              "email_normalizer": {
+                "type": "pattern_capture",
+                "patterns": ["([^@]+)", "(\\w+)", "([^.]+)"],
+                "preserve_original": true
+              },
+              "shingle_filter": {
+                "type": "shingle",
+                "min_shingle_size": 2,
+                "max_shingle_size": 3
+              }
+            }
+          }
+        },
+        "mappings": {
+          "dynamic": "strict",
+          "properties": {
+            "name": {
+              "type": "text",
+              "analyzer": "name_analyzer",
+              "fields": {
+                "keyword": { "type": "keyword" },
+                "autocomplete": { "type": "text", "analyzer": "autocomplete_analyzer" }
+              }
+            },
+            "email": {
+              "type": "text",
+              "analyzer": "email_analyzer",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "role": { "type": "keyword" },
+            "status": { "type": "keyword" },
+            "tenantId": { "type": "keyword" },
+            "businessId": { "type": "keyword" },
+            "lastLoginAt": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+            "createdAt": { "type": "date", "format": "strict_date_optional_time||epoch_millis" }
+          },
+          "dynamic_templates": [
+            {
+              "string_fields": {
+                "match_mapping_type": "string",
+                "mapping": {
+                  "type": "text",
+                  "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "priority": 200,
+      "composed_of": []
+    },
+    {
+      "name": "youngsend-audit-logs-template",
+      "index_patterns": ["audit-logs*"],
+      "template": {
+        "settings": {
+          "number_of_shards": 5,
+          "number_of_replicas": 1,
+          "refresh_interval": "5s",
+          "index": {
+            "max_result_window": 10000
+          },
+          "analysis": {
+            "analyzer": {
+              "standard_analyzer": {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": ["lowercase"]
+              }
+            }
+          }
+        },
+        "mappings": {
+          "dynamic": "strict",
+          "properties": {
+            "action": {
+              "type": "text",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "actor": {
+              "type": "text",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "actorId": { "type": "keyword" },
+            "resource": {
+              "type": "text",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "resourceId": { "type": "keyword" },
+            "details": {
+              "type": "text",
+              "analyzer": "standard"
+            },
+            "timestamp": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+            "tenantId": { "type": "keyword" },
+            "ipAddress": {
+              "type": "text",
+              "fields": { "keyword": { "type": "keyword" } }
+            },
+            "metadata": {
+              "type": "object",
+              "enabled": false
+            }
+          },
+          "dynamic_templates": [
+            {
+              "string_fields": {
+                "match_mapping_type": "string",
+                "mapping": {
+                  "type": "text",
+                  "fields": { "keyword": { "type": "keyword", "ignore_above": 256 } }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "priority": 200,
+      "composed_of": []
+    }
+  ]
+}

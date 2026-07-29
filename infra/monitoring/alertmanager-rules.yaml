@@ -1,0 +1,242 @@
+# Prometheus Alerting Rules — Youngsend Fintech Platform
+#
+# Referenced by Prometheus config: rule_files: [alertmanager-rules.yaml]
+# These rules generate alerts that Alertmanager routes.
+
+groups:
+  # ─── Payment Alerts ────────────────────────────────────────────────────────
+  - name: youngsend-payments
+    rules:
+      - alert: HighPaymentErrorRate
+        expr: |
+          sum(rate(youngsend_payment_total{status="failed"}[5m])) by (deployment_environment)
+          /
+          sum(rate(youngsend_payment_total[5m])) by (deployment_environment)
+          > 0.05
+        for: 3m
+        labels:
+          severity: critical
+          category: payments
+        annotations:
+          summary: "Payment error rate exceeds 5% in {{ $labels.deployment_environment }}"
+          description: >
+            Payment failure rate is {{ $value | humanizePercentage }}
+            (threshold: 5%) for the last 3 minutes in {{ $labels.deployment_environment }}.
+            Immediate investigation required.
+          runbook_url: "https://wiki.youngsend.com/runbooks/high-payment-error-rate"
+
+      - alert: HighPaymentErrorRateByProvider
+        expr: |
+          sum(rate(youngsend_payment_total{status="failed"}[5m])) by (deployment_environment, provider)
+          /
+          sum(rate(youngsend_payment_total[5m])) by (deployment_environment, provider)
+          > 0.10
+        for: 2m
+        labels:
+          severity: warning
+          category: payments
+        annotations:
+          summary: "Provider {{ $labels.provider }} error rate > 10% in {{ $labels.deployment_environment }}"
+          description: >
+            Provider {{ $labels.provider }} has a {{ $value | humanizePercentage }}
+            failure rate (threshold: 10%) for the last 2 minutes.
+
+      - alert: PaymentProcessingStalled
+        expr: |
+          sum(rate(youngsend_payment_total{status="pending"}[10m])) by (deployment_environment)
+          > 0
+          and
+          sum(increase(youngsend_payment_total{status="pending"}[15m])) by (deployment_environment)
+          >
+          sum(increase(youngsend_payment_total{status="pending"}[15m])) by (deployment_environment) offset 15m
+        for: 10m
+        labels:
+          severity: warning
+          category: payments
+        annotations:
+          summary: "Payment processing appears stalled in {{ $labels.deployment_environment }}"
+          description: >
+            Pending payment count is increasing but not being resolved.
+            Potential processing pipeline issue.
+
+  # ─── API Performance Alerts ────────────────────────────────────────────────
+  - name: youngsend-performance
+    rules:
+      - alert: HighAPILatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(youngsend_request_duration_bucket[5m])) by (le, deployment_environment)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "API p99 latency exceeds 2s in {{ $labels.deployment_environment }}"
+          description: >
+            p99 latency is {{ $value | humanizeDuration }} (threshold: 2s)
+            for the last 5 minutes in {{ $labels.deployment_environment }}.
+            Consider scaling or optimizing slow endpoints.
+
+      - alert: HighAPILatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(youngsend_request_duration_bucket[5m])) by (le, deployment_environment)
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "API p95 latency exceeds 1s in {{ $labels.deployment_environment }}"
+          description: >
+            p95 latency is {{ $value | humanizeDuration }} (threshold: 1s)
+            for the last 10 minutes.
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{code=~"5.."}[5m])) by (deployment_environment)
+          /
+          sum(rate(http_requests_total[5m])) by (deployment_environment)
+          > 0.01
+        for: 3m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "5xx error rate exceeds 1% in {{ $labels.deployment_environment }}"
+          description: >
+            Server error rate is {{ $value | humanizePercentage }} (threshold: 1%)
+            for the last 3 minutes.
+
+  # ─── Infrastructure Alerts ─────────────────────────────────────────────────
+  - name: youngsend-infrastructure
+    rules:
+      - alert: HighKafkaConsumerLag
+        expr: youngsend_kafka_consumer_lag > 10000
+        for: 5m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Kafka consumer lag exceeds 10,000 for {{ $labels.topic }} / {{ $labels.consumer_group }}"
+          description: >
+            Consumer group {{ $labels.consumer_group }} on topic {{ $labels.topic }}
+            has a lag of {{ $value }} messages (threshold: 10,000).
+            Risk of delayed event processing.
+
+      - alert: KafkaConsumerLagWarning
+        expr: youngsend_kafka_consumer_lag > 5000
+        for: 10m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Kafka consumer lag exceeds 5,000 for {{ $labels.topic }}"
+          description: >
+            Consumer group {{ $labels.consumer_group }} on topic {{ $labels.topic }}
+            has a lag of {{ $value }} messages.
+
+      - alert: LowCacheHitRatio
+        expr: youngsend_cache_hit_ratio < 0.80
+        for: 10m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Cache hit ratio below 80% for {{ $labels.cache_type }}"
+          description: >
+            Cache hit ratio is {{ $value | humanizePercentage }} (threshold: 80%)
+            for cache type {{ $labels.cache_type }}.
+            Potential cache cold-start or eviction issue.
+
+      - alert: HighPodRestartCount
+        expr: |
+          sum(increase(kube_pod_container_status_restarts_total[10m])) by (namespace, pod) > 3
+        for: 5m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Pod {{ $labels.pod }} has restarted > 3 times in 10 minutes"
+          description: >
+            Container in pod {{ $labels.pod }} (namespace {{ $labels.namespace }})
+            has restarted {{ $value }} times in the last 10 minutes.
+            Possible crash loop or OOM kill.
+
+      - alert: PodCrashLooping
+        expr: |
+          kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"} == 1
+        for: 5m
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Pod {{ $labels.pod }} is in CrashLoopBackOff"
+          description: >
+            Container {{ $labels.container }} in pod {{ $labels.pod }}
+            is in CrashLoopBackOff state.
+
+  # ─── Fraud Alerts ──────────────────────────────────────────────────────────
+  - name: youngsend-fraud
+    rules:
+      - alert: FraudAlertSpike
+        expr: |
+          sum(increase(youngsend_fraud_alerts[5m])) by (deployment_environment, severity)
+          > 10
+        for: 1m
+        labels:
+          severity: critical
+          category: fraud
+        annotations:
+          summary: "Fraud alert spike: {{ $value }} alerts in last 5 minutes ({{ $labels.severity }})"
+          description: >
+            {{ $value }} {{ $labels.severity }} fraud alerts detected in the last 5 minutes
+            in {{ $labels.deployment_environment }}. Potential coordinated attack or
+            fraud rule misconfiguration.
+
+      - alert: FraudAlertTrend
+        expr: |
+          sum(increase(youngsend_fraud_alerts[1h])) by (deployment_environment, type)
+          >
+          2 * sum(increase(youngsend_fraud_alerts[1h] offset 1h)) by (deployment_environment, type)
+          and
+          sum(increase(youngsend_fraud_alerts[1h])) by (deployment_environment, type) > 5
+        for: 30m
+        labels:
+          severity: warning
+          category: fraud
+        annotations:
+          summary: "Fraud alert trend doubling for type {{ $labels.type }}"
+          description: >
+            Fraud alerts for type {{ $labels.type }} have doubled compared
+            to the previous hour in {{ $labels.deployment_environment }}.
+
+  # ─── Resource Alerts ────────────────────────────────────────────────────────
+  - name: youngsend-resources
+    rules:
+      - alert: HighMemoryUsage
+        expr: |
+          process_resident_memory_bytes / on(instance) kube_pod_container_resource_limits{resource="memory"} > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "Memory usage exceeds 90% of limit"
+          description: >
+            Container memory usage is at {{ $value | humanizePercentage }} of limit.
+            Risk of OOM kill.
+
+      - alert: HighCPUUsage
+        expr: |
+          100 * sum(rate(container_cpu_usage_seconds_total[5m])) by (pod)
+          /
+          sum(kube_pod_container_resource_limits{resource="cpu"}) by (pod) > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "CPU usage exceeds 80% for pod {{ $labels.pod }}"
+          description: "Pod {{ $labels.pod }} CPU usage at {{ $value }}%."

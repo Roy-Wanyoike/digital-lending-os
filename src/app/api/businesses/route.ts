@@ -2,12 +2,28 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 
+// Lazy-load cache manager — graceful fallback if Redis/OTel not installed
+let _cacheManager: any = undefined;
+let _cacheAttempted = false;
+async function getCache() {
+  if (_cacheAttempted) return _cacheManager;
+  _cacheAttempted = true;
+  try {
+    const mod = await import('@/backend/lib/cache/cache-manager');
+    _cacheManager = mod.default;
+  } catch {
+    _cacheManager = undefined;
+  }
+  return _cacheManager;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return errorResponse('Authentication required', 401);
 
-    const businesses = await db.business.findMany({
+    const cacheManager = await getCache();
+    const fetchBusinesses = () => db.business.findMany({
       where: { tenantId: user.tenantId },
       include: {
         passport: { select: { credentialLevel: true, kycStatus: true, amlStatus: true, riskRating: true } },
@@ -23,6 +39,10 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const businesses = cacheManager
+      ? await cacheManager.getOrSet(`businesses:${user.tenantId}`, fetchBusinesses, { ttl: 5 * 60_000 })
+      : await fetchBusinesses();
 
     return successResponse(businesses);
   } catch (error: any) {

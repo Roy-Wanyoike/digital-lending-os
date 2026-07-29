@@ -1,0 +1,98 @@
+# Youngsend Next.js Service and Ingress
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: youngsend-nextjs
+  namespace: youngsend-prod
+  labels:
+    app.kubernetes.io/name: youngsend-nextjs
+    app.kubernetes.io/component: frontend
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: youngsend-nextjs
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: youngsend-ingress
+  namespace: youngsend-prod
+  labels:
+    app.kubernetes.io/name: youngsend
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: youngsend-prod-ip
+    networking.gke.io/managed-certificates: youngsend-prod-cert
+    networking.gke.io/v1beta1.FrontendConfig: youngsend-frontend-config
+spec:
+  tls:
+    - hosts:
+        - youngsend.io
+        - www.youngsend.io
+      secretName: youngsend-tls
+  rules:
+    - host: youngsend.io
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: youngsend-nextjs
+                port:
+                  number: 3000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: youngsend-nextjs
+                port:
+                  number: 3000
+    - host: www.youngsend.io
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: youngsend-nextjs
+                port:
+                  number: 3000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: youngsend-nextjs
+                port:
+                  number: 3000
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: youngsend-prod-cert
+  namespace: youngsend-prod
+spec:
+  domains:
+    - youngsend.io
+    - www.youngsend.io
+---
+apiVersion: networking.gke.io/v1beta1
+kind: FrontendConfig
+metadata:
+  name: youngsend-frontend-config
+  namespace: youngsend-prod
+spec:
+  sslPolicy: youngsend-ssl-policy
+  redirectToHttps:
+    enabled: true
+  defaultTimeoutSeconds: 30

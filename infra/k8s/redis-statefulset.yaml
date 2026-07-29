@@ -1,0 +1,228 @@
+# Youngsend Redis 3-Replica StatefulSet with Sentinel
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: youngsend-redis-headless
+  namespace: youngsend-prod
+  labels:
+    app.kubernetes.io/name: youngsend-redis
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+    - name: sentinel
+      port: 26379
+      targetPort: sentinel
+  selector:
+    app.kubernetes.io/name: youngsend-redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: youngsend-redis
+  namespace: youngsend-prod
+  labels:
+    app.kubernetes.io/name: youngsend-redis
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+  selector:
+    app.kubernetes.io/name: youngsend-redis
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: youngsend-redis
+  namespace: youngsend-prod
+  labels:
+    app.kubernetes.io/name: youngsend-redis
+    app.kubernetes.io/component: cache
+spec:
+  serviceName: youngsend-redis-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: youngsend-redis
+        app.kubernetes.io/component: cache
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9121"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: youngsend-redis
+              topologyKey: kubernetes.io/hostname
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: redis
+          image: redis:7.2-alpine
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          command:
+            - /bin/sh
+            - -c
+            - |
+              REDIS_CONF=/etc/redis/redis.conf
+              HOSTNAME=$(hostname)
+              IDX=${HOSTNAME##*-}
+              if [ "$IDX" = "0" ]; then
+                sed -i "s/^# *replicaof.*/replicaof no one/" $REDIS_CONF
+              else
+                sed -i "s/^# *replicaof.*/replicaof youngsend-redis-0.youngsend-redis-headless.youngsend-prod.svc.cluster.local 6379/" $REDIS_CONF
+              fi
+              exec redis-server $REDIS_CONF
+          env:
+            - name: REDIS_REPLICATION_MODE
+              value: "sentinel"
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+            - name: redis-config
+              mountPath: /etc/redis
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 100m
+            limits:
+              memory: 1Gi
+              cpu: "1"
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+        - name: sentinel
+          image: redis:7.2-alpine
+          ports:
+            - name: sentinel
+              containerPort: 26379
+              protocol: TCP
+          command:
+            - /bin/sh
+            - -c
+            - |
+              HOSTNAME=$(hostname)
+              IDX=${HOSTNAME##*-}
+              sentinel monitor youngsend-master youngsend-redis-0.youngsend-redis-headless.youngsend-prod.svc.cluster.local 6379 2
+              sentinel down-after-milliseconds youngsend-master 5000
+              sentinel failover-timeout youngsend-master 10000
+              sentinel parallel-syncs youngsend-master 1
+              sentinel resolve-hostnames no
+              sentinel announce-ip youngsend-redis-${IDX}.youngsend-redis-headless.youngsend-prod.svc.cluster.local
+              sentinel announce-port 26379
+              exec redis-sentinel /dev/stdin
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 100m
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -p
+                - "26379"
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: redis-config
+          configMap:
+            name: redis-config
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+        storageClassName: standard-rwo
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+  namespace: youngsend-prod
+data:
+  redis.conf: |
+    bind 0.0.0.0
+    port 6379
+    protected-mode no
+    tcp-backlog 511
+    timeout 300
+    tcp-keepalive 60
+    daemonize no
+    pidfile /var/run/redis/redis-server.pid
+    loglevel notice
+    logfile ""
+    databases 16
+    always-show-logo no
+    save 900 1
+    save 300 10
+    save 60 10000
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    rdbchecksum yes
+    dbfilename dump.rdb
+    dir /data
+    maxmemory 768mb
+    maxmemory-policy allkeys-lru
+    appendonly yes
+    appendfilename "appendonly.aof"
+    appendfsync everysec
+    no-appendfsync-on-rewrite no
+    auto-aof-rewrite-percentage 100
+    auto-aof-rewrite-min-size 64mb
+    # replicaof <masterip> <masterport>  (set dynamically)
+    masterauth ""
+    replica-serve-stale-data yes
+    replica-read-only yes
+    repl-diskless-sync no
+    repl-diskless-sync-delay 5
+    repl-disable-tcp-nodelay no
+    replica-priority 100
+    lazyfree-lazy-eviction yes
+    lazyfree-lazy-expire yes
+    lazyfree-lazy-server-del yes
+    replica-lazy-flush no

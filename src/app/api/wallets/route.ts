@@ -3,6 +3,21 @@ import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpe
 import { db } from '@/lib/db';
 import { logAudit } from '@/lib/audit-logger';
 
+// Lazy-load cache manager — graceful fallback if Redis/OTel not installed
+let _cacheManager: any = undefined;
+let _cacheAttempted = false;
+async function getCache() {
+  if (_cacheAttempted) return _cacheManager;
+  _cacheAttempted = true;
+  try {
+    const mod = await import('@/backend/lib/cache/cache-manager');
+    _cacheManager = mod.default;
+  } catch {
+    _cacheManager = undefined;
+  }
+  return _cacheManager;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getApiUser(req);
@@ -19,10 +34,15 @@ export async function GET(req: NextRequest) {
       return successResponse([]);
     }
 
-    const wallets = await db.wallet.findMany({
+    const cacheManager = await getCache();
+    const fetchWallets = () => db.wallet.findMany({
       where: { businessId: { in: businessIds } },
       orderBy: { createdAt: 'desc' },
     });
+
+    const wallets = cacheManager
+      ? await cacheManager.getOrSet(`wallets:${user.tenantId}`, fetchWallets, { ttl: 60_000 })
+      : await fetchWallets();
 
     return successResponse(wallets);
   } catch (error: any) {

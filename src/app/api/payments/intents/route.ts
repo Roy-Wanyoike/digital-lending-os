@@ -3,6 +3,42 @@ import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 import { processPayment } from "@/backend/services/temporal-bridge";
+import { withPaymentIdempotency, recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
+
+// ── Lazy-loaded payment infrastructure (avoids crashes if modules have issues) ──
+let _stateMachine: any = null;
+let _idempotencyGuard: any = null;
+let _auditTrail: any = null;
+
+async function getStateMachine() {
+  if (!_stateMachine) {
+    try {
+      const mod = await import('@/backend/lib/payment/state-machine');
+      _stateMachine = mod.getPaymentStateMachine();
+    } catch { /* state machine unavailable */ }
+  }
+  return _stateMachine;
+}
+
+async function getIdempotencyGuard() {
+  if (!_idempotencyGuard) {
+    try {
+      const mod = await import('@/backend/lib/payment/idempotency');
+      _idempotencyGuard = mod.getIdempotencyGuard();
+    } catch { /* idempotency guard unavailable */ }
+  }
+  return _idempotencyGuard;
+}
+
+async function getAuditTrail() {
+  if (!_auditTrail) {
+    try {
+      const mod = await import('@/backend/lib/payment/audit-trail');
+      _auditTrail = mod.getAuditTrail();
+    } catch { /* audit trail unavailable */ }
+  }
+  return _auditTrail;
+}
 
 // ── Zod Schema ───────────────────────────────────────────────
 const createIntentSchema = z.object({
@@ -108,11 +144,33 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ── POST: Create payment intent ─────────────────────────────
-export async function POST(request: NextRequest) {
+// ── POST: Create payment intent (inner handler, wrapped with idempotency) ──
+async function createPaymentIntent(request: NextRequest) {
   try {
     const user = await getApiUser(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+
+    // ── Idempotency check ─────────────────────────────────────
+    const idempotencyKey = request.headers.get('idempotency-key');
+    const guard = await getIdempotencyGuard();
+    if (idempotencyKey && guard) {
+      const existing = guard.getCachedResponse(idempotencyKey);
+      if (existing && existing.status === 'completed') {
+        // Return cached response for already-processed request
+        return NextResponse.json(
+          existing.response,
+          { status: existing.responseStatus || 201, headers: existing.responseHeaders || {} },
+        );
+      }
+      const acquireResult = guard.acquire(idempotencyKey);
+      if (acquireResult.alreadyProcessing) {
+        return NextResponse.json(
+          { error: 'Request already in progress', code: 'IDEMPOTENCY_IN_PROGRESS' },
+          { status: 409 },
+        );
+      }
+    }
+
     const body = await request.json();
     const parsed = createIntentSchema.safeParse(body);
 
@@ -166,10 +224,43 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // ── State machine: record initial CREATED state ───────────
+    const sm = await getStateMachine();
+    if (sm) {
+      sm.initialize(intent.id);
+    }
+
+    // ── Audit trail: record payment state transition via helpers ──
+    void recordPaymentTransition(intent.id, 'NONE', 'CREATED', user.email || user.id || 'authenticated');
+
+    // ── Audit trail: record payment creation ───────────────────
+    const audit = await getAuditTrail();
+    if (audit) {
+      try {
+        await audit.record({
+          action: 'PAYMENT_CREATED',
+          actor: user.email || user.id || 'authenticated',
+          resourceId: intent.id,
+          resourceType: 'payment_intent',
+          description: `Payment intent ${intent.intentRef} created for ${data.sourceAmount} ${data.sourceCurrency} -> ${data.targetCurrency}`,
+          metadata: { fromBusinessId: data.fromBusinessId, toBusinessId: data.toBusinessId, sourceAmount: data.sourceAmount, routingProvider },
+          ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+          userAgent: request.headers.get('user-agent') || 'system',
+        });
+      } catch { /* non-fatal */ }
+    }
+
     // Wire to Temporal workflow (falls back to direct execution if Temporal is unavailable)
     void processPayment({ paymentIntentId: intent.id, amount: data.sourceAmount, currency: data.sourceCurrency, payerEmail: user.email, payerName: user.email, provider: routingProvider, tenantId: user.tenantId });
 
-    return NextResponse.json({ data: intent }, { status: 201 });
+    const responseData = { data: intent };
+
+    // ── Store response for idempotency ─────────────────────────
+    if (idempotencyKey && guard) {
+      guard.complete(idempotencyKey, responseData, 201);
+    }
+
+    return NextResponse.json(responseData, { status: 201 });
   } catch (error) {
     console.error("Error creating payment intent:", error);
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
@@ -179,3 +270,6 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// ── Wrap POST with payment idempotency guard ──────────────
+export const POST = withPaymentIdempotency(createPaymentIntent);

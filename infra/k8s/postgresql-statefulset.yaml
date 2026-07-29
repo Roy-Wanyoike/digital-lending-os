@@ -1,0 +1,270 @@
+# Youngsend PostgreSQL StatefulSet with Patroni (1 primary + 2 replicas)
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: youngsend-postgresql-headless
+  namespace: youngsend-prod
+  labels:
+    app.kubernetes.io/name: youngsend-postgresql
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+    - name: patroni
+      port: 8008
+      targetPort: patroni
+  selector:
+    app.kubernetes.io/name: youngsend-postgresql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: youngsend-postgresql-primary
+  namespace: youngsend-prod
+  labels:
+    app.kubernetes.io/name: youngsend-postgresql
+    role: primary
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+  selector:
+    app.kubernetes.io/name: youngsend-postgresql
+    role: primary
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: youngsend-postgresql-replica
+  namespace: youngsend-prod
+  labels:
+    app.kubernetes.io/name: youngsend-postgresql
+    role: replica
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+  selector:
+    app.kubernetes.io/name: youngsend-postgresql
+    role: replica
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: youngsend-postgresql
+  namespace: youngsend-prod
+  labels:
+    app.kubernetes.io/name: youngsend-postgresql
+    app.kubernetes.io/component: database
+spec:
+  serviceName: youngsend-postgresql-headless
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: youngsend-postgresql
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: youngsend-postgresql
+        app.kubernetes.io/component: database
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9187"
+    spec:
+      securityContext:
+        fsGroup: 1001
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: youngsend-postgresql
+              topologyKey: kubernetes.io/hostname
+      terminationGracePeriodSeconds: 60
+      initContainers:
+        - name: init-data
+          image: postgres:16-alpine
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              chown -R 1001:1001 /var/lib/postgresql/data
+              chmod 700 /var/lib/postgresql/data
+          volumeMounts:
+            - name: postgresql-data
+              mountPath: /var/lib/postgresql/data
+          securityContext:
+            runAsUser: 0
+      containers:
+        - name: postgresql
+          image: postgres:16-alpine
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_DB
+              value: youngsend
+            - name: POSTGRES_USER
+              value: youngsend
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: youngsend-secrets
+                  key: DATABASE_PASSWORD
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: PATRONI_SCOPE
+              value: youngsend-pg-cluster
+            - name: PATRONI_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: PATRONI_RESTAPI_LISTEN
+              value: "0.0.0.0:8008"
+            - name: PATRONI_POSTGRESQL_LISTEN
+              value: "0.0.0.0:5432"
+            - name: PATRONI_POSTGRESQL_CONNECT_ADDRESS
+              value: "$(POD_IP):5432"
+            - name: PATRONI_RESTAPI_CONNECT_ADDRESS
+              value: "$(POD_IP):8008"
+            - name: PATRONI_REPLICATION_USERNAME
+              value: replicator
+            - name: PATRONI_REPLICATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: youngsend-secrets
+                  key: DATABASE_PASSWORD
+          command:
+            - patroni
+            - /etc/patroni/patroni.yml
+          volumeMounts:
+            - name: postgresql-data
+              mountPath: /var/lib/postgresql/data
+            - name: patroni-config
+              mountPath: /etc/patroni
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
+            limits:
+              memory: 2Gi
+              cpu: "2"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8008
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readiness
+              port: 8008
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: patroni-config
+          configMap:
+            name: patroni-config
+  volumeClaimTemplates:
+    - metadata:
+        name: postgresql-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+        storageClassName: standard-rwo
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: patroni-config
+  namespace: youngsend-prod
+data:
+  patroni.yml: |
+    scope: youngsend-pg-cluster
+    name: {{ PATRONI_NAME }}
+    restapi:
+      listen: 0.0.0.0:8008
+      connect_address: {{ PATRONI_RESTAPI_CONNECT_ADDRESS }}
+    postgresql:
+      listen: 0.0.0.0:5432
+      connect_address: {{ PATRONI_POSTGRESQL_CONNECT_ADDRESS }}
+      data_dir: /var/lib/postgresql/data/pgdata
+      pg_hba:
+        - local all all trust
+        - host replication replicator 0.0.0.0/0 md5
+        - host all all 0.0.0.0/0 md5
+      parameters:
+        max_connections: 200
+        shared_buffers: 512MB
+        effective_cache_size: 1536MB
+        maintenance_work_mem: 256MB
+        checkpoint_completion_target: 0.9
+        wal_buffers: 16MB
+        default_statistics_target: 100
+        random_page_cost: 1.1
+        effective_io_concurrency: 200
+        work_mem: 4MB
+        min_wal_size: 1GB
+        max_wal_size: 4GB
+        max_replication_slots: 10
+        max_wal_senders: 10
+        hot_standby: "on"
+        logging_collector: "on"
+        log_destination: stderr
+        log_min_duration_statement: 500
+        log_lock_waits: "on"
+        log_statement: ddl
+    etcd3:
+      hosts: http://youngsend-etcd:2379
+    bootstrap:
+      dcs:
+        ttl: 30
+        loop_wait: 10
+        retry_timeout: 10
+        maximum_lag_on_failover: 1048576
+        postgresql:
+          use_pg_rewind: true
+          parameters:
+            wal_level: replica
+            hot_standby: "on"
+            wal_keep_segments: 8
+            max_wal_senders: 10
+            max_replication_slots: 10
+      initdb:
+        - encoding: UTF8
+        - locale: en_US.UTF-8
+        - data-checksums
+      users:
+        admin:
+          password: admin
+          options:
+            - createrole
+            - createdb
+        replicator:
+          password: replicator
+          options:
+            - replication

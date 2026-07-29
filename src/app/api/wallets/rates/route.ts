@@ -1,7 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getApiUser } from '@/lib/auth/api-helpers'
 
-// Demo exchange rates — used by convert endpoint and the UI preview
+// Lazy-load cache manager — graceful fallback if Redis/OTel not installed
+let _cacheManager: any = undefined
+let _cacheAttempted = false
+async function getCache() {
+  if (_cacheAttempted) return _cacheManager
+  _cacheAttempted = true
+  try {
+    const mod = await import('@/backend/lib/cache/cache-manager')
+    _cacheManager = mod.default
+  } catch {
+    _cacheManager = undefined
+  }
+  return _cacheManager
+}
+
 const RATES: Record<string, Record<string, number>> = {
   USD: { EUR: 0.92, GBP: 0.79, NGN: 1550, KES: 153.5, GHS: 15.2, UGX: 3750, TZS: 2650, ZAR: 18.2, JPY: 149.5, CNY: 7.24, INR: 83.5, BRL: 5.0, CAD: 1.37, AUD: 1.53, CHF: 0.88, AED: 3.67, SGD: 1.34 },
   EUR: { USD: 1.087, GBP: 0.858, NGN: 1685, KES: 167, GHS: 16.5, UGX: 4075, TZS: 2880, ZAR: 19.8, JPY: 162.5, CNY: 7.87, INR: 90.8, BRL: 5.43, CAD: 1.49, AUD: 1.66, CHF: 0.956, AED: 3.99, SGD: 1.46 },
@@ -37,18 +51,24 @@ const CRYPTO_NETWORKS: Record<string, string[]> = {
 export async function GET(req: NextRequest) {
   const user = await getApiUser(req)
   if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  return NextResponse.json({
-    data: {
-      fiatRates: RATES,
-      cryptoPrices: CRYPTO_PRICES_USD,
-      fiatToUsd: FIAT_TO_USD,
-      networkFees: NETWORK_FEES,
-      cryptoNetworks: CRYPTO_NETWORKS,
-      conversionFeePercent: 0.5,
-      withdrawalFeePercent: 0.5,
-      withdrawalFlatFee: 2.5,
-      cryptoWithdrawalFeePercent: 1.0,
-      cryptoWithdrawalMinFee: 1.0,
-    },
+
+  const cacheManager = await getCache()
+  const fetchRates = () => ({
+    fiatRates: RATES,
+    cryptoPrices: CRYPTO_PRICES_USD,
+    fiatToUsd: FIAT_TO_USD,
+    networkFees: NETWORK_FEES,
+    cryptoNetworks: CRYPTO_NETWORKS,
+    conversionFeePercent: 0.5,
+    withdrawalFeePercent: 0.5,
+    withdrawalFlatFee: 2.5,
+    cryptoWithdrawalFeePercent: 1.0,
+    cryptoWithdrawalMinFee: 1.0,
   })
+
+  const data = cacheManager
+    ? await cacheManager.getOrSet('wallets:rates', fetchRates, { ttl: 60_000 })
+    : fetchRates()
+
+  return NextResponse.json({ data })
 }

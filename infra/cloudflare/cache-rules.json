@@ -1,0 +1,217 @@
+{
+  "rules": [
+    {
+      "id": "1",
+      "expression": "(http.request.uri.path contains \"/_next/static/\")",
+      "description": "Cache Next.js static assets at edge with 1 year TTL (immutable, hashed filenames)",
+      "action": "cache",
+      "edge_ttl": {
+        "minimum": 31536000,
+        "default": 31536000,
+        "maximum": 31536000
+      },
+      "browser_ttl": {
+        "minimum": 31536000,
+        "default": 31536000,
+        "maximum": 31536000
+      },
+      "cache_key": {
+        "cache_by_query_string": "none",
+        "ignore_on_fields": []
+      },
+      "cache": true,
+      "cache_everything": true,
+      "serve_stale_while_revalidate": 86400,
+      "stale_if_error": 604800,
+      "respect_origin_cache_control": false,
+      "surrogate_keys": ["static-assets", "hashed-assets"]
+    },
+    {
+      "id": "2",
+      "expression": "(http.request.uri.path contains \"/api/dashboard/stats\")",
+      "description": "Cache dashboard stats API at edge for 30s, bypass on cookie presence for personalized data",
+      "action": "cache",
+      "edge_ttl": {
+        "minimum": 30,
+        "default": 30,
+        "maximum": 30
+      },
+      "browser_ttl": {
+        "minimum": 0,
+        "default": 0,
+        "maximum": 5
+      },
+      "cache_key": {
+        "cache_by_query_string": "all",
+        "ignore_on_fields": []
+      },
+      "cache": true,
+      "cache_everything": false,
+      "serve_stale_while_revalidate": 60,
+      "stale_if_error": 300,
+      "respect_origin_cache_control": true,
+      "bypass_cache_on_cookie": [
+        "authjs.session-token",
+        "next-auth.session-token",
+        "__Secure-authjs.session-token"
+      ],
+      "surrogate_keys": ["api-response", "api-dashboard"]
+    },
+    {
+      "id": "3",
+      "expression": "(http.request.uri.path contains \"/api/currency\") and (http.request.method eq \"GET\")",
+      "description": "Cache currency exchange rates API at edge for 60s",
+      "action": "cache",
+      "edge_ttl": {
+        "minimum": 60,
+        "default": 60,
+        "maximum": 120
+      },
+      "browser_ttl": {
+        "minimum": 0,
+        "default": 0,
+        "maximum": 10
+      },
+      "cache_key": {
+        "cache_by_query_string": "all",
+        "ignore_on_fields": []
+      },
+      "cache": true,
+      "cache_everything": false,
+      "serve_stale_while_revalidate": 120,
+      "stale_if_error": 600,
+      "respect_origin_cache_control": true,
+      "surrogate_keys": ["api-response", "api-currency"]
+    },
+    {
+      "id": "4",
+      "expression": "(http.request.uri.path contains \"/api/wallets/rates\") and (http.request.method eq \"GET\")",
+      "description": "Cache wallet rates API at edge for 60s",
+      "action": "cache",
+      "edge_ttl": {
+        "minimum": 60,
+        "default": 60,
+        "maximum": 120
+      },
+      "browser_ttl": {
+        "minimum": 0,
+        "default": 0,
+        "maximum": 10
+      },
+      "cache_key": {
+        "cache_by_query_string": "all",
+        "ignore_on_fields": []
+      },
+      "cache": true,
+      "cache_everything": false,
+      "serve_stale_while_revalidate": 120,
+      "stale_if_error": 600,
+      "respect_origin_cache_control": true,
+      "surrogate_keys": ["api-response", "api-wallets-rates"]
+    },
+    {
+      "id": "5",
+      "expression": "(http.request.uri.path contains \"/api/payment-methods/global\") and (http.request.method eq \"GET\")",
+      "description": "Cache global payment methods API at edge for 10 minutes",
+      "action": "cache",
+      "edge_ttl": {
+        "minimum": 600,
+        "default": 600,
+        "maximum": 900
+      },
+      "browser_ttl": {
+        "minimum": 0,
+        "default": 0,
+        "maximum": 60
+      },
+      "cache_key": {
+        "cache_by_query_string": "all",
+        "ignore_on_fields": []
+      },
+      "cache": true,
+      "cache_everything": false,
+      "serve_stale_while_revalidate": 1200,
+      "stale_if_error": 3600,
+      "respect_origin_cache_control": true,
+      "surrogate_keys": ["api-response", "api-payment-methods"]
+    },
+    {
+      "id": "6",
+      "expression": "(http.request.uri.path contains \"/api/auth/\")",
+      "description": "BYPASS cache for all authentication endpoints — no caching",
+      "action": "bypass_cache",
+      "cache": false,
+      "cache_everything": false,
+      "bypass_cache_on_cookie": []
+    },
+    {
+      "id": "7",
+      "expression": "(http.request.uri.path contains \"/api/payments/\")",
+      "description": "BYPASS cache for all payment processing endpoints — no caching for security",
+      "action": "bypass_cache",
+      "cache": false,
+      "cache_everything": false,
+      "bypass_cache_on_cookie": []
+    },
+    {
+      "id": "8",
+      "expression": "(http.request.uri matches \"^/public/.*\\.(png|jpg|jpeg|gif|svg|ico|webp|avif|pdf|woff2|woff|ttf|otf|eot)$\")",
+      "description": "Cache static public assets at edge for 1 month with stale-while-revalidate",
+      "action": "cache",
+      "edge_ttl": {
+        "minimum": 2592000,
+        "default": 2592000,
+        "maximum": 2592000
+      },
+      "browser_ttl": {
+        "minimum": 604800,
+        "default": 2592000,
+        "maximum": 2592000
+      },
+      "cache_key": {
+        "cache_by_query_string": "none",
+        "ignore_on_fields": []
+      },
+      "cache": true,
+      "cache_everything": true,
+      "serve_stale_while_revalidate": 86400,
+      "stale_if_error": 259200,
+      "respect_origin_cache_control": false,
+      "surrogate_keys": ["static-assets", "public-assets"]
+    },
+    {
+      "id": "9",
+      "expression": "(http.request.uri.path contains \"/api/payments/rates\") and (http.request.method eq \"GET\")",
+      "description": "Cache payment rates API at edge for 60s",
+      "action": "cache",
+      "edge_ttl": {
+        "minimum": 60,
+        "default": 60,
+        "maximum": 120
+      },
+      "browser_ttl": {
+        "minimum": 0,
+        "default": 0,
+        "maximum": 10
+      },
+      "cache_key": {
+        "cache_by_query_string": "all",
+        "ignore_on_fields": []
+      },
+      "cache": true,
+      "cache_everything": false,
+      "serve_stale_while_revalidate": 120,
+      "stale_if_error": 600,
+      "respect_origin_cache_control": true,
+      "surrogate_keys": ["api-response", "api-payment-rates"]
+    },
+    {
+      "id": "10",
+      "expression": "(http.request.method eq \"POST\") or (http.request.method eq \"PUT\") or (http.request.method eq \"PATCH\") or (http.request.method eq \"DELETE\")",
+      "description": "Bypass cache for all mutating requests",
+      "action": "bypass_cache",
+      "cache": false,
+      "cache_everything": false
+    }
+  ]
+}

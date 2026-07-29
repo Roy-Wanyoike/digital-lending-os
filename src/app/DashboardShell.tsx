@@ -17,36 +17,37 @@ import { SidebarNav } from '@/components/dashboard/SidebarNav'
 import { ThemeToggle } from '@/components/theme-toggle'
 import dynamic from 'next/dynamic'
 
-// ─── Lazy-loaded tabs — zero cost until navigated to ─────────────
-// ssr: false because these tabs use browser APIs (recharts canvas, etc.)
-const OverviewTab = dynamic(() => import('@/components/dashboard/OverviewTab').then(m => ({ default: m.OverviewTab })), { loading: () => <TabSkeleton />, ssr: false })
-const TrustGraphTab = dynamic(() => import('@/components/dashboard/TrustGraphTab').then(m => ({ default: m.TrustGraphTab })), { loading: () => <TabSkeleton />, ssr: false })
-const EscrowTab = dynamic(() => import('@/components/dashboard/EscrowTab').then(m => ({ default: m.EscrowTab })), { loading: () => <TabSkeleton />, ssr: false })
-const PaymentsTab = dynamic(() => import('@/components/dashboard/PaymentsTab').then(m => ({ default: m.PaymentsTab })), { loading: () => <TabSkeleton />, ssr: false })
-const PassportTab = dynamic(() => import('@/components/dashboard/PassportTab').then(m => ({ default: m.PassportTab })), { loading: () => <TabSkeleton />, ssr: false })
-const DigitalTwinTab = dynamic(() => import('@/components/dashboard/DigitalTwinTab').then(m => ({ default: m.DigitalTwinTab })), { loading: () => <TabSkeleton />, ssr: false })
-const PaymentLinksTab = dynamic(() => import('@/components/dashboard/PaymentLinksTab').then(m => ({ default: m.PaymentLinksTab })), { loading: () => <TabSkeleton />, ssr: false })
-const WalletTab = dynamic(() => import('@/components/dashboard/WalletTab').then(m => ({ default: m.WalletTab })), { loading: () => <TabSkeleton />, ssr: false })
-const FraudTab = dynamic(() => import('@/components/dashboard/FraudTab').then(m => ({ default: m.FraudTab })), { loading: () => <TabSkeleton />, ssr: false })
-const ReferralTab = dynamic(() => import('@/components/dashboard/ReferralTab').then(m => ({ default: m.ReferralTab })), { loading: () => <TabSkeleton />, ssr: false })
-const MatchingTab = dynamic(() => import('@/components/dashboard/MatchingTab').then(m => ({ default: m.MatchingTab })), { loading: () => <TabSkeleton />, ssr: false })
-const CollectionsTab = dynamic(() => import('@/components/dashboard/CollectionsTab').then(m => ({ default: m.CollectionsTab })), { loading: () => <TabSkeleton />, ssr: false })
-const ComplianceTab = dynamic(() => import('@/components/dashboard/ComplianceTab').then(m => ({ default: m.ComplianceTab })), { loading: () => <TabSkeleton />, ssr: false })
-
-// ─── Lightweight skeleton — shared across all tabs ───────────────
-function TabSkeleton() {
-  return (
-    <div className="space-y-6 animate-pulse">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-24 rounded-lg bg-muted" />
-        ))}
-      </div>
-      <div className="h-64 rounded-lg bg-muted" />
-      <div className="h-48 rounded-lg bg-muted" />
+// ─── Shared skeleton — inlined to avoid separate module round-trip ─────
+const TabSkeleton = () => (
+  <div className="space-y-6 animate-pulse">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="h-24 rounded-lg bg-muted" />
+      ))}
     </div>
-  )
-}
+    <div className="h-64 rounded-lg bg-muted" />
+    <div className="h-48 rounded-lg bg-muted" />
+  </div>
+)
+
+// ─── Lazy-loaded tabs — zero cost until navigated to ─────────────
+// ssr: false + prefetch: false — no JS fetched until user clicks the tab
+const D = (importFn: () => Promise<{ default: React.ComponentType }>) =>
+  dynamic(importFn, { loading: () => <TabSkeleton />, ssr: false, prefetch: false })
+
+const OverviewTab = D(() => import('@/components/dashboard/OverviewTab').then(m => ({ default: m.OverviewTab })))
+const TrustGraphTab = D(() => import('@/components/dashboard/TrustGraphTab').then(m => ({ default: m.TrustGraphTab })))
+const EscrowTab = D(() => import('@/components/dashboard/EscrowTab').then(m => ({ default: m.EscrowTab })))
+const PaymentsTab = D(() => import('@/components/dashboard/PaymentsTab').then(m => ({ default: m.PaymentsTab })))
+const PassportTab = D(() => import('@/components/dashboard/PassportTab').then(m => ({ default: m.PassportTab })))
+const DigitalTwinTab = D(() => import('@/components/dashboard/DigitalTwinTab').then(m => ({ default: m.DigitalTwinTab })))
+const PaymentLinksTab = D(() => import('@/components/dashboard/PaymentLinksTab').then(m => ({ default: m.PaymentLinksTab })))
+const WalletTab = D(() => import('@/components/dashboard/WalletTab').then(m => ({ default: m.WalletTab })))
+const FraudTab = D(() => import('@/components/dashboard/FraudTab').then(m => ({ default: m.FraudTab })))
+const ReferralTab = D(() => import('@/components/dashboard/ReferralTab').then(m => ({ default: m.ReferralTab })))
+const MatchingTab = D(() => import('@/components/dashboard/MatchingTab').then(m => ({ default: m.MatchingTab })))
+const CollectionsTab = D(() => import('@/components/dashboard/CollectionsTab').then(m => ({ default: m.CollectionsTab })))
+const ComplianceTab = D(() => import('@/components/dashboard/ComplianceTab').then(m => ({ default: m.ComplianceTab })))
 
 // ─── Tab component map ───────────────────────────────────────────
 const TAB_COMPONENTS: Record<string, React.ComponentType> = {
@@ -109,7 +110,7 @@ export function DashboardShell({ session }: { session: Session }) {
   const visibleTabs = ROLE_TABS[currentRole] || []
   const safeTab = visibleTabs.includes(activeTab) ? activeTab : (visibleTabs[0] || 'overview')
   useEffect(() => { if (safeTab !== activeTab) setActiveTab(safeTab) }, [safeTab, activeTab, currentRole])
-  const activeNav = NAV_ITEMS.find(n => n.id === activeTab)
+  const activeNav = NAV_ITEMS.find(n => n.id === safeTab)
 
   const handleTabChange = useCallback((tabId: string) => {
     setActiveTab(tabId)

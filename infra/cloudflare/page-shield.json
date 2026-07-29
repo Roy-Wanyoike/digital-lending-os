@@ -1,0 +1,104 @@
+{
+  "enabled": true,
+  "use_connective": false,
+
+  "disable_inline_scripts": {
+    "enabled": true,
+    "description": "Disable inline script execution for XSS mitigation. All JavaScript must be loaded from allowed sources defined in CSP."
+  },
+
+  "content_security_policy": {
+    "enabled": true,
+    "policy": {
+      "default_src": "'self'",
+      "script_src": "'self' 'strict-dynamic' 'nonce-{{NONCE}}' https://js.stripe.com https://cdn.jsdelivr.net",
+      "style_src": "'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font_src": "'self' https://fonts.gstatic.com",
+      "img_src": "'self' data: blob: https://*.stripe.com https://lh3.googleusercontent.com",
+      "frame_src": "'self' https://js.stripe.com https://hooks.stripe.com https://paystack.com",
+      "connect_src": "'self' https://*.stripe.com https://api.paystack.co https://api.flutterwave.com https://api.intasend.com https://api.paya.io wss://youngsend.com wss://staging.youngsend.com",
+      "object_src": "'none'",
+      "base_uri": "'self'",
+      "form_action": "'self' https://*.stripe.com https://paystack.com https://api.flutterwave.com https://api.intasend.com",
+      "frame_ancestors": "'none'",
+      "upgrade_insecure_requests": true,
+      "block_all_mixed_content": true
+    },
+    "description": "Strict Content Security Policy for Youngsend. Allows Stripe, Paystack, Flutterwave, IntaSend, and Paya integrations. Blocks all mixed content and frame embedding."
+  },
+
+  "report_uri": {
+    "enabled": true,
+    "uris": [
+      {
+        "url": "https://youngsend.com/api/security/csp-report",
+        "description": "Primary CSP violation report endpoint (handled by Next.js origin)"
+      },
+      {
+        "url": "https://csp-reports.youngsend.com/report",
+        "description": "Secondary CSP violation collector (dedicated subdomain)"
+      }
+    ],
+    "description": "Report URI for CSP violations. Violations are logged and surfaced in the security dashboard for analysis."
+  },
+
+  "csp_reporting_sample_rate": 0.1,
+  "csp_reporting_endpoint": "https://youngsend.com/api/security/csp-report",
+
+  "x_content_type_options": {
+    "enabled": true
+  },
+
+  "x_frame_options": {
+    "enabled": true,
+    "value": "DENY"
+  },
+
+  "x_xss_protection": {
+    "enabled": true,
+    "value": "1; mode=block"
+  },
+
+  "referrer_policy": {
+    "enabled": true,
+    "value": "strict-origin-when-cross-origin"
+  },
+
+  "permissions_policy": {
+    "enabled": true,
+    "policy": {
+      "camera": [],
+      "microphone": [],
+      "geolocation": [],
+      "payment": [],
+      "usb": [],
+      "magnetometer": [],
+      "gyroscope": [],
+      "speaker": [],
+      "accelerometer": [],
+      "ambient_light_sensor": [],
+      "autoplay": ["self"],
+      "encrypted_media": ["self"]
+    },
+    "description": "Restrict browser feature access. Payment permission is explicitly denied — payment flows use dedicated integrations, not browser Payment Request API."
+  },
+
+  "strict_transport_security": {
+    "enabled": true,
+    "max_age": 31536000,
+    "include_subdomains": true,
+    "preload": true,
+    "description": "HSTS with 1-year max age, include subdomains, and preload list submission."
+  },
+
+  "hotlink_protection": {
+    "enabled": true,
+    "allowlisted_domains": [
+      "youngsend.com",
+      "www.youngsend.com",
+      "app.youngsend.com",
+      "staging.youngsend.com"
+    ],
+    "description": "Prevent hotlinking of images and assets from external domains."
+  }
+}

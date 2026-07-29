@@ -1,0 +1,99 @@
+# Youngsend Namespace Definitions with ResourceQuota and LimitRange
+# Applies to both production and staging environments
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: youngsend-prod
+  labels:
+    app.kubernetes.io/name: youngsend
+    app.kubernetes.io/environment: production
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: youngsend-prod-quota
+  namespace: youngsend-prod
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "40"
+    limits.memory: 80Gi
+    pods: "200"
+    services: "50"
+    persistentvolumeclaims: "100"
+    requests.storage: 1Ti
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: youngsend-prod-limits
+  namespace: youngsend-prod
+spec:
+  limits:
+    - type: Container
+      default:
+        memory: 512Mi
+        cpu: 500m
+      defaultRequest:
+        memory: 128Mi
+        cpu: 100m
+      max:
+        memory: 2Gi
+        cpu: "2"
+      min:
+        memory: 64Mi
+        cpu: 50m
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: youngsend-staging
+  labels:
+    app.kubernetes.io/name: youngsend
+    app.kubernetes.io/environment: staging
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: youngsend-staging-quota
+  namespace: youngsend-staging
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "40"
+    limits.memory: 80Gi
+    pods: "200"
+    services: "50"
+    persistentvolumeclaims: "100"
+    requests.storage: 1Ti
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: youngsend-staging-limits
+  namespace: youngsend-staging
+spec:
+  limits:
+    - type: Container
+      default:
+        memory: 512Mi
+        cpu: 500m
+      defaultRequest:
+        memory: 128Mi
+        cpu: 100m
+      max:
+        memory: 2Gi
+        cpu: "2"
+      min:
+        memory: 64Mi
+        cpu: 50m

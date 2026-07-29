@@ -1,0 +1,764 @@
+     1→/**
+     2→ * Youngsend Kafka Event Schemas
+     3→ *
+     4→ * Strict Zod schemas for every event type. Each event includes:
+     5→ * - eventId: UUID v4 — unique identifier for this event
+     6→ * - eventType: String discriminator matching the topic event type
+     7→ * - timestamp: ISO 8601 datetime of event creation
+     8→ * - version: Semantic version of the event schema (e.g. "1.0.0")
+     9→ * - correlationId: UUID linking all events in a single business transaction
+    10→ * - causationId: UUID linking this event to the parent event that triggered it
+    11→ * - sourceService: Name of the producing microservice
+    12→ * - payload: Domain-specific data (strictly typed per event type)
+    13→ * - metadata: Optional key-value pairs for tracing, feature flags, etc.
+    14→ */
+    15→
+    16→import { z } from "zod";
+    17→
+    18→// ─── Base Event Envelope ───────────────────────────────────────────────────────
+    19→
+    20→export const EventMetadataSchema = z
+    21→  .record(z.string(), z.unknown())
+    22→  .optional()
+    23→  .default({});
+    24→
+    25→export const BaseEventSchema = z.object({
+    26→  /** UUID v4 — globally unique event identifier */
+    27→  eventId: z.string().uuid(),
+    28→  /** Discriminator matching the event type (e.g. "payment_initiated") */
+    29→  eventType: z.string(),
+    30→  /** ISO 8601 datetime string */
+    31→  timestamp: z.string().datetime({ offset: true }),
+    32→  /** Semantic version of this event schema */
+    33→  version: z.string(),
+    34→  /** Links all events belonging to the same business transaction */
+    35→  correlationId: z.string().uuid(),
+    36→  /** Links this event to the parent event that caused it */
+    37→  causationId: z.string().uuid().optional().default("00000000-0000-0000-0000-000000000000"),
+    38→  /** Name of the originating microservice */
+    39→  sourceService: z.string(),
+    40→  /** Domain-specific payload */
+    41→  payload: z.unknown(),
+    42→  /** Optional metadata for tracing, feature flags, etc. */
+    43→  metadata: EventMetadataSchema,
+    44→});
+    45→
+    46→export type BaseEvent = z.infer<typeof BaseEventSchema>;
+    47→
+    48→// ─── Payment Event Payloads ─────────────────────────────────────────────────────
+    49→
+    50→export const PaymentInitiatedPayloadSchema = z.object({
+    51→  paymentId: z.string().uuid(),
+    52→  userId: z.string().uuid(),
+    53→  payeeId: z.string().uuid().optional(),
+    54→  amount: z.number().positive(),
+    55→  currency: z.string().length(3),
+    56→  paymentMethod: z.enum(["card", "bank_transfer", "mobile_money", "wallet", "payment_link"]),
+    57→  provider: z.enum(["paystack", "stripe", "flutterwave", "intasend", "paya"]),
+    58→  description: z.string().optional(),
+    59→  reference: z.string(),
+    60→  metadata: z.record(z.string(), z.unknown()).optional(),
+    61→});
+    62→
+    63→export const PaymentProcessingPayloadSchema = z.object({
+    64→  paymentId: z.string().uuid(),
+    65→  userId: z.string().uuid(),
+    66→  providerReference: z.string().optional(),
+    67→  status: z.enum(["authorized", "pending_verification", "processing"]),
+    68→  metadata: z.record(z.string(), z.unknown()).optional(),
+    69→});
+    70→
+    71→export const PaymentCompletedPayloadSchema = z.object({
+    72→  paymentId: z.string().uuid(),
+    73→  userId: z.string().uuid(),
+    74→  amount: z.number().positive(),
+    75→  currency: z.string().length(3),
+    76→  fee: z.number().nonnegative(),
+    77→  netAmount: z.number().positive(),
+    78→  provider: z.enum(["paystack", "stripe", "flutterwave", "intasend", "paya"]),
+    79→  providerPaymentId: z.string().optional(),
+    80→  settledAt: z.string().datetime({ offset: true }).optional(),
+    81→});
+    82→
+    83→export const PaymentFailedPayloadSchema = z.object({
+    84→  paymentId: z.string().uuid(),
+    85→  userId: z.string().uuid(),
+    86→  amount: z.number().positive(),
+    87→  currency: z.string().length(3),
+    88→  provider: z.enum(["paystack", "stripe", "flutterwave", "intasend", "paya"]),
+    89→  errorCode: z.string(),
+    90→  errorMessage: z.string(),
+    91→  retryable: z.boolean(),
+    92→});
+    93→
+    94→export const PaymentRefundedPayloadSchema = z.object({
+    95→  paymentId: z.string().uuid(),
+    96→  userId: z.string().uuid(),
+    97→  refundId: z.string().uuid(),
+    98→  amount: z.number().positive(),
+    99→  currency: z.string().length(3),
+   100→  reason: z.string().optional(),
+   101→  initiatedBy: z.string().uuid(),
+   102→  providerRefundId: z.string().optional(),
+   103→});
+   104→
+   105→// ─── Full Payment Events ──────────────────────────────────────────────────────
+   106→
+   107→export const PaymentInitiatedEventSchema = BaseEventSchema.extend({
+   108→  eventType: z.literal("payment_initiated"),
+   109→  payload: PaymentInitiatedPayloadSchema,
+   110→});
+   111→
+   112→export const PaymentProcessingEventSchema = BaseEventSchema.extend({
+   113→  eventType: z.literal("payment_processing"),
+   114→  payload: PaymentProcessingPayloadSchema,
+   115→});
+   116→
+   117→export const PaymentCompletedEventSchema = BaseEventSchema.extend({
+   118→  eventType: z.literal("payment_completed"),
+   119→  payload: PaymentCompletedPayloadSchema,
+   120→});
+   121→
+   122→export const PaymentFailedEventSchema = BaseEventSchema.extend({
+   123→  eventType: z.literal("payment_failed"),
+   124→  payload: PaymentFailedPayloadSchema,
+   125→});
+   126→
+   127→export const PaymentRefundedEventSchema = BaseEventSchema.extend({
+   128→  eventType: z.literal("payment_refunded"),
+   129→  payload: PaymentRefundedPayloadSchema,
+   130→});
+   131→
+   132→export const AnyPaymentEventSchema = z.discriminatedUnion("eventType", [
+   133→  PaymentInitiatedEventSchema,
+   134→  PaymentProcessingEventSchema,
+   135→  PaymentCompletedEventSchema,
+   136→  PaymentFailedEventSchema,
+   137→  PaymentRefundedEventSchema,
+   138→]);
+   139→
+   140→// ─── Wallet Event Payloads ────────────────────────────────────────────────────
+   141→
+   142→export const WalletDepositedPayloadSchema = z.object({
+   143→  walletId: z.string().uuid(),
+   144→  userId: z.string().uuid(),
+   145→  amount: z.number().positive(),
+   146→  currency: z.string().length(3),
+   147→  balanceBefore: z.number(),
+   148→  balanceAfter: z.number(),
+   149→  source: z.enum(["payment", "transfer", "deposit", "refund"]),
+   150→  referenceId: z.string().uuid().optional(),
+   151→});
+   152→
+   153→export const WalletWithdrawnPayloadSchema = z.object({
+   154→  walletId: z.string().uuid(),
+   155→  userId: z.string().uuid(),
+   156→  amount: z.number().positive(),
+   157→  currency: z.string().length(3),
+   158→  balanceBefore: z.number(),
+   159→  balanceAfter: z.number(),
+   160→  destination: z.enum(["bank_account", "mobile_money", "external_wallet"]),
+   161→  withdrawalId: z.string().uuid(),
+   162→});
+   163→
+   164→export const WalletConvertedPayloadSchema = z.object({
+   165→  walletId: z.string().uuid(),
+   166→  userId: z.string().uuid(),
+   167→  fromCurrency: z.string().length(3),
+   168→  toCurrency: z.string().length(3),
+   169→  fromAmount: z.number().positive(),
+   170→  toAmount: z.number().positive(),
+   171→  exchangeRate: z.number().positive(),
+   172→  providerRate: z.string().optional(),
+   173→});
+   174→
+   175→export const WalletFrozenPayloadSchema = z.object({
+   176→  walletId: z.string().uuid(),
+   177→  userId: z.string().uuid(),
+   178→  reason: z.enum(["fraud_investigation", "compliance_hold", "user_request", "admin_action"]),
+   179→  frozenBy: z.string().uuid(),
+   180→  note: z.string().optional(),
+   181→});
+   182→
+   183→export const WalletUnfrozenPayloadSchema = z.object({
+   184→  walletId: z.string().uuid(),
+   185→  userId: z.string().uuid(),
+   186→  reason: z.enum(["fraud_cleared", "compliance_released", "user_request", "admin_action"]),
+   187→  unfrozenBy: z.string().uuid(),
+   188→  note: z.string().optional(),
+   189→});
+   190→
+   191→// ─── Full Wallet Events ───────────────────────────────────────────────────────
+   192→
+   193→export const WalletDepositedEventSchema = BaseEventSchema.extend({
+   194→  eventType: z.literal("wallet_deposited"),
+   195→  payload: WalletDepositedPayloadSchema,
+   196→});
+   197→
+   198→export const WalletWithdrawnEventSchema = BaseEventSchema.extend({
+   199→  eventType: z.literal("wallet_withdrawn"),
+   200→  payload: WalletWithdrawnPayloadSchema,
+   201→});
+   202→
+   203→export const WalletConvertedEventSchema = BaseEventSchema.extend({
+   204→  eventType: z.literal("wallet_converted"),
+   205→  payload: WalletConvertedPayloadSchema,
+   206→});
+   207→
+   208→export const WalletFrozenEventSchema = BaseEventSchema.extend({
+   209→  eventType: z.literal("wallet_frozen"),
+   210→  payload: WalletFrozenPayloadSchema,
+   211→});
+   212→
+   213→export const WalletUnfrozenEventSchema = BaseEventSchema.extend({
+   214→  eventType: z.literal("wallet_unfrozen"),
+   215→  payload: WalletUnfrozenPayloadSchema,
+   216→});
+   217→
+   218→export const AnyWalletEventSchema = z.discriminatedUnion("eventType", [
+   219→  WalletDepositedEventSchema,
+   220→  WalletWithdrawnEventSchema,
+   221→  WalletConvertedEventSchema,
+   222→  WalletFrozenEventSchema,
+   223→  WalletUnfrozenEventSchema,
+   224→]);
+   225→
+   226→// ─── Escrow Event Payloads ─────────────────────────────────────────────────────
+   227→
+   228→export const EscrowCreatedPayloadSchema = z.object({
+   229→  escrowId: z.string().uuid(),
+   230→  transactionId: z.string().uuid(),
+   231→  sellerId: z.string().uuid(),
+   232→  buyerId: z.string().uuid(),
+   233→  amount: z.number().positive(),
+   234→  currency: z.string().length(3),
+   235→  description: z.string(),
+   236→  conditions: z.array(z.string()).optional(),
+   237→  expiresAt: z.string().datetime({ offset: true }),
+   238→});
+   239→
+   240→export const EscrowFundedPayloadSchema = z.object({
+   241→  escrowId: z.string().uuid(),
+   242→  transactionId: z.string().uuid(),
+   243→  amount: z.number().positive(),
+   244→  currency: z.string().length(3),
+   245→  paymentId: z.string().uuid(),
+   246→  fundedBy: z.string().uuid(),
+   247→});
+   248→
+   249→export const EscrowReleasedPayloadSchema = z.object({
+   250→  escrowId: z.string().uuid(),
+   251→  transactionId: z.string().uuid(),
+   252→  amount: z.number().positive(),
+   253→  currency: z.string().length(3),
+   254→  releasedTo: z.string().uuid(),
+   255→  releasedBy: z.string().uuid(),
+   256→  walletCreditId: z.string().uuid().optional(),
+   257→});
+   258→
+   259→export const EscrowDisputedPayloadSchema = z.object({
+   260→  escrowId: z.string().uuid(),
+   261→  transactionId: z.string().uuid(),
+   262→  disputedBy: z.string().uuid(),
+   263→  disputeReason: z.string(),
+   264→  evidence: z.array(z.string()).optional(),
+   265→  disputeId: z.string().uuid(),
+   266→});
+   267→
+   268→export const EscrowCancelledPayloadSchema = z.object({
+   269→  escrowId: z.string().uuid(),
+   270→  transactionId: z.string().uuid(),
+   271→  cancelledBy: z.string().uuid(),
+   272→  reason: z.string(),
+   273→  refundAmount: z.number().positive(),
+   274→  currency: z.string().length(3),
+   275→  refundedTo: z.string().uuid(),
+   276→});
+   277→
+   278→// ─── Full Escrow Events ───────────────────────────────────────────────────────
+   279→
+   280→export const EscrowCreatedEventSchema = BaseEventSchema.extend({
+   281→  eventType: z.literal("escrow_created"),
+   282→  payload: EscrowCreatedPayloadSchema,
+   283→});
+   284→
+   285→export const EscrowFundedEventSchema = BaseEventSchema.extend({
+   286→  eventType: z.literal("escrow_funded"),
+   287→  payload: EscrowFundedPayloadSchema,
+   288→});
+   289→
+   290→export const EscrowReleasedEventSchema = BaseEventSchema.extend({
+   291→  eventType: z.literal("escrow_released"),
+   292→  payload: EscrowReleasedPayloadSchema,
+   293→});
+   294→
+   295→export const EscrowDisputedEventSchema = BaseEventSchema.extend({
+   296→  eventType: z.literal("escrow_disputed"),
+   297→  payload: EscrowDisputedPayloadSchema,
+   298→});
+   299→
+   300→export const EscrowCancelledEventSchema = BaseEventSchema.extend({
+   301→  eventType: z.literal("escrow_cancelled"),
+   302→  payload: EscrowCancelledPayloadSchema,
+   303→});
+   304→
+   305→export const AnyEscrowEventSchema = z.discriminatedUnion("eventType", [
+   306→  EscrowCreatedEventSchema,
+   307→  EscrowFundedEventSchema,
+   308→  EscrowReleasedEventSchema,
+   309→  EscrowDisputedEventSchema,
+   310→  EscrowCancelledEventSchema,
+   311→]);
+   312→
+   313→// ─── Trust Event Payloads ─────────────────────────────────────────────────────
+   314→
+   315→export const TrustScoreUpdatedPayloadSchema = z.object({
+   316→  userId: z.string().uuid(),
+   317→  scoreBefore: z.number().min(0).max(100),
+   318→  scoreAfter: z.number().min(0).max(100),
+   319→  factors: z.array(
+   320→    z.object({
+   321→      factor: z.string(),
+   322→      weight: z.number(),
+   323→      value: z.number(),
+   324→    }),
+   325→  ),
+   326→  calculatedBy: z.enum(["system", "admin"]),
+   327→});
+   328→
+   329→export const TrustReviewSubmittedPayloadSchema = z.object({
+   330→  reviewId: z.string().uuid(),
+   331→  reviewerId: z.string().uuid(),
+   332→  revieweeId: z.string().uuid(),
+   333→  rating: z.number().min(1).max(5),
+   334→  comment: z.string().optional(),
+   335→  transactionId: z.string().uuid().optional(),
+   336→  tags: z.array(z.string()).optional(),
+   337→});
+   338→
+   339→export const TrustRelationshipCreatedPayloadSchema = z.object({
+   340→  relationshipId: z.string().uuid(),
+   341→  userId: z.string().uuid(),
+   342→  counterpartyId: z.string().uuid(),
+   343→  type: z.enum(["buyer", "seller", "peer", "business"]),
+   344→  trustLevel: z.enum(["new", "verified", "trusted", "vip"]),
+   345→  initiatedBy: z.string().uuid(),
+   346→});
+   347→
+   348→export const TrustVerificationCompletedPayloadSchema = z.object({
+   349→  userId: z.string().uuid(),
+   350→  verificationType: z.enum(["identity", "phone", "email", "business", "address"]),
+   351→  status: z.enum(["passed", "failed", "expired"]),
+   352→  verifiedBy: z.string().optional(),
+   353→  expiresAt: z.string().datetime({ offset: true }).optional(),
+   354→});
+   355→
+   356→// ─── Full Trust Events ────────────────────────────────────────────────────────
+   357→
+   358→export const TrustScoreUpdatedEventSchema = BaseEventSchema.extend({
+   359→  eventType: z.literal("trust_score_updated"),
+   360→  payload: TrustScoreUpdatedPayloadSchema,
+   361→});
+   362→
+   363→export const TrustReviewSubmittedEventSchema = BaseEventSchema.extend({
+   364→  eventType: z.literal("trust_review_submitted"),
+   365→  payload: TrustReviewSubmittedPayloadSchema,
+   366→});
+   367→
+   368→export const TrustRelationshipCreatedEventSchema = BaseEventSchema.extend({
+   369→  eventType: z.literal("trust_relationship_created"),
+   370→  payload: TrustRelationshipCreatedPayloadSchema,
+   371→});
+   372→
+   373→export const TrustVerificationCompletedEventSchema = BaseEventSchema.extend({
+   374→  eventType: z.literal("trust_verification_completed"),
+   375→  payload: TrustVerificationCompletedPayloadSchema,
+   376→});
+   377→
+   378→export const AnyTrustEventSchema = z.discriminatedUnion("eventType", [
+   379→  TrustScoreUpdatedEventSchema,
+   380→  TrustReviewSubmittedEventSchema,
+   381→  TrustRelationshipCreatedEventSchema,
+   382→  TrustVerificationCompletedEventSchema,
+   383→]);
+   384→
+   385→// ─── Fraud Event Payloads ──────────────────────────────────────────────────────
+   386→
+   387→export const FraudAlertTriggeredPayloadSchema = z.object({
+   388→  alertId: z.string().uuid(),
+   389→  userId: z.string().uuid(),
+   390→  alertType: z.enum(["velocity", "amount", "location", "device", "behavior", "sanction"]),
+   391→  severity: z.enum(["low", "medium", "high", "critical"]),
+   392→  description: z.string(),
+   393→  triggeringEventId: z.string().uuid(),
+   394→  autoBlock: z.boolean().default(false),
+   395→});
+   396→
+   397→export const FraudRuleMatchedPayloadSchema = z.object({
+   398→  alertId: z.string().uuid(),
+   399→  ruleId: z.string().uuid(),
+   400→  ruleName: z.string(),
+   401→  userId: z.string().uuid(),
+   402→  conditions: z.array(
+   403→    z.object({
+   404→      field: z.string(),
+   405→      operator: z.string(),
+   406→      value: z.unknown(),
+   407→    }),
+   408→  ),
+   409→  triggeredAt: z.string().datetime({ offset: true }),
+   410→});
+   411→
+   412→export const FraudCaseOpenedPayloadSchema = z.object({
+   413→  caseId: z.string().uuid(),
+   414→  alertIds: z.array(z.string().uuid()),
+   415→  userId: z.string().uuid(),
+   416→  status: z.enum(["open", "under_review", "escalated"]),
+   417→  assignedTo: z.string().uuid().optional(),
+   418→  priority: z.enum(["low", "medium", "high", "critical"]),
+   419→  description: z.string(),
+   420→});
+   421→
+   422→export const FraudCaseResolvedPayloadSchema = z.object({
+   423→  caseId: z.string().uuid(),
+   424→  userId: z.string().uuid(),
+   425→  resolution: z.enum(["dismissed", "confirmed_fraud", "confirmed_legitimate", "escalated"]),
+   426→  resolvedBy: z.string().uuid(),
+   427→  actionsTaken: z.array(z.string()),
+   428→  sanctionsApplied: z.array(z.string()).optional(),
+   429→  note: z.string().optional(),
+   430→});
+   431→
+   432→// ─── Full Fraud Events ─────────────────────────────────────────────────────────
+   433→
+   434→export const FraudAlertTriggeredEventSchema = BaseEventSchema.extend({
+   435→  eventType: z.literal("fraud_alert_triggered"),
+   436→  payload: FraudAlertTriggeredPayloadSchema,
+   437→});
+   438→
+   439→export const FraudRuleMatchedEventSchema = BaseEventSchema.extend({
+   440→  eventType: z.literal("fraud_rule_matched"),
+   441→  payload: FraudRuleMatchedPayloadSchema,
+   442→});
+   443→
+   444→export const FraudCaseOpenedEventSchema = BaseEventSchema.extend({
+   445→  eventType: z.literal("fraud_case_opened"),
+   446→  payload: FraudCaseOpenedPayloadSchema,
+   447→});
+   448→
+   449→export const FraudCaseResolvedEventSchema = BaseEventSchema.extend({
+   450→  eventType: z.literal("fraud_case_resolved"),
+   451→  payload: FraudCaseResolvedPayloadSchema,
+   452→});
+   453→
+   454→export const AnyFraudEventSchema = z.discriminatedUnion("eventType", [
+   455→  FraudAlertTriggeredEventSchema,
+   456→  FraudRuleMatchedEventSchema,
+   457→  FraudCaseOpenedEventSchema,
+   458→  FraudCaseResolvedEventSchema,
+   459→]);
+   460→
+   461→// ─── Compliance Event Payloads ─────────────────────────────────────────────────
+   462→
+   463→export const ComplianceScreeningRequestedPayloadSchema = z.object({
+   464→  userId: z.string().uuid(),
+   465→  screeningType: z.enum(["sanction", "pep", "aml", "adverse_media"]),
+   466→  screeningProvider: z.string().optional(),
+   467→  trigger: z.enum(["user_registration", "transaction", "periodic", "manual"]),
+   468→});
+   469→
+   470→export const ComplianceScreeningCompletedPayloadSchema = z.object({
+   471→  userId: z.string().uuid(),
+   472→  screeningType: z.enum(["sanction", "pep", "aml", "adverse_media"]),
+   473→  result: z.enum(["clear", "potential_match", "confirmed_match"]),
+   474→  riskLevel: z.enum(["low", "medium", "high"]),
+   475→  screeningProvider: z.string(),
+   476→  externalReference: z.string().optional(),
+   477→  details: z.string().optional(),
+   478→});
+   479→
+   480→export const ComplianceKycSubmittedPayloadSchema = z.object({
+   481→  userId: z.string().uuid(),
+   482→  kycType: z.enum(["individual", "business"]),
+   483→  documents: z.array(
+   484→    z.object({
+   485→      type: z.enum([
+   486→        "passport",
+   487→        "national_id",
+   488→        "drivers_license",
+   489→        "utility_bill",
+   490→        "business_registration",
+   491→        "tax_certificate",
+   492→        "bank_statement",
+   493→      ]),
+   494→      status: z.enum(["pending", "uploaded", "processing"]),
+   495→    }),
+   496→  ),
+   497→  submittedAt: z.string().datetime({ offset: true }),
+   498→});
+   499→
+   500→export const ComplianceKycVerifiedPayloadSchema = z.object({
+   501→  userId: z.string().uuid(),
+   502→  kycLevel: z.enum(["basic", "intermediate", "advanced"]),
+   503→  verifiedFields: z.array(z.string()),
+   504→  verifiedBy: z.string().optional(),
+   505→  expiresAt: z.string().datetime({ offset: true }).optional(),
+   506→});
+   507→
+   508→export const ComplianceKycRejectedPayloadSchema = z.object({
+   509→  userId: z.string().uuid(),
+   510→  reasons: z.array(z.string()),
+   511→  rejectedBy: z.string().optional(),
+   512→  canResubmit: z.boolean().default(true),
+   513→  resubmitInstructions: z.string().optional(),
+   514→});
+   515→
+   516→// ─── Full Compliance Events ────────────────────────────────────────────────────
+   517→
+   518→export const ComplianceScreeningRequestedEventSchema = BaseEventSchema.extend({
+   519→  eventType: z.literal("compliance_screening_requested"),
+   520→  payload: ComplianceScreeningRequestedPayloadSchema,
+   521→});
+   522→
+   523→export const ComplianceScreeningCompletedEventSchema = BaseEventSchema.extend({
+   524→  eventType: z.literal("compliance_screening_completed"),
+   525→  payload: ComplianceScreeningCompletedPayloadSchema,
+   526→});
+   527→
+   528→export const ComplianceKycSubmittedEventSchema = BaseEventSchema.extend({
+   529→  eventType: z.literal("compliance_kyc_submitted"),
+   530→  payload: ComplianceKycSubmittedPayloadSchema,
+   531→});
+   532→
+   533→export const ComplianceKycVerifiedEventSchema = BaseEventSchema.extend({
+   534→  eventType: z.literal("compliance_kyc_verified"),
+   535→  payload: ComplianceKycVerifiedPayloadSchema,
+   536→});
+   537→
+   538→export const ComplianceKycRejectedEventSchema = BaseEventSchema.extend({
+   539→  eventType: z.literal("compliance_kyc_rejected"),
+   540→  payload: ComplianceKycRejectedPayloadSchema,
+   541→});
+   542→
+   543→export const AnyComplianceEventSchema = z.discriminatedUnion("eventType", [
+   544→  ComplianceScreeningRequestedEventSchema,
+   545→  ComplianceScreeningCompletedEventSchema,
+   546→  ComplianceKycSubmittedEventSchema,
+   547→  ComplianceKycVerifiedEventSchema,
+   548→  ComplianceKycRejectedEventSchema,
+   549→]);
+   550→
+   551→// ─── Notification Event Payloads ───────────────────────────────────────────────
+   552→
+   553→export const NotificationEmailSentPayloadSchema = z.object({
+   554→  userId: z.string().uuid(),
+   555→  to: z.string().email(),
+   556→  subject: z.string(),
+   557→  templateId: z.string().optional(),
+   558→  templateVariables: z.record(z.string(), z.unknown()).optional(),
+   559→  notificationId: z.string().uuid(),
+   560→  status: z.enum(["sent", "delivered", "bounced", "failed"]),
+   561→  providerMessageId: z.string().optional(),
+   562→});
+   563→
+   564→export const NotificationPushSentPayloadSchema = z.object({
+   565→  userId: z.string().uuid(),
+   566→  deviceToken: z.string(),
+   567→  title: z.string(),
+   568→  body: z.string(),
+   569→  notificationId: z.string().uuid(),
+   570→  status: z.enum(["sent", "delivered", "failed"]),
+   571→  data: z.record(z.string(), z.unknown()).optional(),
+   572→});
+   573→
+   574→export const NotificationSmsSentPayloadSchema = z.object({
+   575→  userId: z.string().uuid(),
+   576→  phoneNumber: z.string(),
+   577→  message: z.string(),
+   578→  notificationId: z.string().uuid(),
+   579→  status: z.enum(["sent", "delivered", "failed"]),
+   580→  providerMessageId: z.string().optional(),
+   581→});
+   582→
+   583→export const NotificationInAppPayloadSchema = z.object({
+   584→  userId: z.string().uuid(),
+   585→  notificationId: z.string().uuid(),
+   586→  title: z.string(),
+   587→  body: z.string(),
+   588→  category: z.enum(["payment", "escrow", "wallet", "trust", "fraud", "compliance", "system"]),
+   589→  actionUrl: z.string().optional(),
+   590→  read: z.boolean().default(false),
+   591→};
+   592→
+   593→// ─── Full Notification Events ──────────────────────────────────────────────────
+   594→
+   595→export const NotificationEmailSentEventSchema = BaseEventSchema.extend({
+   596→  eventType: z.literal("notification_email_sent"),
+   597→  payload: NotificationEmailSentPayloadSchema,
+   598→});
+   599→
+   600→export const NotificationPushSentEventSchema = BaseEventSchema.extend({
+   601→  eventType: z.literal("notification_push_sent"),
+   602→  payload: NotificationPushSentPayloadSchema,
+   603→});
+   604→
+   605→export const NotificationSmsSentEventSchema = BaseEventSchema.extend({
+   606→  eventType: z.literal("notification_sms_sent"),
+   607→  payload: NotificationSmsSentPayloadSchema,
+   608→});
+   609→
+   610→export const NotificationInAppEventSchema = BaseEventSchema.extend({
+   611→  eventType: z.literal("notification_in_app"),
+   612→  payload: NotificationInAppPayloadSchema,
+   613→});
+   614→
+   615→export const AnyNotificationEventSchema = z.discriminatedUnion("eventType", [
+   616→  NotificationEmailSentEventSchema,
+   617→  NotificationPushSentEventSchema,
+   618→  NotificationSmsSentEventSchema,
+   619→  NotificationInAppEventSchema,
+   620→]);
+   621→
+   622→// ─── Audit Event Payloads ──────────────────────────────────────────────────────
+   623→
+   624→export const AuditActionLoggedPayloadSchema = z.object({
+   625→  userId: z.string().uuid(),
+   626→  action: z.string(),
+   627→  resource: z.string(),
+   628→  resourceId: z.string().uuid().optional(),
+   629→  ipAddress: z.string().optional(),
+   630→  userAgent: z.string().optional(),
+   631→  changes: z.record(z.string(), z.unknown()).optional(),
+   632→  previousState: z.record(z.string(), z.unknown()).optional(),
+   633→  newState: z.record(z.string(), z.unknown()).optional(),
+   634→});
+   635→
+   636→export const AuditActionLoggedEventSchema = BaseEventSchema.extend({
+   637→  eventType: z.literal("audit_action_logged"),
+   638→  payload: AuditActionLoggedPayloadSchema,
+   639→});
+   640→
+   641→// ─── DLQ Envelope ──────────────────────────────────────────────────────────────
+   642→
+   643→export const DeadLetterEnvelopeSchema = z.object({
+   644→  /** The DLQ entry ID */
+   645→  dlqEntryId: z.string().uuid(),
+   646→  /** Original topic where the message was published */
+   647→  originalTopic: z.string(),
+   648→  /** Original partition */
+   649→  originalPartition: z.number(),
+   650→  /** Original offset */
+   651→  originalOffset: z.number(),
+   652→  /** The original event (or raw message if parsing failed) */
+   653→  originalMessage: z.unknown(),
+   654→  /** Error information */
+   655→  error: z.object({
+   656→    name: z.string(),
+   657→    message: z.string(),
+   658→    stack: z.string().optional(),
+   659→  }),
+   660→  /** Timestamps of each failed attempt */
+   661→  failureAttempts: z.array(
+   662→    z.object({
+   663→      attempt: z.number(),
+   664→      timestamp: z.string().datetime({ offset: true }),
+   665→      error: z.string(),
+   666→    }),
+   667→  ),
+   668→  /** When this DLQ entry was created */
+   669→  enqueuedAt: z.string().datetime({ offset: true }),
+   670→  /** Correlation ID from original message, if available */
+   671→  correlationId: z.string().uuid().optional(),
+   672→});
+   673→
+   674→export type DeadLetterEnvelope = z.infer<typeof DeadLetterEnvelopeSchema>;
+   675→
+   676→// ─── Super Union: Any Event ────────────────────────────────────────────────────
+   677→
+   678→export const AnyYoungsendEventSchema = z.union([
+   679→  AnyPaymentEventSchema,
+   680→  AnyWalletEventSchema,
+   681→  AnyEscrowEventSchema,
+   682→  AnyTrustEventSchema,
+   683→  AnyFraudEventSchema,
+   684→  AnyComplianceEventSchema,
+   685→  AnyNotificationEventSchema,
+   686→  AuditActionLoggedEventSchema,
+   687→]);
+   688→
+   689→export type AnyYoungsendEvent = z.infer<typeof AnyYoungsendEventSchema>;
+   690→
+   691→// ─── Validation Helpers ────────────────────────────────────────────────────────
+   692→
+   693→/**
+   694→ * Parse and validate a raw event against a specific schema.
+   695→ * Returns { success: true, data } or { success: false, errors }.
+   696→ */
+   697→export function parseEvent<T>(schema: z.ZodSchema<T>, raw: unknown): {
+   698→  success: boolean;
+   699→  data?: T;
+   700→  errors?: z.ZodError;
+   701→} {
+   702→  const result = schema.safeParse(raw);
+   703→  if (result.success) {
+   704→    return { success: true, data: result.data };
+   705→  }
+   706→  return { success: false, errors: result.error };
+   707→}
+   708→
+   709→/**
+   710→ * Parse an event against its eventType discriminator.
+   711→ * Routes to the correct schema based on the eventType field.
+   712→ */
+   713→export function parseEventByType(raw: unknown): {
+   714→  success: boolean;
+   715→  data?: AnyYoungsendEvent;
+   716→  errors?: z.ZodError;
+   717→} {
+   718→  return parseEvent(AnyYoungsendEventSchema, raw);
+   719→}
+   720→
+   721→// ─── Re-exports ───────────────────────────────────────────────────────────────
+   722→
+   723→// Type exports for all payloads
+   724→export type PaymentInitiatedPayload = z.infer<typeof PaymentInitiatedPayloadSchema>;
+   725→export type PaymentProcessingPayload = z.infer<typeof PaymentProcessingPayloadSchema>;
+   726→export type PaymentCompletedPayload = z.infer<typeof PaymentCompletedPayloadSchema>;
+   727→export type PaymentFailedPayload = z.infer<typeof PaymentFailedPayloadSchema>;
+   728→export type PaymentRefundedPayload = z.infer<typeof PaymentRefundedPayloadSchema>;
+   729→
+   730→export type WalletDepositedPayload = z.infer<typeof WalletDepositedPayloadSchema>;
+   731→export type WalletWithdrawnPayload = z.infer<typeof WalletWithdrawnPayloadSchema>;
+   732→export type WalletConvertedPayload = z.infer<typeof WalletConvertedPayloadSchema>;
+   733→export type WalletFrozenPayload = z.infer<typeof WalletFrozenPayloadSchema>;
+   734→export type WalletUnfrozenPayload = z.infer<typeof WalletUnfrozenPayloadSchema>;
+   735→
+   736→export type EscrowCreatedPayload = z.infer<typeof EscrowCreatedPayloadSchema>;
+   737→export type EscrowFundedPayload = z.infer<typeof EscrowFundedPayloadSchema>;
+   738→export type EscrowReleasedPayload = z.infer<typeof EscrowReleasedPayloadSchema>;
+   739→export type EscrowDisputedPayload = z.infer<typeof EscrowDisputedPayloadSchema>;
+   740→export type EscrowCancelledPayload = z.infer<typeof EscrowCancelledPayloadSchema>;
+   741→
+   742→export type TrustScoreUpdatedPayload = z.infer<typeof TrustScoreUpdatedPayloadSchema>;
+   743→export type TrustReviewSubmittedPayload = z.infer<typeof TrustReviewSubmittedPayloadSchema>;
+   744→export type TrustRelationshipCreatedPayload = z.infer<typeof TrustRelationshipCreatedPayloadSchema>;
+   745→export type TrustVerificationCompletedPayload = z.infer<typeof TrustVerificationCompletedPayloadSchema>;
+   746→
+   747→export type FraudAlertTriggeredPayload = z.infer<typeof FraudAlertTriggeredPayloadSchema>;
+   748→export type FraudRuleMatchedPayload = z.infer<typeof FraudRuleMatchedPayloadSchema>;
+   749→export type FraudCaseOpenedPayload = z.infer<typeof FraudCaseOpenedPayloadSchema>;
+   750→export type FraudCaseResolvedPayload = z.infer<typeof FraudCaseResolvedPayloadSchema>;
+   751→
+   752→export type ComplianceScreeningRequestedPayload = z.infer<typeof ComplianceScreeningRequestedPayloadSchema>;
+   753→export type ComplianceScreeningCompletedPayload = z.infer<typeof ComplianceScreeningCompletedPayloadSchema>;
+   754→export type ComplianceKycSubmittedPayload = z.infer<typeof ComplianceKycSubmittedPayloadSchema>;
+   755→export type ComplianceKycVerifiedPayload = z.infer<typeof ComplianceKycVerifiedPayloadSchema>;
+   756→export type ComplianceKycRejectedPayload = z.infer<typeof ComplianceKycRejectedPayloadSchema>;
+   757→
+   758→export type NotificationEmailSentPayload = z.infer<typeof NotificationEmailSentPayloadSchema>;
+   759→export type NotificationPushSentPayload = z.infer<typeof NotificationPushSentPayloadSchema>;
+   760→export type NotificationSmsSentPayload = z.infer<typeof NotificationSmsSentPayloadSchema>;
+   761→export type NotificationInAppPayload = z.infer<typeof NotificationInAppPayloadSchema>;
+   762→
+   763→export type AuditActionLoggedPayload = z.infer<typeof AuditActionLoggedPayloadSchema>;
+   764→

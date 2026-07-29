@@ -1,0 +1,179 @@
+# OpenTelemetry Collector Configuration — Youngsend Fintech Platform
+#
+# Receivers:
+#   - OTLP gRPC on :4317
+#   - OTLP HTTP on :4318
+#   - Prometheus metrics scrape on :8888
+#
+# Processors:
+#   - batch (default batching)
+#   - memory_limiter (64Mi spike protection)
+#   - filter (suppress health endpoint noise)
+#   - transform (add deployment/region attributes)
+#
+# Exporters:
+#   - OTLP → Tempo (traces)
+#   - OTLP → Loki (logs)
+#   - Prometheus (metrics, self-hosted endpoint)
+
+receivers:
+  # ── OTLP gRPC (traces + metrics + logs from apps) ──────────────────
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        max_recv_msg_size_mib: 8
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # ── Prometheus (scrape self-published metrics) ───────────────────────
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'otel-collector'
+          scrape_interval: 15s
+          static_configs:
+            - targets: ['localhost:8888']
+
+  # ── Host Metrics (system resources for dashboards) ─────────────────
+  hostmetrics:
+    collection_interval: 15s
+    scrapers:
+      cpu: {}
+      memory: {}
+      disk: {}
+      filesystem: {}
+      network: {}
+      load: {}
+
+processors:
+  # ── Memory Limiter (prevent OOM) ────────────────────────────────────
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 64
+    spike_limit_mib: 20
+    bump_severity_on_limit: true
+
+  # ── Batch (default, group telemetry for efficient export) ──────────
+  batch:
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+    timeout: 5s
+
+  # ── Filter: suppress health endpoint noise ──────────────────────────
+  filter/health:
+    error_mode: ignore
+    spans:
+      exclude:
+        match_type: strict
+        span_names:
+          - "HTTP GET /api/health"
+    metrics:
+      exclude:
+        match_type: strict
+        metric_names:
+          - "youngsend_request_duration"
+        resource_attributes:
+          - key: http.route
+            value: /api/health
+
+  # ── Transform: add deployment attributes ──────────────────────────
+  transform/deployment:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - set(attributes["deployment.environment"] , resource.attributes["deployment.environment"]) where resource.attributes["deployment.environment"] != nil
+          - set(attributes["service.namespace"] , resource.attributes["service.namespace"]) where resource.attributes["service.namespace"] != nil
+    metric_statements:
+      - context: metric
+        statements:
+          - set(attributes["deployment.environment"] , resource.attributes["deployment.environment"]) where resource.attributes["deployment.environment"] != nil
+
+exporters:
+  # ── OTLP → Tempo (traces) ──────────────────────────────────────────
+  otlp/traces:
+    endpoint: ${TEMPO_ENDPOINT:-tempo:4317}
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 4
+      queue_size: 1000
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  # ── OTLP → Loki (logs) ─────────────────────────────────────────────
+  otlp/logs:
+    endpoint: ${LOKI_ENDPOINT:-loki:4317}
+    tls:
+      insecure: true
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 500
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+
+  # ── Prometheus Exporter (self-hosted metrics endpoint) ─────────────
+  prometheus:
+    endpoint: 0.0.0.0:8888
+    namespace: youngsend
+    const_labels:
+      cluster: ${K8S_CLUSTER:-youngsend-prod}
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # ── Debug (optional, for troubleshooting) ─────────────────────────
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    # ── Traces Pipeline ────────────────────────────────────────────────
+    traces:
+      receivers: [otlp]
+      processors:
+        - memory_limiter
+        - filter/health
+        - transform/deployment
+        - batch
+      exporters:
+        - otlp/traces
+        # Uncomment for debugging:
+        # - debug
+
+    # ── Metrics Pipeline ──────────────────────────────────────────────
+    metrics:
+      receivers: [otlp, prometheus, hostmetrics]
+      processors:
+        - memory_limiter
+        - transform/deployment
+        - batch
+      exporters:
+        - prometheus
+        # Uncomment for debugging:
+        # - debug
+
+    # ── Logs Pipeline ─────────────────────────────────────────────────
+    logs:
+      receivers: [otlp]
+      processors:
+        - memory_limiter
+        - filter/health
+        - batch
+      exporters:
+        - otlp/logs
+        # Uncomment for debugging:
+        # - debug
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8889
