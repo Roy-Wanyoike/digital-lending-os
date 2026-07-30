@@ -68,7 +68,7 @@ async function getHandler(req: NextRequest) {
   })
 
   const data = cacheManager
-    ? await cacheManager.getOrSet('wallets:rates', fetchRates, { ttl: 60_000 })
+    ? await cacheManager.getOrSet('exchange-rates:all', fetchRates, { ttl: 300_000 })
     : fetchRates()
 
   return NextResponse.json({ data })

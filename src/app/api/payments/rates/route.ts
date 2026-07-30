@@ -3,6 +3,21 @@ import { db } from "@/lib/db";
 import { getApiUser } from "@/lib/auth/api-helpers";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+
+// Lazy-load cache manager — graceful fallback if Redis/OTel not installed
+let _cacheManager: any = undefined;
+let _cacheAttempted = false;
+async function getCache() {
+  if (_cacheAttempted) return _cacheManager;
+  _cacheAttempted = true;
+  try {
+    const mod = await import('@/backend/lib/cache/cache-manager');
+    _cacheManager = mod.default;
+  } catch {
+    _cacheManager = undefined;
+  }
+  return _cacheManager;
+}
 // ── Hardcoded popular rates ────────────────────────────────
 const POPULAR_RATES: { from: string; to: string; rate: number }[] = [
   { from: "USD", to: "EUR", rate: 0.92 },
@@ -44,62 +59,73 @@ async function getHandler(request: NextRequest) {
     const from = searchParams.get("from")?.toUpperCase();
     const to = searchParams.get("to")?.toUpperCase();
 
-    let rates: { from: string; to: string; rate: number }[] = [];
+    const cacheManager = await getCache();
+    const cacheKey = `payment-rates:${from || 'all'}:${to || 'all'}`;
 
-    if (from && to) {
-      if (from === to) {
-        rates = [{ from, to, rate: 1.0 }];
-      } else {
-        const key = `${from}-${to}`;
-        const rate = ALL_RATES[key];
-        if (rate) {
-          rates = [{ from, to, rate }];
+    const fetchRates = async () => {
+      let rates: { from: string; to: string; rate: number }[] = [];
+
+      if (from && to) {
+        if (from === to) {
+          rates = [{ from, to, rate: 1.0 }];
         } else {
-          // Try to compute via USD
-          const fromUsd = ALL_RATES[`${from}-USD`] ?? 1.0;
-          const usdTo = ALL_RATES[`USD-${to}`] ?? 1.0;
-          const computed = parseFloat((fromUsd * usdTo).toFixed(6));
-          rates = [{ from, to, rate: computed }];
+          const key = `${from}-${to}`;
+          const rate = ALL_RATES[key];
+          if (rate) {
+            rates = [{ from, to, rate }];
+          } else {
+            // Try to compute via USD
+            const fromUsd = ALL_RATES[`${from}-USD`] ?? 1.0;
+            const usdTo = ALL_RATES[`USD-${to}`] ?? 1.0;
+            const computed = parseFloat((fromUsd * usdTo).toFixed(6));
+            rates = [{ from, to, rate: computed }];
+          }
         }
+      } else {
+        // Return popular rates
+        rates = POPULAR_RATES;
       }
-    } else {
-      // Return popular rates
-      rates = POPULAR_RATES;
-    }
 
-    // Upsert currency rates into the database for querying
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24h expiry
+      // Upsert currency rates into the database for querying
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24h expiry
 
-    for (const r of rates) {
-      await db.currencyRate.upsert({
-        where: {
-          fromCurrency_toCurrency_provider_createdAt: {
+      for (const r of rates) {
+        await db.currencyRate.upsert({
+          where: {
+            fromCurrency_toCurrency_provider_createdAt: {
+              fromCurrency: r.from,
+              toCurrency: r.to,
+              provider: "mock",
+              createdAt: now,
+            },
+          },
+          create: {
             fromCurrency: r.from,
             toCurrency: r.to,
+            rate: r.rate,
             provider: "mock",
-            createdAt: now,
+            source: "internal_rates",
+            expiresAt,
           },
-        },
-        create: {
-          fromCurrency: r.from,
-          toCurrency: r.to,
-          rate: r.rate,
-          provider: "mock",
-          source: "internal_rates",
-          expiresAt,
-        },
-        update: {
-          rate: r.rate,
-          expiresAt,
-        },
-      });
-    }
+          update: {
+            rate: r.rate,
+            expiresAt,
+          },
+        });
+      }
+
+      return { rates, timestamp: now.toISOString(), expiresAt: expiresAt.toISOString() };
+    };
+
+    const cached = cacheManager
+      ? await cacheManager.getOrSet(cacheKey, fetchRates, { ttl: 300_000 })
+      : await fetchRates();
 
     return NextResponse.json({
-      data: rates,
-      timestamp: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
+      data: cached.rates,
+      timestamp: cached.timestamp,
+      expiresAt: cached.expiresAt,
     });
   } catch (error) {
     console.error("Error fetching exchange rates:", error);

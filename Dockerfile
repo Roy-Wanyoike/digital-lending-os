@@ -32,10 +32,14 @@ RUN npx prisma generate
 # Build Next.js in standalone mode (set in next.config.ts)
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
 
 # ── Stage 3: Runtime ─────────────────────────────────────────────────
 FROM node:20-alpine AS runner
+
+# Install wget for HEALTHCHECK (CMD uses wget --spider)
+RUN apk add --no-cache wget
 
 # Security: run as non-root user
 RUN addgroup --system --gid 1001 nodejs && \
@@ -57,8 +61,14 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
 # Copy Prisma engine for runtime database access
+# (.prisma = generated client + query engine; @prisma = runtime JS)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
+# Create db/ directory for SQLite — the docker-compose volume mount
+# ./db:/app/db provides the actual database file at runtime.
+# This mkdir ensures the mount target exists with correct ownership.
+RUN mkdir -p /app/db && chown -R nextjs:nodejs /app/db
 
 # Ensure the nextjs user owns the app directory
 RUN chown -R nextjs:nodejs /app

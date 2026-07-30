@@ -12,6 +12,7 @@ out
 *.swo
 
 # Version control
+.git
 git
 .gitignore
 
@@ -47,8 +48,9 @@ infra/
 download/
 *.log
 
-# Database (runtime only)
+# Database (runtime only — provided via docker-compose volume mount)
 db/*.db
+db/*.db-journal
 
 # Misc
 .DS_Store

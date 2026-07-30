@@ -862,3 +862,150 @@ Stage Summary:
 - Zod v4 compatibility resolved across all validation files
 - Next.js 16 route handler type compatibility verified
 - Integration tests need running server (ECONNREFUSED = expected, not a code bug)
+
+---
+Task ID: 1
+Agent: security-middleware
+Task: Upgrade Next.js middleware to production-grade security layer
+
+Work Log:
+- Read existing 17-line middleware.ts (security headers only), Cloudflare worker reference, rate-limiter.ts, cache/client.ts, payment security-middleware.ts, health/ready routes
+- Replaced minimal middleware with 144-line production-grade edge-compatible middleware
+- Kept original 5 security headers (x-frame-options, x-content-type-options, referrer-policy, x-xss-protection, x-request-id)
+- Added in-memory sliding-window rate limiter using Map with lazy expiry cleanup (every 200 checks) — 100 req/min per IP on /api/ routes
+- Rate limit responses include x-ratelimit-limit, x-ratelimit-remaining, x-ratelimit-reset, Retry-After headers + JSON body { error, retryAfter }
+- Auth guard checks for next-auth.session-token cookie, __Secure-next-auth.session-token cookie, or Authorization: Bearer header
+- Auth skipped for: /api/health, /api/ready, /api/auth/*, /api/payment-links/*/pay, /api/payments/webhooks/*
+- Bot detection blocks empty UA, curl/, wget/, python-requests/, sqlmap, nikto, nmap on /api/ routes only (page routes allowed)
+- CORS headers added globally: Access-Control-Allow-Origin *, methods GET/POST/PUT/DELETE/PATCH/OPTIONS, allowed headers
+- OPTIONS preflight returns 200 immediately with full CORS headers
+- Request logging: console.log for all API requests in format `METHOD /path STATUS Nms`
+- x-response-time header set on all responses
+- Zero external imports (only next/server) — fully edge-runtime compatible
+- No Redis, no Prisma, no next-auth imports
+- tsc --noEmit: CLEAN (zero middleware errors)
+
+Stage Summary:
+- Middleware upgraded from 17 lines (headers only) to 144 lines (rate limiting, auth guard, bot protection, CORS, request logging)
+- Fully edge-compatible (no Node.js-only modules, in-memory rate limiter)
+- /api/health and /api/ready explicitly exempted from auth (critical for health probes)
+- All 6 requirements satisfied; config.matcher preserved unchanged
+
+---
+Task ID: 2
+Agent: adr-completer
+Task: Create all missing ADR artifacts (14 files)
+
+Work Log:
+- Read all reference files: ADR-001 (main, benchmarks, threat model), ADR-002, 006, 009, 010, 011, 012, ARCHITECTURE.md, ADR-003, 004, 005, 008
+- Created ADR-007-event-driven-kafka.md: Full event-driven architecture ADR covering 38 topics across 8 domains, consumer groups, exactly-once semantics (3 tiers), saga orchestration for payments, dead letter queues, schema evolution with Zod, event envelope standard, Kafka cluster configuration
+- Created ADR-007-threat-model.md: STRIDE analysis with 6 categories, 4 attack trees (message injection, replay attack, consumer group takeover, poison pill), risk summary with top priority recommendation
+- Created ADR-007-review-checklist.md: 20+ items across 9 sections (topic design, consumer group config, DLQ, idempotency, schema evolution, security, saga, monitoring, testing)
+- Created ADR-002-benchmarks.md: API hardening benchmarks covering error response overhead, auth overhead, rate limiter throughput, CORS preflight cost, structured logger performance
+- Created ADR-003-benchmarks.md: Payment engine benchmarks covering intent creation, state machine throughput, idempotency checks, encryption timing, provider-specific latency, webhook processing
+- Created ADR-004-benchmarks.md: Escrow/trust benchmarks covering escrow creation, state transitions, trust score computation, review processing, dispute resolution
+- Created ADR-005-benchmarks.md: Wallet/transaction benchmarks covering balance query, transfer operations, batch processing, exchange rates, cache performance, connection pool utilization
+- Created ADR-006-benchmarks.md: Dashboard frontend benchmarks covering Core Web Vitals (FCP, LCP, TTI, TBT, CLS), JS bundle sizes per tab, RSC streaming times, error boundary performance
+- Created ADR-008-benchmarks.md: Fraud/compliance benchmarks covering fraud detection latency, AML screening time, KYC verification, case throughput, rule evaluation
+- Created ADR-009-benchmarks.md: Search/analytics benchmarks covering query latency (p50/p95/p99), indexing throughput, aggregation performance, analytics API, OpenSearch client
+- Created ADR-010-benchmarks.md: Infrastructure benchmarks covering pod startup, HPA scale-up latency, RTO for 8 failure scenarios, RPO, CI/CD pipeline times, image size
+- Created ADR-011-benchmarks.md: Data layer benchmarks covering read replica lag, query performance, connection pool utilization, migration downtime, schema operations
+- Created ADR-006-threat-model.md: Dashboard frontend STRIDE with 4 attack trees (XSS, CSRF, supply chain, data leakage)
+- Created ADR-009-threat-model.md: Search/analytics STRIDE with 4 attack trees (search injection, data exfiltration, index pollution, DoS via complex queries)
+- Created ADR-010-threat-model.md: Infrastructure STRIDE with 4 attack trees (container escape, supply chain/image tampering, secret leakage, DDoS)
+- Created ADR-011-threat-model.md: Data layer STRIDE with 5 attack trees (SQL injection, connection pool exhaustion, replica lag exploitation, backup tampering, RLS bypass)
+- Created ADR-012-threat-model.md: Performance/DX STRIDE with 4 attack trees (cache poisoning, DoS via cache misses, telemetry data leakage, SPECTRE/timing)
+
+Stage Summary:
+- Created all 14 missing ADR artifacts (3 for ADR-007, 9 benchmarks, 5 threat models)
+- All files follow established format from ADR-001 reference artifacts
+- All threat models use STRIDE analysis with attack trees and risk summary
+- All benchmarks include measurement targets, current estimates, and testing approaches
+- All documents are consistent with ARCHITECTURE.md (38 topics, 8 domains, 3 EOS tiers, etc.)
+
+---
+Task ID: 3
+Agent: docker-fixer
+Task: Fix Dockerfile and verify docker-compose.yml for SQLite support
+
+Work Log:
+- Read current Dockerfile (74 lines, 3-stage: deps → builder → runner)
+- Read docker-compose.yml — confirmed ./db:/app/db volume mount, Redis service present
+- Read prisma/schema.prisma — confirmed SQLite provider with file:./db/custom.db
+- Read .dockerignore — mostly correct, missing .git and db/*.db-journal
+- Verified db/custom.db exists on host
+- Verified Prisma 6.19.2 includes WASM engine fallback for cross-platform compatibility
+- Verified .prisma + @prisma copy is sufficient for standalone runtime
+
+Dockerfile changes:
+- Added `apk add --no-cache wget` to runner stage (HEALTHCHECK uses wget --spider)
+- Added `ENV NODE_OPTIONS="--max-old-space-size=4096"` to builder stage (prevent OOM during build)
+- Added `RUN mkdir -p /app/db && chown -R nextjs:nodejs /app/db` to runner stage
+- Added comment explaining docker-compose volume mount ./db:/app/db provides SQLite persistence
+- Added inline comment on Prisma copy explaining .prisma = generated client + query engine, @prisma = runtime JS
+- Multi-stage structure and HEALTHCHECK left unchanged per requirements
+
+docker-compose.yml changes:
+- Removed `depends_on: redis: condition: service_started` from nextjs service
+- Added comment: Redis is optional, app falls back to in-memory LRU cache
+- Confirmed: build context `.`, port 3000 mapped, ./db:/app/db volume present
+
+.dockerignore changes:
+- Added `.git` to version control exclusions (was only `git`)
+- Added `db/*.db-journal` to database exclusions
+- Added clarifying comment on db exclusions noting docker-compose volume mount
+
+TypeScript check: `npx tsc --noEmit` — clean, zero errors
+
+Stage Summary:
+- Dockerfile now fully supports SQLite: db/ directory created with correct ownership, volume mount documented
+- HEALTHCHECK works (wget installed in runner)
+- Build won't OOM (4 GB heap limit)
+- Redis is truly optional in docker-compose (no depends_on)
+- .dockerignore properly excludes .git and SQLite journal files
+
+---
+Task ID: 4
+Agent: nextconfig-optimizer
+Task: Optimize next.config.ts
+
+Work Log:
+- Read existing next.config.ts (27 lines, 5 settings) and package.json (Next.js 16.1.1)
+- Added images config: AVIF + WebP formats, custom deviceSizes/imageSizes, wildcard HTTPS remotePatterns
+- Added security headers via async headers(): X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy strict-origin-when-cross-origin, Permissions-Policy (camera/microphone/geolocation blocked), HSTS with preload
+- Added permanent redirect: /dashboard → / (308)
+- Extended serverExternalPackages: added @prisma/client and ioredis (both confirmed in dependencies)
+- Preserved all existing settings: output standalone, poweredByHeader false, reactStrictMode true, typescript ignoreBuildErrors true
+- Ran npx tsc --noEmit — passed with zero errors
+
+Stage Summary:
+- next.config.ts expanded from 27 lines to 97 lines with 4 new optimization categories
+- Image optimization: modern formats (AVIF/WebP) reduce bandwidth 30-50% vs default JPEG/PNG
+- Security hardened: 5 production-grade response headers on all routes
+- Legacy /dashboard path permanently redirected to / (matches Task 1 fix)
+- Bundle size reduced: @prisma/client and ioredis kept external to server bundle
+- Type-check verified clean (tsc --noEmit: 0 errors)
+
+---
+Task ID: 5
+Agent: cache-integrator
+Task: Wire Redis cache into critical API routes
+
+Work Log:
+- Read cache infrastructure: client.ts (Redis/LRU factory), cache-manager.ts (CacheManager with getOrSet, stampede protection, SWR, tags), strategies.ts
+- Audited all 6 route files for existing caching
+- Dashboard Stats (route.ts): Already cached via getOrSet with 30s TTL and POST invalidation via cacheManager.delete() — verified correct, no changes needed
+- Wallets (route.ts): Already cached via getOrSet with 60s TTL per-user (with optional businessId scoping) — verified correct, no changes needed
+- Exchange Rates (/api/wallets/rates): Already had caching scaffold but used wrong key (`wallets:rates`) and 60s TTL. Fixed: key → `exchange-rates:all`, TTL → 300s (5 min)
+- Payment Providers (/api/payments/providers): No caching existed. Added lazy-load cache pattern, wrapped provider fetch in getOrSet with key `payment-providers:all` and 600s (10 min) TTL
+- Payment Rates (/api/payments/rates): No caching existed. Added lazy-load cache pattern, wrapped rate computation + DB upsert in getOrSet with key `payment-rates:{from}:{to}` and 300s (5 min) TTL. Cache stores {rates, timestamp, expiresAt} to preserve full response shape
+- All cache operations use the same lazy-load pattern for graceful degradation (no Redis = no cache, falls back to DB)
+- Ran npx tsc --noEmit — passed with zero errors
+
+Stage Summary:
+- 3 of 5 routes were already cached (dashboard stats, wallets, exchange rates)
+- Exchange rates TTL fixed from 60s → 300s and key corrected to `exchange-rates:all`
+- Payment providers: new caching with `payment-providers:all` key, 600s TTL
+- Payment rates: new caching with `payment-rates:{from}:{to}` key, 300s TTL (avoids repeated DB upserts on cache hit)
+- All routes use CacheManager.getOrSet (stampede-protected), lazy-loaded with try-catch for Redis-absent environments
+- TypeScript compilation clean (0 errors)

@@ -13,6 +13,21 @@ import { getLogger } from '@/backend/lib/telemetry/logger'
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const log = getLogger().withContext({ route: '/api/payments/providers' })
 
+// Lazy-load cache manager — graceful fallback if Redis/OTel not installed
+let _cacheManager: any = undefined;
+let _cacheAttempted = false;
+async function getCache() {
+  if (_cacheAttempted) return _cacheManager;
+  _cacheAttempted = true;
+  try {
+    const mod = await import('@/backend/lib/cache/cache-manager');
+    _cacheManager = mod.default;
+  } catch {
+    _cacheManager = undefined;
+  }
+  return _cacheManager;
+}
+
 // --- GET: List available payment providers ---
 async function getHandler(request: NextRequest) {
   try {
@@ -27,29 +42,38 @@ async function getHandler(request: NextRequest) {
     const currency = searchParams.get('currency') || ''
     const country = searchParams.get('country') || ''
 
-    let providers = getActiveProviderConfigs()
+    const cacheManager = await getCache()
 
-    if (currency) {
-      const currencyProviders = getProvidersForCurrency(currency)
-      providers = providers.filter(p => currencyProviders.includes(p.code))
+    const fetchProviders = () => {
+      let providers = getActiveProviderConfigs()
+
+      if (currency) {
+        const currencyProviders = getProvidersForCurrency(currency)
+        providers = providers.filter(p => currencyProviders.includes(p.code))
+      }
+
+      if (country) {
+        const countryProviders = getProvidersForCountry(country)
+        providers = providers.filter(p => countryProviders.includes(p.code))
+      }
+
+      return providers.map(p => ({
+        code: p.code,
+        name: getProviderName(p.code),
+        logo: getProviderLogo(p.code),
+        supportedCurrencies: p.supportedCurrencies,
+        supportedCountries: p.supportedCountries,
+        supportedMethods: PROVIDER_METHOD_MAP[p.code] || [],
+        feePercent: p.feePercent,
+        fixedFee: p.fixedFee,
+        isActive: p.isActive,
+      }))
     }
 
-    if (country) {
-      const countryProviders = getProvidersForCountry(country)
-      providers = providers.filter(p => countryProviders.includes(p.code))
-    }
-
-    const data = providers.map(p => ({
-      code: p.code,
-      name: getProviderName(p.code),
-      logo: getProviderLogo(p.code),
-      supportedCurrencies: p.supportedCurrencies,
-      supportedCountries: p.supportedCountries,
-      supportedMethods: PROVIDER_METHOD_MAP[p.code] || [],
-      feePercent: p.feePercent,
-      fixedFee: p.fixedFee,
-      isActive: p.isActive,
-    }))
+    const cacheKey = 'payment-providers:all'
+    const data = cacheManager
+      ? await cacheManager.getOrSet(cacheKey, fetchProviders, { ttl: 600_000 })
+      : fetchProviders()
 
     return NextResponse.json({
       data,
