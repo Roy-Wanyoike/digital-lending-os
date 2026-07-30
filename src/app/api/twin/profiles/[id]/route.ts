@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const updateTwinSchema = z.object({
   healthScore: z.number().min(0).max(100).optional(),
   cashFlowHealth: z.number().min(0).max(100).optional(),
@@ -13,7 +14,7 @@ const updateTwinSchema = z.object({
 });
 
 // GET /api/twin/profiles/[id] — Get single digital twin with relations
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -76,7 +77,7 @@ export async function GET(
 }
 
 // PUT /api/twin/profiles/[id] — Update digital twin fields
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -138,3 +139,7 @@ export async function PUT(
     );
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/twin/profiles/[id]');
+
+export const PUT = withApiTelemetry(putHandler, '/api/twin/profiles/[id]');

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const convertSchema = z.object({
   fromWalletId: z.string().min(1),
   toWalletId: z.string().min(1),
@@ -34,7 +35,7 @@ function getRate(from: string, to: string): number {
 }
 
 // POST /api/wallets/convert — Convert between wallets
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -179,7 +180,7 @@ export async function POST(request: NextRequest) {
 }
 
 // GET /api/wallets/convert?walletId=xxx — List conversions for a wallet
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -217,3 +218,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to list conversions' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/wallets/convert');
+
+export const POST = withApiTelemetry(postHandler, '/api/wallets/convert');

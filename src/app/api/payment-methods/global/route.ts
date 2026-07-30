@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getApiUser } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined
 let _cacheAttempted = false
@@ -17,7 +18,7 @@ async function getCache() {
   return _cacheManager
 }
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   const user = await getApiUser(request)
   if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
   try {
@@ -61,3 +62,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to list global payment methods' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/payment-methods/global');

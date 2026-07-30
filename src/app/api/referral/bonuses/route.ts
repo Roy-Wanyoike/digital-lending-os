@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError, successResponse, errorResponse } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // GET /api/referral/bonuses — List referral bonuses for the current user
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return errorResponse('Authentication required', 401)
@@ -71,3 +72,5 @@ export async function GET(request: NextRequest) {
     return errorResponse('Failed to fetch referral bonuses', 500)
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/referral/bonuses');

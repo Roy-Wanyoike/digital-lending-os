@@ -7,7 +7,8 @@
 // (inside functions) to avoid crashes if those modules have issues.
 //
 
-import type { NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
 // ── Types ──────────────────────────────────────────────────────────
 

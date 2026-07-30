@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
-export async function GET(
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -37,7 +38,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -108,3 +109,7 @@ export async function PUT(
     return NextResponse.json({ error: 'Failed to update invoice' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/invoices/[id]');
+
+export const PUT = withApiTelemetry(putHandler, '/api/invoices/[id]');

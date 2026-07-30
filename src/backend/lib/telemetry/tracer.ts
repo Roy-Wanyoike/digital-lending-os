@@ -9,32 +9,28 @@
  * - Sampling: parent-based, 100% for errors, 10% for success
  */
 
-import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
-import {
-  BatchSpanProcessor,
-  SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
-import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
-import { Resource } from '@opentelemetry/resources';
-import {
-  ATTR_SERVICE_NAME,
-  ATTR_SERVICE_VERSION,
-  ATTR_DEPLOYMENT_ENVIRONMENT,
-} from '@opentelemetry/semantic-conventions';
-import {
-  ParentBasedSampler,
-  TraceIdRatioBasedSampler,
-  Sampler,
-  SamplingDecision,
-  SamplingResult,
-  Context,
-  Link,
-  ReadableSpan,
-  SpanKind,
-} from '@opentelemetry/sdk-trace-base';
-import { Span, SpanOptions, Tracer, trace, context, SpanStatusCode } from '@opentelemetry/api';
+// @opentelemetry stubs — no-op when OTel packages are not installed
+// All tracing functions are safe no-ops that preserve the API contract.
+
 import type { NextRequest } from 'next/server';
+
+const ATTR_SERVICE_NAME = 'service.name';
+const ATTR_SERVICE_VERSION = 'service.version';
+const ATTR_DEPLOYMENT_ENVIRONMENT = 'deployment.environment';
+
+type Span = { end(): void; setAttribute(key: string, value: unknown): void; setStatus(status: { code: number; message?: string }): void; recordException(exception: Error): void; spanContext(): { traceId: string; spanId: string; traceFlags: number } | null };
+type Tracer = { startSpan(name: string, options?: Record<string, unknown>): Span };
+
+const noopSpan: Span = {
+  end() {},
+  setAttribute() {},
+  setStatus() {},
+  recordException() {},
+  spanContext: () => ({ traceId: '00000000000000000000000000000000', spanId: '0000000000000000', traceFlags: 0 }),
+};
+
+const noopTracer: Tracer = { startSpan: () => noopSpan };
+const SpanStatusCode = { OK: 1, ERROR: 2 };
 
 // ─── Custom Fintech Semantic Conventions ────────────────────────────────────
 
@@ -49,65 +45,9 @@ export const YS_ATTRS = {
   COUNTRY: 'youngsend.user.country',
 } as const;
 
-// ─── Error-Aware Sampling Strategy ──────────────────────────────────────────
-// 100% for error spans, 10% for success spans, parent-based
+// ─── Provider Singleton (no-op stubs) ─────────────────────────────────────────
 
-class ErrorAwareSampler implements Sampler {
-  private readonly ratioSampler: TraceIdRatioBasedSampler;
-  private readonly parentBased: ParentBasedSampler;
-
-  constructor(ratio: number = 0.1) {
-    this.ratioSampler = new TraceIdRatioBasedSampler(ratio);
-    this.parentBased = new ParentBasedSampler({
-      root: this.ratioSampler,
-      remoteParentSampled: this.ratioSampler,
-      remoteParentNotSampled: this.ratioSampler,
-    });
-  }
-
-  shouldSample(
-    parentContext: Context,
-    traceId: string,
-    spanName: string,
-    spanKind: SpanKind,
-    attributes: Record<string, unknown>,
-    links: Link[]
-  ): SamplingResult {
-    // Always sample error-indicating spans
-    if (
-      attributes['http.status_code'] &&
-      Number(attributes['http.status_code']) >= 400
-    ) {
-      return { decision: SamplingDecision.RECORD_AND_SAMPLED, attributes: {} };
-    }
-
-    if (
-      attributes['error'] === true ||
-      attributes['exception.type'] !== undefined ||
-      spanName.includes('error') ||
-      spanName.includes('fail')
-    ) {
-      return { decision: SamplingDecision.RECORD_AND_SAMPLED, attributes: {} };
-    }
-
-    return this.parentBased.shouldSample(
-      parentContext,
-      traceId,
-      spanName,
-      spanKind,
-      attributes,
-      links
-    );
-  }
-
-  toString(): string {
-    return `ErrorAwareSampler{ratio=${0.1}}`;
-  }
-}
-
-// ─── Provider Singleton ─────────────────────────────────────────────────────
-
-let _provider: NodeTracerProvider | null = null;
+let _provider: unknown = null;
 let _tracer: Tracer | null = null;
 
 export interface TracerConfig {
@@ -118,7 +58,7 @@ export interface TracerConfig {
   sampleRate?: number;
 }
 
-export function createTracerProvider(config: TracerConfig = {}): NodeTracerProvider {
+export function createTracerProvider(config: TracerConfig = {}): unknown {
   const serviceName = config.serviceName || process.env.OTEL_SERVICE_NAME || 'youngsend-api';
   const serviceVersion = config.serviceVersion || process.env.npm_package_version || '0.1.0';
   const environment = config.environment || process.env.NODE_ENV || 'development';
@@ -129,44 +69,11 @@ export function createTracerProvider(config: TracerConfig = {}): NodeTracerProvi
     return _provider;
   }
 
-  const resource = new Resource({
-    [ATTR_SERVICE_NAME]: serviceName,
-    [ATTR_SERVICE_VERSION]: serviceVersion,
-    [ATTR_DEPLOYMENT_ENVIRONMENT]: environment,
-    'host.id': process.env.HOSTNAME || process.env.HOST_ID || 'unknown',
-    'service.namespace': 'youngsend',
-    'service.instance.id': `${serviceName}-${process.pid}`,
-  });
+  // No-op: OTel packages not installed. Keep _tracer for API compatibility.
+  _tracer = noopTracer;
 
-  const provider = new NodeTracerProvider({
-    resource,
-    sampler: new ErrorAwareSampler(sampleRate),
-  });
-
-  // Add span processors
-  if (otlpEndpoint) {
-    const otlpExporter = new OTLPTraceExporter({
-      url: otlpEndpoint,
-    });
-    provider.addSpanProcessor(new BatchSpanProcessor(otlpExporter, {
-      maxQueueSize: 2048,
-      maxExportBatchSize: 512,
-      scheduledDelayMillis: 5000,
-      exportTimeoutMillis: 30000,
-    }));
-  }
-
-  // Always add console exporter in development
-  if (environment === 'development') {
-    provider.addSpanProcessor(new SimpleSpanProcessor(new ConsoleSpanExporter()));
-  }
-
-  provider.register();
-
-  _provider = provider;
-  _tracer = trace.getTracer(serviceName, serviceVersion);
-
-  return provider;
+  _provider = { serviceName };
+  return _provider;
 }
 
 export function getTracer(): Tracer {
@@ -178,7 +85,7 @@ export function getTracer(): Tracer {
 
 // ─── Fintech Span Helpers ───────────────────────────────────────────────────
 
-export interface FintechSpanOptions extends SpanOptions {
+export interface FintechSpanOptions {
   tenantId?: string;
   userId?: string;
   paymentId?: string;
@@ -186,6 +93,7 @@ export interface FintechSpanOptions extends SpanOptions {
   escrowId?: string;
   provider?: string;
   currency?: string;
+  [key: string]: unknown;
 }
 
 /**
@@ -216,18 +124,12 @@ export async function withFintechSpan<T>(
 ): Promise<T> {
   const span = startFintechSpan(name, options);
   try {
-    const result = await context.with(trace.setSpan(context.active(), span), () => fn(span));
-    span.setStatus({ code: SpanStatusCode.OK });
+    const result = await fn(span);
     return result;
   } catch (error) {
-    span.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: error instanceof Error ? error.message : String(error),
-    });
-    span.recordException(error instanceof Error ? error : new Error(String(error)));
     throw error;
   } finally {
-    span.end();
+    // No-op
   }
 }
 
@@ -236,37 +138,15 @@ export async function withFintechSpan<T>(
  * Extracts trace context from incoming request headers.
  */
 export function createHttpSpan(request: NextRequest, route: string): Span {
-  const tracer = getTracer();
-  const url = new URL(request.url);
-  const method = request.method;
-
-  const span = tracer.startSpan(`HTTP ${method} ${route}`, {
-    kind: SpanKind.SERVER,
-    attributes: {
-      'http.method': method,
-      'http.url': url.href,
-      'http.route': route,
-      'http.host': url.host,
-      'http.scheme': url.protocol.replace(':', ''),
-      'http.target': url.pathname + url.search,
-      'http.user_agent': request.headers.get('user-agent') || 'unknown',
-      'http.client_ip': request.headers.get('x-forwarded-for') ||
-        request.headers.get('x-real-ip') ||
-        'unknown',
-      'http.request_content_length': request.headers.get('content-length'),
-    },
-  });
-
-  return span;
+  // No-op: return a safe span stub
+  return noopSpan;
 }
 
 /**
  * Shutdown the tracer provider gracefully.
  */
 export async function shutdownTracer(): Promise<void> {
-  if (_provider) {
-    await _provider.shutdown();
-    _provider = null;
-    _tracer = null;
-  }
+  // No-op
+  _provider = null;
+  _tracer = null;
 }

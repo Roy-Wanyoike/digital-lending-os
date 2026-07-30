@@ -5,6 +5,7 @@ import { providerRegistry, getProvidersForCurrency, calculateFee, getProviderNam
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 import { recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ── Zod Schema ───────────────────────────────────────────────
 const fundSchema = z.object({
   provider: z.enum(["stripe", "paystack", "intasend", "flutterwave"]).optional(),
@@ -15,7 +16,7 @@ const fundSchema = z.object({
 });
 
 // ── POST: Fund an escrow transaction via payment provider ─────
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -212,3 +213,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withApiTelemetry(postHandler, '/api/escrow/transactions/[id]/fund');

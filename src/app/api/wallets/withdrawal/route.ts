@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 import { processWithdrawal } from '@/backend/services/temporal-bridge'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const withdrawalSchema = z.object({
   walletId: z.string().min(1, 'Wallet ID is required'),
   amount: z.number().positive('Amount must be greater than 0'),
@@ -18,7 +19,7 @@ const withdrawalSchema = z.object({
 })
 
 // POST /api/wallets/withdrawal — Initiate a fiat withdrawal
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -164,7 +165,7 @@ export async function POST(request: NextRequest) {
 }
 
 // GET /api/wallets/withdrawal?walletId=xxx — List withdrawals for a wallet
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -205,3 +206,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to list withdrawals' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/wallets/withdrawal');
+
+export const POST = withApiTelemetry(postHandler, '/api/wallets/withdrawal');

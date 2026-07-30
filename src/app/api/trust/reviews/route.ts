@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const createReviewSchema = z.object({
   fromBusinessId: z.string().min(1, 'fromBusinessId is required'),
   toBusinessId: z.string().min(1, 'toBusinessId is required'),
@@ -15,7 +16,7 @@ const createReviewSchema = z.object({
   communicationRating: z.number().min(1).max(5).optional(),
 })
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -146,3 +147,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create review' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/trust/reviews');
+
+export const POST = withApiTelemetry(postHandler, '/api/trust/reviews');

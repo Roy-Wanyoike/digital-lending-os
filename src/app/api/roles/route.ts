@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const ROLE_DEFINITIONS = [
   { role: 'admin', label: 'Administrator', description: 'Full access to all features, user management, and settings' },
   { role: 'buyer', label: 'Buyer', description: 'Can create escrow transactions, make payments, and view invoices' },
@@ -10,7 +11,7 @@ const ROLE_DEFINITIONS = [
   { role: 'viewer', label: 'Viewer', description: 'Read-only access to dashboards and reports' },
 ];
 
-export async function GET(req: NextRequest) {
+async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return errorResponse('Authentication required', 401);
@@ -35,3 +36,5 @@ export async function GET(req: NextRequest) {
     return errorResponse('Failed to fetch roles', 500);
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/roles');

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
-export async function GET(
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+async function getHandler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -16,12 +17,11 @@ export async function GET(
     const link = await db.paymentLink.findFirst({
       where: { id },
       include: {
-        business: { select: { id: true, name: true, tenantId: true } },
         _count: { select: { payments: true } },
       },
     });
 
-    if (!link || link.business.tenantId !== user.tenantId) {
+    if (!link || link.businessId !== user.tenantId) {
       return NextResponse.json({ error: 'Payment link not found' }, { status: 404 });
     }
 
@@ -35,7 +35,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function patchHandler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -49,10 +49,9 @@ export async function PATCH(
 
     const existing = await db.paymentLink.findFirst({
       where: { id },
-      include: { business: { select: { tenantId: true } } },
     });
 
-    if (!existing || existing.business.tenantId !== user.tenantId) {
+    if (!existing || existing.businessId !== user.tenantId) {
       return NextResponse.json({ error: 'Payment link not found' }, { status: 404 });
     }
 
@@ -81,7 +80,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function deleteHandler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -94,10 +93,9 @@ export async function DELETE(
 
     const existing = await db.paymentLink.findFirst({
       where: { id },
-      include: { business: { select: { tenantId: true } } },
     });
 
-    if (!existing || existing.business.tenantId !== user.tenantId) {
+    if (!existing || existing.businessId !== user.tenantId) {
       return NextResponse.json({ error: 'Payment link not found' }, { status: 404 });
     }
 
@@ -111,3 +109,9 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to delete payment link' }, { status: 500 });
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/payment-links/[id]');
+
+export const DELETE = withApiTelemetry(deleteHandler, '/api/payment-links/[id]');
+
+export const PATCH = withApiTelemetry(patchHandler, '/api/payment-links/[id]');

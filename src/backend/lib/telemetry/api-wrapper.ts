@@ -30,11 +30,14 @@ export interface ApiTelemetryLogEntry {
   stack?: string;
 }
 
+// Next.js 16 route handler context shape
+export interface RouteContext<TParams = Record<string, string>> {
+  params: Promise<TParams>;
+}
+
 // ─── Structured JSON Logger ────────────────────────────────────────────────
 
 function logStructured(entry: ApiTelemetryLogEntry): void {
-  // Use console.log for info, console.error for errors so log aggregation
-  // tools can apply severity-based filtering.
   const json = JSON.stringify(entry);
   if (entry.level === 'error') {
     console.error(json);
@@ -46,28 +49,47 @@ function logStructured(entry: ApiTelemetryLogEntry): void {
 // ─── withApiTelemetry HOF ─────────────────────────────────────────────────
 
 /**
- * Wraps a Next.js App Router GET handler with lightweight telemetry.
+ * Wraps a Next.js 16 App Router route handler with lightweight telemetry.
  *
+ * Two overloads:
+ *  1. Static routes: handler takes `(req: NextRequest) => Response`
+ *  2. Dynamic routes: handler takes `(req: NextRequest, ctx: RouteContext<T>) => Response`
+ *
+ * Usage:
  * ```ts
- * import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
- *
+ * // Static route
  * async function getHandler(req: NextRequest) {
  *   return NextResponse.json({ ok: true });
  * }
- *
  * export const GET = withApiTelemetry(getHandler, '/api/wallets');
- * ```
  *
- * Guarantees:
- * - Every response (success or error) gets `x-request-id` and `x-response-time`.
- * - One structured JSON line per request in console output.
- * - Errors are logged with stack trace but re-thrown (Next.js error boundary handles them).
+ * // Dynamic route
+ * async function getHandler(req: NextRequest, ctx: RouteContext<{ id: string }>) {
+ *   const { id } = await ctx.params;
+ *   return NextResponse.json({ ok: true, id });
+ * }
+ * export const GET = withApiTelemetry(getHandler, '/api/users/[id]');
+ * ```
  */
+
+// Overload 1: Static routes (handler ignores context)
 export function withApiTelemetry(
-  handler: (req: NextRequest) => Promise<NextResponse>,
+  handler: (req: NextRequest) => Promise<Response>,
   routeName?: string,
-): (req: NextRequest) => Promise<NextResponse> {
-  return async (req: NextRequest): Promise<NextResponse> => {
+): (req: NextRequest, context: RouteContext<Record<string, string>>) => Promise<Response>;
+
+// Overload 2: Dynamic routes (handler uses context)
+export function withApiTelemetry<TParams extends Record<string, string>>(
+  handler: (req: NextRequest, context: RouteContext<TParams>) => Promise<Response>,
+  routeName?: string,
+): (req: NextRequest, context: RouteContext<TParams>) => Promise<Response>;
+
+// Implementation
+export function withApiTelemetry(
+  handler: (req: NextRequest, context?: any) => Promise<Response>,
+  routeName?: string,
+): (req: NextRequest, context: any) => Promise<Response> {
+  return async (req: NextRequest, context?: any): Promise<Response> => {
     // A) Generate or forward x-request-id
     const requestId =
       req.headers.get('x-request-id') || crypto.randomUUID();
@@ -80,8 +102,10 @@ export function withApiTelemetry(
     const method = req.method;
 
     try {
-      // C) Call the handler
-      const response = await handler(req);
+      // C) Call the handler — forward context only if the handler accepts 2 args
+      const response = handler.length >= 2
+        ? await handler(req, context)
+        : await handler(req);
 
       // D) Calculate duration
       const durationMs = performance.now() - startTime;

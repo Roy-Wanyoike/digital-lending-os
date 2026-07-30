@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { providerRegistry, getProvidersForCurrency, getProvidersForCountry, calculateFee, getProviderName, type PaymentProviderCode } from '@/lib/payment'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ─── Zod Schema ──────────────────────────────────────────────
 const initSchema = z.object({
   provider: z.enum(['stripe', 'paystack', 'intasend', 'flutterwave', 'paya']).optional(),
@@ -20,7 +21,7 @@ const initSchema = z.object({
 })
 
 // ─── POST: Initialize a payment with a provider ──────────────
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -189,3 +190,5 @@ export async function POST(request: NextRequest) {
     )
   }
 }
+
+export const POST = withApiTelemetry(postHandler, '/api/payments/initialize');

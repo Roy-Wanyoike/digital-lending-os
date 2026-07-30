@@ -15,7 +15,7 @@ export class StripeProvider implements PaymentProvider {
     this.isActive = config?.isActive || false
     if (config?.secretKey) {
       this.client = new Stripe(config.secretKey, {
-        apiVersion: '2025-04-30.basil',
+        apiVersion: '2026-06-24.dahlia',
       })
       this.webhookSecret = config.webhookSecret
     }

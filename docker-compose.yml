@@ -2,6 +2,9 @@
 # Youngsend — Local Development Stack
 # Usage: docker compose up -d
 # ─────────────────────────────────────────────────────────────────────
+# NOTE: This app uses SQLite (file:./db/custom.db), not PostgreSQL.
+#       The db/ directory is bind-mounted so data persists across restarts.
+# ─────────────────────────────────────────────────────────────────────
 
 services:
   # ── Next.js Application ────────────────────────────────────────────
@@ -17,37 +20,18 @@ services:
     env_file:
       - .env
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_started
-    networks:
-      - youngsend-net
-    restart: unless-stopped
-
-  # ── PostgreSQL 16 ──────────────────────────────────────────────────
-  postgres:
-    image: postgres:16-alpine
-    container_name: youngsend-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-youngsend}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-youngsend_dev}
-      POSTGRES_DB: ${POSTGRES_DB:-youngsend}
-    ports:
-      - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-youngsend} -d ${POSTGRES_DB:-youngsend}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      # Persist SQLite database file across container rebuilds
+      - ./db:/app/db
     networks:
       - youngsend-net
     restart: unless-stopped
 
-  # ── Redis 7 ────────────────────────────────────────────────────────
+  # ── Redis 7 (optional cache) ──────────────────────────────────────
+  # The app falls back to an in-memory LRU cache when Redis is unavailable,
+  # but running Redis gives you proper TTL expiry, pub/sub, and rate-limiting.
   redis:
     image: redis:7-alpine
     container_name: youngsend-redis
@@ -61,8 +45,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  pgdata:
-    driver: local
   redisdata:
     driver: local
 

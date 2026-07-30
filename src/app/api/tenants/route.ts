@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 import { logAudit } from '@/lib/audit-logger';
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 function generateSlug(name: string): string {
   const base = name
     .toLowerCase()
@@ -15,7 +16,7 @@ function generateSlug(name: string): string {
   return `${base}-${suffix}`;
 }
 
-export async function GET(req: NextRequest) {
+async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return errorResponse('Authentication required', 401);
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function postHandler(req: NextRequest) {
   try {
     const body = await req.json();
     const { name, slug, plan, ownerName, ownerEmail, password, referralCode } = body;
@@ -198,3 +199,7 @@ export async function POST(req: NextRequest) {
     return errorResponse('Failed to create tenant', 500);
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/tenants');
+
+export const POST = withApiTelemetry(postHandler, '/api/tenants');

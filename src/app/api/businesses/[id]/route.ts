@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
-export async function GET(
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -43,7 +44,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -107,7 +108,7 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
+async function deleteHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -144,3 +145,9 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to deactivate business' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/businesses/[id]');
+
+export const PUT = withApiTelemetry(putHandler, '/api/businesses/[id]');
+
+export const DELETE = withApiTelemetry(deleteHandler, '/api/businesses/[id]');

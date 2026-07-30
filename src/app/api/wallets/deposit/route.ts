@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 import { eventBus } from '@/backend/services/event-bus'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const REFERRAL_BONUS_AMOUNT = 100.00
 const REFERRAL_BONUS_CURRENCY = 'USD'
 
@@ -21,7 +22,7 @@ const depositSchema = z.object({
 })
 
 // POST /api/wallets/deposit — Initiate a deposit
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -235,7 +236,7 @@ export async function POST(request: NextRequest) {
 }
 
 // GET /api/wallets/deposit?walletId=xxx — List deposits for a wallet
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -276,3 +277,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to list deposits' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/wallets/deposit');
+
+export const POST = withApiTelemetry(postHandler, '/api/wallets/deposit');

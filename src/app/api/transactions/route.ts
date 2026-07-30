@@ -94,7 +94,7 @@ async function getHandler(request: NextRequest) {
         db.paymentTransaction.findMany({
           where: paymentWhere,
           include: {
-            intent: { select: { id: true, currency: true, status: true, fromBusinessId: true, toBusinessId: true } },
+            intent: { select: { id: true, sourceCurrency: true, targetCurrency: true, status: true, fromBusinessId: true, toBusinessId: true } },
           },
           orderBy: { createdAt: 'desc' },
           take: limit,
@@ -167,7 +167,7 @@ async function getHandler(request: NextRequest) {
           createdAt: true,
           provider: true,
           intentId: true,
-          intent: { select: { id: true, currency: true, status: true, fromBusinessId: true, toBusinessId: true } },
+          intent: { select: { id: true, sourceCurrency: true, targetCurrency: true, status: true, fromBusinessId: true, toBusinessId: true } },
         },
         orderBy: { createdAt: 'desc' },
         take: mergeFetchSize,

@@ -170,4 +170,3 @@ export function useApi<T>(url: string, options: UseApiOptions = {}): UseApiResul
   return { data, loading, error, refetch }
 }
 
-export type { UseApiResult }

@@ -71,7 +71,7 @@ async function getHandler(req: NextRequest) {
 
 export const GET = withApiTelemetry(getHandler, '/api/wallets');
 
-export async function POST(req: NextRequest) {
+async function postHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return errorResponse('Authentication required', 401);
@@ -127,3 +127,5 @@ export async function POST(req: NextRequest) {
     return errorResponse('Failed to create wallet', 500);
   }
 }
+
+export const POST = withApiTelemetry(postHandler, '/api/wallets');

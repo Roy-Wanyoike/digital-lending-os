@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { providerRegistry, type PaymentProviderCode } from '@/lib/payment'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const verifySchema = z.object({
   providerPaymentId: z.string().min(1, 'Provider payment ID is required'),
   provider: z.enum(['stripe', 'paystack', 'intasend', 'flutterwave', 'paya'] as const),
@@ -11,7 +12,7 @@ const verifySchema = z.object({
 })
 
 // ─── POST: Verify a payment with the provider ──────────────
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -180,3 +181,5 @@ async function handleSuccessfulPayment(paymentIntentId: string, result: any) {
     console.error('[Payments] Post-payment processing error:', error)
   }
 }
+
+export const POST = withApiTelemetry(postHandler, '/api/payments/verify');

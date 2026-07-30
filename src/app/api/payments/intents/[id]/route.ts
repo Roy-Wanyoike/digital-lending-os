@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ── Zod Schema ───────────────────────────────────────────────
 const updateIntentSchema = z.object({
   status: z.enum(["created", "processing", "completed", "failed", "cancelled"] as const, {
@@ -20,7 +21,7 @@ async function getTenantBusinessIds(tenantId: string): Promise<string[]> {
 }
 
 // ── GET: Single payment intent ──────────────────────────────
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -64,7 +65,7 @@ export async function GET(
 }
 
 // ── PUT: Update payment intent status ───────────────────────
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -123,3 +124,7 @@ export async function PUT(
     );
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/payments/intents/[id]');
+
+export const PUT = withApiTelemetry(putHandler, '/api/payments/intents/[id]');

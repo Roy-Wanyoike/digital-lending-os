@@ -24,32 +24,30 @@ const MAX_AMOUNT = 10_000_000_00 // $100M in smallest unit
 export const PaymentInitiationSchema = z.object({
   amount: z
     .number({
-      required_error: 'Amount is required',
-      invalid_type_error: 'Amount must be a number',
+      message: 'Amount is required and must be a number',
     })
-    .int('Amount must be an integer (smallest currency unit)')
-    .positive('Amount must be greater than zero')
-    .min(1, 'Minimum amount is 1 (smallest currency unit)')
-    .max(MAX_AMOUNT, `Amount cannot exceed ${MAX_AMOUNT}`),
+    .int({ message: 'Amount must be an integer (smallest currency unit)' })
+    .positive({ message: 'Amount must be greater than zero' })
+    .min(1, { message: 'Minimum amount is 1 (smallest currency unit)' })
+    .max(MAX_AMOUNT, { message: `Amount cannot exceed ${MAX_AMOUNT}` }),
 
   currency: z
     .string()
-    .min(3, 'Currency must be a 3-letter ISO 4217 code')
-    .max(3, 'Currency must be a 3-letter ISO 4217 code')
+    .min(3, { message: 'Currency must be a 3-letter ISO 4217 code' })
+    .max(3, { message: 'Currency must be a 3-letter ISO 4217 code' })
     .uppercase()
     .refine((c) => ALLOWED_CURRENCIES.has(c), {
       message: `Currency not supported. Allowed: ${[...ALLOWED_CURRENCIES].join(', ')}`,
     }),
 
   provider: z.enum(ALLOWED_PROVIDERS, {
-    required_error: 'Provider is required',
-    invalid_type_error: 'Invalid provider specified',
+    message: 'Provider is required',
   }),
 
   email: z
     .string()
-    .email('Invalid email format')
-    .max(254, 'Email too long')
+    .email({ message: 'Invalid email format' })
+    .max(254, { message: 'Email too long' })
     .toLowerCase()
     .trim(),
 
@@ -59,20 +57,20 @@ export const PaymentInitiationSchema = z.object({
 
   reference: z
     .string()
-    .min(1, 'Reference is required')
-    .max(255, 'Reference too long')
-    .regex(/^[a-zA-Z0-9_-]+$/, 'Reference must be alphanumeric (hyphens/underscores allowed)'),
+    .min(1, { message: 'Reference is required' })
+    .max(255, { message: 'Reference too long' })
+    .regex(/^[a-zA-Z0-9_-]+$/, { message: 'Reference must be alphanumeric (hyphens/underscores allowed)' }),
 
-  callbackUrl: z.string().url('Invalid callback URL').max(2048).optional(),
-  redirectUrl: z.string().url('Invalid redirect URL').max(2048).optional(),
+  callbackUrl: z.string().url({ message: 'Invalid callback URL' }).max(2048).optional(),
+  redirectUrl: z.string().url({ message: 'Invalid redirect URL' }).max(2048).optional(),
 
-  metadata: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+  metadata: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
 
   idempotencyKey: z
     .string()
-    .min(1, 'Idempotency key is required')
-    .max(255, 'Idempotency key too long')
-    .regex(/^[a-zA-Z0-9_-]+$/, 'Idempotency key must be alphanumeric'),
+    .min(1, { message: 'Idempotency key is required' })
+    .max(255, { message: 'Idempotency key too long' })
+    .regex(/^[a-zA-Z0-9_-]+$/, { message: 'Idempotency key must be alphanumeric' }),
 })
 
 export type PaymentInitiationInput = z.infer<typeof PaymentInitiationSchema>
@@ -110,7 +108,7 @@ export const StripeWebhookSchema = z.object({
       amount: z.number(),
       currency: z.string(),
       status: z.string().optional(),
-      metadata: z.record(z.unknown()).optional(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
     }),
   }),
 })

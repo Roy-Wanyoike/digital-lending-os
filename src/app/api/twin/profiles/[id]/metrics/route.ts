@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const validPeriods = ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'] as const;
 
 const createMetricSchema = z.object({
@@ -21,7 +22,7 @@ const createMetricSchema = z.object({
 });
 
 // GET /api/twin/profiles/[id]/metrics — List metrics for a twin
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -76,7 +77,7 @@ export async function GET(
 }
 
 // POST /api/twin/profiles/[id]/metrics — Add a metric entry & recalculate health
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -192,3 +193,7 @@ export async function POST(
     );
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/twin/profiles/[id]/metrics');
+
+export const POST = withApiTelemetry(postHandler, '/api/twin/profiles/[id]/metrics');

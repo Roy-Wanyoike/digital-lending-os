@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getApiUser } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined
 let _cacheAttempted = false
@@ -48,7 +49,7 @@ const CRYPTO_NETWORKS: Record<string, string[]> = {
   BNB: ['bsc', 'bep2'],
 }
 
-export async function GET(req: NextRequest) {
+async function getHandler(req: NextRequest) {
   const user = await getApiUser(req)
   if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
 
@@ -72,3 +73,5 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ data })
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/wallets/rates');

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getApiUser, AuthError, successResponse, errorResponse } from '@/lib/auth/api-helpers'
 import { randomUUID } from 'crypto'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const BONUS_AMOUNT = 100.00
 const BONUS_CURRENCY = 'USD'
 
@@ -18,7 +19,7 @@ function generateReferralCode(): string {
 
 // GET /api/referral — Get current user's referral info
 // Returns: referral code, referral link, stats (total referred, total bonuses earned, recent referrals)
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return errorResponse('Authentication required', 401)
@@ -127,7 +128,7 @@ export async function GET(request: NextRequest) {
 // POST /api/referral — Resolve a referral code (used during registration)
 // Body: { referralCode: string }
 // Returns: referrer info if code is valid
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const body = await request.json()
     const { referralCode } = body
@@ -171,3 +172,7 @@ export async function POST(request: NextRequest) {
     return errorResponse('Failed to validate referral code', 500)
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/referral');
+
+export const POST = withApiTelemetry(postHandler, '/api/referral');

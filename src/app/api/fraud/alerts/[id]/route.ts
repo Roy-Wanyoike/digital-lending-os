@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, requireRole, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const updateAlertSchema = z.object({
   status: z.enum(['investigating', 'confirmed_fraud', 'false_positive', 'escalated', 'resolved'] as const),
   resolvedBy: z.string().optional(),
@@ -22,7 +23,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   resolved:         [], // terminal state — no further transitions
 }
 
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -56,7 +57,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -120,3 +121,7 @@ export async function PUT(
     return NextResponse.json({ error: 'Failed to update fraud alert' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/fraud/alerts/[id]');
+
+export const PUT = withApiTelemetry(putHandler, '/api/fraud/alerts/[id]');

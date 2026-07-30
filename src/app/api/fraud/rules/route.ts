@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, requireRole, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined
 let _cacheAttempted = false
@@ -26,7 +27,7 @@ const createFraudRuleSchema = z.object({
   severity: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
 })
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await requireAuth(request)
     if (!['admin', 'auditor'].includes(user.role)) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await requireRole(request, ['admin'])
     const body = await request.json()
@@ -107,3 +108,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create fraud rule' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/fraud/rules');
+
+export const POST = withApiTelemetry(postHandler, '/api/fraud/rules');

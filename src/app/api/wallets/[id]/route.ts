@@ -3,11 +3,12 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const updateWalletSchema = z.object({
   status: z.enum(['active', 'frozen', 'closed']),
 })
 
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -44,7 +45,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -86,3 +87,7 @@ export async function PUT(
     return NextResponse.json({ error: 'Failed to update wallet' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/wallets/[id]');
+
+export const PUT = withApiTelemetry(putHandler, '/api/wallets/[id]');

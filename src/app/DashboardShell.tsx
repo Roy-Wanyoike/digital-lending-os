@@ -34,7 +34,7 @@ const TabSkeleton = () => (
 // ─── Lazy-loaded tabs — zero cost until navigated to ─────────────
 // ssr: false + prefetch: false — no JS fetched until user clicks the tab
 const D = (importFn: () => Promise<{ default: React.ComponentType }>) =>
-  dynamic(importFn, { loading: () => <TabSkeleton />, ssr: false, prefetch: false })
+  dynamic(importFn, { loading: () => <TabSkeleton />, ssr: false })
 
 const OverviewTab = D(() => import('@/components/dashboard/OverviewTab').then(m => ({ default: m.OverviewTab })))
 const TrustGraphTab = D(() => import('@/components/dashboard/TrustGraphTab').then(m => ({ default: m.TrustGraphTab })))
@@ -74,7 +74,6 @@ export function DashboardShell({ session }: { session: Session }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { isConnected: sseConnected, subscribe, unsubscribe } = useRealtime({
     enabled: true,
-    tenantId: (session?.user as any)?.tenantId,
   })
 
   // Realtime toast notifications

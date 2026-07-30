@@ -469,7 +469,7 @@ function topicToEntityType(topic: string): 'payment' | 'transaction' | 'business
  * Extract the entity ID and tenant ID from a Kafka event payload.
  */
 function extractCDCMetadata(
-  payload: Record<string, unknown>,
+  payload: Record<string, any>,
 ): { entityId: string; tenantId: string } {
   return {
     entityId: String(payload.id ?? payload.paymentId ?? payload.transactionId ?? payload.entityId ?? ''),

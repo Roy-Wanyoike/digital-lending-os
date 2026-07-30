@@ -298,7 +298,8 @@ export class AuditTrail {
       }
 
       // Verify signature
-      const expectedSignature = this.signEntry({ ...entry, signature: '' })
+      const { signature: _sig, ...entryForSigning } = entry
+      const expectedSignature = this.signEntry(entryForSigning)
       if (entry.signature !== expectedSignature) {
         return {
           valid: false,

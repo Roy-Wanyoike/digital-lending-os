@@ -75,7 +75,7 @@ async function checkRedis(): Promise<HealthCheckResult> {
     }
 
     // Dynamic import to avoid hard dependency
-    let client: { ping: () => Promise<string>; quit: () => Promise<void> } | null = null;
+    let client: { ping: () => Promise<string>; quit: () => Promise<unknown> } | null = null;
 
     try {
       // Try ioredis
@@ -86,6 +86,7 @@ async function checkRedis(): Promise<HealthCheckResult> {
         retryStrategy: () => null, // No retries for health check
       });
       await (client as unknown as { connect: () => Promise<void> }).connect();
+      if (!client) throw new Error('Redis client is null after connect');
       const result = await client.ping();
       await client.quit();
 
@@ -164,14 +165,14 @@ async function checkPostgreSQL(): Promise<HealthCheckResult> {
       };
     }
 
-    // Try Prisma client
+    // Try Prisma client (use the app's db singleton)
     try {
-      const { prisma } = await import('../prisma');
-      await prisma.$queryRaw`SELECT 1`;
+      const { db } = await import('@/lib/db');
+      await db.$queryRaw`SELECT 1`;
       return {
         status: 'healthy',
         responseTimeMs: performance.now() - start,
-        message: 'PostgreSQL query successful',
+        message: 'Database query successful',
         lastChecked: new Date().toISOString(),
       };
     } catch {
@@ -476,7 +477,6 @@ export async function healthCheckHandler(
 
     return NextResponse.json(
       {
-        status: report.checks[checkKey].status,
         ...report.checks[checkKey],
         timestamp: report.timestamp,
       },

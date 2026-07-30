@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const createTransactionSchema = z.object({
   type: z.enum(['credit', 'debit', 'transfer_in', 'transfer_out', 'conversion', 'fee', 'refund']),
   amount: z.number().positive('Amount must be greater than 0'),
@@ -12,7 +13,7 @@ const createTransactionSchema = z.object({
   referenceId: z.string().optional(),
 })
 
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -60,7 +61,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -145,3 +146,7 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to create wallet transaction' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/wallets/[id]/transactions');
+
+export const POST = withApiTelemetry(postHandler, '/api/wallets/[id]/transactions');

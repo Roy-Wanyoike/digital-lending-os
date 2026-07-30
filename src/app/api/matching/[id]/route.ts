@@ -3,13 +3,14 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const updateMatchSchema = z.object({
   status: z.enum(['contacted', 'interested', 'declined', 'engaged'] as const),
   seekerResponse: z.string().optional(),
   candidateResponse: z.string().optional(),
 })
 
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -60,3 +61,5 @@ export async function PUT(
     return NextResponse.json({ error: 'Failed to update match' }, { status: 500 })
   }
 }
+
+export const PUT = withApiTelemetry(putHandler, '/api/matching/[id]');

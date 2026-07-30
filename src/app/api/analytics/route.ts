@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 
-export async function GET(req: NextRequest) {
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return errorResponse('Authentication required', 401);
@@ -106,3 +107,5 @@ export async function GET(req: NextRequest) {
     return errorResponse('Failed to fetch analytics', 500);
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/analytics');

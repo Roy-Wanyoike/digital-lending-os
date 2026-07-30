@@ -352,14 +352,14 @@ class RedisCacheClient implements CacheClient {
         retryDelayOnFailover: 200,
         slotsRefreshTimeout: 2000,
         slotsRefreshInterval: 15000,
-        natMap: null,
+        natMap: undefined,
         redisOptions: {
           password: process.env.REDIS_PASSWORD,
           tls: url.startsWith('rediss:') ? {} : undefined,
           connectTimeout: 5000,
           commandTimeout: 3000,
           maxRetriesPerRequest: 3,
-          enableOfflineQueue: true,
+          offlineQueue: true,
           lazyConnect: true,
         },
       };
@@ -373,26 +373,23 @@ class RedisCacheClient implements CacheClient {
 
     // Single-node mode
     const options: RedisOptions = {
-      url: url || undefined,
       password: process.env.REDIS_PASSWORD || undefined,
       db: parseInt(process.env.REDIS_DB || '0', 10),
       tls: url?.startsWith('rediss:') ? {} : undefined,
       connectTimeout: 5000,
       commandTimeout: 3000,
       maxRetriesPerRequest: 3,
-      enableOfflineQueue: true,
+      offlineQueue: true,
       lazyConnect: true,
       retryStrategy: (times) => {
-        if (times > 10) return null; // stop retrying after 10 attempts
+        if (times > 10) return null;
         const delay = Math.min(times * 150, 3000);
         return delay;
       },
-      // Connection pooling via ioredis built-in
-      // ioredis manages a connection pool internally
       family: 0,
     };
 
-    const client = new Redis(options);
+    const client = url ? new Redis(url, options) : new Redis(options);
     client.connect().catch(() => {
       /* handled by event handlers */
     });

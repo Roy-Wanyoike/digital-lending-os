@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getApiUser } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 
-export async function GET(req: NextRequest) {
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -19,9 +20,6 @@ export async function GET(req: NextRequest) {
 
     const paymentLinks = await db.paymentLink.findMany({
       where: { businessId: { in: businessIds } },
-      include: {
-        business: { select: { id: true, name: true } },
-      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -44,7 +42,7 @@ function generateLinkRef(): string {
   return `PL-${random}`;
 }
 
-export async function POST(req: NextRequest) {
+async function postHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -82,11 +80,8 @@ export async function POST(req: NextRequest) {
         status: 'active',
         allowedMethods: allowedMethods || null,
         allowedCountries: allowedCountries || null,
-        maxPayments: maxPayments ? parseInt(maxPayments, 10) : null,
+        maxPayments: maxPayments ? parseInt(maxPayments, 10) : 1,
         expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : null,
-      },
-      include: {
-        business: { select: { id: true, name: true } },
       },
     });
 
@@ -96,3 +91,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create payment link' }, { status: 500 });
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/payment-links');
+
+export const POST = withApiTelemetry(postHandler, '/api/payment-links');

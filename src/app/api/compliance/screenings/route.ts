@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireRole, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const createScreeningSchema = z.object({
   businessId: z.string().min(1, 'businessId is required'),
   transactionType: z.string().optional(),
@@ -36,7 +37,7 @@ function generateMockResult(): { result: string; riskLevel: string; details: str
   }
 }
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -97,7 +98,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await requireRole(request, ['admin', 'auditor'])
     const body = await request.json()
@@ -141,3 +142,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create compliance screening' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/compliance/screenings');
+
+export const POST = withApiTelemetry(postHandler, '/api/compliance/screenings');

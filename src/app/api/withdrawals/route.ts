@@ -65,7 +65,7 @@ async function getHandler(request: NextRequest) {
 export const GET = withApiTelemetry(getHandler, '/api/withdrawals');
 
 // POST /api/withdrawals — Create a new withdrawal
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
     if (!user) {
@@ -144,3 +144,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create withdrawal' }, { status: 500 });
   }
 }
+
+export const POST = withApiTelemetry(postHandler, '/api/withdrawals');

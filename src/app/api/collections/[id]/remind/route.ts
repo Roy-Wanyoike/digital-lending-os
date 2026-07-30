@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const REMIND_INTERVAL_DAYS: Record<string, number> = {
   friendly: 7,
   firm: 3,
@@ -15,7 +16,7 @@ const remindSchema = z.object({
   template: z.enum(['friendly', 'firm', 'final', 'legal'] as const),
 })
 
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -86,3 +87,5 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to send collection reminder' }, { status: 500 })
   }
 }
+
+export const POST = withApiTelemetry(postHandler, '/api/collections/[id]/remind');

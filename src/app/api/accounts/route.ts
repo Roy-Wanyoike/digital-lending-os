@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, successResponse, errorResponse } from '@/lib/auth/api-helpers';
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 /**
  * GET /api/accounts
  *
@@ -26,7 +27,7 @@ const SAFE_SELECT = {
   createdAt: true,
 } as const;
 
-export async function GET(req: NextRequest) {
+async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return errorResponse('Authentication required', 401);
@@ -72,3 +73,5 @@ export async function GET(req: NextRequest) {
     return errorResponse('Failed to fetch accounts', 500);
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/accounts');

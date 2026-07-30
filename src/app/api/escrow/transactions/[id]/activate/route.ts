@@ -3,8 +3,9 @@ import { db } from "@/lib/db";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 import { eventBus } from "@/backend/services/event-bus";
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ── POST: Activate escrow (move to in_escrow) ───────────────
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -83,3 +84,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withApiTelemetry(postHandler, '/api/escrow/transactions/[id]/activate');

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined
 let _cacheAttempted = false
@@ -18,7 +19,7 @@ async function getCache() {
 /**
  * GET /api/currency — Exchange rates (cached proxy to /api/payments/rates)
  */
-export async function GET(req: NextRequest) {
+async function getHandler(req: NextRequest) {
   const url = new URL(req.url)
   const forwardUrl = new URL('/api/payments/rates' + url.search, req.url)
 
@@ -41,3 +42,5 @@ export async function GET(req: NextRequest) {
 
   return fetch(forwardUrl.toString(), { headers: req.headers })
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/currency');

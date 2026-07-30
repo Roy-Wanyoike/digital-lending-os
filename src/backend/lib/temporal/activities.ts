@@ -182,6 +182,7 @@ export async function processPaymentLink(
         paymentLinkId,
         amount,
         currency: link.currency,
+        paymentMethod: 'external',
         payerEmail,
         payerName,
         provider,

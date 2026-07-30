@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 import { eventBus } from "@/backend/services/event-bus";
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ── Zod Schemas ──────────────────────────────────────────────
 const milestoneSchema = z.object({
   title: z.string().min(1, "Milestone title is required"),
@@ -40,7 +41,7 @@ function computeRiskScore(): { score: number; level: string } {
 }
 
 // ── GET: List escrow transactions ────────────────────────────
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -101,7 +102,7 @@ export async function GET(request: NextRequest) {
 }
 
 // ── POST: Create escrow transaction ──────────────────────────
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -217,3 +218,7 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/escrow/transactions');
+
+export const POST = withApiTelemetry(postHandler, '/api/escrow/transactions');

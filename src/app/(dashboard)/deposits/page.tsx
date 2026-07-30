@@ -10,10 +10,10 @@ interface Deposit {
   currency: string;
   method: string;
   status: string;
-  referenceId: string;
+  depositRef?: string;
   description: string | null;
   createdAt: string;
-  wallet: { id: string; currency: string };
+  wallet?: { id: string; currency: string } | null;
 }
 
 export default function DepositsPage() {

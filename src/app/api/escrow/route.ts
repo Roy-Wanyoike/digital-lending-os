@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getApiUser } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined;
 let _cacheAttempted = false;
@@ -17,7 +18,7 @@ async function getCache() {
   return _cacheManager;
 }
 
-export async function GET(req: NextRequest) {
+async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -65,7 +66,7 @@ function generateTxRef(): string {
   return `ESC-${date}-${random}`;
 }
 
-export async function POST(req: NextRequest) {
+async function postHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -119,3 +120,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create escrow transaction' }, { status: 500 });
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/escrow');
+
+export const POST = withApiTelemetry(postHandler, '/api/escrow');

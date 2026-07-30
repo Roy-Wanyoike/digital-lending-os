@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     }
     const cacheKey = tenantKey(user.tenantId, 'dashboard:stats')
     const cached = await cacheWithTTL(cacheKey, () => fetchDashboardStats(user.tenantId), CACHE_TTL.DASHBOARD_STATS)
-    return NextResponse.json({ data: cached }, { headers: { ...getCacheHeaders('api', 'stats'), 'X-Cache': 'HIT' } })
+    return NextResponse.json({ data: cached }, { headers: { ...getCacheHeaders('api-stats'), 'X-Cache': 'HIT' } })
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     console.error('Error fetching dashboard stats:', error)

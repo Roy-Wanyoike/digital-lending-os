@@ -49,6 +49,16 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "examples",
+    "scripts",
+    "infra",
+    "mini-services",
+    "tool-results",
+    "download",
+    "prisma",
+    "skills",
+    "agent-ctx",
+    "__tests__"
   ]
 }

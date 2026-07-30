@@ -9,14 +9,16 @@
  * - Console exporter for development, OTLP log exporter for production
  */
 
-import {
-  trace,
-  SpanStatusCode,
-  context,
-  type Context,
-  diag,
-  DiagLogLevel,
-} from '@opentelemetry/api';
+// @opentelemetry/api stubs — no-op when OTel is not installed
+const trace = {
+  getSpan: (_ctx: unknown) => null as any,
+  getTracer: () => ({ startSpan: () => ({ end() {}, setAttribute() {}, setStatus() {}, recordException() {}, spanContext: () => null }) }),
+};
+const SpanStatusCode = { OK: 1, ERROR: 2 };
+const context = { active: () => ({}), with: (ctx: unknown, fn: () => unknown) => fn() };
+type Context = Record<string, unknown>;
+const diag = { instance: () => ({ debug: (_msg?: string) => {} }) };
+const DiagLogLevel = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
 
 // ─── Log Levels ────────────────────────────────────────────────────────────
 
@@ -383,7 +385,7 @@ export function initLogger(config: LoggerConfig = {}): YoungsendLogger {
   return _logger;
 }
 
-function parseLogLevel(level: string): LogLevel {
+export function parseLogLevel(level: string): LogLevel {
   switch (level.toLowerCase()) {
     case 'trace':
       return LogLevel.TRACE;

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, requireRole, AuthError } from '@/lib/auth/api-helpers';
 
-export async function GET(
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+async function getHandler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -40,7 +41,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function patchHandler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -86,3 +87,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update tenant' }, { status: 500 });
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/tenants/[id]');
+
+export const PATCH = withApiTelemetry(patchHandler, '/api/tenants/[id]');

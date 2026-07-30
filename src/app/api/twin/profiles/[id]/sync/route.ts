@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 function generateMockMonthlyMetrics(months: number) {
   const metrics: {
     period: string;
@@ -50,7 +51,7 @@ function generateMockMonthlyMetrics(months: number) {
 }
 
 // POST /api/twin/profiles/[id]/sync — Trigger a sync from external sources
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -219,3 +220,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withApiTelemetry(postHandler, '/api/twin/profiles/[id]/sync');

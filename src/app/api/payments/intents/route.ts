@@ -5,6 +5,7 @@ import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 import { processPayment } from "@/backend/services/temporal-bridge";
 import { withPaymentIdempotency, recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ── Lazy-loaded payment infrastructure (avoids crashes if modules have issues) ──
 let _stateMachine: any = null;
 let _idempotencyGuard: any = null;
@@ -85,7 +86,7 @@ function generateIntentRef(): string {
 }
 
 // ── GET: List payment intents ───────────────────────────────
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -273,3 +274,5 @@ async function createPaymentIntent(request: NextRequest) {
 
 // ── Wrap POST with payment idempotency guard ──────────────
 export const POST = withPaymentIdempotency(createPaymentIntent);
+
+export const GET = withApiTelemetry(getHandler, '/api/payments/intents');

@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Wallet, ArrowLeftRight, ArrowDownLeft, ArrowUpRight,
   Link2, Shield, BarChart3, Settings, Building2, Users,
-  Bell, Gift, Recurring, FileText, LogOut, Menu, X
+  Bell, Gift, FileText, LogOut, Menu, X
 } from 'lucide-react';
 import { useState } from 'react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -23,7 +23,7 @@ const navItems = [
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/businesses', label: 'Businesses', icon: Building2 },
   { href: '/team', label: 'Team', icon: Users },
-  { href: '/subscriptions', label: 'Subscriptions', icon: Recurring },
+  { href: '/subscriptions', label: 'Subscriptions', icon: ArrowLeftRight },
   { href: '/invoices', label: 'Invoices', icon: FileText },
   { href: '/referrals', label: 'Referrals', icon: Gift },
   { href: '/notifications', label: 'Notifications', icon: Bell },

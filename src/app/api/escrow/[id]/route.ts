@@ -3,7 +3,8 @@ import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 import { eventBus } from '@/backend/services/event-bus';
 
-export async function GET(
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+async function getHandler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -21,8 +22,8 @@ export async function GET(
         ],
       },
       include: {
-        buyer: { select: { id: true, email: true, name: true } },
-        seller: { select: { id: true, email: true, name: true } },
+        buyer: { select: { id: true, name: true, country: true } },
+        seller: { select: { id: true, name: true, country: true } },
       },
     });
 
@@ -35,7 +36,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function patchHandler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -127,3 +128,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Failed to update escrow transaction' }, { status: 500 });
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/escrow/[id]');
+
+export const PATCH = withApiTelemetry(patchHandler, '/api/escrow/[id]');

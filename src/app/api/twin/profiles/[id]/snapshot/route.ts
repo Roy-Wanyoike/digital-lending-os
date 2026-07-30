@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const riskFactorPool = [
   'High accounts receivable aging',
   'Currency exposure in 3 markets',
@@ -64,7 +65,7 @@ function generateAISummary(
 }
 
 // POST /api/twin/profiles/[id]/snapshot — Generate a financial snapshot
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -141,3 +142,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withApiTelemetry(postHandler, '/api/twin/profiles/[id]/snapshot');

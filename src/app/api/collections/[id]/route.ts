@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const updateCaseSchema = z.object({
   status: z.enum(['active', 'paused', 'resolved', 'written_off', 'escalated'] as const).optional(),
   priority: z.enum(['low', 'normal', 'high', 'urgent'] as const).optional(),
@@ -23,7 +24,7 @@ async function verifyTenantAccess(caseId: string, tenantId: string): Promise<{ o
   return { ok: true }
 }
 
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -54,7 +55,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -101,3 +102,7 @@ export async function PUT(
     return NextResponse.json({ error: 'Failed to update collection case' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/collections/[id]');
+
+export const PUT = withApiTelemetry(putHandler, '/api/collections/[id]');

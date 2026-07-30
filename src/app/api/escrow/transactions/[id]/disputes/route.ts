@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ── Zod Schema ───────────────────────────────────────────────
 const createDisputeSchema = z.object({
   raisedBy: z.enum(["buyer", "seller"] as const, {
@@ -23,7 +24,7 @@ function generateAiRecommendation(reason: string): string {
 }
 
 // ── GET: List disputes for an escrow ────────────────────────
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -67,7 +68,7 @@ export async function GET(
 }
 
 // ── POST: Create a dispute ──────────────────────────────────
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -166,3 +167,7 @@ export async function POST(
     );
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/escrow/transactions/[id]/disputes');
+
+export const POST = withApiTelemetry(postHandler, '/api/escrow/transactions/[id]/disputes');

@@ -29,7 +29,7 @@ interface UseRealtimeOptions {
 interface UseRealtimeReturn {
   isConnected: boolean
   lastEvent: RealtimeEvent | null
-  subscribe: <T = unknown>(event: string, handler: RealtimeEventHandler<T>) => void
+  subscribe: (event: string, handler: RealtimeEventHandler) => void
   unsubscribe: (event: string, handler: RealtimeEventHandler) => void
   connectionId: string | null
   /** Number of consecutive reconnect attempts (0 = stable). */
@@ -56,12 +56,11 @@ export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn
   const mountedRef = useRef(true)
 
   // Subscribe to a named event
-  const subscribe = useCallback<T = unknown>(event: string, handler: RealtimeEventHandler<T>) => {
-    const wrapped = handler as RealtimeEventHandler
+  const subscribe = useCallback((event: string, handler: RealtimeEventHandler) => {
     if (!subscribersRef.current.has(event)) {
       subscribersRef.current.set(event, new Set())
     }
-    subscribersRef.current.get(event)!.add(wrapped)
+    subscribersRef.current.get(event)!.add(handler)
   }, [])
 
   // Unsubscribe from a named event

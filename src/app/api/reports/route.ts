@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 /** Allowed report types to prevent arbitrary switch-case fallthrough. */
 const VALID_REPORT_TYPES = ['transactions', 'invoices', 'wallets', 'escrow', 'collections', 'summary'] as const;
 
@@ -20,7 +21,7 @@ function parseDateParam(value: string | null): Date | null {
   return d;
 }
 
-export async function GET(req: NextRequest) {
+async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return errorResponse('Authentication required', 401);
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
         const [transactions, total] = await Promise.all([
           db.paymentTransaction.findMany({
             where: { createdAt: dateFilter, intent: { fromBusinessId: { in: businessIds } } },
-            include: { intent: { select: { id: true, currency: true, status: true } } },
+            include: { intent: { select: { id: true, sourceCurrency: true, targetCurrency: true, status: true } } },
             orderBy: { createdAt: 'desc' },
             take: limit,
             skip: offset,
@@ -128,7 +129,6 @@ export async function GET(req: NextRequest) {
           db.collectionCase.findMany({
             where: { businessId: { in: businessIds }, createdAt: dateFilter },
             include: {
-              debtor: { select: { id: true, name: true } },
               _count: { select: { reminders: true } },
             },
             orderBy: { createdAt: 'desc' },
@@ -187,3 +187,5 @@ export async function GET(req: NextRequest) {
     return errorResponse('Failed to generate report', 500);
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/reports');

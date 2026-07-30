@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined;
@@ -18,7 +19,7 @@ async function getCache() {
 }
 
 // GET /api/dashboard/stats — Dashboard aggregation stats
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
     if (!user || !user.tenantId) {
@@ -216,3 +217,31 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+// POST /api/dashboard/stats — Force-refresh cached stats
+async function postHandler(request: NextRequest) {
+  try {
+    const user = await getApiUser(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    const cacheManager = await getCache();
+    const cacheKey = `dashboard:stats:${user.tenantId}`;
+    if (cacheManager) {
+      await cacheManager.delete(cacheKey);
+    }
+
+    return NextResponse.json({ message: 'Cache invalidated' });
+  } catch (error) {
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    console.error('Error invalidating dashboard stats cache:', error);
+    return NextResponse.json(
+      { error: 'Failed to invalidate cache' },
+      { status: 500 }
+    );
+  }
+}
+
+export const GET = withApiTelemetry(getHandler, '/api/dashboard/stats');
+export const POST = withApiTelemetry(postHandler, '/api/dashboard/stats');

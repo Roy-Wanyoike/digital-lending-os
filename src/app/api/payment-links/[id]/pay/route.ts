@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { providerRegistry, getProvidersForCurrency, calculateFee, getProviderName, type PaymentProviderCode } from '@/lib/payment'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const paySchema = z.object({
   amount: z.number().positive('Amount must be greater than 0'),
   payerName: z.string().min(1, 'Payer name is required'),
@@ -14,7 +15,7 @@ const paySchema = z.object({
 })
 
 // ─── POST: Pay via a payment link using real provider ───────
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -192,3 +193,5 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to process payment' }, { status: 500 })
   }
 }
+
+export const POST = withApiTelemetry(postHandler, '/api/payment-links/[id]/pay');

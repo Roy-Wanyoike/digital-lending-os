@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 
-export async function GET(req: NextRequest) {
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return errorResponse('Authentication required', 401);
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function postHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return errorResponse('Authentication required', 401);
@@ -97,9 +98,6 @@ export async function POST(req: NextRequest) {
 
     const subscription = await db.subscription.create({
       data: subData,
-      include: {
-        business: { select: { id: true, name: true } },
-      },
     });
 
     return successResponse(subscription, 201);
@@ -108,3 +106,7 @@ export async function POST(req: NextRequest) {
     return errorResponse('Failed to create subscription', 500);
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/subscriptions');
+
+export const POST = withApiTelemetry(postHandler, '/api/subscriptions');

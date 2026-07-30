@@ -6,13 +6,14 @@ import { eventBus } from "@/backend/services/event-bus";
 import { processEscrow } from "@/backend/services/temporal-bridge";
 import { recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ── Zod Schema ───────────────────────────────────────────────
 const releaseSchema = z.object({
   milestoneId: z.string().min(1, "Milestone ID is required"),
 });
 
 // ── POST: Release funds for a milestone ─────────────────────
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -192,3 +193,5 @@ export async function POST(
     );
   }
 }
+
+export const POST = withApiTelemetry(postHandler, '/api/escrow/transactions/[id]/release');

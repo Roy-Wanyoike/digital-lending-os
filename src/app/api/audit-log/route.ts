@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, successResponse, errorResponse } from '@/lib/auth/api-helpers';
 
-export async function GET(request: NextRequest) {
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
     if (!user) return errorResponse('Authentication required', 401);
@@ -53,3 +54,5 @@ export async function GET(request: NextRequest) {
     return errorResponse('Failed to fetch audit logs', 500);
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/audit-log');

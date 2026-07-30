@@ -118,7 +118,7 @@ export function createChunkedStream(
       }
       const chunk =
         typeof next.value === 'string' ? enc.encode(next.value) : next.value
-      controller.enquee(chunk)
+      controller.enqueue(chunk)
     },
     async cancel() {
       await gen.return(undefined)
@@ -134,7 +134,7 @@ export function createChunkedStream(
 export function ndjsonStream<T>(
   source: AsyncIterable<T> | T[],
   init?: ResponseInit,
-}: Response {
+): Response {
   const iterable: AsyncIterable<T> = Symbol.asyncIterator in source
     ? (source as AsyncIterable<T>)
     : (async function* () {

@@ -3,8 +3,9 @@ import { db } from "@/lib/db";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 import { eventBus } from "@/backend/services/event-bus";
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ── GET: Single escrow transaction ───────────────────────────
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -50,7 +51,7 @@ export async function GET(
 }
 
 // ── PUT: Cancel escrow transaction ───────────────────────────
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -129,3 +130,7 @@ export async function PUT(
     );
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/escrow/transactions/[id]');
+
+export const PUT = withApiTelemetry(putHandler, '/api/escrow/transactions/[id]');

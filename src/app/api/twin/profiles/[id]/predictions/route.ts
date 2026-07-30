@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const validPredictionTypes = ['revenue', 'cash_flow', 'risk', 'default_probability', 'growth_rate'] as const;
 const validTimeframes = ['30d', '60d', '90d', '6m', '1y'] as const;
 
@@ -51,7 +52,7 @@ function generateMockPrediction(
 }
 
 // GET /api/twin/profiles/[id]/predictions — List predictions for a twin
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -108,7 +109,7 @@ export async function GET(
 }
 
 // POST /api/twin/profiles/[id]/predictions — Generate a prediction
-export async function POST(
+async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -171,3 +172,7 @@ export async function POST(
     );
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/twin/profiles/[id]/predictions');
+
+export const POST = withApiTelemetry(postHandler, '/api/twin/profiles/[id]/predictions');

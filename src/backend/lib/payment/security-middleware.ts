@@ -4,7 +4,8 @@
 // request body size limits, user-agent validation, IP blocklist.
 //
 
-import type { NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
 // --- Types ---
 

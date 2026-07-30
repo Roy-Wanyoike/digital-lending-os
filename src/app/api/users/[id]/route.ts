@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
   role: z.enum(['admin', 'buyer', 'seller', 'auditor', 'viewer'] as const).optional(),
@@ -11,7 +12,7 @@ const updateUserSchema = z.object({
   lastLoginAt: z.string().datetime().optional(),
 })
 
-export async function GET(
+async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -47,7 +48,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -95,7 +96,7 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
+async function deleteHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -124,3 +125,9 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to deactivate user' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/users/[id]');
+
+export const PUT = withApiTelemetry(putHandler, '/api/users/[id]');
+
+export const DELETE = withApiTelemetry(deleteHandler, '/api/users/[id]');

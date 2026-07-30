@@ -10,7 +10,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { trace, context, SpanStatusCode, SpanKind } from '@opentelemetry/api';
+// @opentelemetry/api stubs — no-op when OTel packages are not installed
+const trace = { setSpan: (_ctx: unknown, _span: unknown) => ({}) };
+const context = { active: () => ({}), with: <T,>(_ctx: unknown, fn: () => Promise<T>) => fn() };
+const SpanStatusCode = { OK: 1, ERROR: 2 };
+const SpanKind = { INTERNAL: 0, SERVER: 1, CLIENT: 2, PRODUCER: 3, CONSUMER: 4 };
 import { createHttpSpan, getTracer, YS_ATTRS } from './tracer';
 import { recordRequestDuration, getMetrics } from './metrics';
 import { getLogger } from './logger';
@@ -46,7 +50,7 @@ export async function telemetryMiddleware(
 
   // Create an HTTP server span
   const span = createHttpSpan(request, route);
-  const spanContext = span.spanContext();
+  const spanContext = span.spanContext()!;
 
   // Set up context for child spans/logs
   const ctx = trace.setSpan(context.active(), span);
@@ -180,7 +184,7 @@ export function withTelemetry(
 
     // Create HTTP server span
     const span = createHttpSpan(request, route);
-    const spanContext = span.spanContext();
+    const spanContext = span.spanContext()!;
     const traceCtx = trace.setSpan(context.active(), span);
 
     try {

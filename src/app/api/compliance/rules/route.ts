@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, requireRole, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const createComplianceRuleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
@@ -12,7 +13,7 @@ const createComplianceRuleSchema = z.object({
   severity: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
 })
 
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await requireAuth(request)
     if (!['admin', 'auditor'].includes(user.role)) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+async function postHandler(request: NextRequest) {
   try {
     const user = await requireRole(request, ['admin'])
     const body = await request.json()
@@ -91,3 +92,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create compliance rule' }, { status: 500 })
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/compliance/rules');
+
+export const POST = withApiTelemetry(postHandler, '/api/compliance/rules');

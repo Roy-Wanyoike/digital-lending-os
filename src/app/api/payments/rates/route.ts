@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getApiUser } from "@/lib/auth/api-helpers";
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ── Hardcoded popular rates ────────────────────────────────
 const POPULAR_RATES: { from: string; to: string; rate: number }[] = [
   { from: "USD", to: "EUR", rate: 0.92 },
@@ -35,7 +36,7 @@ const ALL_RATES: Record<string, number> = {
 };
 
 // ── GET: Get exchange rates ─────────────────────────────────
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   const user = await getApiUser(request);
   if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   try {
@@ -108,3 +109,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/payments/rates');

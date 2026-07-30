@@ -3,13 +3,14 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const updateComplianceSchema = z.object({
   status: z.enum(['pending', 'approved', 'rejected', 'expired'] as const, {
     message: 'Status must be one of: pending, approved, rejected, expired',
   }),
 })
 
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -53,3 +54,5 @@ export async function PUT(
     return NextResponse.json({ error: 'Failed to update compliance document' }, { status: 500 })
   }
 }
+
+export const PUT = withApiTelemetry(putHandler, '/api/passport/compliance/[id]');

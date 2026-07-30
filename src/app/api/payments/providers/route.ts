@@ -10,10 +10,11 @@ import {
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
 import { getLogger } from '@/backend/lib/telemetry/logger'
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const log = getLogger().withContext({ route: '/api/payments/providers' })
 
 // --- GET: List available payment providers ---
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user) {
@@ -72,3 +73,5 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/payments/providers');

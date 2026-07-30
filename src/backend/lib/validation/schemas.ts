@@ -24,7 +24,7 @@ export const currencySchema = z
 
 /** Positive number, max 999,999,999 (roughly $1B) */
 export const amountSchema = z
-  .number({ invalid_type_error: 'Amount must be a number', required_error: 'Amount is required' })
+  .number({ message: 'Amount must be a valid number' })
   .positive('Amount must be greater than zero')
   .max(999_999_999, 'Amount exceeds maximum allowed')
 
@@ -115,7 +115,7 @@ export const depositCreateSchema = z.object({
   walletId: idParamSchema,
   amount: amountSchema,
   paymentMethod: z.enum(['bank_transfer', 'mobile_money', 'card', 'external'], {
-    required_error: 'paymentMethod is required',
+    message: 'paymentMethod is required',
   }),
   provider: z.string().max(50).trim().optional(),
   bankName: z.string().max(200).trim().optional(),

@@ -1,10 +1,11 @@
 import { auth } from '@/lib/auth'
 import { LandingPage } from './LandingPageServer'
 import { DashboardShell } from './DashboardShell'
+import type { Session } from 'next-auth'
 
 export default async function HomePage() {
   // Gracefully handle stale/invalid tokens — never crash the page
-  let session = null
+  let session: Session | null = null
   try {
     session = await auth()
   } catch {

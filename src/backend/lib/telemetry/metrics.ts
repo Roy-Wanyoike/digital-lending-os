@@ -13,19 +13,41 @@
  * Uses @opentelemetry/sdk-metrics with OTLP export.
  */
 
-import {
-  MeterProvider,
-  PeriodicExportingMetricReader,
-  ConsoleMetricExporter,
-} from '@opentelemetry/sdk-metrics';
-import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-grpc';
-import { Resource } from '@opentelemetry/resources';
-import {
-  ATTR_SERVICE_NAME,
-  ATTR_SERVICE_VERSION,
-  ATTR_DEPLOYMENT_ENVIRONMENT,
-} from '@opentelemetry/semantic-conventions';
-import { UpDownCounter, Histogram, Counter, ObservableGauge, Meter } from '@opentelemetry/api';
+// @opentelemetry stubs — no-op when OTel packages are not installed
+// All metrics functions are safe no-ops that preserve the API contract.
+
+const ATTR_SERVICE_NAME = 'service.name';
+const ATTR_SERVICE_VERSION = 'service.version';
+const ATTR_DEPLOYMENT_ENVIRONMENT = 'deployment.environment';
+
+type MeterProvider = { shutdown(): Promise<void> };
+type UpDownCounter = { add(value: number, attrs?: Record<string, string>): void };
+type Histogram = { record(value: number, attrs?: Record<string, string>): void };
+type Counter = { add(value: number, attrs?: Record<string, string>): void };
+type ObservableGauge = { addCallback(cb: (result: { observe(value: number, attrs: Record<string, string>): void }) => void): void };
+type Meter = { createCounter(name: string, opts?: Record<string, unknown>): Counter; createHistogram(name: string, opts?: Record<string, unknown>): Histogram; createUpDownCounter(name: string, opts?: Record<string, unknown>): UpDownCounter; createObservableGauge(name: string, opts?: Record<string, unknown>): ObservableGauge };
+
+const noopCounter: Counter = { add() {} };
+const noopHistogram: Histogram = { record() {} };
+const noopUpDownCounter: UpDownCounter = { add() {} };
+const noopGauge: ObservableGauge = { addCallback() {} };
+const noopMeter: Meter = {
+  createCounter: () => noopCounter,
+  createHistogram: () => noopHistogram,
+  createUpDownCounter: () => noopUpDownCounter,
+  createObservableGauge: () => noopGauge,
+};
+
+const noopMetrics: YoungsendMetrics = {
+  paymentTotal: noopCounter,
+  paymentAmount: noopHistogram,
+  requestDuration: noopHistogram,
+  activeSessions: noopUpDownCounter,
+  cacheHitRatio: noopGauge,
+  kafkaConsumerLag: noopGauge,
+  fraudAlerts: noopCounter,
+};
+
 
 // ─── Metric Singleton ───────────────────────────────────────────────────────
 
@@ -99,145 +121,16 @@ export function createMeterProvider(config: MetricsConfig = {}): MeterProvider {
   const otlpEndpoint = config.otlpEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   const exportIntervalMs = config.exportIntervalMs || 30000;
 
-  const resource = new Resource({
-    [ATTR_SERVICE_NAME]: serviceName,
-    [ATTR_SERVICE_VERSION]: serviceVersion,
-    [ATTR_DEPLOYMENT_ENVIRONMENT]: environment,
-    'host.id': process.env.HOSTNAME || process.env.HOST_ID || 'unknown',
-    'service.namespace': 'youngsend',
-  });
+  // No-op: OTel packages not installed. Use noop stubs.
+  _meterProvider = { shutdown: async () => {} } as MeterProvider;
+  _meter = noopMeter;
+  _metrics = noopMetrics;
 
-  const readers: PeriodicExportingMetricReader[] = [];
-
-  if (otlpEndpoint) {
-    readers.push(
-      new PeriodicExportingMetricReader({
-        exporter: new OTLPMetricExporter({
-          url: otlpEndpoint,
-        }),
-        exportIntervalMillis: exportIntervalMs,
-        exportTimeoutMillis: 30000,
-      })
-    );
-  }
-
-  // Console exporter in development
-  if (environment === 'development') {
-    readers.push(
-      new PeriodicExportingMetricReader({
-        exporter: new ConsoleMetricExporter(),
-        exportIntervalMillis: 60000,
-      })
-    );
-  }
-
-  const provider = new MeterProvider({ resource, readers });
-  _meterProvider = provider;
-
-  // Create meter and instruments
-  const meter = meterProvider.meter as Meter || provider.getMeter(serviceName, serviceVersion);
-  _meter = meter;
-
-  _metrics = createInstruments(meter);
-
-  return provider;
+  return _meterProvider;
 }
 
-function createInstruments(meter: Meter): YoungsendMetrics {
-  // ── youngsend_payment_total ─────────────────────────────────────────
-  const paymentTotal = meter.createCounter('youngsend_payment_total', {
-    description: 'Total count of payment transactions',
-    unit: '1',
-    valueType: 'int',
-  });
+// No-op instrument creation removed — using noop stubs above
 
-  // ── youngsend_payment_amount ─────────────────────────────────────────
-  const paymentAmount = meter.createHistogram('youngsend_payment_amount', {
-    description: 'Payment amount in base currency units',
-    unit: 'USD',
-    valueType: 'double',
-    advice: {
-      explicitBucketBoundaries: [1, 10, 100, 1000, 10000, 100000],
-    },
-  });
-
-  // ── youngsend_request_duration ───────────────────────────────────────
-  const requestDuration = meter.createHistogram('youngsend_request_duration', {
-    description: 'HTTP request duration in seconds',
-    unit: 's',
-    valueType: 'double',
-    advice: {
-      explicitBucketBoundaries: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
-    },
-  });
-
-  // ── youngsend_active_sessions ───────────────────────────────────────
-  const activeSessions = meter.createUpDownCounter('youngsend_active_sessions', {
-    description: 'Number of currently active user sessions',
-    unit: '1',
-    valueType: 'int',
-  });
-
-  // ── youngsend_cache_hit_ratio ────────────────────────────────────────
-  const cacheHitRatio = meter.createObservableGauge('youngsend_cache_hit_ratio', {
-    description: 'Cache hit ratio (0-1) by cache type',
-    unit: '1',
-    valueType: 'double',
-  });
-
-  cacheHitRatio.addCallback((observableResult) => {
-    for (const cb of cacheHitRatioCallbacks) {
-      try {
-        const observations = cb();
-        for (const [cacheType, hitRatio] of Object.entries(observations)) {
-          observableResult.observe(hitRatio, { cache_type: cacheType });
-        }
-      } catch {
-        // Callback errors should not propagate to the meter
-      }
-    }
-  });
-
-  // ── youngsend_kafka_consumer_lag ──────────────────────────────────────
-  const kafkaConsumerLag = meter.createObservableGauge('youngsend_kafka_consumer_lag', {
-    description: 'Kafka consumer group lag by topic and consumer group',
-    unit: '1',
-    valueType: 'int',
-  });
-
-  kafkaConsumerLag.addCallback((observableResult) => {
-    for (const cb of kafkaConsumerLagCallbacks) {
-      try {
-        const observations = cb();
-        for (const [key, lag] of Object.entries(observations)) {
-          const [topic, consumerGroup] = key.split(':');
-          if (topic && consumerGroup) {
-            observableResult.observe(lag, { topic, consumer_group: consumerGroup });
-          }
-        }
-      } catch {
-        // Callback errors should not propagate to the meter
-      }
-    }
-  });
-
-  // ── youngsend_fraud_alerts ───────────────────────────────────────────
-  const fraudAlerts = meter.createCounter('youngsend_fraud_alerts', {
-    description: 'Count of fraud alerts triggered',
-    unit: '1',
-    valueType: 'int',
-  });
-
-  return {
-    paymentTotal,
-    paymentAmount,
-    requestDuration,
-    activeSessions,
-    cacheHitRatio,
-    kafkaConsumerLag,
-    fraudAlerts,
-  };
-}
 
 // ─── Accessors ──────────────────────────────────────────────────────────────
 

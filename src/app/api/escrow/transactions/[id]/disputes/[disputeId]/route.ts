@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
 
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ── Zod Schema ───────────────────────────────────────────────
 const resolveDisputeSchema = z.object({
   resolution: z.string().min(1, "Resolution is required"),
@@ -12,7 +13,7 @@ const resolveDisputeSchema = z.object({
 });
 
 // ── PUT: Resolve a dispute ──────────────────────────────────
-export async function PUT(
+async function putHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; disputeId: string }> }
 ) {
@@ -140,3 +141,5 @@ export async function PUT(
     );
   }
 }
+
+export const PUT = withApiTelemetry(putHandler, '/api/escrow/transactions/[id]/disputes/[disputeId]');

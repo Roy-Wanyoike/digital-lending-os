@@ -10,12 +10,12 @@ interface Withdrawal {
   currency: string;
   method: string;
   status: string;
-  referenceId: string;
+  withdrawalRef?: string;
   destination: string | null;
   description: string | null;
-  rejectionReason: string | null;
+  failedReason?: string | null;
   createdAt: string;
-  wallet: { id: string; currency: string };
+  wallet?: { id: string; currency: string } | null;
 }
 
 export default function WithdrawalsPage() {
