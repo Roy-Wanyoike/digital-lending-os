@@ -272,4 +272,63 @@
    272→- Includes 6 ASCII art diagrams (system overview, request flow, data layer, saga state machine, cache architecture, security layers)
    273→- Scaling roadmap provides concrete infrastructure specs and cost estimates for 1M/10M/100M user phases
    274→---
-   275→
+   275→---
+   276→Task ID: 21
+   277→Agent: health-middleware
+   278→Task: Health/ready/live endpoints + Next.js middleware
+   279→
+   280→Work Log:
+   281→- Created /src/app/api/health/route.ts — GET endpoint that runs db.$queryRaw`SELECT 1` and returns { status: 'ok'|'degraded', checks: { database: 'ok'|'error' }, timestamp }. Returns 503 on DB failure.
+   282→- Created /src/app/api/ready/route.ts — GET endpoint that checks DB connectivity and returns { ready: true|false, db: 'connected'|'disconnected' }. Returns 503 on DB failure.
+   283→- Created /instrumentation.ts — Next.js instrumentation entry point at project root. Guards on NEXT_RUNTIME === 'nodejs', dynamically imports @/backend/lib/telemetry initTelemetry(), wraps in try/catch to gracefully skip when OTel packages aren't installed.
+   284→- Created /src/middleware.ts — Edge middleware that sets security headers (x-frame-options: DENY, x-content-type-options: nosniff, referrer-policy: strict-origin-when-cross-origin, x-xss-protection: 1; mode=block) and a unique x-request-id via crypto.randomUUID(). Matcher excludes /_next/static, /_next/image, and favicon.ico.
+   285→
+   286→Files Created:
+   287→1. /src/app/api/health/route.ts
+   288→2. /src/app/api/ready/route.ts
+   289→3. /instrumentation.ts
+   290→4. /src/middleware.ts
+   291→
+   292→Stage Summary:
+   293→- Health and readiness endpoints provide DB connectivity checks for orchestrators/load-balancers
+   294→- Middleware adds standard security headers and request tracing ID to all matched routes
+   295→- Instrumentation hook is fail-safe — won't crash if OTel packages are missing
+   296→---
+   297→## Task ID: 22, Agent: cache-integrator
+   298→### Redis Cache Integration - Top 8 High-Traffic API Routes
+   299→
+   300→Added Redis caching via `cacheManager.getOrSet()` to 8 API routes:
+   301→1. `/api/dashboard/stats` - key: `dashboard:stats:{tenantId}`, TTL: 30s
+   302→2. `/api/wallets` GET - key: `wallets:{tenantId}`, TTL: 60s (POST uncached)
+   303→3. `/api/escrow` GET - key: `escrows:{tenantId}`, TTL: 30s (POST uncached)
+   304→4. `/api/businesses` GET - key: `businesses:{tenantId}`, TTL: 5min
+   305→5. `/api/currency` GET - key: `currency:rates`, TTL: 60s (tenant-shared)
+   306→6. `/api/wallets/rates` GET - key: `wallets:rates`, TTL: 60s
+   307→7. `/api/payment-methods/global` GET - key: `payment-methods:global:{type}:{country}`, TTL: 10min
+   308→8. `/api/fraud/rules` GET - key: `fraud:rules:{tenantId}`, TTL: 5min
+   309→
+   310→Also added `export default getCacheManager()` to cache-manager.ts.
+   311→All routes use lazy dynamic import with try/catch for graceful fallback.
+   312→
+   313→---
+   314→
+   315→## Task ID: 23 | Agent: payment-integrator
+   316→
+   317→### Payment State Machine Wiring
+   318→
+   319→**Created:**
+   320→- `src/backend/lib/payment/route-helpers.ts` — Helper module exporting:
+   321→  - `withPaymentIdempotency(handler)` — HOF that checks Idempotency-Key header and returns cached response if duplicate. Read-only cache-lookup layer (no acquire/complete) to avoid double-lock conflicts with existing manual idempotency code. All imports lazy (inside functions) to avoid crashes.
+   322→  - `recordPaymentTransition(paymentId, fromState, toState, actorId)` — Records a state transition in the audit trail via lazy-loaded AuditTrail singleton. Non-fatal (errors swallowed).
+   323→  - `getPaymentStateMachine()` — Returns the singleton PaymentStateMachine via lazy import. Returns null if module unavailable.
+   324→
+   325→**Edited:**
+   326→- `src/app/api/payments/intents/route.ts` — Wrapped POST handler with `withPaymentIdempotency(createPaymentIntent)`. Added `recordPaymentTransition(intent.id, 'NONE', 'CREATED', ...)` after state machine initialization. All existing logic preserved.
+   327→- `src/app/api/escrow/transactions/[id]/fund/route.ts` — Added `recordPaymentTransition(paymentIntent.id, 'CREATED', 'PENDING_PROVIDER', ...)` after successful fund operation.
+   328→- `src/app/api/escrow/transactions/[id]/release/route.ts` — Added `recordPaymentTransition(id, 'in_escrow', updatedEscrow.status, ...)` after successful release.
+   329→
+   330→**Design decisions:**
+   331→- `withPaymentIdempotency` is read-only (cache lookup only, no lock acquire/complete) to coexist with existing manual idempotency logic in routes without double-lock conflicts.
+   332→- All heavy imports (state-machine, idempotency, audit-trail) are lazy (inside functions) to prevent crashes if those modules have issues.
+   333→- `recordPaymentTransition` calls use `void` (fire-and-forget) to avoid blocking the response.
+   334→
