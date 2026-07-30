@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
 import { logAudit } from '@/lib/audit-logger';
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 
 // GET /api/withdrawals — List withdrawals for the tenant's wallets
-export async function GET(request: NextRequest) {
+async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
     if (!user) {
@@ -60,6 +61,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch withdrawals' }, { status: 500 });
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/withdrawals');
 
 // POST /api/withdrawals — Create a new withdrawal
 export async function POST(request: NextRequest) {

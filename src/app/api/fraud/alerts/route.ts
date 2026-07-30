@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { getApiUser, requireAuth, requireRole, AuthError } from '@/lib/auth/api-helpers'
 
 function generateAlertRef(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -12,8 +12,10 @@ function generateAlertRef(): string {
   return result
 }
 
+const MAX_ALERT_REF_RETRIES = 10
+
 const createAlertSchema = z.object({
-  businessId: z.string().optional(),
+  businessId: z.string().min(1, 'businessId is required'),
   relatedType: z.string().min(1, 'Related type is required'),
   relatedId: z.string().optional(),
   severity: z.enum(['low', 'medium', 'high', 'critical']),
@@ -78,8 +80,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireRole(request, ['admin', 'auditor'])
     const body = await request.json()
     const parsed = createAlertSchema.safeParse(body)
 
@@ -92,19 +93,22 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data
 
-    // Validate businessId belongs to tenant if provided
-    if (data.businessId) {
-      const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } })
-      if (!biz || biz.tenantId !== user.tenantId) {
-        return NextResponse.json({ error: 'Business not found' }, { status: 404 })
-      }
+    // Validate businessId belongs to tenant
+    const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 
     let alertRef = generateAlertRef()
     let exists = await db.fraudAlert.findUnique({ where: { alertRef } })
-    while (exists) {
+    let retries = 0
+    while (exists && retries < MAX_ALERT_REF_RETRIES) {
       alertRef = generateAlertRef()
       exists = await db.fraudAlert.findUnique({ where: { alertRef } })
+      retries++
+    }
+    if (exists) {
+      return NextResponse.json({ error: 'Failed to generate unique alert reference' }, { status: 500 })
     }
 
     const alert = await db.fraudAlert.create({

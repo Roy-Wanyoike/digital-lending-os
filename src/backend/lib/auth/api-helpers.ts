@@ -14,6 +14,9 @@ export interface ApiUser {
 /**
  * Extract the authenticated user from the session.
  * Returns null if not authenticated.
+ *
+ * JWT decryption errors (e.g. stale tokens, secret rotation) are
+ * caught and return null — the caller gets a clean 401 instead of a 500.
  */
 export async function getApiUser(req: NextRequest): Promise<ApiUser | null> {
   try {
@@ -30,14 +33,27 @@ export async function getApiUser(req: NextRequest): Promise<ApiUser | null> {
       tenantId: user.tenantId || '',
       businessId: user.businessId || '',
     };
-  } catch {
+  } catch (err: any) {
+    // Gracefully handle JWT decryption failures (JWEDecryptionFailed, etc.)
+    // and any other session retrieval errors.
+    // Log at warn level so ops can detect token rotation issues.
+    if (err?.code === 'JWEDecryptionFailed' ||
+        err?.name === 'JWEDecryptionFailed' ||
+        err?.message?.includes('decrypt')) {
+      console.warn('[auth] JWT decryption failed — possibly stale token:', err.message);
+    } else {
+      console.error('[auth] Unexpected error in getApiUser:', err);
+    }
     return null;
   }
 }
 
 /**
- * Require authentication + CSRF verification for state-changing requests.
- * Returns 401 if not logged in, 403 if CSRF fails.
+ * Require authentication for any request.
+ * For state-changing methods (POST/PUT/PATCH/DELETE), also enforces CSRF.
+ * Throws AuthError(401) if not authenticated, AuthError(403) if CSRF fails.
+ *
+ * This is the SINGLE canonical auth gate for all API routes.
  */
 export async function requireAuth(req: NextRequest): Promise<ApiUser> {
   const user = await getApiUser(req);
@@ -58,14 +74,12 @@ export async function requireAuth(req: NextRequest): Promise<ApiUser> {
 }
 
 /**
- * Require a specific role — returns 403 if wrong role.
+ * Require a specific role — enforces auth + CSRF (via requireAuth) then checks role.
+ * Throws AuthError(401) if not authenticated, AuthError(403) if wrong role or CSRF fails.
  */
 export async function requireRole(req: NextRequest, roles: string[]): Promise<ApiUser> {
-  // requireAuth already handles CSRF for POST/PUT/PATCH/DELETE
-  const user = await getApiUser(req);
-  if (!user) {
-    throw new AuthError(401, 'Authentication required');
-  }
+  // Go through requireAuth to ensure CSRF is checked for mutations
+  const user = await requireAuth(req);
   if (!roles.includes(user.role)) {
     throw new AuthError(403, 'Insufficient permissions');
   }
@@ -92,12 +106,16 @@ export function tenantScope(tenantId: string, extraWhere: any = {}) {
 
 /**
  * Auth error class for clean error handling.
+ * Exposes both `statusCode` (canonical) and `status` (alias) for
+ * backward compatibility with existing catch blocks.
  */
 export class AuthError extends Error {
   statusCode: number;
+  get status(): number { return this.statusCode; }
   constructor(statusCode: number, message: string) {
     super(message);
     this.statusCode = statusCode;
+    this.name = 'AuthError';
   }
 }
 

@@ -37,6 +37,8 @@ function getRate(from: string, to: string): number {
 export async function POST(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+
     const body = await request.json()
     const parsed = convertSchema.safeParse(body)
 
@@ -53,11 +55,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Source and destination wallets must be different' }, { status: 400 })
     }
 
+    // Pre-validate wallet existence, ownership, and active status (outside tx)
     const fromWallet = await db.wallet.findUnique({ where: { id: data.fromWalletId } })
     const toWallet = await db.wallet.findUnique({ where: { id: data.toWalletId } })
 
     if (!fromWallet || !toWallet) {
       return NextResponse.json({ error: 'One or both wallets not found' }, { status: 404 })
+    }
+    if (!fromWallet.businessId || !toWallet.businessId) {
+      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
     }
 
     // Verify both wallets belong to the same tenant
@@ -71,10 +77,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Both wallets must be active' }, { status: 400 })
     }
 
-    if (fromWallet.availableBalance < data.fromAmount) {
-      return NextResponse.json({ error: 'Insufficient available balance in source wallet' }, { status: 400 })
-    }
-
     const exchangeRate = getRate(fromWallet.currency, toWallet.currency)
     const feePercent = 0.5
     const grossToAmount = data.fromAmount * exchangeRate
@@ -82,7 +84,15 @@ export async function POST(request: NextRequest) {
     const netAmount = Math.round((grossToAmount - feeAmount) * 100) / 100
     const conversionRef = `CNV-${randomUUID().slice(0, 8).toUpperCase()}`
 
+    // Atomic transaction with fresh wallet reads to prevent race conditions
     const conversion = await db.$transaction(async (tx) => {
+      // Re-read wallets inside transaction for fresh balances
+      const freshFrom = await tx.wallet.findUnique({ where: { id: data.fromWalletId } })
+      const freshTo = await tx.wallet.findUnique({ where: { id: data.toWalletId } })
+      if (!freshFrom || !freshTo) throw new Error('Wallet not found')
+      if (freshFrom.availableBalance < data.fromAmount) {
+        throw new Error('Insufficient available balance in source wallet')
+      }
       const conv = await tx.currencyConversion.create({
         data: {
           conversionRef,
@@ -100,8 +110,8 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      // Debit source wallet
-      const fromBalBefore = fromWallet.balance
+      // Debit source wallet (using fresh balances)
+      const fromBalBefore = freshFrom.balance
       const fromBalAfter = Math.round((fromBalBefore - data.fromAmount) * 100) / 100
       await tx.walletTransaction.create({
         data: {
@@ -122,12 +132,12 @@ export async function POST(request: NextRequest) {
         where: { id: data.fromWalletId },
         data: {
           balance: fromBalAfter,
-          availableBalance: Math.round((fromWallet.availableBalance - data.fromAmount) * 100) / 100,
+          availableBalance: Math.round((freshFrom.availableBalance - data.fromAmount) * 100) / 100,
         },
       })
 
-      // Credit destination wallet
-      const toBalBefore = toWallet.balance
+      // Credit destination wallet (using fresh balances)
+      const toBalBefore = freshTo.balance
       const toBalAfter = Math.round((toBalBefore + netAmount) * 100) / 100
       await tx.walletTransaction.create({
         data: {
@@ -149,7 +159,7 @@ export async function POST(request: NextRequest) {
         where: { id: data.toWalletId },
         data: {
           balance: toBalAfter,
-          availableBalance: Math.round((toWallet.availableBalance + netAmount) * 100) / 100,
+          availableBalance: Math.round((freshTo.availableBalance + netAmount) * 100) / 100,
         },
       })
 
@@ -172,6 +182,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url)
     const walletId = searchParams.get('walletId')
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
@@ -182,6 +193,7 @@ export async function GET(request: NextRequest) {
 
     const wallet = await db.wallet.findUnique({ where: { id: walletId } })
     if (!wallet) return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+    if (!wallet.businessId) return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
     const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
     if (!biz || biz.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })

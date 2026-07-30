@@ -11,13 +11,23 @@ import {
 } from '@/lib/dashboard-helpers'
 
 export function ComplianceTab() {
-  const { data: rules, loading: rLoading, error: rulesError, refetch } = useApi<ComplianceRule[]>('/api/compliance/rules')
-  const { data: screenings, loading: sLoading, error: screeningsError } = useApi<Screening[]>('/api/compliance/screenings?limit=20')
+  const { data: rules, loading: rLoading, error: rulesError, refetch: refetchRules } = useApi<ComplianceRule[]>('/api/compliance/rules')
+  const { data: screenings, loading: sLoading, error: screeningsError, refetch: refetchScreenings } = useApi<Screening[]>('/api/compliance/screenings?limit=20')
+
+  // Rules endpoint requires admin/auditor; degrade gracefully for other roles
+  const rulesAccessDenied = rulesError && rulesError.includes('403')
+  const hasError = (screeningsError && !rulesAccessDenied) || (rulesError && !rulesAccessDenied)
+  const errorMessage = screeningsError || (rulesAccessDenied ? null : rulesError) || ''
+
+  const handleRetry = () => {
+    refetchRules()
+    refetchScreenings()
+  }
 
   if (rLoading || sLoading) return <LoadingSkeleton />
-  if (rulesError || screeningsError) return <ErrorState message={rulesError || screeningsError || ''} onRetry={refetch} />
+  if (hasError) return <ErrorState message={errorMessage} onRetry={handleRetry} />
 
-  const allRules = rules || []
+  const allRules = rulesAccessDenied ? [] : (rules || [])
   const allScreenings = screenings || []
 
   const highRiskCount = allScreenings.filter(s => s.riskLevel?.toLowerCase() === 'high' || s.result?.toLowerCase() === 'alert').length
@@ -44,30 +54,36 @@ export function ComplianceTab() {
           <CardTitle className="text-base">Compliance Rules</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Severity</TableHead>
-                  <TableHead>Trigger Count</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allRules.map(r => (
-                  <TableRow key={r.id} className="even:bg-muted/50">
-                    <TableCell className="font-medium">{r.name}</TableCell>
-                    <TableCell><Badge variant="outline" className="text-xs">{r.ruleType}</Badge></TableCell>
-                    <TableCell><Badge variant="outline" className="text-xs">{r.action}</Badge></TableCell>
-                    <TableCell><Badge variant={getStatusBadgeVariant(r.severity)} className={getStatusColor(r.severity)}>{r.severity}</Badge></TableCell>
-                    <TableCell className="font-medium">{r.triggerCount ?? 0}</TableCell>
+          {rulesAccessDenied ? (
+            <div className="p-4 text-center text-sm text-muted-foreground">
+              Admin or auditor role required to view compliance rules.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Severity</TableHead>
+                    <TableHead>Trigger Count</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {allRules.map(r => (
+                    <TableRow key={r.id} className="even:bg-muted/50">
+                      <TableCell className="font-medium">{r.name}</TableCell>
+                      <TableCell><Badge variant="outline" className="text-xs">{r.ruleType}</Badge></TableCell>
+                      <TableCell><Badge variant="outline" className="text-xs">{r.action}</Badge></TableCell>
+                      <TableCell><Badge variant={getStatusBadgeVariant(r.severity)} className={getStatusColor(r.severity)}>{r.severity}</Badge></TableCell>
+                      <TableCell className="font-medium">{r.triggerCount ?? 0}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -91,7 +107,7 @@ export function ComplianceTab() {
               <TableBody>
                 {allScreenings.map(s => (
                   <TableRow key={s.id} className="even:bg-muted/50">
-                    <TableCell className="max-w-[120px] truncate">{'—'}</TableCell>
+                    <TableCell className="max-w-[120px] truncate">{s.businessId ? s.businessId.slice(0, 8) + '...' : '—'}</TableCell>
                     <TableCell className="text-sm">{s.screeningType}</TableCell>
                     <TableCell><Badge variant="secondary" className={`text-xs ${screeningResultColor(s.result)}`}>{s.result}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(s.riskLevel)} className={getStatusColor(s.riskLevel)}>{s.riskLevel}</Badge></TableCell>

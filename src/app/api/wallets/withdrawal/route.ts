@@ -21,6 +21,8 @@ const withdrawalSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+
     const body = await request.json()
     const parsed = withdrawalSchema.safeParse(body)
 
@@ -37,6 +39,9 @@ export async function POST(request: NextRequest) {
     if (!wallet) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
+    if (!wallet.businessId) {
+      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+    }
     const biz = await db.business.findUnique({
       where: { id: wallet.businessId },
       select: { tenantId: true },
@@ -47,15 +52,18 @@ export async function POST(request: NextRequest) {
     if (wallet.status !== 'active') {
       return NextResponse.json({ error: 'Wallet is not active' }, { status: 400 })
     }
-    if (wallet.availableBalance < data.amount) {
-      return NextResponse.json({ error: 'Insufficient available balance' }, { status: 400 })
-    }
 
-    const withdrawalRef = `WDR-${randomUUID().slice(0, 8).toUpperCase()}`
-    // Flat fee per withdrawal: $2.50 or 0.5% whichever is higher
+    // Calculate fee first to check total debit against available balance
     const flatFee = 2.5
     const percentFee = data.amount * 0.005
     const feeAmount = Math.max(flatFee, percentFee)
+    const totalDebit = Math.round((data.amount + feeAmount) * 100) / 100
+
+    if (wallet.availableBalance < totalDebit) {
+      return NextResponse.json({ error: `Insufficient available balance. Required: ${data.amount} + ${feeAmount.toFixed(2)} fee = ${totalDebit.toFixed(2)}, Available: ${wallet.availableBalance.toFixed(2)}` }, { status: 400 })
+    }
+
+    const withdrawalRef = `WDR-${randomUUID().slice(0, 8).toUpperCase()}`
     const netAmount = Math.round((data.amount - feeAmount) * 100) / 100
 
     // Demo auto-complete
@@ -159,6 +167,8 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
     const walletId = searchParams.get('walletId')
     const status = searchParams.get('status') || ''
@@ -170,6 +180,7 @@ export async function GET(request: NextRequest) {
 
     const wallet = await db.wallet.findUnique({ where: { id: walletId } })
     if (!wallet) return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+    if (!wallet.businessId) return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
     const biz = await db.business.findUnique({
       where: { id: wallet.businessId },
       select: { tenantId: true },

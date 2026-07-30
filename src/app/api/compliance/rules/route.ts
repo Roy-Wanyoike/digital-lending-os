@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { requireAuth, requireRole, AuthError } from '@/lib/auth/api-helpers'
 
 const createComplianceRuleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -14,8 +14,7 @@ const createComplianceRuleSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
     if (!['admin', 'auditor'].includes(user.role)) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     const { searchParams } = new URL(request.url)
     const ruleType = searchParams.get('ruleType') || ''
@@ -30,7 +29,8 @@ export async function GET(request: NextRequest) {
     }
     if (severity) where.severity = severity
 
-    // ComplianceRule is a global/system-level entity — no tenant filtering
+    // NOTE: ComplianceRule has no tenantId column. Rules are system-wide.
+    // This is a known limitation — see ADR-008 for migration plan.
     const rules = await db.complianceRule.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -39,16 +39,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: rules })
   } catch (error) {
     console.error('Error listing compliance rules:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to list compliance rules' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-    if (user.role !== 'admin') return NextResponse.json({ error: 'Admin required' }, { status: 403 })
+    const user = await requireRole(request, ['admin'])
     const body = await request.json()
     const parsed = createComplianceRuleSchema.safeParse(body)
 
@@ -62,13 +60,18 @@ export async function POST(request: NextRequest) {
     const data = parsed.data
 
     // Validate condition is valid JSON
+    let parsedCondition: unknown
     try {
-      JSON.parse(data.condition)
+      parsedCondition = JSON.parse(data.condition)
     } catch {
       return NextResponse.json({ error: 'Condition must be a valid JSON string' }, { status: 400 })
     }
 
-    // ComplianceRule is a global/system-level entity — no tenant filtering on creation
+    if (typeof parsedCondition !== 'object' || parsedCondition === null || Array.isArray(parsedCondition)) {
+      return NextResponse.json({ error: 'Condition must be a JSON object' }, { status: 400 })
+    }
+
+    // NOTE: ComplianceRule has no tenantId column. This is a known limitation — see ADR-008.
     const rule = await db.complianceRule.create({
       data: {
         name: data.name,
@@ -84,7 +87,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: rule }, { status: 201 })
   } catch (error) {
     console.error('Error creating compliance rule:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     return NextResponse.json({ error: 'Failed to create compliance rule' }, { status: 500 })
   }
 }

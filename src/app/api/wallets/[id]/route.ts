@@ -13,6 +13,7 @@ export async function GET(
 ) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { id } = await params
     const wallet = await db.wallet.findUnique({
       where: { id },
@@ -21,11 +22,12 @@ export async function GET(
     if (!wallet) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
-    if (wallet.businessId) {
-      const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
-      if (!biz || biz.tenantId !== user.tenantId) {
-        return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
-      }
+    if (!wallet.businessId) {
+      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+    }
+    const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
 
     const transactions = await db.walletTransaction.findMany({
@@ -48,6 +50,7 @@ export async function PUT(
 ) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { id } = await params
     const body = await request.json()
     const parsed = updateWalletSchema.safeParse(body)
@@ -63,11 +66,12 @@ export async function PUT(
     if (!existing) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
-    if (existing.businessId) {
-      const biz = await db.business.findUnique({ where: { id: existing.businessId }, select: { tenantId: true } })
-      if (!biz || biz.tenantId !== user.tenantId) {
-        return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
-      }
+    if (!existing.businessId) {
+      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+    }
+    const biz = await db.business.findUnique({ where: { id: existing.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
 
     const wallet = await db.wallet.update({

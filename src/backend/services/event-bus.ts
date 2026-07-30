@@ -22,9 +22,16 @@ interface Subscription {
   connectionId: string
   callback: EventHandler
   tenantId?: string // if set, only receives events matching this tenantId
+  accountId?: string // if set, only receives events for this user account
 }
 
 let connectionCounter = 0
+
+/**
+ * Maximum concurrent SSE connections across the entire server process.
+ * Tune based on available memory and expected load.
+ */
+export const MAX_CONNECTIONS = 1000
 
 class EventBus {
   // Map of event name → Set of subscriptions
@@ -37,13 +44,14 @@ class EventBus {
   on<T = unknown>(
     event: string,
     callback: EventHandler<T>,
-    options?: { connectionId?: string; tenantId?: string },
+    options?: { connectionId?: string; tenantId?: string; accountId?: string },
   ): string {
     const connectionId = options?.connectionId ?? `conn-${++connectionCounter}`
     const sub: Subscription = {
       connectionId,
       callback: callback as EventHandler,
       tenantId: options?.tenantId,
+      accountId: options?.accountId,
     }
 
     let subs = this.listeners.get(event)
@@ -77,14 +85,25 @@ class EventBus {
   /**
    * Remove all subscriptions for a given connectionId.
    * Used when an SSE client disconnects.
+   * Also cleans up empty event-key entries from the Map.
    */
   disconnect(connectionId: string): void {
-    for (const [, subs] of this.listeners) {
+    const keysToDelete: string[] = []
+
+    for (const [eventKey, subs] of this.listeners) {
       for (const sub of subs) {
         if (sub.connectionId === connectionId) {
           subs.delete(sub)
         }
       }
+      // Schedule cleanup of empty entries
+      if (subs.size === 0) {
+        keysToDelete.push(eventKey)
+      }
+    }
+
+    for (const key of keysToDelete) {
+      this.listeners.delete(key)
     }
   }
 
@@ -104,8 +123,9 @@ class EventBus {
       timestamp: Date.now(),
     }
 
-    // Iterate over a copy since callbacks may modify the set
-    for (const sub of Array.from(subs)) {
+    // Iterate over a snapshot since callbacks may unsubscribe mid-iteration
+    const snapshot = Array.from(subs)
+    for (const sub of snapshot) {
       // If the subscription has a tenantId filter, only deliver if it matches
       if (sub.tenantId && sub.tenantId !== tenantId) continue
       try {
@@ -135,6 +155,22 @@ class EventBus {
     for (const [, subs] of this.listeners) {
       for (const sub of subs) {
         connectionIds.add(sub.connectionId)
+      }
+    }
+    return connectionIds.size
+  }
+
+  /**
+   * Count connections whose connectionId starts with the given prefix.
+   * Used to enforce per-user connection limits.
+   */
+  getConnectionsByPrefix(prefix: string): number {
+    const connectionIds = new Set<string>()
+    for (const [, subs] of this.listeners) {
+      for (const sub of subs) {
+        if (sub.connectionId.startsWith(prefix)) {
+          connectionIds.add(sub.connectionId)
+        }
       }
     }
     return connectionIds.size

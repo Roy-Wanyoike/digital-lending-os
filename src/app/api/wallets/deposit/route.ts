@@ -43,6 +43,9 @@ export async function POST(request: NextRequest) {
     if (!wallet) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
+    if (!wallet.businessId) {
+      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+    }
     const biz = await db.business.findUnique({
       where: { id: wallet.businessId },
       select: { tenantId: true },
@@ -248,6 +251,7 @@ export async function GET(request: NextRequest) {
     // Verify tenant access
     const wallet = await db.wallet.findUnique({ where: { id: walletId } })
     if (!wallet) return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+    if (!wallet.businessId) return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
     const biz = await db.business.findUnique({
       where: { id: wallet.businessId },
       select: { tenantId: true },

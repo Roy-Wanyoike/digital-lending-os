@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useApi } from '@/hooks/use-api'
 import {
-  useApi, formatCurrency, getStatusBadgeVariant, getStatusColor,
+  formatCurrency, getStatusBadgeVariant, getStatusColor,
   getTrustScoreBg, getTrustScoreColor, CURRENCY_FLAGS, PAYMENT_METHOD_TYPES,
   LoadingSkeleton, ErrorState, type PaymentIntent, type ExchangeRate, type PaymentMethod,
 } from '@/lib/dashboard-helpers'

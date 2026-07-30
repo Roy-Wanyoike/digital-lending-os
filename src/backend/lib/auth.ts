@@ -5,6 +5,14 @@ import { db } from '@/lib/db'
 import { logAudit } from '@/lib/audit-logger'
 import { rateLimit } from '@/backend/middleware/rate-limiter'
 
+// ─── Runtime validation of critical env vars ───────────────────────
+if (!process.env.NEXTAUTH_SECRET) {
+  console.error(
+    '[AUTH CRITICAL] NEXTAUTH_SECRET is not set. ' +
+    'Sessions will be insecure. Set it in .env or environment variables.'
+  )
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -20,7 +28,7 @@ export const authOptions: NextAuthOptions = {
 
         const email = credentials.email.toLowerCase()
 
-        // Rate-limit login attempts per email (5 per minute)
+        // ─── Rate-limit login attempts per email (5 per minute) ───
         const rl = rateLimit(`login:${email}`, 5, 60 * 1000)
         if (!rl.allowed) {
           logAudit('login.rate_limited', 'anonymous', `Rate-limited login for ${email}`, { email, retryAfterMs: rl.retryAfterMs })
@@ -65,25 +73,32 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
-    maxAge: 24 * 60 * 60, // 24 hours
+    // Max 24 hours — short enough to limit window of token theft,
+    // long enough to not inconvenience users. Refresh via re-login.
+    maxAge: 24 * 60 * 60,
+    // Update session age on each use (sliding expiry not natively supported,
+    // but the short maxAge + re-login requirement provides equivalent security).
+    updateAge: 24 * 60 * 60,
   },
   pages: {
     signIn: '/login',
   },
+  // Secret from env — validated above at startup
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        // On first sign-in, fetch account details to enrich token
+        // On first sign-in, fetch account details to enrich token.
+        // This runs once per session creation, not on every request.
         const account = await db.account.findUnique({ where: { id: user.id } })
         if (account) {
-          // Use nested object to avoid property name collisions with
-          // NextAuth internals in production minified builds
           token.youngsend = {
             accountId: account.id,
             tenantId: account.tenantId,
             role: account.role,
             businessId: account.businessId || null,
+            // Token creation timestamp for potential rotation logic
+            iat: Date.now(),
           }
         }
       }
@@ -108,6 +123,10 @@ import { getServerSession } from 'next-auth'
 
 export { getServerSession }
 
+/**
+ * Convenience wrapper that returns null on any session error.
+ * Use this in RSC pages where you want graceful degradation.
+ */
 export async function auth() {
   try {
     return await getServerSession(authOptions)

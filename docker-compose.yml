@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────
+# Youngsend — Local Development Stack
+# Usage: docker compose up -d
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Next.js Application ────────────────────────────────────────────
+  nextjs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: youngsend-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - youngsend-net
+    restart: unless-stopped
+
+  # ── PostgreSQL 16 ──────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: youngsend-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-youngsend}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-youngsend_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-youngsend}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-youngsend} -d ${POSTGRES_DB:-youngsend}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - youngsend-net
+    restart: unless-stopped
+
+  # ── Redis 7 ────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: youngsend-redis
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    networks:
+      - youngsend-net
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+
+networks:
+  youngsend-net:
+    driver: bridge

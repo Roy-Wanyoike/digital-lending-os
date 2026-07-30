@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted, emitPaymentFailed } from '@/lib/payment'
+import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted, emitPaymentFailed, processWebhookEvent } from '@/lib/payment'
 import { db } from '@/lib/db'
 
-// ─── Stripe Webhook ──────────────────────────────────────────
+// --- Stripe Webhook ------------------------------------------
 export async function POST(request: NextRequest) {
   try {
     const body = await request.text()
@@ -32,6 +32,17 @@ export async function POST(request: NextRequest) {
           provider: 'stripe' as PaymentProviderCode,
         })
 
+        // --- State machine sync (before any other side-effects) ---
+        await processWebhookEvent({
+          provider: 'stripe',
+          providerRef: providerPaymentId,
+          eventType,
+          status: result.status === 'completed' ? 'success' : 'failed',
+          rawPayload: { sessionId: providerPaymentId, reference },
+        }).catch((err) => {
+          console.error('[Stripe Webhook] State machine sync failed:', err)
+        })
+
         // Find and update the payment transaction
         const tx = await db.paymentTransaction.findFirst({
           where: { providerTxId: providerPaymentId, provider: 'stripe' },
@@ -43,7 +54,7 @@ export async function POST(request: NextRequest) {
             data: { status: 'settled', settledAt: new Date() },
           })
 
-          // Update payment intent
+          // Update payment intent (actualFee + completedAt - state synced above)
           if (tx.intentId) {
             await db.paymentIntent.update({
               where: { id: tx.intentId },
@@ -133,18 +144,17 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // ─── Emit realtime event ────────────────────────────
-          // Best-effort tenantId lookup so SSE clients can filter by tenant
+          // --- Emit realtime event ---
           let stripeTenantId: string | undefined
-          if (intent?.fromBusinessId) {
+          if (tx.intentId) {
             try {
-              const biz = await db.business.findUnique({
-                where: { id: intent.fromBusinessId },
-                select: { tenantId: true },
-              })
-              stripeTenantId = biz?.tenantId
+              const bizIntent = await db.paymentIntent.findUnique({ where: { id: tx.intentId }, select: { fromBusinessId: true } })
+              if (bizIntent?.fromBusinessId) {
+                const biz = await db.business.findUnique({ where: { id: bizIntent.fromBusinessId }, select: { tenantId: true } })
+                stripeTenantId = biz?.tenantId
+              }
             } catch {
-              // Non-fatal — emit without tenantId (broadcasts to all)
+              // Non-fatal
             }
           }
 

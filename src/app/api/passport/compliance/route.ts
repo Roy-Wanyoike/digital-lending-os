@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 const createComplianceDocSchema = z.object({
   passportId: z.string().min(1, 'passportId is required'),
@@ -19,6 +19,8 @@ export async function GET(request: NextRequest) {
     const passportId = searchParams.get('passportId') || ''
     const docType = searchParams.get('docType') || ''
     const status = searchParams.get('status') || ''
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
 
     const where: Record<string, unknown> = {
       passport: { business: { tenantId: user.tenantId } },
@@ -34,12 +36,25 @@ export async function GET(request: NextRequest) {
       where.status = status
     }
 
-    const documents = await db.complianceDocument.findMany({
-      where,
-      orderBy: { uploadedAt: 'desc' },
-    })
+    const [documents, total] = await Promise.all([
+      db.complianceDocument.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { uploadedAt: 'desc' },
+      }),
+      db.complianceDocument.count({ where }),
+    ])
 
-    return NextResponse.json({ data: documents })
+    return NextResponse.json({
+      data: documents,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    })
   } catch (error) {
     console.error('Error listing compliance documents:', error)
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
@@ -49,8 +64,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
     const body = await request.json()
     const parsed = createComplianceDocSchema.safeParse(body)
 

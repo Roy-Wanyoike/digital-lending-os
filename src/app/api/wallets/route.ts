@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 import { logAudit } from '@/lib/audit-logger';
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined;
@@ -18,10 +19,13 @@ async function getCache() {
   return _cacheManager;
 }
 
-export async function GET(req: NextRequest) {
+async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return errorResponse('Authentication required', 401);
+
+    const { searchParams } = new URL(req.url);
+    const filterBusinessId = searchParams.get('businessId');
 
     // Get all business IDs belonging to this tenant
     const businesses = await db.business.findMany({
@@ -34,14 +38,27 @@ export async function GET(req: NextRequest) {
       return successResponse([]);
     }
 
+    // If a specific businessId is requested, verify it belongs to this tenant
+    let targetBusinessIds = businessIds;
+    if (filterBusinessId) {
+      if (!businessIds.includes(filterBusinessId)) {
+        return successResponse([]);
+      }
+      targetBusinessIds = [filterBusinessId];
+    }
+
+    const cacheKey = filterBusinessId
+      ? `wallets:${user.tenantId}:${filterBusinessId}`
+      : `wallets:${user.tenantId}`;
+
     const cacheManager = await getCache();
     const fetchWallets = () => db.wallet.findMany({
-      where: { businessId: { in: businessIds } },
+      where: { businessId: { in: targetBusinessIds } },
       orderBy: { createdAt: 'desc' },
     });
 
     const wallets = cacheManager
-      ? await cacheManager.getOrSet(`wallets:${user.tenantId}`, fetchWallets, { ttl: 60_000 })
+      ? await cacheManager.getOrSet(cacheKey, fetchWallets, { ttl: 60_000 })
       : await fetchWallets();
 
     return successResponse(wallets);
@@ -51,6 +68,8 @@ export async function GET(req: NextRequest) {
     return errorResponse('Failed to fetch wallets', 500);
   }
 }
+
+export const GET = withApiTelemetry(getHandler, '/api/wallets');
 
 export async function POST(req: NextRequest) {
   try {
@@ -62,6 +81,11 @@ export async function POST(req: NextRequest) {
 
     if (!currency) return errorResponse('currency is required', 400);
     if (!businessId) return errorResponse('businessId is required', 400);
+
+    // Validate currency format: 3-letter uppercase code
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      return errorResponse('currency must be a valid 3-letter ISO 4217 code (e.g. USD, EUR, NGN)', 400);
+    }
 
     // Verify businessId belongs to the user's tenant
     const business = await db.business.findFirst({

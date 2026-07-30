@@ -167,6 +167,7 @@ const transactionsMapping = {
     balanceBefore: { type: 'double' },
     balanceAfter: { type: 'double' },
     provider: { type: 'keyword' },
+    tenantId: { type: 'keyword' },
   },
   dynamic_templates: DYNAMIC_TEMPLATES,
 }

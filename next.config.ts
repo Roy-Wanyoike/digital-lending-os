@@ -1,14 +1,24 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Removed "output: standalone" — it causes static asset 404s in Next.js 16.1.3
-  // and conflicts with next start. Use 'next start' for production.
+  // Standalone output for Docker deployment.
+  // Static assets are copied separately in the Dockerfile
+  // (COPY --from=builder /app/.next/static ./.next/static).
+  output: "standalone",
+
+  // Security: remove the X-Powered-By response header
+  poweredByHeader: false,
+
+  // Enable React strict mode for catching common bugs early
+  reactStrictMode: true,
+
+  // Fail the build on TypeScript errors — CI handles type-checking separately
+  // but we want the build itself to be clean.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
-  reactStrictMode: false,
-  // Allow cross-origin preview iframe requests
-  allowedDevOrigins: ["*.space-z.ai"],
+
+  // bcryptjs uses native bindings that must remain external to the bundle
   serverExternalPackages: ["bcryptjs"],
 };
 

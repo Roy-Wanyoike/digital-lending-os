@@ -11,14 +11,25 @@ import {
 } from '@/lib/dashboard-helpers'
 
 export function FraudTab() {
-  const { data: alerts, loading: aLoading, error: alertsError } = useApi<FraudAlert[]>('/api/fraud/alerts?limit=20')
-  const { data: rules, loading: rLoading, error: rulesError, refetch } = useApi<FraudRule[]>('/api/fraud/rules')
+  const { data: alerts, loading: aLoading, error: alertsError, refetch: refetchAlerts } = useApi<FraudAlert[]>('/api/fraud/alerts?limit=20')
+  const { data: rules, loading: rLoading, error: rulesError, refetch: refetchRules } = useApi<FraudRule[]>('/api/fraud/rules')
+
+  // Retry both data sources on error
+  const handleRetry = () => {
+    refetchAlerts()
+    refetchRules()
+  }
+
+  // Rules endpoint requires admin/auditor; degrade gracefully for other roles
+  const rulesAccessDenied = rulesError && rulesError.includes('403')
+  const hasError = (alertsError && !rulesAccessDenied) || (rulesError && !rulesAccessDenied)
+  const errorMessage = alertsError || (rulesAccessDenied ? null : rulesError) || ''
 
   if (aLoading || rLoading) return <LoadingSkeleton />
-  if (alertsError || rulesError) return <ErrorState message={alertsError || rulesError || ''} onRetry={refetch} />
+  if (hasError) return <ErrorState message={errorMessage} onRetry={handleRetry} />
 
   const allAlerts = alerts || []
-  const allRules = rules || []
+  const allRules = rulesAccessDenied ? [] : (rules || [])
 
   const severityCounts = FRAUD_SEVERITIES.map(s => ({
     severity: s,
@@ -101,28 +112,34 @@ export function FraudTab() {
           <CardTitle className="text-base">Fraud Rules</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Severity</TableHead>
-                  <TableHead>Triggered</TableHead>
+          {rulesAccessDenied ? (
+            <div className="p-4 text-center text-sm text-muted-foreground">
+              Admin or auditor role required to view fraud rules.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Severity</TableHead>
+                    <TableHead>Triggered</TableHead>
                   </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allRules.map(r => (
-                  <TableRow key={r.id} className="even:bg-muted/50">
-                    <TableCell className="font-medium">{r.name}</TableCell>
-                    <TableCell><Badge variant="outline" className="text-xs">{r.action}</Badge></TableCell>
-                    <TableCell><Badge variant={getStatusBadgeVariant(r.severity)} className={getStatusColor(r.severity)}>{r.severity}</Badge></TableCell>
-                    <TableCell className="font-medium">{r.triggerCount ?? 0}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {allRules.map(r => (
+                    <TableRow key={r.id} className="even:bg-muted/50">
+                      <TableCell className="font-medium">{r.name}</TableCell>
+                      <TableCell><Badge variant="outline" className="text-xs">{r.action}</Badge></TableCell>
+                      <TableCell><Badge variant={getStatusBadgeVariant(r.severity)} className={getStatusColor(r.severity)}>{r.severity}</Badge></TableCell>
+                      <TableCell className="font-medium">{r.triggerCount ?? 0}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>

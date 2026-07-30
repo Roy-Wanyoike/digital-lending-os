@@ -18,34 +18,41 @@ export async function GET(
 ) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { id } = await params
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') || ''
     const status = searchParams.get('status') || ''
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
+    const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10))
 
     const wallet = await db.wallet.findUnique({ where: { id } })
     if (!wallet) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
-    if (wallet.businessId) {
-      const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
-      if (!biz || biz.tenantId !== user.tenantId) {
-        return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
-      }
+    if (!wallet.businessId) {
+      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+    }
+    const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
 
     const where: Record<string, unknown> = { walletId: id }
     if (type) where.type = type
     if (status) where.status = status
 
-    const transactions = await db.walletTransaction.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    })
+    const [transactions, total] = await Promise.all([
+      db.walletTransaction.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.walletTransaction.count({ where }),
+    ])
 
-    return NextResponse.json({ data: transactions })
+    return NextResponse.json({ data: transactions, pagination: { limit, offset, total, hasMore: offset + limit < total } })
   } catch (error) {
     console.error('Error listing wallet transactions:', error)
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
@@ -59,6 +66,7 @@ export async function POST(
 ) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { id } = await params
     const body = await request.json()
     const parsed = createTransactionSchema.safeParse(body)

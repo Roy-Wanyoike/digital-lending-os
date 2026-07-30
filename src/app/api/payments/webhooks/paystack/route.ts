@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted } from '@/lib/payment'
+import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted, processWebhookEvent } from '@/lib/payment'
 import { db } from '@/lib/db'
 
 // ─── Paystack Webhook ────────────────────────────────────
@@ -26,6 +26,18 @@ export async function POST(request: NextRequest) {
       const providerPaymentId = data.reference
       const metadata = data.metadata?.custom_fields?.reduce((acc: any, f: any) => { acc[f.variable_name] = f.value; return acc }, {}) || data.metadata || {}
 
+      // ─── State machine sync (before any other side-effects) ───
+      await processWebhookEvent({
+        provider: 'paystack',
+        providerRef: providerPaymentId,
+        eventType: event,
+        status: 'success',
+        rawPayload: { reference: providerPaymentId, amount: data.amount, currency: data.currency },
+      }).catch((err) => {
+        // Non-fatal: state machine sync should not break the webhook
+        console.error('[Paystack Webhook] State machine sync failed:', err)
+      })
+
       // Update payment transaction
       const tx = await db.paymentTransaction.findFirst({
         where: { providerTxId: providerPaymentId, provider: 'paystack' },
@@ -40,7 +52,7 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        // Update payment intent
+        // Update payment intent (actualFee + completedAt — state is already synced above)
         if (tx.intentId) {
           await db.paymentIntent.update({
             where: { id: tx.intentId },

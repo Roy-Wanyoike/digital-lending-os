@@ -2,19 +2,50 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 
+/** Allowed report types to prevent arbitrary switch-case fallthrough. */
+const VALID_REPORT_TYPES = ['transactions', 'invoices', 'wallets', 'escrow', 'collections', 'summary'] as const;
+
+type ReportType = (typeof VALID_REPORT_TYPES)[number];
+
+/** Maximum rows per report page. */
+const MAX_REPORT_LIMIT = 200;
+
+/**
+ * Parse and validate a date string. Returns null if invalid.
+ */
+function parseDateParam(value: string | null): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return d;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const user = await getApiUser(req);
     if (!user) return errorResponse('Authentication required', 401);
 
     const url = new URL(req.url);
-    const type = url.searchParams.get('type') || 'summary';
-    const startDate = url.searchParams.get('startDate');
-    const endDate = url.searchParams.get('endDate');
+    const rawType = url.searchParams.get('type') || 'summary';
+    const type = VALID_REPORT_TYPES.includes(rawType as ReportType)
+      ? (rawType as ReportType)
+      : 'summary';
 
-    const dateFilter: any = {};
-    if (startDate) dateFilter.gte = new Date(startDate);
-    if (endDate) dateFilter.lte = new Date(endDate);
+    const startDate = parseDateParam(url.searchParams.get('startDate'));
+    const endDate = parseDateParam(url.searchParams.get('endDate'));
+
+    // Validate date range: endDate must be >= startDate
+    if (startDate && endDate && endDate < startDate) {
+      return errorResponse('endDate must be on or after startDate', 400);
+    }
+
+    const dateFilter: Record<string, Date> = {};
+    if (startDate) dateFilter.gte = startDate;
+    if (endDate) dateFilter.lte = endDate;
+
+    // Pagination parameters
+    const limit = Math.min(MAX_REPORT_LIMIT, Math.max(1, parseInt(url.searchParams.get('limit') || String(MAX_REPORT_LIMIT), 10)));
+    const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10));
 
     // Get business IDs for this tenant
     const businessIds = (await db.business.findMany({
@@ -22,63 +53,93 @@ export async function GET(req: NextRequest) {
       select: { id: true },
     })).map(b => b.id);
 
+    if (businessIds.length === 0) {
+      // No businesses in this tenant — return empty report
+      return successResponse({ type, data: [], total: 0, generatedAt: new Date() });
+    }
+
     switch (type) {
       case 'transactions': {
-        const transactions = await db.paymentTransaction.findMany({
-          where: { createdAt: dateFilter, intent: { fromBusinessId: { in: businessIds } } },
-          include: { intent: { select: { id: true, currency: true, status: true } } },
-          orderBy: { createdAt: 'desc' },
-          take: 200,
-        });
-        return successResponse({ type, data: transactions, generatedAt: new Date() });
+        const [transactions, total] = await Promise.all([
+          db.paymentTransaction.findMany({
+            where: { createdAt: dateFilter, intent: { fromBusinessId: { in: businessIds } } },
+            include: { intent: { select: { id: true, currency: true, status: true } } },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            skip: offset,
+          }),
+          db.paymentTransaction.count({
+            where: { createdAt: dateFilter, intent: { fromBusinessId: { in: businessIds } } },
+          }),
+        ]);
+        return successResponse({ type, data: transactions, total, generatedAt: new Date() });
       }
 
       case 'invoices': {
-        const invoices = await db.invoice.findMany({
-          where: { senderId: { in: businessIds }, createdAt: dateFilter },
-          include: {
-            sender: { select: { id: true, name: true } },
-            receiver: { select: { id: true, name: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 200,
-        });
-        return successResponse({ type, data: invoices, generatedAt: new Date() });
+        const [invoices, total] = await Promise.all([
+          db.invoice.findMany({
+            where: { senderId: { in: businessIds }, createdAt: dateFilter },
+            include: {
+              sender: { select: { id: true, name: true } },
+              receiver: { select: { id: true, name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            skip: offset,
+          }),
+          db.invoice.count({
+            where: { senderId: { in: businessIds }, createdAt: dateFilter },
+          }),
+        ]);
+        return successResponse({ type, data: invoices, total, generatedAt: new Date() });
       }
 
       case 'wallets': {
+        // Wallets are typically few per tenant — no pagination needed
         const wallets = await db.wallet.findMany({
           where: { businessId: { in: businessIds } },
           include: { business: { select: { id: true, name: true } } },
           orderBy: { currency: 'asc' },
         });
-        return successResponse({ type, data: wallets, generatedAt: new Date() });
+        return successResponse({ type, data: wallets, total: wallets.length, generatedAt: new Date() });
       }
 
       case 'escrow': {
-        const escrows = await db.escrowTransaction.findMany({
-          where: { buyerId: { in: businessIds }, createdAt: dateFilter },
-          include: {
-            buyer: { select: { id: true, name: true } },
-            seller: { select: { id: true, name: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 200,
-        });
-        return successResponse({ type, data: escrows, generatedAt: new Date() });
+        const [escrows, total] = await Promise.all([
+          db.escrowTransaction.findMany({
+            where: { buyerId: { in: businessIds }, createdAt: dateFilter },
+            include: {
+              buyer: { select: { id: true, name: true } },
+              seller: { select: { id: true, name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            skip: offset,
+          }),
+          db.escrowTransaction.count({
+            where: { buyerId: { in: businessIds }, createdAt: dateFilter },
+          }),
+        ]);
+        return successResponse({ type, data: escrows, total, generatedAt: new Date() });
       }
 
       case 'collections': {
-        const collections = await db.collectionCase.findMany({
-          where: { businessId: { in: businessIds }, createdAt: dateFilter },
-          include: {
-            debtor: { select: { id: true, name: true } },
-            _count: { select: { reminders: true } },
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 200,
-        });
-        return successResponse({ type, data: collections, generatedAt: new Date() });
+        const [collections, total] = await Promise.all([
+          db.collectionCase.findMany({
+            where: { businessId: { in: businessIds }, createdAt: dateFilter },
+            include: {
+              debtor: { select: { id: true, name: true } },
+              _count: { select: { reminders: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: limit,
+            skip: offset,
+          }),
+          db.collectionCase.count({
+            where: { businessId: { in: businessIds }, createdAt: dateFilter },
+          }),
+        ]);
+        return successResponse({ type, data: collections, total, generatedAt: new Date() });
       }
 
       default: {

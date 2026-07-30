@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth'
-import { LandingPage } from './LandingPage'
+import { LandingPage } from './LandingPageServer'
 import { DashboardShell } from './DashboardShell'
 
 export default async function HomePage() {

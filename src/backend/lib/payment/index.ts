@@ -96,6 +96,10 @@ export type { SecurityConfig, CorsConfig, RateLimitConfig, SecurePaymentHandlerO
 export { AuditTrail, getAuditTrail } from './audit-trail'
 export type { AuditAction, AuditEntry, AuditQuery, AuditVerificationResult } from './audit-trail'
 
+// ─── Webhook State Sync ───────────────────────────────────────
+export { processWebhookEvent } from './webhook-state-sync'
+export type { WebhookEventInput, WebhookSyncResult } from './webhook-state-sync'
+
 // ─── Realtime Event Emission Helpers ───────────────────────────
 // Centralized so webhook routes can fire a single call after a successful
 // (or failed) payment. The event bus forwards these to connected SSE clients.

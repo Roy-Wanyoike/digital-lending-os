@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { getApiUser, requireRole, AuthError } from '@/lib/auth/api-helpers'
 
 const createScreeningSchema = z.object({
-  businessId: z.string().optional(),
+  businessId: z.string().min(1, 'businessId is required'),
   transactionType: z.string().optional(),
   transactionId: z.string().optional(),
   screeningType: z.enum(['sanctions', 'pep', 'adverse_media', 'country_risk']),
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     const riskLevel = searchParams.get('riskLevel') || ''
     const status = searchParams.get('status') || ''
 
-    // ComplianceScreening has no business relation, filter by tenant business IDs
+    // ComplianceScreening has no tenantId; filter by tenant business IDs
     const tenantBizIds = (await db.business.findMany({
       where: { tenantId: user.tenantId },
       select: { id: true },
@@ -59,7 +59,13 @@ export async function GET(request: NextRequest) {
       businessId: { in: tenantBizIds },
     }
 
-    if (businessId) where.businessId = businessId
+    if (businessId) {
+      // Ensure the requested businessId belongs to the tenant
+      if (!tenantBizIds.includes(businessId)) {
+        return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+      }
+      where.businessId = businessId
+    }
     if (screeningType) where.screeningType = screeningType
     if (result) where.result = result
     if (riskLevel) where.riskLevel = riskLevel
@@ -93,8 +99,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireRole(request, ['admin', 'auditor'])
     const body = await request.json()
     const parsed = createScreeningSchema.safeParse(body)
 
@@ -107,12 +112,10 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data
 
-    // Validate businessId belongs to tenant if provided
-    if (data.businessId) {
-      const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } })
-      if (!biz || biz.tenantId !== user.tenantId) {
-        return NextResponse.json({ error: 'Business not found' }, { status: 404 })
-      }
+    // Validate businessId belongs to tenant
+    const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } })
+    if (!biz || biz.tenantId !== user.tenantId) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
     }
 
     const mockResult = generateMockResult()

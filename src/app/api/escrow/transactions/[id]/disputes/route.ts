@@ -109,15 +109,17 @@ export async function POST(
       );
     }
 
-    // Verify raisedBy matches a participant
-    if (
-      (raisedBy === "buyer" && raisedBy !== "buyer") ||
-      (raisedBy === "seller" && raisedBy !== "seller")
-    ) {
-      // Accept both buyer and seller
+    // Validate escrow is in a disputable state
+    if (!['in_escrow', 'funded'].includes(escrow.status)) {
+      return NextResponse.json(
+        {
+          error: `Cannot dispute escrow with status '${escrow.status}'. Only 'in_escrow' or 'funded' escrows can be disputed.`,
+        },
+        { status: 409 }
+      );
     }
 
-    const aiRecommendation = generateAiRecommendation(reason);
+    const aiRecommendation = generateAiRecommendation(reason); // TODO: Replace with real AI analysis
 
     // Create dispute and update escrow status in a transaction
     const dispute = await db.$transaction(async (tx) => {

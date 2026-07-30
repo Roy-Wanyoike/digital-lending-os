@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 const createVerificationSchema = z.object({
   businessId: z.string().min(1, 'businessId is required'),
@@ -20,23 +20,38 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId') || ''
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
 
     const where: Record<string, unknown> = { business: { tenantId: user.tenantId } }
     if (businessId) {
       where.businessId = businessId
     }
 
-    const verifications = await db.verification.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        business: {
-          select: { id: true, name: true, country: true, status: true },
+    const [verifications, total] = await Promise.all([
+      db.verification.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          business: {
+            select: { id: true, name: true, country: true, status: true },
+          },
         },
+      }),
+      db.verification.count({ where }),
+    ])
+
+    return NextResponse.json({
+      data: verifications,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     })
-
-    return NextResponse.json({ data: verifications })
   } catch (error) {
     console.error('Error listing verifications:', error)
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
@@ -46,8 +61,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
     const body = await request.json()
     const parsed = createVerificationSchema.safeParse(body)
 

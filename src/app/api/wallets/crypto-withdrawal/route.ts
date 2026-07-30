@@ -54,6 +54,8 @@ const FIAT_TO_USD: Record<string, number> = {
 export async function POST(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+
     const body = await request.json()
     const parsed = cryptoWithdrawalSchema.safeParse(body)
 
@@ -80,16 +82,28 @@ export async function POST(request: NextRequest) {
     if (data.network === 'bitcoin' && !addr.startsWith('1') && !addr.startsWith('3') && !addr.startsWith('bc1')) {
       return NextResponse.json({ error: 'Invalid Bitcoin address format' }, { status: 400 })
     }
-    if (data.network === 'erc20' && !addr.startsWith('0x')) {
-      return NextResponse.json({ error: 'Invalid ERC20 address — must start with 0x' }, { status: 400 })
+    if (data.network === 'erc20' && (!addr.startsWith('0x') || addr.length !== 42)) {
+      return NextResponse.json({ error: 'Invalid ERC20 address — must be 0x-prefixed and 42 characters' }, { status: 400 })
     }
     if (data.network === 'solana' && (addr.length < 32 || addr.length > 44)) {
-      return NextResponse.json({ error: 'Invalid Solana address length' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid Solana address length (32-44 chars)' }, { status: 400 })
+    }
+    if (data.network === 'trc20' && !addr.startsWith('T')) {
+      return NextResponse.json({ error: 'Invalid TRC-20 address — must start with T' }, { status: 400 })
+    }
+    if (data.network === 'bsc' && (!addr.startsWith('0x') || addr.length !== 42)) {
+      return NextResponse.json({ error: 'Invalid BSC (BEP-20) address — must be 0x-prefixed and 42 characters' }, { status: 400 })
+    }
+    if (data.network === 'bep2' && !/^bnb[a-zA-Z0-9]{38}$/.test(addr)) {
+      return NextResponse.json({ error: 'Invalid BEP-2 address — must start with bnb and be 42 characters' }, { status: 400 })
     }
 
     const wallet = await db.wallet.findUnique({ where: { id: data.walletId } })
     if (!wallet) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+    }
+    if (!wallet.businessId) {
+      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
     }
     const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
     if (!biz || biz.tenantId !== user.tenantId) {
@@ -98,8 +112,13 @@ export async function POST(request: NextRequest) {
     if (wallet.status !== 'active') {
       return NextResponse.json({ error: 'Wallet is not active' }, { status: 400 })
     }
-    if (wallet.availableBalance < data.amount) {
-      return NextResponse.json({ error: 'Insufficient available balance' }, { status: 400 })
+
+    // Calculate fees first to check total debit against available balance
+    const processingFee = Math.max(data.amount * 0.01, 1.0) // 1% min $1
+    const totalDebit = Math.round((data.amount + processingFee) * 100) / 100
+
+    if (wallet.availableBalance < totalDebit) {
+      return NextResponse.json({ error: `Insufficient available balance. Required: ${data.amount} + ${processingFee.toFixed(2)} fee = ${totalDebit.toFixed(2)}, Available: ${wallet.availableBalance.toFixed(2)}` }, { status: 400 })
     }
 
     // Calculate crypto amount
@@ -109,7 +128,6 @@ export async function POST(request: NextRequest) {
     const cryptoAmount = amountInUsd / cryptoPrice
     const networkFee = NETWORK_FEES[data.network]
     const netCryptoAmount = Math.max(0, cryptoAmount - networkFee)
-    const processingFee = Math.max(data.amount * 0.01, 1.0) // 1% min $1
     const withdrawalRef = `CRW-${randomUUID().slice(0, 8).toUpperCase()}`
 
     // Demo: auto-complete
@@ -137,7 +155,6 @@ export async function POST(request: NextRequest) {
       })
 
       if (isAutoComplete) {
-        const totalDebit = data.amount + processingFee
         const balanceBefore = wallet.balance
         const balanceAfter = Math.round((balanceBefore - totalDebit) * 100) / 100
         const availBefore = wallet.availableBalance
@@ -191,7 +208,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: cryptoWdr }, { status: 201 })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to create crypto withdrawal'
-    if (message.includes('Insufficient') || message.includes('not found') || message.includes('not active') || message.includes('Invalid')) {
+    if (message.includes('Insufficient') || message.includes('not found') || message.includes('not active') || message.includes('Invalid') || message.includes('business')) {
       return NextResponse.json({ error: message }, { status: 400 })
     }
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
@@ -204,6 +221,8 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const user = await getApiUser(request)
+    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
     const walletId = searchParams.get('walletId')
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
@@ -214,6 +233,7 @@ export async function GET(request: NextRequest) {
 
     const wallet = await db.wallet.findUnique({ where: { id: walletId } })
     if (!wallet) return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+    if (!wallet.businessId) return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
     const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
     if (!biz || biz.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })

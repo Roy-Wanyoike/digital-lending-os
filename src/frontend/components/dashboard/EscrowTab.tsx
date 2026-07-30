@@ -13,10 +13,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { toast } from 'sonner'
+import { useApi } from '@/hooks/use-api'
 import {
-  useApi, formatCurrency, getStatusBadgeVariant, getStatusColor,
+  formatCurrency, getStatusBadgeVariant, getStatusColor,
   getRiskBg, getRiskColor, formatDate, ESCROW_STATUSES, PipelineCard,
-  LoadingSkeleton, ErrorState, KPICard, CURRENCY_FLAGS, ScoreBar, Toast,
+  LoadingSkeleton, ErrorState, KPICard, CURRENCY_FLAGS, ScoreBar,
   type EscrowTransaction, type Business,
 } from '@/lib/dashboard-helpers'
 
@@ -45,8 +47,7 @@ export function EscrowTab() {
   const [disputeOpen, setDisputeOpen] = useState(false)
   const [fundOpen, setFundOpen] = useState(false)
   const [fundEscrowId, setFundEscrowId] = useState<string | null>(null)
-  const [toastMsg, setToastMsg] = useState('')
-  const [toastVis, setToastVis] = useState(false)
+
 
   // Fund form state
   const [fundEmail, setFundEmail] = useState('')
@@ -71,7 +72,7 @@ export function EscrowTab() {
   const [disputeDesc, setDisputeDesc] = useState('')
   const [disputing, setDisputing] = useState(false)
 
-  const showToast = useCallback((msg: string) => { setToastMsg(msg); setToastVis(true); setTimeout(() => setToastVis(false), 3000) }, [])
+  const showToast = useCallback((msg: string) => { toast(msg) }, [])
 
   const doAction = useCallback(async (id: string, action: string, body?: Record<string, string>) => {
     try {
@@ -471,7 +472,7 @@ export function EscrowTab() {
         </DialogContent>
       </Dialog>
 
-      <Toast message={toastMsg} visible={toastVis} />
+
     </motion.div>
   )
 }

@@ -1,7 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
-import { AnimatePresence } from 'framer-motion'
+import React from 'react'
 import { format } from 'date-fns'
 import {
   LayoutDashboard, Network, Shield, ArrowLeftRight, IdCard as PassportIcon,
@@ -303,68 +302,11 @@ export function truncate(str: string, len: number): string {
   return str.length > len ? str.slice(0, len) + '...' : str
 }
 
-// ─── useApi Hook ────────────────────────────────────────────────────────────────
-// Auto-unwraps { data: T } responses from API routes
+// ─── useApi Hook (re-exported from new location) ───────────────────────
+// The canonical implementation lives in src/frontend/hooks/use-api.ts
+// This re-export provides backward compatibility for tabs not yet migrated.
 
-export function useApi<T>(url: string) {
-  const [data, setData] = useState<T | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [key, setKey] = useState(0)
-
-  const refetch = useCallback(() => setKey(k => k + 1), [])
-
-  useEffect(() => {
-    if (!url) return
-    let cancelled = false
-    const controller = new AbortController()
-    setLoading(true)
-    setError(null)
-    fetch(url, { signal: controller.signal })
-      .then(r => {
-        if (!r.ok) {
-          setError(`Request failed with status ${r.status}`)
-          return null
-        }
-        return r.json()
-      })
-      .then(d => {
-        if (cancelled) return
-        if (d === null) {
-          setData(null)
-          setLoading(false)
-          return
-        }
-        if (d && typeof d === 'object' && !Array.isArray(d) && 'data' in d) {
-          const unwrapped = (d as any).data
-          if (unwrapped === undefined || unwrapped === null) {
-            setData(null)
-          } else if (Array.isArray(unwrapped) || typeof unwrapped !== 'object' || !('error' in unwrapped)) {
-            setData(unwrapped as T)
-          } else {
-            setError('Unexpected response format')
-            setData(null)
-          }
-        } else if (d && typeof d === 'object' && 'error' in d) {
-          setError((d as any).error || 'Request failed')
-          setData(null)
-        } else {
-          setData(d as T)
-        }
-        setLoading(false)
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err.name === 'AbortError' ? null : 'Network error — check your connection')
-          setData(null)
-          setLoading(false)
-        }
-      })
-    return () => { cancelled = true; controller.abort() }
-  }, [url, key])
-
-  return { data, loading, error, refetch }
-}
+export { useApi } from '@/hooks/use-api'
 
 // ─── Shared Sub-Components ───────────────────────────────────────
 
@@ -481,17 +423,8 @@ export function CircularScore({ score, size = 100, strokeWidth = 6 }: { score: n
   )
 }
 
-export function Toast({ message, visible }: { message: string; visible: boolean }) {
-  return (
-    <AnimatePresence>
-      {visible && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white px-4 py-2 rounded-lg shadow-lg max-w-sm">
-          <p className="text-sm font-medium">{message}</p>
-        </div>
-      )}
-    </AnimatePresence>
-  )
-}
+// Toast component removed — use `toast` from 'sonner' instead (already in layout).
+// This eliminates the framer-motion AnimatePresence import that leaked into every tab.
 
 // ─── Navigation Config ─────────────────────────────────────────────────────
 

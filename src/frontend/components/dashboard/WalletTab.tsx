@@ -19,9 +19,11 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { toast } from 'sonner'
+import { useApi } from '@/hooks/use-api'
 import {
-  useApi, formatCurrency, CURRENCY_FLAGS, formatDate,
-  KPICard, LoadingSkeleton, ErrorState, Toast, type Business, type WalletData,
+  formatCurrency, CURRENCY_FLAGS, formatDate,
+  KPICard, LoadingSkeleton, ErrorState, type Business, type WalletData,
 } from '@/lib/dashboard-helpers'
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -120,8 +122,7 @@ export function WalletTab() {
   const [cryptoWdrs, setCryptoWdrs] = useState<CryptoWithdrawalRecord[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
 
-  const [toastMsg, setToastMsg] = useState('')
-  const [toastVis, setToastVis] = useState(false)
+
 
   // Create wallet form
   const [newCurrency, setNewCurrency] = useState('USD')
@@ -156,7 +157,7 @@ export function WalletTab() {
   const [crNotes, setCrNotes] = useState('')
   const [crSubmitting, setCrSubmitting] = useState(false)
 
-  const showToast = useCallback((msg: string) => { setToastMsg(msg); setToastVis(true); setTimeout(() => setToastVis(false), 3000) }, [])
+  const showToast = useCallback((msg: string) => { toast(msg) }, [])
 
   const loadTransactions = useCallback(async (walletId: string) => {
     setSelectedWalletId(walletId)
@@ -237,7 +238,7 @@ export function WalletTab() {
     try {
       const res = await fetch('/api/wallets', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessId: bizId, currency: newCurrency, isDefault: allWallets.length === 0 }),
+        body: JSON.stringify({ businessId: bizId, currency: newCurrency }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed')
@@ -707,7 +708,7 @@ export function WalletTab() {
         </DialogContent>
       </Dialog>
 
-      <Toast message={toastMsg} visible={toastVis} />
+
     </motion.div>
   )
 }

@@ -331,3 +331,349 @@ All routes use lazy dynamic import with try/catch for graceful fallback.
 - `withPaymentIdempotency` is read-only (cache lookup only, no lock acquire/complete) to coexist with existing manual idempotency logic in routes without double-lock conflicts.
 - All heavy imports (state-machine, idempotency, audit-trail) are lazy (inside functions) to prevent crashes if those modules have issues.
 - `recordPaymentTransition` calls use `void` (fire-and-forget) to avoid blocking the response.
+
+## Task ID: D1 | Agent: auth-domain-owner
+
+### Auth & Session Security Hardening
+
+**Bugs Fixed:**
+- `src/backend/lib/auth/api-helpers.ts` — Unified auth helpers. `getApiUser` now catches JWT decryption errors (JWEDecryptionFailed) and returns null instead of throwing 500. `requireRole` now routes through `requireAuth` to inherit CSRF protection. `AuthError` class now exposes both `statusCode` (canonical) and `status` (alias getter) for backward compatibility with ~8 routes that used `.status`.
+- `src/app/api/escrow/[id]/route.ts` — Migrated from `prisma` (direct import) to `db` from `@/lib/db`. Switched from `requireAuth` to `getApiUser` with manual null check. Updated params to use Promise<{id: string}> for Next.js 15 compatibility. Fixed AuthError catch to use `.statusCode`.
+- `src/backend/lib/auth/session.ts` — Fixed bug: `getCurrentUser` was reading `accountId` from session (never set by callback), changed to `id`. Added JWT error tolerance. Marked `requireAuth()` and `requireRole()` as @deprecated in favor of api-helpers.ts versions.
+- `src/backend/lib/auth.ts` — Added startup validation that warns if `NEXTAUTH_SECRET` is missing. Added `updateAge: 24h` to session config. Added `iat` timestamp in JWT token for future rotation. Added comments documenting security decisions.
+
+**Design Decisions:**
+- Single canonical auth path: `getApiUser` for reads, `requireAuth` for writes (includes CSRF), `requireRole` for writes+RBAC.
+- JWT decryption failures are caught at the `getApiUser` level and logged as warnings, returning null (401) instead of crashing (500).
+- `session.ts` is now a deprecated compatibility layer; all new code should use `api-helpers.ts`.
+
+**Documentation Created:**
+- `docs/adr/ADR-001-auth-session-security.md` — Architecture decisions for JWT vs opaque tokens, session expiry, multi-tenant isolation, token rotation, CSRF approach.
+- `docs/adr/ADR-001-threat-model.md` — STRIDE analysis with attack trees for session hijacking, brute force, and token theft.
+- `docs/adr/ADR-001-review-checklist.md` — 15-item checklist for auth domain code review.
+- `docs/adr/ADR-001-benchmarks.md` — Performance targets for session validation (< 5ms p99) and token verification (>10K/sec).
+
+**Remaining Gaps (deferred):**
+1. IP-based rate limiting on `/api/auth/[...nextauth]` — only per-email limit exists. Recommend infrastructure-level WAF.
+2. Refresh token rotation — deferred. Users re-authenticate after 24h JWT expiry.
+3. Session revocation — cannot revoke individual JWTs without shared store.
+
+---
+Task ID: D2
+Agent: api-hardening-owner
+Task: API Hardening — error response standardisation, input validation, route hygiene
+
+Work Log:
+- **DELETED** `src/app/api/convert/route.ts` — Legacy open-proxy redirect with no auth and no try-catch. Users must use `/api/wallets/convert`.
+- **DELETED** `src/app/api/route.ts` — Exposed "Hello World" with no auth, no value. Removed.
+- **FIXED** `src/app/api/payments/providers/route.ts` — Wrapped GET handler in try-catch, added AuthError handling, replaced `console.error` with structured `getLogger()`, updated error response to standard `{ error: { message, code } }` envelope.
+- **CREATED** `src/backend/lib/api-response.ts` — Standard response helpers: `ok()`, `created()`, `noContent()`, `badRequest()`, `unauthorized()`, `forbidden()`, `notFound()`, `conflict()`, `validationError()`, `tooManyRequests()`, `error()`. All return consistent `{ data }` or `{ error: { message, code, details? } }` envelopes. Also exports `withErrorHandler()` HOF that catches AuthError, ZodError, and unknown errors.
+- **CREATED** `src/backend/lib/validation/schemas.ts` — Shared Zod schemas: `paginationSchema`, `idParamSchema`, `currencySchema`, `amountSchema`, `emailSchema`, `businessCreateSchema`, `invoiceCreateSchema`, `depositCreateSchema`.
+- **MIGRATED** `src/app/api/businesses/route.ts` — Replaced ad-hoc validation with `businessCreateSchema`, wrapped handlers in `withErrorHandler()`, replaced `console.error` with structured logger, uses `ok()`/`created()`/`unauthorized()`/`forbidden()`/`badRequest()` helpers.
+- **MIGRATED** `src/app/api/deposits/route.ts` — Replaced ad-hoc validation with `depositCreateSchema`, added `paginationSchema` for GET, wrapped handlers in `withErrorHandler()`, uses standard response helpers.
+- **MIGRATED** `src/app/api/invoices/route.ts` — Replaced ad-hoc validation with `invoiceCreateSchema`, wrapped handlers in `withErrorHandler()`, uses standard response helpers.
+
+**Documentation Created:**
+- `docs/adr/ADR-002-api-hardening.md` — Decisions: standard error envelope, withErrorHandler HOF, Zod strategy, legacy route deprecation.
+- `docs/adr/ADR-002-threat-model.md` — STRIDE analysis covering injection, mass assignment, IDOR, rate abuse.
+- `docs/adr/ADR-002-review-checklist.md` — 20-item checklist for PR review of API routes.
+
+**Remaining Gaps (deferred):**
+1. ~60 routes still use legacy `errorResponse()`/`successResponse()` from `api-helpers.ts` — incremental migration needed.
+2. `sanitizeInput()` only applied in payment validation — should be applied to all text inputs.
+3. No per-route rate limiting configuration.
+4. Invoice and collection routes need IDOR tenant-ownership verification.
+
+---
+Task ID: D3
+Agent: payment-engine-owner
+Task: Payment Engine Audit, Hardening, and State Machine Integration
+
+Work Log:
+- Audited all 5 webhook routes (paystack, stripe, flutterwave, intasend, paya) for real signature verification
+- Found CRITICAL vulnerability: Flutterwave and IntaSend routes skipped signature verification when header was empty (if (signature && ...))
+- Found timing attack vulnerability: Paystack, Flutterwave, IntaSend used hash === signature instead of timingSafeEqual
+- Fixed all 3 providers to use crypto.timingSafeEqual() with length pre-check
+- Fixed Flutterwave and IntaSend webhook routes to always validate signatures
+- Created webhook-state-sync.ts: bridges state machine with DB and event bus
+- Wired processWebhookEvent() into Paystack and Stripe webhook routes (fire-and-forget, non-blocking)
+- Added rehydration logic: state machine initializes from DB status on first webhook
+- Exported processWebhookEvent from payment index.ts
+- Created ADR-003-payment-engine.md: covers state machine design, webhook pipeline, idempotency, provider abstraction
+- Created ADR-003-threat-model.md: 7 threats catalogued (T1-T7), 2 FIXED, 4 MITIGATED, 1 FUTURE
+- Created ADR-003-review-checklist.md: 34-item checklist across 8 categories
+
+Stage Summary:
+- 2 CRITICAL security vulnerabilities fixed (signature bypass, timing attack)
+- State machine now drives payment lifecycle from webhook events
+- All 5 providers have verified, timing-safe signature verification
+- Idempotent webhook processing prevents double-crediting
+- 3 ADR documents created for review and compliance
+
+---
+Task ID: D4
+Agent: escrow-trust-owner
+Task: Escrow & Trust — audit routes, fix bugs, audit UI, create docs
+
+Work Log:
+- Audited 9 escrow route files under src/app/api/escrow/
+- Audited src/app/api/trust/scores/route.ts — confirmed real DB calculation (not mock)
+- Audited EscrowTab.tsx (478 lines) — API endpoints match, error/loading states correct
+
+Bugs Fixed:
+- CRITICAL: escrow/[id]/route.ts queried non-existent `tenantId` column on EscrowTransaction → replaced with OR-based Business join query (all other routes already used this pattern)
+- CRITICAL: escrow/[id]/route.ts PATCH compared escrow.buyerId (Business ID) against user.id (User ID) → now resolves user.businessId and compares Business IDs
+- CRITICAL: escrow/[id]/route.ts used UPPERCASE status values (RELEASED, DISPUTED) → fixed to lowercase (completed, disputed) matching schema
+- HIGH: escrow/[id]/route.ts had no status transition guards → added guards: release requires in_escrow, dispute requires in_escrow or funded
+- HIGH: disputes/[disputeId]/route.ts had no role check for dispute resolution → added admin-only guard
+- MEDIUM: disputes/route.ts had dead-code raisedBy validation (tautological if-statement) → replaced with actual escrow status validation
+- MEDIUM: escrow/[id]/route.ts used non-canonical import path @/backend/lib/auth/api-helpers → fixed to @/lib/auth/api-helpers
+- Added audit log entry and event bus emission to escrow/[id] PATCH dispute action
+
+Files Changed:
+- src/app/api/escrow/[id]/route.ts (rewritten GET+PATCH)
+- src/app/api/escrow/transactions/[id]/disputes/route.ts (status guard added, dead code removed)
+- src/app/api/escrow/transactions/[id]/disputes/[disputeId]/route.ts (admin role check added)
+
+Files Verified (no changes needed):
+- src/app/api/escrow/route.ts (legacy, uses correct model and tenant isolation)
+- src/app/api/escrow/transactions/route.ts (solid: Zod, tenant check, pagination, events)
+- src/app/api/escrow/transactions/[id]/route.ts (correct: OR join, status guard on cancel)
+- src/app/api/escrow/transactions/[id]/fund/route.ts (correct: status guard, provider selection, payment records)
+- src/app/api/escrow/transactions/[id]/activate/route.ts (correct: status guard, audit log, events)
+- src/app/api/escrow/transactions/[id]/release/route.ts (correct: milestone check, disbursement, auto-complete)
+- src/app/api/trust/scores/route.ts (real DB calculation from reviews, verifications, reputation events)
+- src/frontend/components/dashboard/EscrowTab.tsx (API endpoints match, loading/error handled)
+
+Docs Created:
+- docs/adr/ADR-004-escrow-trust.md: Escrow lifecycle state machine, trust score algorithm (5 sub-scores, weighted formula), dispute resolution flow, audit logging spec
+- docs/adr/ADR-004-threat-model.md: 11 threats catalogued (T1-T11), 3 FIXED, 5 MITIGATED, 3 OPEN; attack tree for fund theft
+- docs/adr/ADR-004-review-checklist.md: 57-item checklist across 10 categories
+
+Stage Summary:
+- 3 CRITICAL bugs fixed (tenant isolation crash, auth bypass, status mismatch)
+- 2 HIGH bugs fixed (missing status guards, missing role check)
+- 2 MEDIUM issues fixed (dead code, import path)
+- Trust score confirmed as real DB calculation (not mock)
+- EscrowTab UI verified: correct endpoints, proper error/loading handling
+- 3 ADR documents created for review and compliance
+---
+Task ID: D6
+Agent: dashboard-frontend-owner
+Task: Dashboard frontend architecture — useApi extraction, error boundary, framer-motion leak fix
+
+Work Log:
+- Extracted useApi hook from 528-line monolith (dashboard-helpers.tsx) into standalone src/frontend/hooks/use-api.ts
+  - Zero UI imports (no framer-motion, no Card, no lucide)
+  - Generic signature: useApi<T>(url, options?)
+  - Features: loading/error/data states, refetch, invalidateCache(), 401→login redirect, AbortController cleanup
+  - In-memory request dedup cache
+- Created src/frontend/components/ErrorBoundary.tsx
+  - React class component with getDerivedStateFromError + componentDidCatch
+  - Fallback UI with error message, tab name context, retry button
+  - Tab-level isolation: crash in one tab does not unmount dashboard
+- Fixed framer-motion leak in dashboard-helpers.tsx
+  - Removed AnimatePresence import (was pulled into every tab via useApi)
+  - Removed custom Toast component (replaced by sonner, already in layout)
+  - Removed unused React hooks imports (useState, useEffect, useCallback)
+  - Added backward-compatible re-export: export { useApi } from '@/hooks/use-api'
+- Migrated 3 tabs from custom Toast to sonner:
+  - WalletTab.tsx — removed toastMsg/toastVis state, uses toast() from sonner
+  - EscrowTab.tsx — same migration
+  - PaymentLinksTab.tsx — same migration
+- Updated 5 most complex tabs to import useApi from @/hooks/use-api:
+  - WalletTab, EscrowTab, PaymentsTab, PaymentLinksTab, ReferralTab
+- Updated DashboardShell.tsx: wraps ActiveTabComponent in <ErrorBoundary name={tabLabel}>
+- Created docs/adr/ADR-006-dashboard-frontend.md (architecture, decisions, consequences)
+- Created docs/adr/ADR-006-review-checklist.md (30-item checklist, 83% complete)
+
+Files Created:
+- src/frontend/hooks/use-api.ts (useApi hook, ~120 lines, zero UI deps)
+- src/frontend/components/ErrorBoundary.tsx (class component + TabErrorBoundary wrapper)
+- docs/adr/ADR-006-dashboard-frontend.md
+- docs/adr/ADR-006-review-checklist.md
+
+Files Modified:
+- src/backend/lib/dashboard-helpers.tsx (removed useApi, Toast, AnimatePresence, unused hooks)
+- src/app/DashboardShell.tsx (added ErrorBoundary wrapper around active tab)
+- src/frontend/components/dashboard/WalletTab.tsx (useApi + sonner migration)
+- src/frontend/components/dashboard/EscrowTab.tsx (useApi + sonner migration)
+- src/frontend/components/dashboard/PaymentsTab.tsx (useApi migration)
+- src/frontend/components/dashboard/PaymentLinksTab.tsx (useApi + sonner migration)
+- src/frontend/components/dashboard/ReferralTab.tsx (useApi migration)
+- worklog.md (this entry)
+
+Stage Summary:
+- framer-motion no longer bundled by tabs that only need data-fetching/types
+- Dashboard survives tab-level crashes (ErrorBoundary per tab)
+- 5 of 13 tabs migrated to new useApi location (remaining 8 use backward-compat re-export)
+- Toast deduplication: all notifications now go through sonner
+
+---
+Task ID: D8
+Agent: fraud-compliance-owner
+Task: Audit and harden fraud detection and compliance routes
+
+Work Log:
+- Fixed import paths: all fraud/compliance routes now import from `@/backend/lib/auth/api-helpers` (was `@/lib/auth/api-helpers`)
+- Fixed CSRF bypass: all POST/PUT handlers now use `requireAuth()` or `requireRole()` instead of `getApiUser()`
+- Fixed authorization: fraud alert creation now requires admin/auditor role; previously any authenticated user could create alerts
+- Fixed authorization: fraud alert update now requires admin/auditor role; previously any authenticated user could change alert status
+- Fixed authorization: compliance screening creation now requires admin/auditor role
+- Fixed authorization: fraud rule creation requires admin only (was admin/auditor); compliance rule creation requires admin only
+- Fixed orphaned alert isolation: GET/PUT on alerts/[id] now deny access if businessId is null
+- Fixed orphaned alert creation: businessId is now required in fraud alert creation schema
+- Fixed status transition enforcement: added state machine to PUT /api/fraud/alerts/[id] with 409 on invalid transitions
+- Fixed alert ref generation: added MAX_ALERT_REF_RETRIES (10) to prevent infinite loop
+- Fixed unbounded listings: added pagination (page/limit) to GET /api/passport/verifications and GET /api/passport/compliance
+- Fixed business ID injection: GET /api/compliance/screenings validates businessId against tenant before filtering
+- Fixed AuthError handler consistency: fraud/rules route used `.statusCode` while alerts used `.status` — normalized to `.status`
+- Fixed JSON condition validation: fraud rules and compliance rules now validate that condition parses to a JSON object (not just valid JSON)
+- Fixed FraudTab.tsx: both refetch functions now available for retry; 403 on rules degrades gracefully with access-denied message
+- Fixed ComplianceTab.tsx: same refetch and 403 degradation fixes; screenings table now shows businessId instead of hardcoded '—'
+- Created ADR-008-fraud-compliance.md: rule engine design, screening pipeline, KYC flow, auth model, caching strategy
+- Created ADR-008-threat-model.md: 9 threats identified (2 critical, 3 high, 3 medium, 1 low); 7 fixed, 1 partially mitigated, 1 open (mock data)
+- Created ADR-008-review-checklist.md: 24 checklist items across route audits, UI audits, and schema integrity
+
+Stage Summary:
+- 7 route files hardened (3 fraud, 4 compliance/passport)
+- 2 UI components fixed
+- 3 ADR documents created
+- Critical: orphaned alert isolation bypass fixed, CSRF on all mutations enforced
+- Known debt: FraudRule and ComplianceRule lack tenantId (tracked in ADR-008 migration plan)
+- Known debt: screening pipeline uses mock data (P0 for production)
+
+---
+Task ID: D9
+Agent: search-analytics-owner
+Task: Audit and fix search, analytics, and reporting routes; verify OpenSearch client
+
+Work Log:
+- Audited GET /api/analytics: auth, tenant isolation, error handling already present
+  - Fixed: `completedTxCount` was missing `createdAt: { gte: startDate }` filter (returned all-time count instead of period-scoped)
+- Audited GET /api/reports: auth and tenant isolation already present
+  - Fixed: added date validation (isNaN check, endDate >= startDate guard, returns 400)
+  - Fixed: added type allowlist (only valid report types accepted)
+  - Fixed: added pagination (limit + offset) to all list reports with total count
+  - Fixed: added empty-tenant guard (returns empty immediately if no businesses)
+  - Removed loose `dateFilter: any` typing
+- Audited GET /api/transactions: auth and tenant isolation already present
+  - Fixed: merge query loaded ALL wallet + payment records into memory (OOM risk). Now fetches bounded batches (offset + limit) from each source
+  - Added: payment transactions now include intent join (id, currency, status, fromBusinessId, toBusinessId)
+  - Added: wallet transactions now select only needed fields instead of full `include: { wallet: true }`
+  - Fixed: error handler no longer leaks internal error messages to client
+  - Added: empty-tenant guard
+- Verified OpenSearch client (client.ts): OPENSEARCH_URL from env with localhost fallback, retry with jitter, singleton, in-memory stub — all correct
+- Verified search-service.ts: tenant isolation via buildQuery term filter, cursor pagination, aggregations — all correct
+- Found and fixed: transactions index in indexes.ts was missing `tenantId: { type: 'keyword' }` — would cause query failures with dynamic: 'strict'
+- Created ADR-009-search-analytics.md: documents search architecture, analytics data model, reporting pipeline
+- Created ADR-009-review-checklist.md: comprehensive checklist for all D9 components
+
+Stage Summary:
+- 4 files modified (analytics/route.ts, reports/route.ts, transactions/route.ts, indexes.ts)
+- 2 ADR documents created
+- 1 data-integrity bug fixed (transactions index missing tenantId)
+- 1 performance bug fixed (transactions merge query OOM)
+- 1 correctness bug fixed (analytics transaction count not period-scoped)
+- Reports route hardened with input validation and pagination
+
+---
+Task ID: D10
+Agent: infra-reliability-owner
+Task: Infrastructure & Reliability — containerization, CI/CD, env management
+
+Work Log:
+- Created Dockerfile: 3-stage production build (deps → builder → runner) targeting <200MB
+  - Stage 1 (deps): installs all dependencies on node:20-alpine
+  - Stage 2 (builder): generates Prisma client, runs next build with output: standalone
+  - Stage 3 (runner): copies standalone output + static assets + Prisma engine, non-root user, HEALTHCHECK
+- Created .dockerignore: excludes node_modules, .next, .env, tests, docs, tool artifacts
+- Created docker-compose.yml: nextjs app + postgres:16-alpine + redis:7-alpine on isolated bridge network
+- Created .env.example: documents all 30+ environment variables with descriptions and safe defaults
+  - Includes DATABASE_URL, REDIS_URL, NEXTAUTH_SECRET/URL, all 5 payment provider key groups
+  - Includes KAFKA_BROKERS, OPENSEARCH_URL, OTEL_EXPORTER_OTLP_ENDPOINT, SOCKET_URL
+- Optimized next.config.ts:
+  - Added output: 'standalone' for Docker deployment
+  - Added poweredByHeader: false for security
+  - Enabled reactStrictMode: true for bug detection
+  - Set typescript.ignoreBuildErrors: false to catch type errors in builds
+  - Removed dev-only config (allowedDevOrigins)
+  - Preserved serverExternalPackages: ['bcryptjs']
+- Created .github/workflows/ci.yml: GitHub Actions pipeline
+  - Triggers on push/PR to main with concurrency cancellation
+  - Steps: checkout → Node 20 (npm cache) → npm ci → lint → type-check → test → build
+  - Type-check fails fast via tsc --noEmit
+- Created ADR-010-infra-reliability.md: documents container strategy, CI/CD, and env management decisions
+- Created ADR-010-review-checklist.md: 35-item review checklist for all D10 deliverables
+
+Stage Summary:
+- 6 new files created (Dockerfile, .dockerignore, docker-compose.yml, .env.example, ci.yml, 2 ADRs)
+- 1 file modified (next.config.ts)
+- Production containerization ready: multi-stage Dockerfile with non-root user, health checks, <200MB target
+- CI pipeline enforces lint + type-check + test + build on every push to main
+- Environment variable management documented and centralized
+
+---
+Task ID: D11
+Agent: data-layer-owner
+Task: Data Layer — Prisma client unification, schema audit, import path fixes
+
+Work Log:
+- Audited two Prisma client files: db.ts (81 consumers) and prisma.ts (0 consumers)
+- Deleted orphaned src/backend/lib/prisma.ts — db.ts is the canonical singleton
+- Verified 0 files import from @/lib/prisma after deletion
+- Fixed 9 files importing from wrong path @/backend/lib/auth/api-helpers → @/lib/auth/api-helpers
+  - compliance/screenings, compliance/rules, fraud/alerts, fraud/alerts/[id], fraud/rules
+  - passport/verifications, passport/compliance, realtime, backend/lib/auth/session
+- Verified all 77 api-helpers consumers now use correct tsconfig alias
+- Full schema audit of 30+ models in prisma/schema.prisma (1140 lines):
+  - Indexes: adequate on all models; missing @@index([fromBusinessId]) on Review
+  - onDelete: all explicit cascades and implicit restricts audited for safety
+  - Identified financial risk: Wallet→WalletTransaction/Deposit/Withdrawal cascade deletes
+  - Identified 11 models with loose FK String fields (no Prisma @relation)
+  - Identified User model as orphaned (no relations, no consumers, overlaps Account)
+  - Documented SQLite→PostgreSQL migration strategy
+- Created ADR-011-data-layer.md with full findings and recommendations
+- Created ADR-011-review-checklist.md with 20+ action items (8 completed, 12+ open)
+
+Stage Summary:
+- 1 file deleted (orphaned prisma.ts)
+- 9 files fixed (wrong import path)
+- 2 docs created (ADR-011 data-layer + review-checklist)
+- Single Prisma client enforced: all 81 routes use db from @/lib/db
+- Schema debt documented with actionable migration path to PostgreSQL
+
+---
+Task ID: D12
+Agent: performance-dx-owner
+Task: Performance & DX — API telemetry wrapper, route wiring, landing page RSC migration
+
+Work Log:
+- Created `src/backend/lib/telemetry/api-wrapper.ts` — zero-dependency `withApiTelemetry` HOF
+  - Generates `x-request-id` via `crypto.randomUUID()` (forwards if header present)
+  - Records `performance.now()` start time, calculates `duration_ms`
+  - Sets `x-request-id` + `x-response-time` headers on every response (clones to avoid mutation)
+  - Logs one structured JSON line per request (`console.log` for info, `console.error` for errors)
+  - Error path: logs with stack trace, re-throws (does NOT swallow)
+- Wired `withApiTelemetry` into 5 critical GET routes:
+  - `src/app/api/transactions/route.ts`
+  - `src/app/api/wallets/route.ts`
+  - `src/app/api/deposits/route.ts` (stacked outside `withErrorHandler`)
+  - `src/app/api/withdrawals/route.ts`
+  - `src/app/api/businesses/route.ts` (stacked outside `withErrorHandler`)
+- Split LandingPage into Server Component + Client Component:
+  - Created `src/app/LandingPageServer.tsx` — RSC wrapper (hero, trust badges, footer = zero JS)
+  - Refactored `src/app/LandingPage.tsx` → exports `ClientBanner` (`'use client'` island)
+  - `ClientBanner` contains ONLY: `signIn()` buttons, mobile nav `useState`, `Menu` icon
+  - Updated `src/app/page.tsx` to import from `LandingPageServer`
+- Created `docs/adr/ADR-012-performance-dx.md` — telemetry strategy, bundle optimization, RSC plan
+- Created `docs/adr/ADR-012-review-checklist.md` — 22 action items (15 completed, 7 open)
+
+Stage Summary:
+- 1 new file: `api-wrapper.ts` (zero-dep telemetry HOF)
+- 5 route files modified (telemetry wired into GET handlers)
+- 1 new file: `LandingPageServer.tsx` (RSC wrapper)
+- 1 refactored: `LandingPage.tsx` → `ClientBanner` client island
+- 1 import fix: `page.tsx` now imports RSC wrapper
+- 2 docs created (ADR-012 + review checklist)
+- Landing page static HTML now ships as zero-JS RSC; only ClientBanner island has JS

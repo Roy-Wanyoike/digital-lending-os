@@ -69,6 +69,14 @@ export async function PUT(
       );
     }
 
+    // Only admins can resolve disputes
+    if (user.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Only admins can resolve disputes' },
+        { status: 403 }
+      );
+    }
+
     // Determine new escrow status based on resolution
     let newEscrowStatus: string;
     const resolutionLower = resolution.toLowerCase();

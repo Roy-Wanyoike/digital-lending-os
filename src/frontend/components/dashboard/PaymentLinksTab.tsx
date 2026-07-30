@@ -12,9 +12,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { toast } from 'sonner'
+import { useApi } from '@/hooks/use-api'
 import {
-  useApi, formatCurrency, formatDate, CURRENCY_FLAGS, getStatusBadgeVariant, getStatusColor,
-  KPICard, LoadingSkeleton, ErrorState, Toast, type Business, type PaymentLink,
+  formatCurrency, formatDate, CURRENCY_FLAGS, getStatusBadgeVariant, getStatusColor,
+  KPICard, LoadingSkeleton, ErrorState, type Business, type PaymentLink,
 } from '@/lib/dashboard-helpers'
 
 interface LinkPayment {
@@ -39,8 +41,7 @@ export function PaymentLinksTab() {
   const [payLinkCurrency, setPayLinkCurrency] = useState('USD')
   const [payProviders, setPayProviders] = useState<Array<{code: string; name: string}>>([])
   const [payProvider, setPayProvider] = useState('')
-  const [toastMsg, setToastMsg] = useState('')
-  const [toastVis, setToastVis] = useState(false)
+
 
   // Create form
   const [formBizId, setFormBizId] = useState('')
@@ -59,7 +60,7 @@ export function PaymentLinksTab() {
   const [payAmount, setPayAmount] = useState('')
   const [paying, setPaying] = useState(false)
 
-  const showToast = useCallback((msg: string) => { setToastMsg(msg); setToastVis(true); setTimeout(() => setToastVis(false), 3000) }, [])
+  const showToast = useCallback((msg: string) => { toast(msg) }, [])
 
   if (loading) return <LoadingSkeleton />
   if (linksError || bizError) return <ErrorState message={linksError || bizError || ''} onRetry={refetchLinks} />
@@ -331,7 +332,6 @@ export function PaymentLinksTab() {
         </DialogContent>
       </Dialog>
 
-      <Toast message={toastMsg} visible={toastVis} />
     </motion.div>
   )
 }

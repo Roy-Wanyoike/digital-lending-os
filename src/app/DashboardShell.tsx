@@ -16,6 +16,7 @@ import { ROLE_TABS, ROLE_LABELS, NAV_ITEMS, type Role } from '@/lib/dashboard-he
 import { SidebarNav } from '@/components/dashboard/SidebarNav'
 import { ThemeToggle } from '@/components/theme-toggle'
 import dynamic from 'next/dynamic'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 // ─── Shared skeleton — inlined to avoid separate module round-trip ─────
 const TabSkeleton = () => (
@@ -184,7 +185,11 @@ export function DashboardShell({ session }: { session: Session }) {
             </header>
             <main className="flex-1 p-4 sm:p-6">
               <Suspense fallback={<TabSkeleton />}>
-                {ActiveTabComponent ? <ActiveTabComponent /> : <TabSkeleton />}
+                {ActiveTabComponent ? (
+                  <ErrorBoundary name={activeNav?.label || safeTab}>
+                    <ActiveTabComponent />
+                  </ErrorBoundary>
+                ) : <TabSkeleton />}
               </Suspense>
             </main>
             <footer className="border-t px-4 sm:px-6 py-4 mt-auto">

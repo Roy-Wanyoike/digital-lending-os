@@ -93,9 +93,12 @@ export class IntaSendProvider implements PaymentProvider {
       if (config?.testMode) return true
       return false
     }
+    if (!signature) return false
     try {
       const hash = crypto.createHmac('sha256', this.secretKey).update(payload).digest('hex')
-      return hash === signature
+      // Constant-time compare to prevent timing attacks
+      if (hash.length !== signature.length) return false
+      return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(signature))
     } catch {
       return false
     }

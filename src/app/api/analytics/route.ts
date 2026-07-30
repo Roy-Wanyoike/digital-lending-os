@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
         where: { createdAt: { gte: startDate }, status: 'completed', intent: { fromBusinessId: { in: businessIds } } },
       }),
       db.paymentTransaction.count({
-        where: { intent: { fromBusinessId: { in: businessIds } } },
+        where: { createdAt: { gte: startDate }, intent: { fromBusinessId: { in: businessIds } } },
       }),
       db.escrowTransaction.aggregate({
         _sum: { amount: true },

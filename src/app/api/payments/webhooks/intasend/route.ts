@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'IntaSend provider not configured' }, { status: 500 })
     }
 
-    if (signature && !provider.validateWebhookSignature(body, signature)) {
+    if (!provider.validateWebhookSignature(body, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
     }
 
