@@ -40,7 +40,14 @@ async function getHandler(req: NextRequest) {
     }
   }
 
-  return fetch(forwardUrl.toString(), { headers: req.headers })
+  try {
+    const res = await fetch(forwardUrl.toString(), { headers: req.headers })
+    const data = await res.json()
+    return NextResponse.json(data)
+  } catch (error) {
+    console.error('[currency] Uncached fetch failed:', error)
+    return NextResponse.json({ error: 'Failed to fetch exchange rates' }, { status: 500 })
+  }
 }
 
 export const GET = withApiTelemetry(getHandler, '/api/currency');

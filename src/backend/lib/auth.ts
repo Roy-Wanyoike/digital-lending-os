@@ -45,6 +45,13 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
+        // Null-guard: if passwordHash is missing the account is misconfigured.
+        // Treat as invalid password rather than letting bcrypt crash on null/undefined.
+        if (!account.passwordHash) {
+          logAudit('login.failed', account.id, `Failed login for ${email} — missing password hash`, { email, accountId: account.id })
+          return null
+        }
+
         const isValidPassword = await bcrypt.compare(
           credentials.password,
           account.passwordHash

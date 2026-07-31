@@ -124,9 +124,9 @@ export function DashboardShell({ session }: { session: Session }) {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen flex flex-col bg-background">
+      <div className="h-screen overflow-hidden flex flex-col bg-background">
         <div className="flex flex-1">
-          <aside className="hidden lg:flex w-60 bg-card border-r flex-col flex-shrink-0 sticky top-0 h-screen">
+          <aside className="hidden lg:flex w-60 bg-card border-r flex-col flex-shrink-0 overflow-hidden">
             <SidebarNav visibleTabs={visibleTabs} activeTab={safeTab} onTabChange={handleTabChange} />
           </aside>
           <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
@@ -135,7 +135,7 @@ export function DashboardShell({ session }: { session: Session }) {
               <SidebarNav visibleTabs={visibleTabs} activeTab={safeTab} onTabChange={handleTabChange} />
             </SheetContent>
           </Sheet>
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
             <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b px-4 sm:px-6 py-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">

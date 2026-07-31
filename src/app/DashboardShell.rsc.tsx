@@ -45,17 +45,17 @@ export async function DashboardShellServer({ session }: { session: Session }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className="h-screen overflow-hidden flex flex-col bg-background">
       <div className="flex flex-1">
         {/* ── Server-rendered sidebar (zero client JS) ────────────────── */}
-        <aside className="hidden lg:flex w-60 bg-card border-r flex-col flex-shrink-0 sticky top-0 h-screen">
+        <aside className="hidden lg:flex w-60 bg-card border-r flex-col flex-shrink-0 overflow-hidden">
           <ServerSidebar navData={navData} />
         </aside>
 
         {/* ── Mobile sidebar (thin client island) ────────────────────── */}
         <MobileSidebar navData={navData} />
 
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
           {/* ── Server-rendered header (zero client JS) ────────────────── */}
           <ServerHeader navData={navData} />
 

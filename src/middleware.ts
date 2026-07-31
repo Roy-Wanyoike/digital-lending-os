@@ -70,9 +70,16 @@ export function middleware(request: NextRequest) {
   res.headers.set('x-request-id', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   // --- CORS headers (all responses) ---
-  res.headers.set('Access-Control-Allow-Origin', '*');
+  // Reflect origin for credential support; fall back to * for non-browser requests.
+  const origin = request.headers.get('origin');
+  const corsOrigin = (origin && origin !== 'null') ? origin : '*';
+  res.headers.set('Access-Control-Allow-Origin', corsOrigin);
+  if (corsOrigin !== '*') {
+    res.headers.set('Vary', 'Origin');
+    res.headers.set('Access-Control-Allow-Credentials', 'true');
+  }
   res.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
-  res.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-request-id');
+  res.headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-csrf-token,x-request-id');
 
   // --- OPTIONS preflight → return immediately ---
   if (method === 'OPTIONS') {
@@ -112,9 +119,9 @@ export function middleware(request: NextRequest) {
     );
   }
 
-  // --- Bot protection (API routes only) ---
+  // --- Bot protection (skip public/infra paths like health, ready, webhooks) ---
   const ua = request.headers.get('user-agent') ?? '';
-  if (isBadBot(ua)) {
+  if (!isPublicPath(pathname) && isBadBot(ua)) {
     console.log(`${method} ${pathname} 403 ${Date.now() - start}ms`);
     return NextResponse.json(
       { error: 'Forbidden' },
@@ -148,5 +155,9 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Exclude static assets, internal Next.js routes, and common static extensions
+  // to avoid unnecessary middleware execution overhead.
+  matcher: [
+    '/((?!_next/static|_next/image|_next/webpack|favicon\.ico|.*\\.(?:svg|png|jpg|ico|css|js|woff2?|ttf|eot)$).*)',
+  ],
 };
