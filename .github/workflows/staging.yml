@@ -1,0 +1,127 @@
+# Youngsend — Manual Deployment to Staging / Production
+# Triggered via workflow_dispatch with an environment selector.
+# Allows on-demand deploys to staging or production clusters.
+
+name: Manual Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: "Image tag to deploy (leave empty for latest)"
+        required: false
+        default: latest
+        type: string
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'YOUR_PROJECT_ID' }}
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  IMAGE_NAME: gcr.io/${{ vars.GCP_PROJECT_ID || 'YOUR_PROJECT_ID' }}/youngsend
+
+jobs:
+  # ── Build & Push ─────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker gcr.io --quiet
+
+      - name: Build and push Docker image
+        run: |
+          TAG="${{ github.event.inputs.image_tag == 'latest' && 'latest' || github.event.inputs.image_tag }}"
+
+          docker buildx build \
+            --push \
+            --platform linux/amd64 \
+            -t ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            -t ${{ env.IMAGE_NAME }}:${TAG} \
+            .
+
+  # ── Deploy ────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to ${{ github.event.inputs.environment }}
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Determine cluster and namespace
+        id: target
+        run: |
+          ENV="${{ github.event.inputs.environment }}"
+          if [ "$ENV" = "production" ]; then
+            echo "cluster=youngsend-prod" >> "$GITHUB_OUTPUT"
+            echo "namespace=youngsend-prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "cluster=youngsend-staging" >> "$GITHUB_OUTPUT"
+            echo "namespace=youngsend-staging" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials "${{ steps.target.outputs.cluster }}" \
+            --region "${{ env.REGION }}" \
+            --project "${{ env.PROJECT_ID }}"
+
+      - name: Apply K8s manifests with image tag
+        run: |
+          # Use the explicit tag if provided, otherwise fall back to the commit SHA
+          INPUT_TAG="${{ github.event.inputs.image_tag }}"
+          if [ -n "$INPUT_TAG" ] && [ "$INPUT_TAG" != "latest" ]; then
+            export IMAGE_TAG="$INPUT_TAG"
+          else
+            export IMAGE_TAG="${{ github.sha }}"
+          fi
+          export PROJECT_ID="${{ env.PROJECT_ID }}"
+          export NAMESPACE="${{ steps.target.outputs.namespace }}"
+
+          for file in infra/k8s/*.yaml; do
+            envsubst < "$file" | kubectl apply -f -
+          done
+
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/youngsend-nextjs \
+            -n "${{ steps.target.outputs.namespace }}" \
+            --timeout=300s

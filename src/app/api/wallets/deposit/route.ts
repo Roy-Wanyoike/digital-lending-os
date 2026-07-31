@@ -220,6 +220,12 @@ async function postHandler(request: NextRequest) {
       }
     }
 
+    // ─── Audit trail ────────────────────────────────
+    try {
+      const { auditLog } = await import('@/backend/lib/audit-helper')
+      await auditLog({ action: 'deposit.create', resource: 'deposit', resourceId: deposit.id, userId: user.id, tenantId: user.tenantId, details: { amount: deposit.amount, currency: deposit.currency, paymentMethod: deposit.paymentMethod, status: deposit.status } })
+    } catch (e) { console.error('Audit log failed:', e) }
+
     return NextResponse.json({
       data: deposit,
       referralBonus: referralBonusCredited ? {

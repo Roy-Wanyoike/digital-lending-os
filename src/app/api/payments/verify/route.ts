@@ -3,8 +3,29 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { providerRegistry, type PaymentProviderCode } from '@/lib/payment'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { getPaymentStateMachine as getSM, recordPaymentTransition } from '@/backend/lib/payment/route-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+
+// ── DB ↔ State Machine status mapping ─────────────────────────────
+function dbStatusToStateMachineState(dbStatus: string | null): string {
+  if (!dbStatus) return 'CREATED'
+  const upper = dbStatus.toUpperCase().replace(/-/g, '_')
+  const validStates = ['CREATED', 'PENDING_PROVIDER', 'PROCESSING', 'COMPLETED',
+    'FAILED', 'REFUNDING', 'REFUNDED', 'CANCELLED', 'DISPUTED']
+  if (validStates.includes(upper)) return upper
+  const aliasMap: Record<string, string> = { 'PENDING': 'PENDING_PROVIDER' }
+  return aliasMap[dbStatus.toUpperCase()] ?? 'CREATED'
+}
+
+function stateMachineStateToDbStatus(state: string): string {
+  const map: Record<string, string> = {
+    CREATED: 'created', PENDING_PROVIDER: 'pending', PROCESSING: 'processing',
+    COMPLETED: 'completed', FAILED: 'failed', REFUNDING: 'refunding',
+    REFUNDED: 'refunded', CANCELLED: 'cancelled', DISPUTED: 'disputed',
+  }
+  return map[state] ?? state.toLowerCase()
+}
 const verifySchema = z.object({
   providerPaymentId: z.string().min(1, 'Provider payment ID is required'),
   provider: z.enum(['stripe', 'paystack', 'intasend', 'flutterwave', 'paya'] as const),
@@ -77,13 +98,87 @@ async function postHandler(request: NextRequest) {
       },
     })
 
+    // ── State machine transitions ───────────────────────────────────
+    const sm = paymentIntentId ? await getSM() : null
+    let smFinalState: string | null = null
+
+    if (sm && paymentIntentId) {
+      try {
+        // Rehydrate state machine from DB if not already tracking this payment
+        if (!sm.getState(paymentIntentId)) {
+          const intentRow = await db.paymentIntent.findUnique({
+            where: { id: paymentIntentId },
+            select: { status: true },
+          })
+          sm.initialize(paymentIntentId)
+          if (intentRow?.status && intentRow.status !== 'created') {
+            const hydrated = dbStatusToStateMachineState(intentRow.status)
+            if (hydrated !== 'CREATED') {
+              await sm.transition(paymentIntentId, hydrated, { provider, reason: 'Rehydrated from DB on verify' })
+            }
+          }
+        }
+
+        const actor = user?.email || user?.id || 'system'
+
+        if (result.status === 'completed') {
+          // Success path: step through PROCESSING → COMPLETED
+          const cur = sm.getState(paymentIntentId)
+          if (cur === 'CREATED' || cur === 'PENDING_PROVIDER') {
+            await sm.transition(paymentIntentId, 'PROCESSING', {
+              provider,
+              reason: 'Verify: provider confirmed payment',
+            })
+            void recordPaymentTransition(paymentIntentId, cur!, 'PROCESSING', actor)
+          }
+          const after = sm.getState(paymentIntentId)
+          if (after === 'PROCESSING') {
+            await sm.transition(paymentIntentId, 'COMPLETED', {
+              provider,
+              reason: 'Verify: provider confirmed payment success',
+            })
+            void recordPaymentTransition(paymentIntentId, after!, 'COMPLETED', actor)
+          }
+          smFinalState = sm.getState(paymentIntentId)
+        } else if (result.status === 'failed') {
+          // Failure path: step through PROCESSING → FAILED
+          const cur = sm.getState(paymentIntentId)
+          if (cur === 'CREATED' || cur === 'PENDING_PROVIDER') {
+            try {
+              await sm.transition(paymentIntentId, 'PROCESSING', {
+                provider,
+                reason: 'Verify: provider reported failure',
+              })
+              void recordPaymentTransition(paymentIntentId, cur!, 'PROCESSING', actor)
+            } catch { /* non-fatal: may not be legal from this state */ }
+          }
+          const after = sm.getState(paymentIntentId)
+          if (after === 'PROCESSING') {
+            await sm.transition(paymentIntentId, 'FAILED', {
+              provider,
+              reason: 'Verify: provider reported payment failure',
+            })
+            void recordPaymentTransition(paymentIntentId, after!, 'FAILED', actor)
+          }
+          smFinalState = sm.getState(paymentIntentId)
+        }
+      } catch (err) {
+        // State machine errors are non-fatal — fall back to direct DB update
+        console.warn('[Payments/Verify] State machine error (non-fatal):', err)
+      }
+    }
+
     // ─── Update PaymentIntent ────────────────────────────────
     if (paymentIntentId) {
+      const resolvedStatus = smFinalState
+        ? stateMachineStateToDbStatus(smFinalState)
+        : (result.status === 'completed' ? 'completed' : result.status === 'failed' ? 'failed' : 'processing')
+
       const updateData: Record<string, unknown> = {
-        status: result.status === 'completed' ? 'completed' : result.status === 'failed' ? 'failed' : 'processing',
+        status: resolvedStatus,
       }
       if (result.fee) updateData.actualFee = result.fee / 100
-      if (result.status === 'completed') updateData.completedAt = new Date()
+      if (resolvedStatus === 'completed') updateData.completedAt = new Date()
 
       await db.paymentIntent.update({
         where: { id: paymentIntentId },

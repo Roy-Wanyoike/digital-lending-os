@@ -183,6 +183,12 @@ async function postHandler(
     // ── State machine: record payment transition (release) ──
     void recordPaymentTransition(id, 'in_escrow', updatedEscrow.status, user.email || user.id || 'authenticated');
 
+    // ─── Audit trail ────────────────────────────────
+    try {
+      const { auditLog } = await import('@/backend/lib/audit-helper')
+      await auditLog({ action: 'escrow.release', resource: 'escrow', resourceId: id, userId: user.id, tenantId: user.tenantId, details: { milestoneId, milestoneTitle: milestone.title, amount: milestone.amount, disbursementId: disbursement.id, newStatus: updatedEscrow.status } })
+    } catch (e) { console.error('Audit log failed:', e) }
+
     return NextResponse.json({ data: updatedEscrow });
   } catch (error) {
     console.error("Error releasing escrow funds:", error);

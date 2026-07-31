@@ -208,6 +208,12 @@ async function postHandler(request: NextRequest) {
       console.error('[escrow.updated] emit failed:', err);
     }
 
+    // ─── Audit trail ────────────────────────────────
+    try {
+      const { auditLog } = await import('@/backend/lib/audit-helper')
+      await auditLog({ action: 'escrow.create', resource: 'escrow', resourceId: escrow.id, userId: user.id, tenantId: user.tenantId, details: { amount: escrow.amount, currency: escrow.currency, txRef: escrow.txRef, buyerId: escrow.buyerId, sellerId: escrow.sellerId, riskScore: escrow.aiRiskScore, riskLevel: escrow.aiRiskLevel } })
+    } catch (e) { console.error('Audit log failed:', e) }
+
     return NextResponse.json({ data: escrow }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });

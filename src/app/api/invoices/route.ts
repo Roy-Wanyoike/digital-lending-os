@@ -64,5 +64,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   });
 
   log.info('Invoice created', { invoiceId: invoice.id, businessId: data.businessId, amount: data.amount });
+
+  // ─── Audit trail ────────────────────────────────
+  try {
+    const { auditLog } = await import('@/backend/lib/audit-helper')
+    await auditLog({ action: 'invoice.create', resource: 'invoice', resourceId: invoice.id, userId: user.id, tenantId: user.tenantId, details: { amount: invoice.amount, currency: invoice.currency, invoiceRef, businessId: data.businessId } })
+  } catch (e) { console.error('Audit log failed:', e) }
+
   return created(invoice);
 });

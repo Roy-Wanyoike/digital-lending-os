@@ -8,6 +8,8 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     testTimeout: 30000,
+    // Exclude integration tests (require running dev server on localhost:3000)
+    exclude: ['**/node_modules/**', '**/__tests__/api/**'],
   },
   resolve: {
     alias: {

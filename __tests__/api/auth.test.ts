@@ -1,4 +1,5 @@
 /**
+ * Integration tests — require running dev server on localhost:3000
  * Auth API tests — verify session, CSRF, and login flow
  * Run: bash scripts/run-tests.sh __tests__/api/auth.test.ts
  */

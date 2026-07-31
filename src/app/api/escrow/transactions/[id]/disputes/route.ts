@@ -157,6 +157,12 @@ async function postHandler(
       return newDispute;
     });
 
+    // ─── Audit trail ────────────────────────────────
+    try {
+      const { auditLog } = await import('@/backend/lib/audit-helper')
+      await auditLog({ action: 'escrow.dispute', resource: 'escrow', resourceId: id, userId: user.id, tenantId: user.tenantId, details: { disputeId: dispute.id, raisedBy, reason, escrowStatus: 'disputed' } })
+    } catch (e) { console.error('Audit log failed:', e) }
+
     return NextResponse.json({ data: dispute }, { status: 201 });
   } catch (error) {
     console.error("Error creating dispute:", error);

@@ -156,6 +156,12 @@ async function postHandler(request: NextRequest) {
     // Wire to Temporal workflow (falls back to direct execution if Temporal is unavailable)
     void processWithdrawal({ walletId: data.walletId, withdrawalId: withdrawal.id, withdrawalRef, amount: data.amount, currency: wallet.currency, tenantId: user.tenantId });
 
+    // ─── Audit trail ────────────────────────────────
+    try {
+      const { auditLog } = await import('@/backend/lib/audit-helper')
+      await auditLog({ action: 'withdrawal.create', resource: 'withdrawal', resourceId: withdrawal.id, userId: user.id, tenantId: user.tenantId, details: { amount: withdrawal.amount, currency: withdrawal.currency, paymentMethod: withdrawal.paymentMethod, feeAmount: withdrawal.feeAmount, status: withdrawal.status } })
+    } catch (e) { console.error('Audit log failed:', e) }
+
     return NextResponse.json({ data: withdrawal }, { status: 201 })
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })

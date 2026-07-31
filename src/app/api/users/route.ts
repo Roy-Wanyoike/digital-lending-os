@@ -87,6 +87,12 @@ async function postHandler(req: NextRequest) {
       },
     });
 
+    // ─── Audit trail ────────────────────────────────
+    try {
+      const { auditLog } = await import('@/backend/lib/audit-helper')
+      await auditLog({ action: 'user.create', resource: 'user', resourceId: newUser.id, userId: user.id, tenantId: user.tenantId, details: { newUserEmail: newUser.email, newUserRole: newUser.role, newUserTenantId: newUser.tenantId } })
+    } catch (e) { console.error('Audit log failed:', e) }
+
     return successResponse(newUser, 201);
   } catch (error: any) {
     console.error('Users POST error:', error);

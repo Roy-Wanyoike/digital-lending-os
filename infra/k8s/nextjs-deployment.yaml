@@ -44,7 +44,8 @@ spec:
       terminationGracePeriodSeconds: 60
       initContainers:
         - name: prisma-migrate
-          image: youngsend/nextjs:latest
+          image: gcr.io/YOUR_PROJECT_ID/youngsend:IMAGE_TAG
+          imagePullPolicy: IfNotPresent
           command: ["npx", "prisma", "migrate", "deploy"]
           envFrom:
             - configMapRef:
@@ -65,7 +66,8 @@ spec:
               cpu: 250m
       containers:
         - name: nextjs
-          image: youngsend/nextjs:latest
+          image: gcr.io/YOUR_PROJECT_ID/youngsend:IMAGE_TAG
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 3000

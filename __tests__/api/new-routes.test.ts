@@ -1,4 +1,5 @@
 /**
+ * Integration tests — require running dev server on localhost:3000
  * Tests for 6 new API routes: analytics, settings, reports, roles, notifications, subscriptions
  * Run: npx vitest run __tests__/api/new-routes.test.ts
  */
