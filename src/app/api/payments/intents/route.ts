@@ -261,6 +261,16 @@ async function createPaymentIntent(request: NextRequest) {
       guard.complete(idempotencyKey, responseData, 201);
     }
 
+    // ── Publish Kafka event ────────────────────────────────────
+    try {
+      const { publishEvent } = await import('@/backend/lib/event-publisher')
+      await publishEvent({
+        topic: 'payment.events.payment_initiated',
+        key: intent.id,
+        event: { eventType: 'payment.intent.created', intentId: intent.id, amount: data.sourceAmount, currency: data.sourceCurrency, tenantId: user.tenantId, timestamp: new Date().toISOString() },
+      })
+    } catch (e) { console.error('Event publish failed:', e) }
+
     return NextResponse.json(responseData, { status: 201 });
   } catch (error) {
     console.error("Error creating payment intent:", error);

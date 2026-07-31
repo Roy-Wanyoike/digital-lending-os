@@ -220,7 +220,17 @@ async function postHandler(request: NextRequest) {
       }
     }
 
-    // ─── Audit trail ────────────────────────────────
+    // ── Publish Kafka event ────────────────────────────────
+    try {
+      const { publishEvent } = await import('@/backend/lib/event-publisher')
+      await publishEvent({
+        topic: 'wallet.events.wallet_deposited',
+        key: deposit.id,
+        event: { eventType: 'wallet.deposit.created', depositId: deposit.id, walletId: data.walletId, amount: deposit.amount, currency: deposit.currency, tenantId: user.tenantId, timestamp: new Date().toISOString() },
+      })
+    } catch (e) { console.error('Event publish failed:', e) }
+
+  // ─── Audit trail ────────────────────────────────
     try {
       const { auditLog } = await import('@/backend/lib/audit-helper')
       await auditLog({ action: 'deposit.create', resource: 'deposit', resourceId: deposit.id, userId: user.id, tenantId: user.tenantId, details: { amount: deposit.amount, currency: deposit.currency, paymentMethod: deposit.paymentMethod, status: deposit.status } })

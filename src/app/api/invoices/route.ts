@@ -4,10 +4,11 @@ import { db } from '@/lib/db';
 import { ok, created, badRequest, unauthorized, forbidden, withErrorHandler } from '@/backend/lib/api-response';
 import { invoiceCreateSchema } from '@/backend/lib/validation/schemas';
 import { getLogger } from '@/backend/lib/telemetry/logger';
+import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 
 const log = getLogger().withContext({ route: '/api/invoices' });
 
-export const GET = withErrorHandler(async (req: NextRequest) => {
+async function getHandler(req: NextRequest) {
   const user = await getApiUser(req);
   if (!user) return unauthorized();
 
@@ -27,9 +28,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   });
 
   return ok({ invoices });
-});
+}
 
-export const POST = withErrorHandler(async (req: NextRequest) => {
+async function postHandler(req: NextRequest) {
   const user = await getApiUser(req);
   if (!user) return unauthorized();
 
@@ -65,6 +66,22 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   log.info('Invoice created', { invoiceId: invoice.id, businessId: data.businessId, amount: data.amount });
 
+  // ── Publish Kafka event ────────────────────────────────
+  try {
+    const { publishEvent } = await import('@/backend/lib/event-publisher')
+    await publishEvent({
+      topic: 'payment.events.payment_initiated',
+      key: invoice.id,
+      event: { eventType: 'invoice.created', invoiceId: invoice.id, amount: invoice.amount, currency: invoice.currency, businessId: data.businessId, tenantId: user.tenantId, timestamp: new Date().toISOString() },
+    })
+  } catch (e) { console.error('Event publish failed:', e) }
+
+  // ── Sync to search index ───────────────────────────────
+  try {
+    const { syncToSearch } = await import('@/backend/lib/search-helper')
+    await syncToSearch({ index: 'invoices', id: invoice.id, document: { ...invoice, _tenantId: user.tenantId } })
+  } catch (e) { console.error('Search sync failed:', e) }
+
   // ─── Audit trail ────────────────────────────────
   try {
     const { auditLog } = await import('@/backend/lib/audit-helper')
@@ -72,4 +89,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   } catch (e) { console.error('Audit log failed:', e) }
 
   return created(invoice);
-});
+}
+
+export const GET = withErrorHandler(withApiTelemetry(getHandler, '/api/invoices'));
+export const POST = withErrorHandler(withApiTelemetry(postHandler, '/api/invoices'));

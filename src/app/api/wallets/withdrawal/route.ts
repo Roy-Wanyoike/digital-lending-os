@@ -156,6 +156,16 @@ async function postHandler(request: NextRequest) {
     // Wire to Temporal workflow (falls back to direct execution if Temporal is unavailable)
     void processWithdrawal({ walletId: data.walletId, withdrawalId: withdrawal.id, withdrawalRef, amount: data.amount, currency: wallet.currency, tenantId: user.tenantId });
 
+    // ── Publish Kafka event ────────────────────────────────
+    try {
+      const { publishEvent } = await import('@/backend/lib/event-publisher')
+      await publishEvent({
+        topic: 'wallet.events.wallet_withdrawn',
+        key: withdrawal.id,
+        event: { eventType: 'wallet.withdrawal.created', withdrawalId: withdrawal.id, walletId: data.walletId, amount: withdrawal.amount, currency: withdrawal.currency, tenantId: user.tenantId, timestamp: new Date().toISOString() },
+      })
+    } catch (e) { console.error('Event publish failed:', e) }
+
     // ─── Audit trail ────────────────────────────────
     try {
       const { auditLog } = await import('@/backend/lib/audit-helper')

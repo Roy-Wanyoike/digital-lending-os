@@ -1,0 +1,830 @@
+     1→// ─── Youngsend Edge Worker ───────────────────────────────────────
+     2→// Cloudflare Worker that handles requests at the edge before they
+     3→// reach the Next.js origin.  Features:
+     4→//   A) Static asset caching (cache-first, long TTL for hashed assets)
+     5→//   B) API response caching for GET requests (5–30 s depending on endpoint)
+     6→//   C) Authentication token validation at the edge (JWT signature check)
+     7→//   D) Rate limiting via Workers KV sliding window
+     8→//   E) Geo-blocking / geo-routing (route to nearest region)
+     9→//   F) Bot protection (challenge suspicious user agents)
+    10→//   G) A/B testing header injection
+    11→// ─────────────────────────────────────────────────────────────────
+    12→
+    13→export interface Env {
+    14→  // KV namespaces bound in wrangler.toml
+    15→  CACHE_KV: KVNamespace;
+    16→  RATE_LIMIT_KV: KVNamespace;
+    17→  AB_TEST_KV: KVNamespace;
+    18→
+    19→  // Secrets (set via `wrangler secret put`)
+    20→  JWT_PUBLIC_KEY: string;
+    21→  BLOCKED_COUNTRIES: string; // comma-separated ISO country codes
+    22→
+    23→  // Environment
+    24→  ENVIRONMENT: 'staging' | 'production';
+    25→  ORIGIN_HOSTNAME: string;
+    26→  ALLOWED_ORIGINS: string; // comma-separated
+    27→  LOG_LEVEL: string;
+    28→}
+    29→
+    30→// ─── Constants ──────────────────────────────────────────────────
+    31→
+    32→const STATIC_EXTENSIONS = new Set([
+    33→  'js', 'css', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'avif',
+    34→  'woff', 'woff2', 'ttf', 'otf', 'eot', 'mp4', 'webm', 'mp3', 'ogg',
+    35→]);
+    36→
+    37→const HASHED_ASSET_PATTERN = /\/_next\/static\/(chunks|css|media|fonts)\//;
+    38→
+    39→const API_CACHE_CONFIG: Record<string, number> = {
+    40→  '/api/dashboard/stats': 30,
+    41→  '/api/currency': 60,
+    42→  '/api/wallets/rates': 60,
+    43→  '/api/payment-methods/global': 600, // 10 min
+    44→  '/api/payments/rates': 60,
+    45→};
+    46→
+    47→const BYPASS_CACHE_PATHS = [
+    48→  '/api/auth/',
+    49→  '/api/payments/',
+    50→  '/api/withdrawals/',
+    51→  '/api/deposits/',
+    52→  '/api/escrow/transactions',
+    53→  '/api/wallets/deposit',
+    54→  '/api/wallets/withdrawal',
+    55→  '/api/wallets/crypto-withdrawal',
+    56→  '/api/payments/initialize',
+    57→  '/api/payments/intents',
+    58→];
+    59→
+    60→const RATE_LIMITS: Record<string, { maxRequests: number; windowSec: number }> = {
+    61→  global: { maxRequests: 300, windowSec: 60 },
+    62→  auth: { maxRequests: 10, windowSec: 60 },
+    63→  api: { maxRequests: 100, windowSec: 60 },
+    64→  payment: { maxRequests: 30, windowSec: 60 },
+    65→  webhook: { maxRequests: 1000, windowSec: 60 },
+    66→  static: { maxRequests: 600, windowSec: 60 },
+    67→};
+    68→
+    69→const SUSPICIOUS_BOT_PATTERNS = [
+    70→  /bot\b/i,
+    71→  /crawler/i,
+    72→  /spider/i,
+    73→  /scraper/i,
+    74→  /curl\b/i,
+    75→  /wget\b/i,
+    76→  /python-requests/i,
+    77→  /python-httpx/i,
+    78→  /go-http-client/i,
+    79→  /java\/\d/i,
+    80→  /httpclient/i,
+    81→  /masscan/i,
+    82→  /nmap/i,
+    83→  /nikto/i,
+    84→  /sqlmap/i,
+    85→];
+    86→
+    87→const WHITELISTED_BOTS = [
+    88→  /googlebot/i,
+    89→  /bingbot/i,
+    90→  /slurp/i,
+    91→  /duckduckbot/i,
+    92→  /baiduspider/i,
+    93→  /yandexbot/i,
+    94→  /facebot/i,
+    95→  /facebookexternalhit/i,
+    96→  /twitterbot/i,
+    97→  /linkedinbot/i,
+    98→  /discordbot/i,
+    99→  /telegrambot/i,
+   100→];
+   101→
+   102→const AB_TEST_EXPERIMENTS = [
+   103→  { name: 'checkout-flow', variants: ['control', 'variant-a', 'variant-b'], trafficPercent: 30 },
+   104→  { name: 'pricing-display', variants: ['control', 'variant-a'], trafficPercent: 20 },
+   105→  { name: 'onboarding-wizard', variants: ['control', 'variant-a'], trafficPercent: 50 },
+   106→];
+   107→
+   108→const CORS_HEADERS = {
+   109→  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+   110→  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, X-Request-ID, X-Tenant-ID',
+   111→  'Access-Control-Expose-Headers': 'X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Cache-Status, X-AB-Experiment',
+   112→  'Access-Control-Max-Age': '86400',
+   113→};
+   114→
+   115→// ─── Utility helpers ─────────────────────────────────────────────
+   116→
+   117→function getClientIP(request: Request): string {
+   118→  return request.headers.get('CF-Connecting-IP') || 'unknown';
+   119→}
+   120→
+   121→function getCountryCode(request: Request): string {
+   122→  const cf = (request as any).cf as Record<string, any> | undefined;
+   123→  return cf?.country || 'XX';
+   124→}
+   125→
+   126→function getContinent(request: Request): string {
+   127→  const cf = (request as any).cf as Record<string, any> | undefined;
+   128→  return cf?.continent || 'NA';
+   129→}
+   130→
+   131→function getCity(request: Request): string {
+   132→  const cf = (request as any).cf as Record<string, any> | undefined;
+   133→  return cf?.city || 'unknown';
+   134→}
+   135→
+   136→function isBotRequest(userAgent: string): boolean {
+   137→  const isSuspicious = SUSPICIOUS_BOT_PATTERNS.some((p) => p.test(userAgent));
+   138→  const isWhitelisted = WHITELISTED_BOTS.some((p) => p.test(userAgent));
+   139→  return isSuspicious && !isWhitelisted;
+   140→}
+   141→
+   142→function isStaticAsset(url: URL): boolean {
+   143→  const pathname = url.pathname;
+   144→  const ext = pathname.split('.').pop()?.toLowerCase() || '';
+   145→  return STATIC_EXTENSIONS.has(ext) || HASHED_ASSET_PATTERN.test(pathname);
+   146→}
+   147→
+   148→function isApiRequest(url: URL): boolean {
+   149→  return url.pathname.startsWith('/api/');
+   150→}
+   151→
+   152→function isHealthCheck(url: URL): boolean {
+   153→  return url.pathname === '/api/health' || url.pathname === '/_next/webpack-hmr';
+   154→}
+   155→
+   156→function matchesApiCacheConfig(pathname: string): number | null {
+   157→  for (const [prefix, ttl] of Object.entries(API_CACHE_CONFIG)) {
+   158→    if (pathname.startsWith(prefix)) return ttl;
+   159→  }
+   160→  return null;
+   161→}
+   162→
+   163→function shouldBypassCache(pathname: string): boolean {
+   164→  return BYPASS_CACHE_PATHS.some((p) => pathname.startsWith(p));
+   165→}
+   166→
+   167→function getRateLimitCategory(url: URL): string {
+   168→  const pathname = url.pathname;
+   169→  if (pathname.startsWith('/api/auth/')) return 'auth';
+   170→  if (pathname.startsWith('/api/payments/') || pathname.startsWith('/api/withdrawals/')) return 'payment';
+   171→  if (pathname.startsWith('/api/')) return 'api';
+   172→  if (isStaticAsset(url)) return 'static';
+   173→  return 'global';
+   174→}
+   175→
+   176→function generateCacheKey(request: Request): string {
+   177→  const url = new URL(request.url);
+   178→  const authHeader = request.headers.get('Authorization');
+   179→  const tenantHeader = request.headers.get('X-Tenant-ID');
+   180→
+   181→  // Include query params for API endpoints, ignore for static
+   182→  let key: string;
+   183→  if (isApiRequest(url)) {
+   184→    key = `${url.pathname}?${url.searchParams.toString()}|${authHeader || 'anon'}|${tenantHeader || 'default'}`;
+   185→  } else {
+   186→    key = `${url.pathname}`;
+   187→  }
+   188→
+   189→  // Hash the key to stay within KV key length limits
+   190→  return hashString(key);
+   191→}
+   192→
+   193→function hashString(str: string): string {
+   194→  let hash = 0;
+   195→  for (let i = 0; i < str.length; i++) {
+   196→    const char = str.charCodeAt(i);
+   197→    hash = ((hash << 5) - hash + char) | 0;
+   198→  }
+   199→  return Math.abs(hash).toString(36);
+   200→}
+   201→
+   202→function jsonResponse(data: any, status = 200, extraHeaders: Record<string, string> = {}): Response {
+   203→  return new Response(JSON.stringify(data), {
+   204→    status,
+   205→    headers: {
+   206→      'Content-Type': 'application/json',
+   207→      ...extraHeaders,
+   208→    },
+   209→  });
+   210→}
+   211→
+   212→function htmlChallengeResponse(title: string, message: string): Response {
+   213→  const html = `<!DOCTYPE html>
+   214→<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+   215→<title>${title}</title><style>
+   216→body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f8fafc;color:#1e293b}
+   217→.card{background:#fff;border-radius:12px;padding:2rem;max-width:420px;box-shadow:0 1px 3px rgba(0,0,0,.1);text-align:center}
+   218→h1{font-size:1.25rem;margin:0 0 .5rem}p{color:#64748b;margin:0 0 1rem;font-size:.875rem;line-height:1.5}
+   219→.btn{display:inline-block;padding:.625rem 1.5rem;border-radius:.5rem;background:#0f172a;color:#fff;text-decoration:none;font-weight:500}
+   220→</style></head><body><div class="card"><h1>${title}</h1><p>${message}</p>
+   221→<a href="/" class="btn">Return Home</a></div></body></html>`;
+   222→  return new Response(html, { status: 403, headers: { 'Content-Type': 'text/html;charset=utf-8' } });
+   223→}
+   224→
+   225→// ─── A) Static Asset Caching ────────────────────────────────────
+   226→
+   227→async function handleStaticAsset(request: Request, env: Env, cache: Cache): Promise<Response> {
+   228→  const cacheKey = new Request(request.url, request);
+   229→
+   230→  // Cache-first: check edge cache first
+   231→  let cached = await cache.match(cacheKey);
+   232→  if (cached) {
+   233→    const resp = new Response(cached.body, cached);
+   234→    resp.headers.set('X-Cache-Status', 'HIT');
+   235→    resp.headers.set('X-Cache-Tier', 'L1-Edge');
+   236→    return resp;
+   237→  }
+   238→
+   239→  // MISS — fetch from origin
+   240→  const originResp = await fetch(request);
+   241→  const respToCache = originResp.clone();
+   242→
+   243→  // Cache for 1 year for hashed assets (immutable), 1 month for other static
+   244→  const url = new URL(request.url);
+   245→  if (HASHED_ASSET_PATTERN.test(url.pathname)) {
+   246→    const headers = new Headers(respToCache.headers);
+   247→    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+   248→    headers.set('Surrogate-Key', 'static-assets hashed-assets');
+   249→
+   250→    // Wait for cache.put in background
+   251→    const waitUntil = (globalThis as any).waitUntil as ((p: Promise<any>) => void) | undefined;
+   252→    if (waitUntil) {
+   253→      waitUntil(cache.put(cacheKey, new Response(respToCache.body, { headers })));
+   254→    }
+   255→
+   256→    const finalResp = new Response(originResp.body, { headers });
+   257→    finalResp.headers.set('X-Cache-Status', 'MISS');
+   258→    finalResp.headers.set('X-Cache-Tier', 'L1-Edge');
+   259→    return finalResp;
+   260→  } else {
+   261→    // Non-hashed static assets: 1 month
+   262→    const headers = new Headers(respToCache.headers);
+   263→    headers.set('Cache-Control', 'public, max-age=2592000, stale-while-revalidate=86400');
+   264→    headers.set('Surrogate-Key', 'static-assets');
+   265→
+   266→    const waitUntil = (globalThis as any).waitUntil as ((p: Promise<any>) => void) | undefined;
+   267→    if (waitUntil) {
+   268→      waitUntil(cache.put(cacheKey, new Response(respToCache.body, { headers })));
+   269→    }
+   270→
+   271→    const finalResp = new Response(originResp.body, { headers });
+   272→    finalResp.headers.set('X-Cache-Status', 'MISS');
+   273→    finalResp.headers.set('X-Cache-Tier', 'L1-Edge');
+   274→    return finalResp;
+   275→  }
+   276→}
+   277→
+   278→// ─── B) API Response Caching ────────────────────────────────────
+   279→
+   280→async function handleApiCaching(request: Request, env: Env, cache: Cache): Promise<Response | null> {
+   281→  if (request.method !== 'GET') return null;
+   282→
+   283→  const url = new URL(request.url);
+   284→  const pathname = url.pathname;
+   285→
+   286→  // Skip non-cacheable endpoints
+   287→  if (shouldBypassCache(pathname)) return null;
+   288→
+   289→  const ttl = matchesApiCacheConfig(pathname);
+   290→  if (ttl === null) return null;
+   291→
+   292→  const cacheKey = new Request(request.url, request);
+   293→
+   294→  // Check edge cache
+   295→  let cached = await cache.match(cacheKey);
+   296→  if (cached) {
+   297→    const resp = new Response(cached.body, cached);
+   298→    resp.headers.set('X-Cache-Status', 'HIT');
+   299→    resp.headers.set('X-Cache-Tier', 'L1-Edge');
+   300→    resp.headers.set('Age', (Date.now() / 1000 - Number(cached.headers.get('X-Cached-At') || '0')).toFixed(0));
+   301→    return resp;
+   302→  }
+   303→
+   304→  // MISS — fetch from origin
+   305→  const originResp = await fetch(request);
+   306→
+   307→  if (originResp.status === 200) {
+   308→    const respToCache = originResp.clone();
+   309→    const headers = new Headers(respToCache.headers);
+   310→    headers.set('Cache-Control', `public, max-age=${ttl}, stale-while-revalidate=${ttl * 2}, s-maxage=${ttl}`);
+   311→    headers.set('X-Cached-At', (Date.now() / 1000).toString());
+   312→    headers.set('Surrogate-Key', `api-response api-${pathname.split('/').filter(Boolean).slice(0, 3).join('-')}`);
+   313→
+   314→    const waitUntil = (globalThis as any).waitUntil as ((p: Promise<any>) => void) | undefined;
+   315→    if (waitUntil) {
+   316→      waitUntil(cache.put(cacheKey, new Response(respToCache.body, { headers })));
+   317→    }
+   318→
+   319→    const finalResp = new Response(originResp.body, originResp.headers);
+   320→    finalResp.headers.set('X-Cache-Status', 'MISS');
+   321→    finalResp.headers.set('X-Cache-Tier', 'L1-Edge');
+   322→    return finalResp;
+   323→  }
+   324→
+   325→  // Don't cache error responses
+   326→  return originResp;
+   327→}
+   328→
+   329→// ─── C) JWT Edge Validation ──────────────────────────────────────
+   330→
+   331→async function validateJwtAtEdge(request: Request, env: Env): Promise<{ valid: boolean; payload?: any; error?: string }> {
+   332→  const authHeader = request.headers.get('Authorization');
+   333→  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+   334→    return { valid: false, error: 'No Bearer token' };
+   335→  }
+   336→
+   337→  const token = authHeader.slice(7);
+   338→
+   339→  // Only validate on API paths that require auth (skip public endpoints)
+   340→  const url = new URL(request.url);
+   341→  const publicEndpoints = ['/api/auth/', '/api/currency', '/api/payment-methods/global', '/api/payments/rates', '/api/wallets/rates'];
+   342→  if (publicEndpoints.some((p) => url.pathname.startsWith(p))) {
+   343→    return { valid: true }; // Skip validation for public endpoints
+   344→  }
+   345→
+   346→  try {
+   347→    // Import the Web Crypto API for JWT verification
+   348→    // Decode JWT header to get algorithm
+   349→    const parts = token.split('.');
+   350→    if (parts.length !== 3) {
+   351→      return { valid: false, error: 'Malformed token' };
+   352→    }
+   353→
+   354→    const headerB64 = parts[0].replace(/-/g, '+').replace(/_/g, '/');
+   355→    const headerJson = atob(headerB64);
+   356→    const header = JSON.parse(headerJson);
+   357→
+   358→    if (header.alg !== 'RS256' && header.alg !== 'RS512') {
+   359→      return { valid: false, error: `Unsupported algorithm: ${header.alg}` };
+   360→    }
+   361→
+   362→    // Verify signature using the public key
+   363→    const publicKeyPEM = env.JWT_PUBLIC_KEY;
+   364→    if (!publicKeyPEM) {
+   365→      return { valid: true }; // Skip validation if key not configured (dev mode)
+   366→    }
+   367→
+   368→    // Convert PEM to ArrayBuffer
+   369→    const pemContents = publicKeyPEM
+   370→      .replace('-----BEGIN PUBLIC KEY-----', '')
+   371→      .replace('-----END PUBLIC KEY-----', '')
+   372→      .replace(/\s/g, '');
+   373→    const binaryDer = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
+   374→
+   375→    const keyData: globalThis.AlgorithmIdentifier | globalThis.JsonWebKey = {
+   376→      kty: 'RSA',
+   377→      alg: header.alg as 'RS256' | 'RS512',
+   378→      ext: true,
+   379→      n: btoa(String.fromCharCode(...binaryDer.subarray(33, 165))),
+   380→      e: btoa(String.fromCharCode(...binaryDer.subarray(0, 4).reverse())),
+   381→      // We use the importKey approach instead since the manual JWK construction
+   382→      // is complex for RSA. Fall back to spki import.
+   383→    };
+   384→
+   385→    // Use SPKI import instead
+   386→    const spkiDer = new Uint8Array(
+   387→      pemContents.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || [],
+   388→    );
+   389→
+   390→    const publicKey = await crypto.subtle.importKey(
+   391→      'spki',
+   392→      binaryDer.buffer,
+   393→      { name: 'RSASSA-PKCS1-v1_5', hash: header.alg === 'RS512' ? 'SHA-512' : 'SHA-256' },
+   394→      false,
+   395→      ['verify'],
+   396→    );
+   397→
+   398→    const signature = Uint8Array.from(atob(parts[2].replace(/-/g, '+').replace(/_/g, '/')), (c) =>
+   399→      c.charCodeAt(0),
+   400→    );
+   401→    const data = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+   402→
+   403→    const isValid = await crypto.subtle.verify(
+   404→      'RSASSA-PKCS1-v1_5',
+   405→      publicKey,
+   406→      signature,
+   407→      data,
+   408→    );
+   409→
+   410→    if (!isValid) {
+   411→      return { valid: false, error: 'Invalid signature' };
+   412→    }
+   413→
+   414→    // Check expiration
+   415→    const payloadB64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+   416→    const payloadJson = atob(payloadB64);
+   417→    const payload = JSON.parse(payloadJson);
+   418→
+   419→    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+   420→      return { valid: false, error: 'Token expired' };
+   421→    }
+   422→
+   423→    if (payload.nbf && payload.nbf > Math.floor(Date.now() / 1000)) {
+   424→      return { valid: false, error: 'Token not yet valid' };
+   425→    }
+   426→
+   427→    return { valid: true, payload };
+   428→  } catch (error) {
+   429→    // On any error, allow request through to origin (fail open for reliability)
+   430→    // but log for monitoring
+   431→    console.error('[EDGE] JWT validation error:', error);
+   432→    return { valid: true };
+   433→  }
+   434→}
+   435→
+   436→// ─── D) Rate Limiting via KV sliding window ────────────────────
+   437→
+   438→interface RateLimitWindow {
+   439→  timestamps: number[];
+   440→}
+   441→
+   442→async function checkRateLimit(request: Request, env: Env): Promise<{
+   443→  allowed: boolean;
+   444→  remaining: number;
+   445→  resetAt: number;
+   446→  limit: number;
+   447→}> {
+   448→  const ip = getClientIP(request);
+   449→  const url = new URL(request.url);
+   450→  const category = getRateLimitCategory(url);
+   451→  const config = RATE_LIMITS[category] || RATE_LIMITS.global;
+   452→
+   453→  const key = `rl:${category}:${ip}`;
+   454→  const now = Math.floor(Date.now() / 1000);
+   455→  const windowStart = now - config.windowSec;
+   456→
+   457→  try {
+   458→    const entry = await env.RATE_LIMIT_KV.get(key, 'json') as RateLimitWindow | null;
+   459→
+   460→    let timestamps: number[] = entry?.timestamps || [];
+   461→
+   462→    // Prune old entries (sliding window)
+   463→    timestamps = timestamps.filter((ts) => ts > windowStart);
+   464→
+   465→    if (timestamps.length >= config.maxRequests) {
+   466→      const oldestInWindow = timestamps[0];
+   467→      const resetAt = oldestInWindow + config.windowSec;
+   468→      return {
+   469→        allowed: false,
+   470→        remaining: 0,
+   471→        resetAt,
+   472→        limit: config.maxRequests,
+   473→      };
+   474→    }
+   475→
+   476→    // Record this request
+   477→    timestamps.push(now);
+   478→
+   479→    // Persist to KV (fire-and-forget with waitUntil)
+   480→    const waitUntil = (globalThis as any).waitUntil as ((p: Promise<any>) => void) | undefined;
+   481→    if (waitUntil) {
+   482→      waitUntil(
+   483→        env.RATE_LIMIT_KV.put(key, JSON.stringify({ timestamps }), {
+   484→          expirationTtl: config.windowSec + 60, // auto-expire after window
+   485→        }),
+   486→      );
+   487→    }
+   488→
+   489→    return {
+   490→      allowed: true,
+   491→      remaining: config.maxRequests - timestamps.length,
+   492→      resetAt: now + config.windowSec,
+   493→      limit: config.maxRequests,
+   494→    };
+   495→  } catch (error) {
+   496→    // Fail open: allow request if KV is unavailable
+   497→    console.error('[EDGE] Rate limit KV error:', error);
+   498→    return {
+   499→      allowed: true,
+   500→      remaining: config.maxRequests,
+   501→      resetAt: now + config.windowSec,
+   502→      limit: config.maxRequests,
+   503→    };
+   504→  }
+   505→}
+   506→
+   507→// ─── E) Geo-blocking / geo-routing ──────────────────────────────
+   508→
+   509→function handleGeoRouting(request: Request, env: Env): { blocked: boolean; headers: Record<string, string>; nearestRegion: string } {
+   510→  const countryCode = getCountryCode(request);
+   511→  const continent = getContinent(request);
+   512→  const city = getCity(request);
+   513→
+   514→  // Check blocked countries
+   515→  const blockedCountries = (env.BLOCKED_COUNTRIES || '').split(',').map((c) => c.trim().toUpperCase());
+   516→  if (blockedCountries.length > 0 && blockedCountries.includes(countryCode)) {
+   517→    return { blocked: true, headers: {}, nearestRegion: '' };
+   518→  }
+   519→
+   520→  // Map continent to nearest origin region
+   521→  const regionMap: Record<string, string> = {
+   522→    NA: 'us-east-1',
+   523→    SA: 'us-east-1',
+   524→    EU: 'eu-west-1',
+   525→    AF: 'eu-west-1',
+   526→    AS: 'ap-southeast-1',
+   527→    OC: 'ap-southeast-1',
+   528→  };
+   529→
+   530→  const nearestRegion = regionMap[continent] || 'us-east-1';
+   531→
+   532→  return {
+   533→    blocked: false,
+   534→    headers: {
+   535→      'X-Geo-Country': countryCode,
+   536→      'X-Geo-Continent': continent,
+   537→      'X-Geo-City': city,
+   538→      'X-Nearest-Region': nearestRegion,
+   539→    },
+   540→    nearestRegion,
+   541→  };
+   542→}
+   543→
+   544→// ─── F) Bot Protection ───────────────────────────────────────────
+   545→
+   546→function handleBotProtection(request: Request): { challenged: boolean; response?: Response } {
+   547→  const userAgent = request.headers.get('User-Agent') || '';
+   548→
+   549→  if (!isBotRequest(userAgent)) {
+   550→    return { challenged: false };
+   551→  }
+   552→
+   553→  // Challenge suspicious bots with a Managed Challenge (Cloudflare Turnstile)
+   554→  // In production, this would integrate with Cloudflare's Bot Management
+   555→  return {
+   556→    challenged: true,
+   557→    response: jsonResponse(
+   558→      {
+   559→        error: 'Bot detected',
+   560→        message: 'Your request has been flagged. Please try again with a standard web browser.',
+   561→        cf_challenge: true,
+   562→      },
+   563→      403,
+   564→      { 'CF-Challenge': 'managed' },
+   565→    ),
+   566→  };
+   567→}
+   568→
+   569→// ─── G) A/B Testing Header Injection ─────────────────────────────
+   570→
+   571→async function resolveABTests(request: Request, env: Env): Promise<Record<string, string>> {
+   572→  const ip = getClientIP(request);
+   573→  const userId = request.headers.get('X-User-ID') || ip;
+   574→  const headers: Record<string, string> = {};
+   575→
+   576→  for (const experiment of AB_TEST_EXPERIMENTS) {
+   577→    const lookupKey = `ab:${experiment.name}:${userId}`;
+   578→    const url = new URL(request.url);
+   579→
+   580→    // Check KV for sticky assignment first
+   581→    try {
+   582→      const assigned = await env.AB_TEST_KV.get(lookupKey);
+   583→      if (assigned) {
+   584→        headers[`X-AB-${experiment.name}`] = assigned;
+   585→        headers['X-AB-Experiment'] = (headers['X-AB-Experiment'] || '') + `${experiment.name}=${assigned};`;
+   586→        continue;
+   587→      }
+   588→    } catch {
+   589→      // Fall through to deterministic assignment
+   590→    }
+   591→
+   592→    // Deterministic hash-based assignment
+   593→    const hashInput = `${experiment.name}:${userId}`;
+   594→    let hash = 0;
+   595→    for (let i = 0; i < hashInput.length; i++) {
+   596→      hash = ((hash << 5) - hash + hashInput.charCodeAt(i)) | 0;
+   597→    }
+   598→    const normalized = Math.abs(hash) % 100;
+   599→
+   600→    let variant: string;
+   601→    if (normalized >= experiment.trafficPercent) {
+   602→      variant = 'holdout'; // Not in experiment
+   603→    } else {
+   604→      // Distribute evenly across variants
+   605→      const variantIndex = Math.floor((normalized / experiment.trafficPercent) * experiment.variants.length);
+   606→      variant = experiment.variants[Math.min(variantIndex, experiment.variants.length - 1)];
+   607→    }
+   608→
+   609→    // Persist assignment (fire-and-forget)
+   610→    const waitUntil = (globalThis as any).waitUntil as ((p: Promise<any>) => void) | undefined;
+   611→    if (waitUntil) {
+   612→      waitUntil(
+   613→        env.AB_TEST_KV.put(lookupKey, variant, {
+   614→          expirationTtl: 30 * 24 * 3600, // 30 days sticky
+   615→        }),
+   616→      );
+   617→    }
+   618→
+   619→    headers[`X-AB-${experiment.name}`] = variant;
+   620→    headers['X-AB-Experiment'] = (headers['X-AB-Experiment'] || '') + `${experiment.name}=${variant};`;
+   621→  }
+   622→
+   623→  return headers;
+   624→}
+   625→
+   626→// ─── CORS handling ──────────────────────────────────────────────
+   627→
+   628→function handleCors(request: Request, env: Env): Response | null {
+   629→  const allowedOrigins = (env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim());
+   630→  const origin = request.headers.get('Origin') || '';
+   631→
+   632→  if (request.method === 'OPTIONS') {
+   633→    const headers = new Headers();
+   634→    if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+   635→      headers.set('Access-Control-Allow-Origin', allowedOrigins.includes('*') ? '*' : origin);
+   636→    }
+   637→    for (const [key, value] of Object.entries(CORS_HEADERS)) {
+   638→      headers.set(key, value);
+   639→    }
+   640→    return new Response(null, { status: 204, headers });
+   641→  }
+   642→
+   643→  return null; // Not a preflight
+   644→}
+   645→
+   646→// ─── Security headers injection ──────────────────────────────────
+   647→
+   648→function injectSecurityHeaders(response: Response, env: Env): void {
+   649→  const headers = new Headers(response.headers);
+   650→
+   651→  headers.set('X-Content-Type-Options', 'nosniff');
+   652→  headers.set('X-Frame-Options', 'DENY');
+   653→  headers.set('X-XSS-Protection', '1; mode=block');
+   654→  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+   655→  headers.set(
+   656→    'Permissions-Policy',
+   657→    'camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), speaker=()',
+   658→  );
+   659→
+   660→  if (env.ENVIRONMENT === 'production') {
+   661→    headers.set(
+   662→      'Content-Security-Policy',
+   663→      "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com; connect-src 'self' https://*.stripe.com https://api.paystack.co https://api.flutterwave.com https://api.intasend.com wss://;",
+   664→    );
+   665→    headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+   666→  } else {
+   667→    headers.set(
+   668→      'Content-Security-Policy',
+   669→      "default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src 'self' data: blob:; frame-src 'self' https://js.stripe.com;",
+   670→    );
+   671→  }
+   672→
+   673→  // Apply modified headers back
+   674→  response.headers.forEach((value, key) => {
+   675→    if (!headers.has(key)) {
+   676→      headers.set(key, value);
+   677→    }
+   678→  });
+   679→}
+   680→
+   681→// ─── Main Fetch Handler ──────────────────────────────────────────
+   682→
+   683→export default {
+   684→  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+   685→    const url = new URL(request.url);
+   686→    const cache = caches.default;
+   687→    const startTime = Date.now();
+   688→
+   689→    try {
+   690→      // ── 0. Health check bypass ──
+   691→      if (isHealthCheck(url)) {
+   692→        return fetch(request);
+   693→      }
+   694→
+   695→      // ── 1. CORS preflight ──
+   696→      const corsResp = handleCors(request, env);
+   697→      if (corsResp) return corsResp;
+   698→
+   699→      // ── 2. Geo-blocking / geo-routing ──
+   700→      const geo = handleGeoRouting(request, env);
+   701→      if (geo.blocked) {
+   702→        return htmlChallengeResponse(
+   703→          'Access Restricted',
+   704→          `Access from your region (${getCountryCode(request)}) is not available. If you believe this is an error, please contact support.`,
+   705→        );
+   706→      }
+   707→
+   708→      // ── 3. Bot protection ──
+   709→      const botCheck = handleBotProtection(request);
+   710→      if (botCheck.challenged && botCheck.response) {
+   711→        return botCheck.response;
+   712→      }
+   713→
+   714→      // ── 4. Rate limiting ──
+   715→      const rateLimitResult = await checkRateLimit(request, env);
+   716→      if (!rateLimitResult.allowed) {
+   717→        return jsonResponse(
+   718→          {
+   719→            error: 'Rate limit exceeded',
+   720→            message: `Too many requests. Try again after ${new Date(rateLimitResult.resetAt * 1000).toISOString()}.`,
+   721→            retryAfter: rateLimitResult.resetAt,
+   722→          },
+   723→          429,
+   724→          {
+   725→            'Retry-After': rateLimitResult.resetAt.toString(),
+   726→            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+   727→            'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+   728→            'X-RateLimit-Reset': rateLimitResult.resetAt.toString(),
+   729→          },
+   730→        );
+   731→      }
+   732→
+   733→      // ── 5. JWT edge validation (API requests only) ──
+   734→      if (isApiRequest(url)) {
+   735→        const jwtResult = await validateJwtAtEdge(request, env);
+   736→        if (!jwtResult.valid) {
+   737→          return jsonResponse(
+   738→            {
+   739→              error: 'Unauthorized',
+   740→              message: jwtResult.error || 'Invalid authentication token',
+   741→              code: 'EDGE_AUTH_FAILURE',
+   742→            },
+   743→            401,
+   744→            { 'WWW-Authenticate': 'Bearer realm="Youngsend", error="invalid_token"' },
+   745→          );
+   746→        }
+   747→      }
+   748→
+   749→      // ── 6. A/B testing header injection ──
+   750→      const abHeaders = await resolveABTests(request, env);
+   751→
+   752→      // ── 7. Static asset handling (cache-first) ──
+   753→      if (isStaticAsset(url)) {
+   754→        const resp = await handleStaticAsset(request, env, cache);
+   755→        // Inject geo + AB headers
+   756→        for (const [key, value] of Object.entries(geo.headers)) {
+   757→          resp.headers.set(key, value);
+   758→        }
+   759→        for (const [key, value] of Object.entries(abHeaders)) {
+   760→          resp.headers.set(key, value);
+   761→        }
+   762→        resp.headers.set('X-RateLimit-Limit', rateLimitResult.limit.toString());
+   763→        resp.headers.set('X-RateLimit-Remaining', rateLimitResult.remaining.toString());
+   764→        resp.headers.set('X-RateLimit-Reset', rateLimitResult.resetAt.toString());
+   765→        return resp;
+   766→      }
+   767→
+   768→      // ── 8. API response caching (GET requests only) ──
+   769→      if (isApiRequest(url) && request.method === 'GET') {
+   770→        const cachedResp = await handleApiCaching(request, env, cache);
+   771→        if (cachedResp) {
+   772→          for (const [key, value] of Object.entries(geo.headers)) {
+   773→            cachedResp.headers.set(key, value);
+   774→          }
+   775→          for (const [key, value] of Object.entries(abHeaders)) {
+   776→            cachedResp.headers.set(key, value);
+   777→          }
+   778→          cachedResp.headers.set('X-RateLimit-Limit', rateLimitResult.limit.toString());
+   779→          cachedResp.headers.set('X-RateLimit-Remaining', rateLimitResult.remaining.toString());
+   780→          cachedResp.headers.set('X-RateLimit-Reset', rateLimitResult.resetAt.toString());
+   781→          injectSecurityHeaders(cachedResp, env);
+   782→          return cachedResp;
+   783→        }
+   784→      }
+   785→
+   786→      // ── 9. Pass-through to origin ──
+   787→      const originResp = await fetch(request);
+   788→
+   789→      // Inject all edge headers on pass-through
+   790→      for (const [key, value] of Object.entries(geo.headers)) {
+   791→        originResp.headers.set(key, value);
+   792→      }
+   793→      for (const [key, value] of Object.entries(abHeaders)) {
+   794→        originResp.headers.set(key, value);
+   795→      }
+   796→      originResp.headers.set('X-RateLimit-Limit', rateLimitResult.limit.toString());
+   797→      originResp.headers.set('X-RateLimit-Remaining', rateLimitResult.remaining.toString());
+   798→      originResp.headers.set('X-RateLimit-Reset', rateLimitResult.resetAt.toString());
+   799→      originResp.headers.set('X-Cache-Status', 'BYPASS');
+   800→      originResp.headers.set('X-Edge-Processing-Time', `${Date.now() - startTime}ms`);
+   801→      originResp.headers.set('X-Edge-Worker', 'youngsend-edge');
+   802→      originResp.headers.set('Vary', 'Authorization, X-Tenant-ID');
+   803→
+   804→      injectSecurityHeaders(originResp, env);
+   805→
+   806→      return originResp;
+   807→    } catch (error) {
+   808→      // Edge worker error — fail open to origin
+   809→      console.error('[EDGE] Worker error:', error);
+   810→
+   811→      try {
+   812→        const originResp = await fetch(request);
+   813→        originResp.headers.set('X-Cache-Status', 'BYPASS');
+   814→        originResp.headers.set('X-Edge-Error', 'worker-exception');
+   815→        return originResp;
+   816→      } catch {
+   817→        return jsonResponse(
+   818→          {
+   819→            error: 'Service Unavailable',
+   820→            message: 'The service is temporarily unavailable. Please try again.',
+   821→            code: 'EDGE_WORKER_FAILURE',
+   822→          },
+   823→          503,
+   824→          { 'Retry-After': '30' },
+   825→        );
+   826→      }
+   827→    }
+   828→  },
+   829→};
+   830→

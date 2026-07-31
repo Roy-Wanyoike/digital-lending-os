@@ -43,7 +43,10 @@ export type TopicDomain =
   | "fraud"
   | "compliance"
   | "notification"
-  | "audit";
+  | "audit"
+  | "user"
+  | "analytics"
+  | "search";
 
 export type CompactionStrategy = "delete" | "compact" | "delete,compact";
 
@@ -513,6 +516,86 @@ export const notificationTopics: TopicConfig[] = [
   },
 ];
 
+// ── User / Auth Events ────────────────────────────────────────────────────────
+
+export const userTopics: TopicConfig[] = [
+  {
+    name: "user.events.user_registered",
+    label: "User Registered",
+    domain: "user",
+    keyType: "userId",
+    partitions: 8,
+    replicationFactor: 3,
+    retentionMs: THIRTY_DAYS,
+    retentionBytes: ONE_GB,
+    compaction: "delete,compact",
+    eosTier: 2,
+    dlqTopic: "dlq.user.events.user_registered",
+  },
+  {
+    name: "user.events.user_authenticated",
+    label: "User Authenticated",
+    domain: "user",
+    keyType: "userId",
+    partitions: 8,
+    replicationFactor: 3,
+    retentionMs: SEVEN_DAYS,
+    retentionBytes: ONE_GB,
+    compaction: "delete",
+    eosTier: 3,
+    dlqTopic: "dlq.user.events.user_authenticated",
+  },
+];
+
+// ── Analytics Events ────────────────────────────────────────────────────────
+
+export const analyticsTopics: TopicConfig[] = [
+  {
+    name: "analytics.events.analytics_event_ingested",
+    label: "Analytics Event Ingested",
+    domain: "analytics",
+    keyType: "userId",
+    partitions: 12,
+    replicationFactor: 3,
+    retentionMs: SEVEN_DAYS,
+    retentionBytes: ONE_GB,
+    compaction: "delete",
+    eosTier: 3,
+    dlqTopic: "dlq.analytics.events.analytics_event_ingested",
+  },
+  {
+    name: "analytics.events.analytics_metrics_aggregated",
+    label: "Analytics Metrics Aggregated",
+    domain: "analytics",
+    keyType: "tenantId",
+    partitions: 6,
+    replicationFactor: 3,
+    retentionMs: SEVEN_DAYS,
+    retentionBytes: ONE_GB,
+    compaction: "compact",
+    eosTier: 3,
+    dlqTopic: "dlq.analytics.events.analytics_metrics_aggregated",
+  },
+];
+
+// ── Search Events ───────────────────────────────────────────────────────────
+
+export const searchTopics: TopicConfig[] = [
+  {
+    name: "search.events.search_index_updated",
+    label: "Search Index Updated",
+    domain: "search",
+    keyType: "entityId",
+    partitions: 8,
+    replicationFactor: 3,
+    retentionMs: SEVEN_DAYS,
+    retentionBytes: ONE_GB,
+    compaction: "compact",
+    eosTier: 2,
+    dlqTopic: "dlq.search.events.search_index_updated",
+  },
+];
+
 // ── Audit Events ──────────────────────────────────────────────────────────────
 
 export const auditTopics: TopicConfig[] = [
@@ -542,6 +625,9 @@ export const ALL_TOPICS: TopicConfig[] = [
   ...fraudTopics,
   ...complianceTopics,
   ...notificationTopics,
+  ...userTopics,
+  ...analyticsTopics,
+  ...searchTopics,
   ...auditTopics,
 ];
 

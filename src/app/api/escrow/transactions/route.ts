@@ -208,6 +208,16 @@ async function postHandler(request: NextRequest) {
       console.error('[escrow.updated] emit failed:', err);
     }
 
+    // ── Publish Kafka event ────────────────────────────────
+    try {
+      const { publishEvent } = await import('@/backend/lib/event-publisher')
+      await publishEvent({
+        topic: 'escrow.events.escrow_created',
+        key: escrow.id,
+        event: { eventType: 'escrow.created', escrowId: escrow.id, amount: escrow.amount, currency: escrow.currency, buyerId: escrow.buyerId, sellerId: escrow.sellerId, tenantId: user.tenantId, timestamp: new Date().toISOString() },
+      })
+    } catch (e) { console.error('Event publish failed:', e) }
+
     // ─── Audit trail ────────────────────────────────
     try {
       const { auditLog } = await import('@/backend/lib/audit-helper')
