@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getRequestBaseUrl } from '@/lib/utils'
 import { db } from '@/lib/db'
 import { providerRegistry, getProvidersForCurrency, calculateFee, getProviderName, type PaymentProviderCode } from '@/lib/payment'
 import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
@@ -128,7 +129,7 @@ async function postHandler(
     })
 
     // ─── Initialize Payment with Provider ─────────────────────
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_URL || ''
+    const baseUrl = getRequestBaseUrl(request, process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_URL || '')
 
     const initResult = await provider.initialize({
       amount: amountInCents,

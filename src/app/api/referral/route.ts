@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getRequestBaseUrl } from '@/lib/utils'
 import { db } from '@/lib/db'
 import { getApiUser, AuthError, successResponse, errorResponse } from '@/lib/auth/api-helpers'
 import { randomUUID } from 'crypto'
@@ -99,7 +100,7 @@ async function getHandler(request: NextRequest) {
     }
 
     // Build the referral link URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || ''
+    const baseUrl = getRequestBaseUrl(request, process.env.NEXT_PUBLIC_APP_URL || '')
     const referralLink = `${baseUrl}/register?ref=${referralCode}`
 
     return successResponse({

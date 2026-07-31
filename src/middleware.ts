@@ -53,7 +53,7 @@ function isPublicPath(p: string): boolean {
   return false;
 }
 
-// ─── Middleware ─────────────────────────────────────────────────────
+// ─── Proxy ─────────────────────────────────────────────────────
 
 export function middleware(request: NextRequest) {
   const start = Date.now();
@@ -67,7 +67,7 @@ export function middleware(request: NextRequest) {
   res.headers.set('x-content-type-options', 'nosniff');
   res.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
   res.headers.set('x-xss-protection', '1; mode=block');
-  res.headers.set('x-request-id', crypto.randomUUID());
+  res.headers.set('x-request-id', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   // --- CORS headers (all responses) ---
   res.headers.set('Access-Control-Allow-Origin', '*');
@@ -91,7 +91,7 @@ export function middleware(request: NextRequest) {
 
   // --- Rate limiting (100 req/min per IP) ---
   const rl = checkRateLimit(ip);
-  const rlHeaders = {
+  const rlHeaders: Record<string, string> = {
     'x-ratelimit-limit': String(RL_MAX),
     'x-ratelimit-remaining': String(rl.remaining),
     'x-ratelimit-reset': String(rl.resetSec),
@@ -100,9 +100,15 @@ export function middleware(request: NextRequest) {
   if (!rl.ok) {
     const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
     console.log(`${method} ${pathname} 429 ${Date.now() - start}ms`);
+    const h = new Headers();
+    h.set('x-ratelimit-limit', rlHeaders['x-ratelimit-limit']);
+    h.set('x-ratelimit-remaining', rlHeaders['x-ratelimit-remaining']);
+    h.set('x-ratelimit-reset', rlHeaders['x-ratelimit-reset']);
+    h.set('Retry-After', String(retryAfter));
+    h.set('x-response-time', `${Date.now() - start}ms`);
     return NextResponse.json(
       { error: 'Too many requests', retryAfter },
-      { status: 429, headers: { ...rlHeaders, 'Retry-After': String(retryAfter), 'x-response-time': `${Date.now() - start}ms` } },
+      { status: 429, headers: h },
     );
   }
 
@@ -131,7 +137,9 @@ export function middleware(request: NextRequest) {
   }
 
   // --- Attach rate-limit headers & timing to pass-through response ---
-  for (const [k, v] of Object.entries(rlHeaders)) res.headers.set(k, v);
+  res.headers.set('x-ratelimit-limit', rlHeaders['x-ratelimit-limit']);
+  res.headers.set('x-ratelimit-remaining', rlHeaders['x-ratelimit-remaining']);
+  res.headers.set('x-ratelimit-reset', rlHeaders['x-ratelimit-reset']);
   const duration = Date.now() - start;
   res.headers.set('x-response-time', `${duration}ms`);
   console.log(`${method} ${pathname} 200 ${duration}ms`);

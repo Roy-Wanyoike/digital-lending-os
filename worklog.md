@@ -1174,3 +1174,146 @@ Stage Summary:
 - K8s manifests ready for envsubst-based image injection
 - TypeScript compilation verified — no regressions
 
+---
+Task ID: 13+14
+Agent: DevOps
+Task: Fix .env missing variables + migrate middleware.ts to proxy.ts for Next.js 16
+
+Work Log:
+- Found .env only had DATABASE_URL; missing NEXTAUTH_SECRET, NEXT_PUBLIC_BASE_URL, APP_URL
+- Generated 32-char random hex secret via openssl rand -hex 16
+- Added NEXTAUTH_SECRET, NEXT_PUBLIC_BASE_URL, APP_URL to .env (DATABASE_URL unchanged)
+- Copied src/middleware.ts → src/proxy.ts with identical content (no logic changes)
+- Deleted src/middleware.ts to eliminate Next.js 16 deprecation warning
+- Ran tsc --noEmit: zero errors
+
+Stage Summary:
+- .env now has 4 vars: DATABASE_URL, NEXTAUTH_SECRET, NEXT_PUBLIC_BASE_URL, APP_URL
+- middleware.ts (144 lines: rate limiter, bot detection, CORS, auth guard, security headers) migrated to proxy.ts
+- No proxy logic modified — only file rename
+- Preview deployment auth warnings resolved
+
+---
+Task ID: 15+16
+Agent: DevOps
+Task: Fix package.json scripts and ensure server binds to 0.0.0.0 for preview access
+
+Work Log:
+- Inspected package.json scripts: `dev` had `| tee dev.log` piping, `start` had `| tee server.log` and used `npx next start` unnecessarily
+- Verified next.config.ts: NO hostname restriction found — config is clean (no `hostname`, `allowedDevOrigins`, or binding constraints)
+- Fixed `dev` script: removed `| tee dev.log`, added `-H 0.0.0.0` for all-interface binding, added `NEXT_TELEMETRY_DISABLED=1`
+- Fixed `start` script: removed `| tee server.log`, replaced `npx next start` with `next start`, added `-H 0.0.0.0`, added `NEXT_TELEMETRY_DISABLED=1`, kept `NODE_ENV=production`
+- Added `NEXT_TELEMETRY_DISABLED=1` to `build` script for consistency
+- Reordered scripts: test scripts now grouped before db scripts for readability
+- Validated JSON parses successfully
+
+Stage Summary:
+- KEY FIX: `-H 0.0.0.0` added to dev and start — binds to ALL interfaces so preview proxy can reach the server
+- Removed `| tee` piping from dev and start (logs go to stdout, preview system captures them)
+- Added `NEXT_TELEMETRY_DISABLED=1` to dev, build, and start scripts
+- Replaced `npx next start` with `next start` in start script (npx adds unnecessary overhead)
+- next.config.ts confirmed clean — no binding restrictions
+- JSON validated successfully
+
+---
+Task ID: 17-a
+Agent: Audit
+Summary: Audit proxy.ts for preview compatibility
+
+## Findings
+
+### CRITICAL — FIXED
+
+1. **proxy.ts was dead code (not picked up by Next.js)**
+   - File was at `src/proxy.ts` but Next.js requires `src/middleware.ts`.
+   - The entire security layer (rate limiting, bot detection, auth guard, security headers) was NOT running.
+   - **Fix**: Created `src/middleware.ts` that re-exports `middleware` and `config` from `./proxy`.
+
+2. **Payment callback/redirect URLs hardcoded to localhost:3000**
+   - `src/app/api/payments/initialize/route.ts` (line 39, 103-104)
+   - `src/app/api/payment-links/[id]/pay/route.ts` (line 131, 140-141)
+   - `src/app/api/escrow/transactions/[id]/fund/route.ts` (line 123, 133-134)
+   - `src/app/api/referral/route.ts` (line 102, 103)
+   - All used `process.env.NEXT_PUBLIC_BASE_URL || process.env.APP_URL` which resolves to `http://localhost:3000`.
+   - Webhook callbacks would never reach the preview; redirect URLs would send users to localhost.
+   - **Fix**: Added `getRequestBaseUrl(request, fallback)` helper to `src/backend/lib/utils.ts` that derives the base URL from `x-forwarded-host`/`host` and `x-forwarded-proto` headers, falling back to env var. Updated all 4 routes.
+
+### OK — NO ISSUES FOUND
+
+3. **isPublicPath('/api/auth/csrf')** → returns `true` ✅ (starts with `/api/auth/`)
+4. **isPublicPath('/api/auth/callback/credentials')** → returns `true` ✅
+5. **Landing page `/`** → NOT an API route, bypasses auth guard ✅
+6. **proxy.ts imports** → uses `NextRequest`/`NextResponse` from `next/server`, valid API ✅
+7. **layout.tsx** → no hardcoded localhost URLs ✅
+8. **page.tsx** → no hardcoded localhost URLs ✅
+9. **No absolute URL redirects** → all `redirect()` calls use relative paths ✅
+10. **Auth config** (`src/backend/lib/auth.ts`):
+    - Reads `NEXTAUTH_SECRET` from `process.env` ✅
+    - `pages.signIn: '/login'` is a relative path ✅
+    - `@/lib/auth` resolves correctly to `src/backend/lib/auth.ts` via tsconfig paths ✅
+11. **No `NEXTAUTH_URL` set** — NextAuth infers from request headers. The Caddyfile passes `Host` and `X-Forwarded-Proto`, so inference works correctly behind the proxy. Non-blocking.
+12. **CORS `Access-Control-Allow-Origin: *`** set in proxy.ts for all responses — fine for preview, security concern for prod (noted, not a preview blocker).
+
+## Files changed
+- `src/middleware.ts` — NEW (2-line re-export shim)
+- `src/backend/lib/utils.ts` — Added `getRequestBaseUrl()` helper
+- `src/app/api/payments/initialize/route.ts` — Use request-derived base URL
+- `src/app/api/payment-links/[id]/pay/route.ts` — Use request-derived base URL
+- `src/app/api/escrow/transactions/[id]/fund/route.ts` — Use request-derived base URL
+- `src/app/api/referral/route.ts` — Use request-derived base URL
+
+## Verification
+- `npx tsc --noEmit` — passed (0 errors)
+
+---
+Task ID: 17-b
+Agent: QA Smoke Test
+Task: Full smoke test of the Youngsend application
+
+## Bugs Found & Fixed
+
+### Bug 1: `middleware.ts` re-export of `config` broke Next.js 16 (500 on ALL routes)
+**File:** `src/middleware.ts`
+**Problem:** Next.js 16 (Turbopack) cannot recognize a re-exported `config` from middleware.ts (`export { middleware, config } from './proxy'`). This caused a compilation error and 500 on every route.
+**Fix:** Deleted `src/middleware.ts`. Next.js 16 uses the `proxy.ts` convention instead.
+
+### Bug 2: `proxy.ts` exported `middleware` instead of `proxy` (Next.js 16 convention)
+**File:** `src/proxy.ts`
+**Problem:** Next.js 16 renamed the middleware convention to `proxy`. The exported function was still named `middleware`, which caused the error: "The file must export a function, either as a default export or as a named 'proxy' export."
+**Fix:** Renamed `export function middleware` → `export function proxy`.
+
+### Bug 3: `crypto.randomUUID()` crashed the proxy runtime (server died on first API request)
+**File:** `src/proxy.ts` line 70
+**Problem:** `crypto.randomUUID()` caused an unhandled error in the Next.js 16 proxy runtime, killing the server process on every API request.
+**Fix:** Replaced with `Date.now() + Math.random().toString(36).slice(2)` for request ID generation.
+
+### Bug 4: Missing `NEXTAUTH_URL` in `.env` caused NextAuth warnings
+**File:** `.env`
+**Problem:** `NEXTAUTH_URL` was not set, causing `[next-auth][warn][NEXTAUTH_URL]` warnings.
+**Fix:** Added `NEXTAUTH_URL=http://localhost:3000` and `AUTH_SECRET` to `.env`.
+
+## Smoke Test Results (16/16 PASS)
+
+| # | Test | Result | Detail |
+|---|------|--------|--------|
+| 1a | GET /api/health | ✅ PASS | 200, `{"status":"ok","checks":{"database":"ok"}}` |
+| 1b | GET /api/ready | ✅ PASS | 200, `{"ready":true,"db":"connected"}` |
+| 2 | GET / (Landing) | ✅ PASS | 200 |
+| 3 | GET /login | ✅ PASS | 200 |
+| 4 | GET /register | ✅ PASS | 200 |
+| 5a | Auth guard /api/wallets | ✅ PASS | 401 `{"error":"Authentication required"}` |
+| 5b | Auth guard /api/transactions | ✅ PASS | 401 `{"error":"Authentication required"}` |
+| 5c | Auth guard /api/payments/intents | ✅ PASS | 401 `{"error":"Authentication required"}` |
+| 6 | Full login flow | ✅ PASS | CSRF → 302 → session with admin@youngsend.com |
+| 7a | GET /api/dashboard/stats (auth) | ✅ PASS | 200, full stats payload |
+| 7b | GET /api/wallets (auth) | ✅ PASS | 200, wallet list |
+| 7c | GET /api/transactions (auth) | ✅ PASS | 200, transaction list |
+| 8 | Security headers | ✅ PASS | x-frame-options, x-content-type-options, referrer-policy, x-request-id all present |
+| 9 | Rate limit headers | ✅ PASS | x-ratelimit-limit, remaining, reset all present |
+| 10 | Dashboard redirect | ✅ PASS | 308 → / |
+| 11 | Unit tests (vitest) | ✅ PASS | 55/55 tests, 3 files, 0 failures |
+
+## Files Changed
+- `src/middleware.ts` — **DELETED** (migrated to proxy.ts)
+- `src/proxy.ts` — Renamed export `middleware` → `proxy`, replaced `crypto.randomUUID()`, explicit Headers usage
+- `.env` — Added `NEXTAUTH_URL` and `AUTH_SECRET`

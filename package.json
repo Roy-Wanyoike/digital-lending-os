@@ -3,16 +3,16 @@
   "version": "0.2.1",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "next build",
-    "start": "NODE_ENV=production npx next start -p 3000 2>&1 | tee server.log",
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev -p 3000 -H 0.0.0.0",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "start": "NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 next start -p 3000 -H 0.0.0.0",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.config.integration.ts",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset",
-    "test": "vitest run",
-    "test:integration": "vitest run --config vitest.config.integration.ts"
+    "db:reset": "prisma migrate reset"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
