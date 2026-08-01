@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { signIn } from 'next-auth/react'
 import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -49,7 +50,7 @@ export function ClientBanner() {
           Sign in to Dashboard
         </Button>
         <Button size="lg" variant="outline" className="px-8 h-11 text-base" asChild>
-          <a href="/register">Create Account</a>
+          <Link href="/register">Create Account</Link>
         </Button>
       </div>
     </>

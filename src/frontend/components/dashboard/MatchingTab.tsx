@@ -49,14 +49,14 @@ export function MatchingTab() {
               </TableHeader>
               <TableBody>
                 {allMatches.map(m => (
-                  <TableRow key={m.id} className={`even:bg-muted/50 ${m.matchScore > 85 ? 'bg-emerald-50/50' : ''}`}>
+                  <TableRow key={m.id} className={`even:bg-muted/50 ${m.matchScore > 85 ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : ''}`}>
                     <TableCell className="font-medium max-w-[120px] truncate">{m.seekerName ?? '—'}</TableCell>
                     <TableCell className="max-w-[120px] truncate">{m.candidateName ?? '—'}</TableCell>
                     <TableCell><Badge variant="outline" className="text-xs">{m.matchType}</Badge></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Progress value={m.matchScore} className="h-2 w-16" />
-                        <span className={`text-xs font-bold ${m.matchScore > 85 ? 'text-emerald-600' : m.matchScore > 60 ? 'text-amber-600' : 'text-muted-foreground'}`}>{m.matchScore}%</span>
+                        <span className={`text-xs font-bold ${m.matchScore > 85 ? 'text-emerald-600 dark:text-emerald-400' : m.matchScore > 60 ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>{m.matchScore}%</span>
                       </div>
                     </TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(m.status)} className={getStatusColor(m.status)}>{m.status}</Badge></TableCell>

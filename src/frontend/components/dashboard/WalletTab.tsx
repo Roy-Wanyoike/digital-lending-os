@@ -360,10 +360,10 @@ export function WalletTab() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-white">
+        <Card className="border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50/50 to-white dark:to-gray-900">
           <CardContent className="p-4 sm:p-6 text-center">
             <p className="text-xs text-muted-foreground mb-1">Portfolio (USD)</p>
-            <p className="text-2xl font-bold text-emerald-700">{formatCurrency(totalPortfolio)}</p>
+            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(totalPortfolio)}</p>
           </CardContent>
         </Card>
         <KPICard title="Total Balance" value={formatCurrency(totalBalance)} icon={WalletIcon} />
@@ -386,9 +386,9 @@ export function WalletTab() {
               </div>
               <p className="text-2xl sm:text-3xl font-bold">{formatCurrency(w.balance, w.currency)}</p>
               <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                <div className="flex justify-between"><span>Available</span><span className="text-emerald-600 font-medium">{formatCurrency(w.availableBalance, w.currency)}</span></div>
-                <div className="flex justify-between"><span>Pending</span><span className="text-amber-600 font-medium">{formatCurrency(w.pendingBalance, w.currency)}</span></div>
-                <div className="flex justify-between"><span>Frozen</span><span className="text-red-600 font-medium">{formatCurrency(w.frozenBalance, w.currency)}</span></div>
+                <div className="flex justify-between"><span>Available</span><span className="text-emerald-600 dark:text-emerald-400 font-medium">{formatCurrency(w.availableBalance, w.currency)}</span></div>
+                <div className="flex justify-between"><span>Pending</span><span className="text-amber-600 dark:text-amber-400 font-medium">{formatCurrency(w.pendingBalance, w.currency)}</span></div>
+                <div className="flex justify-between"><span>Frozen</span><span className="text-red-600 dark:text-red-400 font-medium">{formatCurrency(w.frozenBalance, w.currency)}</span></div>
               </div>
             </CardContent>
           </Card>
@@ -439,7 +439,7 @@ export function WalletTab() {
                             <TableCell className="font-mono text-xs">{tx.txRef}</TableCell>
                             <TableCell><Badge variant={badge.variant}>{badge.label}</Badge></TableCell>
                             <TableCell className="max-w-[200px] truncate text-xs">{tx.description || tx.referenceType || '—'}</TableCell>
-                            <TableCell className={`text-right font-medium ${isCredit ? 'text-emerald-600' : 'text-red-600'}`}>{isCredit ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}</TableCell>
+                            <TableCell className={`text-right font-medium ${isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{isCredit ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}</TableCell>
                             <TableCell className="text-right text-sm">{formatCurrency(tx.balanceAfter, tx.currency)}</TableCell>
                             <TableCell><Badge variant={tx.status === 'completed' ? 'default' : 'secondary'}>{tx.status}</Badge></TableCell>
                             <TableCell className="text-xs text-muted-foreground">{formatDate(tx.createdAt)}</TableCell>
@@ -517,7 +517,7 @@ export function WalletTab() {
           <div className="space-y-4">
             <div className="bg-muted rounded-md p-3 flex justify-between text-sm">
               <span className="text-muted-foreground">Available</span>
-              <span className="font-semibold text-emerald-700">{formatCurrency(selectedWallet?.availableBalance || 0, selectedWallet?.currency)}</span>
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">{formatCurrency(selectedWallet?.availableBalance || 0, selectedWallet?.currency)}</span>
             </div>
             <div className="space-y-2"><Label>Amount ({selectedWallet?.currency || '—'}) *</Label>
               <Input type="number" min="0.01" step="0.01" placeholder="0.00" value={wdrAmount} onChange={e => setWdrAmount(e.target.value)} />
@@ -542,11 +542,11 @@ export function WalletTab() {
               <Input placeholder="Reference or description" value={wdrNotes} onChange={e => setWdrNotes(e.target.value)} />
             </div>
             {wdrAmount && parseFloat(wdrAmount) > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs space-y-1">
-                <p className="font-medium text-amber-800">Fee Estimate</p>
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-3 text-xs space-y-1">
+                <p className="font-medium text-amber-800 dark:text-amber-200">Fee Estimate</p>
                 <div className="flex justify-between"><span>Amount:</span><span>{formatCurrency(parseFloat(wdrAmount), selectedWallet?.currency)}</span></div>
-                <div className="flex justify-between"><span>Fee (max 0.5% or $2.50):</span><span className="text-red-600">{formatCurrency(Math.max(2.5, parseFloat(wdrAmount) * 0.005), selectedWallet?.currency)}</span></div>
-                <div className="flex justify-between font-medium border-t border-amber-200 pt-1 mt-1"><span>Net:</span><span>{formatCurrency(parseFloat(wdrAmount) - Math.max(2.5, parseFloat(wdrAmount) * 0.005), selectedWallet?.currency)}</span></div>
+                <div className="flex justify-between"><span>Fee (max 0.5% or $2.50):</span><span className="text-red-600 dark:text-red-400">{formatCurrency(Math.max(2.5, parseFloat(wdrAmount) * 0.005), selectedWallet?.currency)}</span></div>
+                <div className="flex justify-between font-medium border-t border-amber-200 dark:border-amber-800 pt-1 mt-1"><span>Net:</span><span>{formatCurrency(parseFloat(wdrAmount) - Math.max(2.5, parseFloat(wdrAmount) * 0.005), selectedWallet?.currency)}</span></div>
               </div>
             )}
           </div>
@@ -586,12 +586,12 @@ export function WalletTab() {
                 <Input type="number" min="0.01" step="0.01" placeholder="0.00" value={cvtAmount} onChange={e => setCvtAmount(e.target.value)} />
               </div>
               {conversionPreview && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3 text-xs space-y-1">
-                  <p className="font-medium text-emerald-800">Conversion Preview</p>
+                <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-md p-3 text-xs space-y-1">
+                  <p className="font-medium text-emerald-800 dark:text-emerald-200">Conversion Preview</p>
                   <div className="flex justify-between"><span>Rate:</span><span>1 {allWallets.find(w => w.id === cvtFromWalletId)?.currency} = {conversionPreview.rate} {allWallets.find(w => w.id === cvtToWalletId)?.currency}</span></div>
                   <div className="flex justify-between"><span>Gross:</span><span>{formatCurrency(conversionPreview.gross, allWallets.find(w => w.id === cvtToWalletId)?.currency)}</span></div>
-                  <div className="flex justify-between"><span>Fee (0.5%):</span><span className="text-red-600">{formatCurrency(conversionPreview.fee, allWallets.find(w => w.id === cvtToWalletId)?.currency)}</span></div>
-                  <div className="flex justify-between font-medium border-t border-emerald-200 pt-1 mt-1"><span>You receive:</span><span className="text-emerald-700">{formatCurrency(conversionPreview.net, allWallets.find(w => w.id === cvtToWalletId)?.currency)}</span></div>
+                  <div className="flex justify-between"><span>Fee (0.5%):</span><span className="text-red-600 dark:text-red-400">{formatCurrency(conversionPreview.fee, allWallets.find(w => w.id === cvtToWalletId)?.currency)}</span></div>
+                  <div className="flex justify-between font-medium border-t border-emerald-200 dark:border-emerald-800 pt-1 mt-1"><span>You receive:</span><span className="text-emerald-700 dark:text-emerald-300">{formatCurrency(conversionPreview.net, allWallets.find(w => w.id === cvtToWalletId)?.currency)}</span></div>
                 </div>
               )}
             </div>
@@ -610,7 +610,7 @@ export function WalletTab() {
           <div className="space-y-4">
             <div className="bg-muted rounded-md p-3 flex justify-between text-sm">
               <span className="text-muted-foreground">Available</span>
-              <span className="font-semibold text-emerald-700">{formatCurrency(selectedWallet?.availableBalance || 0, selectedWallet?.currency)}</span>
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">{formatCurrency(selectedWallet?.availableBalance || 0, selectedWallet?.currency)}</span>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Cryptocurrency *</Label>
@@ -640,18 +640,18 @@ export function WalletTab() {
               <Input placeholder="Memo, tag, or description" value={crNotes} onChange={e => setCrNotes(e.target.value)} />
             </div>
             {cryptoPreview && (
-              <div className="bg-orange-50 border border-orange-200 rounded-md p-3 text-xs space-y-1">
-                <p className="font-medium text-orange-800">Crypto Withdrawal Preview</p>
+              <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-md p-3 text-xs space-y-1">
+                <p className="font-medium text-orange-800 dark:text-orange-200">Crypto Withdrawal Preview</p>
                 <div className="flex justify-between"><span>Amount:</span><span>{formatCurrency(cryptoPreview.usdAmount, 'USD')}</span></div>
                 <div className="flex justify-between"><span>Crypto Price:</span><span>{formatCurrency(cryptoPreview.cryptoPrice, 'USD')} per {crCrypto}</span></div>
                 <div className="flex justify-between"><span>{crCrypto} Amount:</span><span>{cryptoPreview.cryptoAmt.toFixed(6)} {crCrypto}</span></div>
-                <div className="flex justify-between"><span>Network Fee:</span><span className="text-red-600">{cryptoPreview.netFee} {crCrypto}</span></div>
-                <div className="flex justify-between"><span>You Receive:</span><span className="font-medium text-orange-900">{cryptoPreview.netCrypto.toFixed(6)} {crCrypto}</span></div>
-                <div className="flex justify-between border-t border-orange-200 pt-1 mt-1"><span>Processing Fee (1% min $1):</span><span className="text-red-600">{formatCurrency(cryptoPreview.procFee, selectedWallet?.currency)}</span></div>
-                <div className="flex justify-between font-medium"><span>Total Debit:</span><span className="text-red-700">{formatCurrency(cryptoPreview.totalDebit, selectedWallet?.currency)}</span></div>
+                <div className="flex justify-between"><span>Network Fee:</span><span className="text-red-600 dark:text-red-400">{cryptoPreview.netFee} {crCrypto}</span></div>
+                <div className="flex justify-between"><span>You Receive:</span><span className="font-medium text-orange-900 dark:text-orange-100">{cryptoPreview.netCrypto.toFixed(6)} {crCrypto}</span></div>
+                <div className="flex justify-between border-t border-orange-200 dark:border-orange-800 pt-1 mt-1"><span>Processing Fee (1% min $1):</span><span className="text-red-600 dark:text-red-400">{formatCurrency(cryptoPreview.procFee, selectedWallet?.currency)}</span></div>
+                <div className="flex justify-between font-medium"><span>Total Debit:</span><span className="text-red-700 dark:text-red-300">{formatCurrency(cryptoPreview.totalDebit, selectedWallet?.currency)}</span></div>
               </div>
             )}
-            <div className="bg-red-50 border border-red-200 rounded-md p-3 text-xs text-red-700 space-y-1">
+            <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md p-3 text-xs text-red-700 dark:text-red-300 space-y-1">
               <p className="font-medium">Warning</p>
               <p>Double-check the wallet address and network. Crypto transactions are irreversible. Sending to the wrong network may result in permanent loss of funds.</p>
             </div>
@@ -678,28 +678,28 @@ export function WalletTab() {
               <TabsContent value="transactions" className="mt-0">
                 <Table><TableHeader><TableRow><TableHead>Ref</TableHead><TableHead>Type</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Balance</TableHead><TableHead>Date</TableHead></TableRow></TableHeader><TableBody>
                   {txns.map(tx => { const isC = ['credit','transfer_in','refund','deposit'].includes(tx.type); return (
-                    <TableRow key={tx.id}><TableCell className="font-mono text-xs">{tx.txRef}</TableCell><TableCell><Badge variant={TX_TYPE_BADGE[tx.type]?.variant || 'secondary'}>{TX_TYPE_BADGE[tx.type]?.label || tx.type}</Badge></TableCell><TableCell className={`text-right ${isC ? 'text-emerald-600' : 'text-red-600'}`}>{isC ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}</TableCell><TableCell>{formatCurrency(tx.balanceAfter, tx.currency)}</TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(tx.createdAt)}</TableCell></TableRow>
+                    <TableRow key={tx.id}><TableCell className="font-mono text-xs">{tx.txRef}</TableCell><TableCell><Badge variant={TX_TYPE_BADGE[tx.type]?.variant || 'secondary'}>{TX_TYPE_BADGE[tx.type]?.label || tx.type}</Badge></TableCell><TableCell className={`text-right ${isC ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{isC ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}</TableCell><TableCell>{formatCurrency(tx.balanceAfter, tx.currency)}</TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(tx.createdAt)}</TableCell></TableRow>
                   )})}
                 </TableBody></Table>
               </TabsContent>
               <TabsContent value="deposits" className="mt-0">
                 <Table><TableHeader><TableRow><TableHead>Ref</TableHead><TableHead>Method</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader><TableBody>
                   {deposits.map(d => (
-                    <TableRow key={d.id}><TableCell className="font-mono text-xs">{d.depositRef}</TableCell><TableCell>{d.paymentMethod}{d.provider ? ` (${d.provider})` : ''}</TableCell><TableCell className="text-right text-emerald-600">+{formatCurrency(d.amount, d.currency)}</TableCell><TableCell><Badge variant={d.status === 'completed' ? 'default' : 'secondary'}>{d.status}</Badge></TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(d.createdAt)}</TableCell></TableRow>
+                    <TableRow key={d.id}><TableCell className="font-mono text-xs">{d.depositRef}</TableCell><TableCell>{d.paymentMethod}{d.provider ? ` (${d.provider})` : ''}</TableCell><TableCell className="text-right text-emerald-600 dark:text-emerald-400">+{formatCurrency(d.amount, d.currency)}</TableCell><TableCell><Badge variant={d.status === 'completed' ? 'default' : 'secondary'}>{d.status}</Badge></TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(d.createdAt)}</TableCell></TableRow>
                   ))}
                 </TableBody></Table>
               </TabsContent>
               <TabsContent value="withdrawals" className="mt-0">
                 <Table><TableHeader><TableRow><TableHead>Ref</TableHead><TableHead>Details</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Fee</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader><TableBody>
                   {withdrawals.map(w => (
-                    <TableRow key={w.id}><TableCell className="font-mono text-xs">{w.withdrawalRef}</TableCell><TableCell className="text-xs max-w-[150px] truncate">{w.bankName || w.recipientName || w.paymentMethod}</TableCell><TableCell className="text-right text-red-600">-{formatCurrency(w.amount, w.currency)}</TableCell><TableCell className="text-right text-red-400">{formatCurrency(w.feeAmount, w.currency)}</TableCell><TableCell><Badge variant={w.status === 'completed' ? 'default' : 'secondary'}>{w.status}</Badge></TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(w.createdAt)}</TableCell></TableRow>
+                    <TableRow key={w.id}><TableCell className="font-mono text-xs">{w.withdrawalRef}</TableCell><TableCell className="text-xs max-w-[150px] truncate">{w.bankName || w.recipientName || w.paymentMethod}</TableCell><TableCell className="text-right text-red-600 dark:text-red-400">-{formatCurrency(w.amount, w.currency)}</TableCell><TableCell className="text-right text-red-400 dark:text-red-300">{formatCurrency(w.feeAmount, w.currency)}</TableCell><TableCell><Badge variant={w.status === 'completed' ? 'default' : 'secondary'}>{w.status}</Badge></TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(w.createdAt)}</TableCell></TableRow>
                   ))}
                 </TableBody></Table>
               </TabsContent>
               <TabsContent value="crypto" className="mt-0">
                 <Table><TableHeader><TableRow><TableHead>Ref</TableHead><TableHead>Crypto</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Crypto</TableHead><TableHead>Network</TableHead><TableHead>Status</TableHead></TableRow></TableHeader><TableBody>
                   {cryptoWdrs.map(c => (
-                    <TableRow key={c.id}><TableCell className="font-mono text-xs">{c.withdrawalRef}</TableCell><TableCell>{CRYPTO_ICONS[c.cryptoCurrency] || ''} {c.cryptoCurrency}</TableCell><TableCell className="text-right text-red-600">-{formatCurrency(c.amount, c.currency)}</TableCell><TableCell className="text-right">{c.cryptoAmount?.toFixed(6) || '—'}</TableCell><TableCell><Badge variant="outline" className="text-[10px]">{c.network}</Badge></TableCell><TableCell><Badge variant={c.status === 'completed' ? 'default' : 'secondary'}>{c.status}</Badge></TableCell></TableRow>
+                    <TableRow key={c.id}><TableCell className="font-mono text-xs">{c.withdrawalRef}</TableCell><TableCell>{CRYPTO_ICONS[c.cryptoCurrency] || ''} {c.cryptoCurrency}</TableCell><TableCell className="text-right text-red-600 dark:text-red-400">-{formatCurrency(c.amount, c.currency)}</TableCell><TableCell className="text-right">{c.cryptoAmount?.toFixed(6) || '—'}</TableCell><TableCell><Badge variant="outline" className="text-[10px]">{c.network}</Badge></TableCell><TableCell><Badge variant={c.status === 'completed' ? 'default' : 'secondary'}>{c.status}</Badge></TableCell></TableRow>
                   ))}
                 </TableBody></Table>
               </TabsContent>

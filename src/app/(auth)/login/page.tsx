@@ -41,7 +41,10 @@ function LoginForm() {
     })
 
     if (result?.error) {
-      setError('Invalid email or password')
+      // Surface rate-limit errors from authorize(); fall back to generic message
+      setError(result.error === 'CredentialsSignin' || !result.error
+        ? 'Invalid email or password'
+        : result.error)
       setLoading(false)
     } else {
       router.push(callbackUrl)
@@ -157,7 +160,14 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted px-4 py-12">
+    <div className="relative min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted px-4 py-12">
+      {/* Back to home link */}
+      <Link
+        href="/"
+        className="absolute top-4 left-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        ← Back to home
+      </Link>
       {/* V3: Login page header branding */}
       <div className="mb-8 flex items-center gap-2">
         <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600 text-white font-bold text-[10px]">YS</div>

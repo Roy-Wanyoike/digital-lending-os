@@ -43,7 +43,7 @@ export function PaymentsTab() {
                   <span>{CURRENCY_FLAGS[rate.to] || '💱'}</span>
                 </div>
                 <p className="text-lg font-bold">{rate.from}/{rate.to}</p>
-                <p className="text-2xl font-bold text-emerald-600">{(rate.rate ?? 0).toFixed(4)}</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{(rate.rate ?? 0).toFixed(4)}</p>
               </CardContent>
             </Card>
           ))}

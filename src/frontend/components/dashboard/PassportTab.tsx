@@ -55,7 +55,7 @@ export function PassportTab() {
               <Card key={biz.id} className="border">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Avatar className="h-8 w-8"><AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs">{biz.name?.charAt(0)}</AvatarFallback></Avatar>
+                    <Avatar className="h-8 w-8"><AvatarFallback className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">{biz.name?.charAt(0)}</AvatarFallback></Avatar>
                     <div className="min-w-0">
                       <p className="font-medium text-sm truncate">{biz.name}</p>
                       <p className="text-xs text-muted-foreground">{getCountryFlag(biz.country)} {biz.country}</p>
@@ -63,10 +63,10 @@ export function PassportTab() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div className="flex items-center gap-1">
-                      <Badge variant="outline" className={`text-[10px] ${biz.passport?.kycStatus?.toLowerCase() === 'verified' || biz.passport?.kycStatus?.toLowerCase() === 'approved' ? 'border-emerald-300 text-emerald-700' : 'border-amber-300 text-amber-700'}`}>KYC: {biz.passport?.kycStatus || 'Pending'}</Badge>
+                      <Badge variant="outline" className={`text-[10px] ${biz.passport?.kycStatus?.toLowerCase() === 'verified' || biz.passport?.kycStatus?.toLowerCase() === 'approved' ? 'border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300' : 'border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'}`}>KYC: {biz.passport?.kycStatus || 'Pending'}</Badge>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Badge variant="outline" className={`text-[10px] ${biz.passport?.amlStatus?.toLowerCase() === 'clear' || biz.passport?.amlStatus?.toLowerCase() === 'passed' ? 'border-emerald-300 text-emerald-700' : 'border-red-300 text-red-700'}`}>AML: {biz.passport?.amlStatus || 'Pending'}</Badge>
+                      <Badge variant="outline" className={`text-[10px] ${biz.passport?.amlStatus?.toLowerCase() === 'clear' || biz.passport?.amlStatus?.toLowerCase() === 'passed' ? 'border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300' : 'border-red-300 dark:border-red-700 text-red-700 dark:text-red-300'}`}>AML: {biz.passport?.amlStatus || 'Pending'}</Badge>
                     </div>
                     <div className="flex items-center gap-1">
                       <Badge variant="secondary" className="text-[10px]">{biz.passport?.credentialLevel || 'Basic'}</Badge>

@@ -13,10 +13,15 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Loader2 } from 'lucide-react'
 
 export default function RegisterPage() {
   return (
-    <Suspense>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    }>
       <RegisterPageInner />
     </Suspense>
   )
@@ -61,7 +66,6 @@ function RegisterPageInner() {
       const refData = await refRes.json()
       if (!refRes.ok) {
         setError('Invalid referral code: ' + (refData.error || 'please check and try again.'))
-        setLoading(false)
         return
       }
     }
@@ -113,11 +117,18 @@ function RegisterPageInner() {
   }, [referralCode])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted px-4 py-12">
+    <div className="relative min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted px-4 py-12">
+      {/* Back to home link */}
+      <Link
+        href="/"
+        className="absolute top-4 left-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        ← Back to home
+      </Link>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="flex items-center justify-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-foreground text-background font-bold text-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-sm">
               YS
             </div>
             <span className="text-2xl font-bold text-foreground">Youngsend</span>
@@ -137,7 +148,7 @@ function RegisterPageInner() {
                 <span className="text-lg">🎁</span>
                 <div>
                   <p className="font-medium">Referred by {referralInfo.name}</p>
-                  <p className="text-xs text-emerald-600">You are using a referral link — make a deposit after signing up!</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">You are using a referral link — make a deposit after signing up!</p>
                 </div>
               </div>
             )}
@@ -193,6 +204,7 @@ function RegisterPageInner() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                minLength={8}
                 disabled={loading}
                 autoComplete="new-password"
               />
@@ -213,8 +225,8 @@ function RegisterPageInner() {
             {/* Manual referral code input (if not from URL) */}
             {!refParam && (
               <div className="space-y-2">
-                <Label htmlFor="referralCode" className="text-slate-500">
-                  Referral Code <span className="text-slate-400">(optional)</span>
+                <Label htmlFor="referralCode" className="text-muted-foreground">
+                  Referral Code <span className="text-muted-foreground/70">(optional)</span>
                 </Label>
                 <Input
                   id="referralCode"
@@ -225,14 +237,15 @@ function RegisterPageInner() {
                   disabled={loading}
                   className="uppercase"
                 />
-                <p className="text-xs text-slate-400">Enter a referral code to earn bonuses</p>
+                <p className="text-xs text-muted-foreground/70">Enter a referral code to earn bonuses</p>
               </div>
             )}
             <Button
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-11 text-base font-semibold"
               disabled={loading}
             >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               {loading ? 'Creating account...' : 'Create Account'}
             </Button>
           </form>
@@ -247,6 +260,13 @@ function RegisterPageInner() {
           </p>
         </CardContent>
       </Card>
+      {/* Footer with legal links */}
+      <p className="mt-8 text-xs text-muted-foreground">
+        By creating an account you agree to our{' '}
+        <Link href="/terms" className="underline hover:text-foreground transition-colors">Terms</Link>
+        {' '}and{' '}
+        <Link href="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
+      </p>
     </div>
   )
 }

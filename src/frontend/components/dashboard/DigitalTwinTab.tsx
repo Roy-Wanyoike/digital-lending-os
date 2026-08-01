@@ -20,15 +20,15 @@ export function DigitalTwinTab() {
   const allTwins = twins || []
 
   const trajectoryColor = (t: string) => {
-    if (t?.toLowerCase()?.includes('rapid') || t?.toLowerCase()?.includes('grow')) return 'bg-emerald-100 text-emerald-700'
-    if (t?.toLowerCase()?.includes('stable') || t?.toLowerCase()?.includes('moderate')) return 'bg-amber-100 text-amber-700'
-    return 'bg-red-100 text-red-700'
+    if (t?.toLowerCase()?.includes('rapid') || t?.toLowerCase()?.includes('grow')) return 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+    if (t?.toLowerCase()?.includes('stable') || t?.toLowerCase()?.includes('moderate')) return 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+    return 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
   }
 
   const riskAppetiteColor = (r: string) => {
-    if (r?.toLowerCase()?.includes('conservative') || r?.toLowerCase()?.includes('low')) return 'bg-emerald-100 text-emerald-700'
-    if (r?.toLowerCase()?.includes('moderate') || r?.toLowerCase()?.includes('balanced')) return 'bg-amber-100 text-amber-700'
-    return 'bg-red-100 text-red-700'
+    if (r?.toLowerCase()?.includes('conservative') || r?.toLowerCase()?.includes('low')) return 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+    if (r?.toLowerCase()?.includes('moderate') || r?.toLowerCase()?.includes('balanced')) return 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+    return 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
   }
 
   const chartData = selectedTwin?.metrics?.map(m => ({
@@ -89,10 +89,10 @@ export function DigitalTwinTab() {
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <RTooltip contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                      <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                      <RTooltip contentStyle={{ borderRadius: 8, borderColor: 'hsl(var(--border))', backgroundColor: 'hsl(var(--popover))', color: 'hsl(var(--popover-foreground))' }} />
                       <Legend />
                       <Area type="monotone" dataKey="revenue" name="Revenue" stackId="1" stroke="#10b981" fill="#10b98133" />
                       <Area type="monotone" dataKey="expenses" name="Expenses" stackId="2" stroke="#ef4444" fill="#ef444433" />
@@ -117,7 +117,7 @@ export function DigitalTwinTab() {
                       {predData.map((p, i) => (
                         <TableRow key={i} className="even:bg-muted/50">
                           <TableCell className="font-medium">{p.metric}</TableCell>
-                          <TableCell className="font-medium text-emerald-600">{p.predicted}</TableCell>
+                          <TableCell className="font-medium text-emerald-600 dark:text-emerald-400">{p.predicted}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Progress value={p.confidence} className="h-1.5 w-16" />

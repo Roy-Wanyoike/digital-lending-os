@@ -189,7 +189,7 @@ export function PaymentLinksTab() {
                     <TableCell>{link.amount ? formatCurrency(link.amount, link.currency) : <Badge variant="outline">Open</Badge>}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(link.status)} className={getStatusColor(link.status)}>{link.status}</Badge></TableCell>
                     <TableCell className="text-xs">{link._paymentCount ?? 0}{link.maxPayments ? `/${link.maxPayments}` : ' (unlimited)'}</TableCell>
-                    <TableCell className="font-medium text-emerald-600">{formatCurrency(link.totalCollected || 0, link.currency)}</TableCell>
+                    <TableCell className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(link.totalCollected || 0, link.currency)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openDetail(link)} title="View"><ExternalLink className="h-3.5 w-3.5" /></Button>
@@ -219,7 +219,7 @@ export function PaymentLinksTab() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div><p className="text-muted-foreground">Amount</p><p className="font-medium">{selectedLink.amount ? formatCurrency(selectedLink.amount, selectedLink.currency) : 'Open Amount'}</p></div>
-                  <div><p className="text-muted-foreground">Collected</p><p className="font-medium text-emerald-600">{formatCurrency(selectedLink.totalCollected || 0, selectedLink.currency)}</p></div>
+                  <div><p className="text-muted-foreground">Collected</p><p className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(selectedLink.totalCollected || 0, selectedLink.currency)}</p></div>
                   <div><p className="text-muted-foreground">Status</p><Badge variant={getStatusBadgeVariant(selectedLink.status)} className={getStatusColor(selectedLink.status)}>{selectedLink.status}</Badge></div>
                   <div><p className="text-muted-foreground">Payments</p><p className="font-medium">{selectedLink.payments?.length || 0}{selectedLink.maxPayments ? ` / ${selectedLink.maxPayments}` : ' (unlimited)'}</p></div>
                 </div>
@@ -233,7 +233,7 @@ export function PaymentLinksTab() {
                         <p className="text-xs text-muted-foreground">{p.paymentMethod}{p.provider ? ` via ${p.provider}` : ''} · {formatDate(p.createdAt)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium text-emerald-600">{formatCurrency(p.amount, p.currency)}</p>
+                        <p className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(p.amount, p.currency)}</p>
                         <p className="text-xs text-muted-foreground">fee: {p.feeAmount || 0}</p>
                       </div>
                     </div>
@@ -311,7 +311,7 @@ export function PaymentLinksTab() {
               </div>
             )}
             {payProviders.length === 0 && (
-              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+              <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300">
                 No payment providers configured for {payLinkCurrency}. Payment will be recorded in demo mode. Add provider keys in .env.
               </div>
             )}

@@ -35,9 +35,9 @@ export function ComplianceTab() {
   const activeScreenings = allScreenings.filter(s => s.status?.toLowerCase() === 'active' || s.status?.toLowerCase() === 'pending').length
 
   const screeningResultColor = (r: string) => {
-    if (r?.toLowerCase() === 'clear' || r?.toLowerCase() === 'passed') return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-    if (r?.toLowerCase() === 'potential_match') return 'bg-amber-100 text-amber-700 border-amber-200'
-    return 'bg-red-100 text-red-700 border-red-200'
+    if (r?.toLowerCase() === 'clear' || r?.toLowerCase() === 'passed') return 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+    if (r?.toLowerCase() === 'potential_match') return 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+    return 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
   }
 
   return (

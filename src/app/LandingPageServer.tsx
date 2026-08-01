@@ -9,6 +9,7 @@
  * chunk ships to the browser instead of the entire page.
  */
 
+import Link from 'next/link'
 import { ClientBanner } from './LandingPage'
 
 export function LandingPage() {
@@ -41,7 +42,7 @@ export function LandingPage() {
           {/* CTA buttons — rendered by ClientBanner */}
 
           {/* Trust badges */}
-          <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5">
               <svg className="h-3.5 w-3.5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" /></svg>
               Bank-grade encryption
@@ -67,8 +68,8 @@ export function LandingPage() {
               <span className="text-sm font-medium text-foreground">Youngsend</span>
             </div>
             <nav className="flex items-center gap-6 text-xs text-muted-foreground">
-              <a href="/terms" className="hover:text-foreground transition-colors">Terms of Service</a>
-              <a href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</a>
+              <Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
+              <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
               <a href="https://youngsend.com/contact" className="hover:text-foreground transition-colors">Contact</a>
             </nav>
             <p className="text-xs text-muted-foreground">2026 Youngsend. All rights reserved.</p>

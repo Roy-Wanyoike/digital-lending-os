@@ -267,7 +267,7 @@ export function EscrowTab() {
                             if (ms) doAction(txn.id, 'release', { milestoneId: ms.id })
                             else showToast('No pending milestones')
                           }}><CheckCircle className="h-3 w-3 mr-1" />Release</Button>}
-                          {canDispute && <Button variant="outline" size="sm" className="h-7 text-xs text-red-600" onClick={() => { setSelectedId(txn.id); setDisputeOpen(true) }}><AlertTriangle className="h-3 w-3 mr-1" />Dispute</Button>}
+                          {canDispute && <Button variant="outline" size="sm" className="h-7 text-xs text-red-600 dark:text-red-400" onClick={() => { setSelectedId(txn.id); setDisputeOpen(true) }}><AlertTriangle className="h-3 w-3 mr-1" />Dispute</Button>}
                         </div>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(txn.createdAt)}</TableCell>
@@ -342,7 +342,7 @@ export function EscrowTab() {
                         </div>
                         <p className="text-sm font-medium">{d.reason}</p>
                         {d.aiRecommendation && <p className="text-xs text-muted-foreground mt-1">AI: {d.aiRecommendation}</p>}
-                        {d.resolution && <p className="text-xs text-emerald-600 mt-1">Resolution: {d.resolution}</p>}
+                        {d.resolution && <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Resolution: {d.resolution}</p>}
                       </div>
                     ))}
                   </div>

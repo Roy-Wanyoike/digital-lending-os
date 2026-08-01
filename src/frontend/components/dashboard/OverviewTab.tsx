@@ -21,7 +21,7 @@ export function OverviewTab() {
         <h1 className="text-2xl font-bold text-foreground">Verified Commerce Volume</h1>
         <p className="text-muted-foreground text-sm">Total value of verified transactions</p>
       </div>
-      <div className="text-4xl font-bold text-emerald-600">{formatCurrency(stats.totalEscrowVolume)}</div>
+      <div className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(stats.totalEscrowVolume)}</div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard title="Verified Businesses" value={String(stats.verifiedBusinesses)} icon={Building2} />
         <KPICard title="Active Deals" value={String(stats.activeEscrows)} icon={Shield} />

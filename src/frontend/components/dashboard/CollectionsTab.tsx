@@ -33,19 +33,19 @@ export function CollectionsTab() {
 
   const agingBadgeColor = (aging: string) => {
     const a = aging?.toLowerCase() || ''
-    if (a === 'current') return 'bg-emerald-100 text-emerald-700'
-    if (a === '1-30') return 'bg-lime-100 text-lime-700'
-    if (a === '31-60') return 'bg-amber-100 text-amber-700'
-    if (a === '61-90') return 'bg-orange-100 text-orange-700'
-    return 'bg-red-100 text-red-700'
+    if (a === 'current') return 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+    if (a === '1-30') return 'bg-lime-100 dark:bg-lime-900/40 text-lime-700 dark:text-lime-300'
+    if (a === '31-60') return 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+    if (a === '61-90') return 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
+    return 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
   }
 
   const priorityBadgeColor = (p: string) => {
     const v = p?.toLowerCase() || ''
-    if (v === 'urgent') return 'bg-red-100 text-red-700'
-    if (v === 'high') return 'bg-orange-100 text-orange-700'
-    if (v === 'normal') return 'bg-amber-100 text-amber-700'
-    return 'bg-emerald-100 text-emerald-700'
+    if (v === 'urgent') return 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
+    if (v === 'high') return 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300'
+    if (v === 'normal') return 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+    return 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
   }
 
   return (
