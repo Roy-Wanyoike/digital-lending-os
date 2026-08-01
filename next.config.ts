@@ -1,16 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Standalone output for Docker deployment.
-  // Static assets are copied separately in the Dockerfile
-  // (COPY --from=builder /app/.next/static ./.next/static).
-  output: "standalone",
+  // Standalone output only for production builds.
+  // In dev, standalone mode adds unnecessary memory overhead
+  // that causes OOM in containerized environments with Turbopack.
+  ...(process.env.NODE_ENV === 'production' ? { output: 'standalone' } : {}),
 
   // Security: remove the X-Powered-By response header
   poweredByHeader: false,
 
-  // Enable React strict mode for catching common bugs early
-  reactStrictMode: true,
+  // React strict mode double-renders in dev, doubling memory pressure.
+  // Enable only in CI/production where we have headroom.
+  reactStrictMode: process.env.NODE_ENV === 'production',
 
   // TypeScript type-checking is handled separately via `tsc --noEmit` in CI.
   // Skipping here avoids OOM in memory-constrained build environments

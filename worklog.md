@@ -572,3 +572,27 @@ Dependency chain analysis:
 **Files with broken imports: 0 out of 150+ files audited.**
 
 The import resolution is fully correct. All path aliases in `tsconfig.json` are properly configured and consistently used. The project builds cleanly with both `tsc --noEmit` and `next build`.
+
+---
+Task ID: 6
+Agent: Main (Super Z)
+Task: Fix server crash on API requests — root cause analysis and fix
+
+Work Log:
+- Discovered server dies silently on any API route request (returns 000, no log output)
+- Systematically isolated: disabled middleware → still dies; disabled instrumentation → still dies
+- Created minimal API route WITHOUT Prisma → server survives (returns 404, not crash)
+- Created minimal API route WITH Prisma import (`import { db } from '@/lib/db'`) → server crash
+- Root cause: Turbopack on Node 24 crashes when compiling modules that eagerly load `@prisma/client` native engine (.node file)
+- Fix 1: Made db.ts lazy — Proxy-based deferred require() of PrismaClient
+- Fix 2: Increased NODE_OPTIONS --max-old-space-size from 256MB→1536MB→2048MB (2GB needed for Turbopack+72 routes)
+- Fix 3: Disabled `output: 'standalone'` and `reactStrictMode` in dev mode (memory savings)
+- Fix 4: Disabled Prisma query logging (`log: []`)
+- Fix 5: Added NEXTAUTH_URL to .env alongside NEXTAUTH_SECRET and NEXT_PUBLIC_BASE_URL
+- Verified: root, login, register pages + /api/health, /api/ready, /api/auth/csrf all pass
+- Server stable on 0.0.0.0:3000 — ready for preview proxy
+
+Stage Summary:
+- CRITICAL FIX: Lazy Prisma proxy in src/backend/lib/db.ts prevents Turbopack crash
+- CRITICAL FIX: 2GB heap required (--max-old-space-size=2048)
+- Files modified: db.ts, next.config.ts, .env, watchdog.sh, package.json
