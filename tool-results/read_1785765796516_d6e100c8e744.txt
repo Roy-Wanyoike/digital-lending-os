@@ -1,0 +1,640 @@
+     1→   501→   501→   501→  expenses                Float?
+     2→   502→   502→   502→  netIncome               Float?
+     3→   503→   503→   503→  accountsReceivable      Float?
+     4→   504→   504→   504→  accountsPayable         Float?
+     5→   505→   505→   505→  totalAssets             Float?
+     6→   506→   506→   506→  totalLiabilities        Float?
+     7→   507→   507→   507→  cashBalance             Float?
+     8→   508→   508→   508→  transactionCount        Int?
+     9→   509→   509→   509→  averageTransactionValue Float?
+    10→   510→   510→   510→  paymentSuccessRate      Float?
+    11→   511→   511→   511→  disputeRate             Float?
+    12→   512→   512→   512→  customerCount           Int?
+    13→   513→   513→   513→  supplierCount           Int?
+    14→   514→   514→   514→  createdAt               DateTime @default(now())
+    15→   515→   515→   515→
+    16→   516→   516→   516→  twin FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
+    17→   517→   517→   517→
+    18→   518→   518→   518→  @@unique([twinId, period, periodDate])
+    19→   519→   519→   519→  @@index([twinId])
+    20→   520→   520→   520→  @@index([period])
+    21→   521→   521→   521→}
+    22→   522→   522→   522→
+    23→   523→   523→   523→model FinancialPrediction {
+    24→   524→   524→   524→  id             String   @id @default(cuid())
+    25→   525→   525→   525→  twinId         String
+    26→   526→   526→   526→  predictionType String // revenue, cash_flow, risk, default_probability, growth_rate
+    27→   527→   527→   527→  timeframe      String // 30d, 60d, 90d, 6m, 1y
+    28→   528→   528→   528→  predictedValue Float
+    29→   529→   529→   529→  confidence     Float // 0-1
+    30→   530→   530→   530→  lowerBound     Float?
+    31→   531→   531→   531→  upperBound     Float?
+    32→   532→   532→   532→  model          String   @default("ensemble")
+    33→   533→   533→   533→  metadata       String?
+    34→   534→   534→   534→  createdAt      DateTime @default(now())
+    35→   535→   535→   535→
+    36→   536→   536→   536→  twin FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
+    37→   537→   537→   537→
+    38→   538→   538→   538→  @@index([twinId])
+    39→   539→   539→   539→  @@index([predictionType])
+    40→   540→   540→   540→}
+    41→   541→   541→   541→
+    42→   542→   542→   542→model FinancialSnapshot {
+    43→   543→   543→   543→  id               String   @id @default(cuid())
+    44→   544→   544→   544→  twinId           String
+    45→   545→   545→   545→  snapshotType     String // daily, weekly, event_driven
+    46→   546→   546→   546→  healthScore      Float
+    47→   547→   547→   547→  cashFlowHealth   Float
+    48→   548→   548→   548→  creditWorthiness Float
+    49→   549→   549→   549→  liquidityScore   Float
+    50→   550→   550→   550→  topRiskFactors   String? // JSON array
+    51→   551→   551→   551→  topOpportunities String? // JSON array
+    52→   552→   552→   552→  aiSummary        String?
+    53→   553→   553→   553→  metadata         String?
+    54→   554→   554→   554→  createdAt        DateTime @default(now())
+    55→   555→   555→   555→
+    56→   556→   556→   556→  twin FinancialDigitalTwin @relation(fields: [twinId], references: [id], onDelete: Cascade)
+    57→   557→   557→   557→
+    58→   558→   558→   558→  @@index([twinId])
+    59→   559→   559→   559→  @@index([snapshotType])
+    60→   560→   560→   560→  @@index([createdAt])
+    61→   561→   561→   561→}
+    62→   562→   562→   562→
+    63→   563→   563→   563→// ============================================================
+    64→   564→   564→   564→// SHARED: Invoice Module
+    65→   565→   565→   565→// ============================================================
+    66→   566→   566→   566→
+    67→   567→   567→   567→model Invoice {
+    68→   568→   568→   568→  id         String    @id @default(cuid())
+    69→   569→   569→   569→  invoiceRef String    @unique
+    70→   570→   570→   570→  senderId   String
+    71→   571→   571→   571→  receiverId String
+    72→   572→   572→   572→  escrowId   String?
+    73→   573→   573→   573→  amount     Float
+    74→   574→   574→   574→  currency   String    @default("USD")
+    75→   575→   575→   575→  status     String    @default("draft") // draft, sent, paid, partially_paid, overdue, cancelled
+    76→   576→   576→   576→  dueDate    DateTime?
+    77→   577→   577→   577→  paidAmount Float     @default(0)
+    78→   578→   578→   578→  items      String? // JSON array of line items
+    79→   579→   579→   579→  notes      String?
+    80→   580→   580→   580→  paidAt     DateTime?
+    81→   581→   581→   581→  createdAt  DateTime  @default(now())
+    82→   582→   582→   582→  updatedAt  DateTime  @updatedAt
+    83→   583→   583→   583→
+    84→   584→   584→   584→  sender         Business @relation("InvoiceSender", fields: [senderId], references: [id])
+    85→   585→   585→   585→  receiver       Business @relation("InvoiceReceiver", fields: [receiverId], references: [id])
+    86→   586→   586→   586→  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+    87→   587→   587→   587→  subscriptionId String?
+    88→   588→   588→   588→
+    89→   589→   589→   589→  @@index([senderId])
+    90→   590→   590→   590→  @@index([receiverId])
+    91→   591→   591→   591→  @@index([status])
+    92→   592→   592→   592→  @@index([dueDate])
+    93→   593→   593→   593→}
+    94→   594→   594→   594→
+    95→   595→   595→   595→// ============================================================
+    96→   596→   596→   596→// MODULE 6: USERS & ROLES — Multi-view Access Control
+    97→   597→   597→   597→// ============================================================
+    98→   598→   598→   598→
+    99→   599→   599→   599→model User {
+   100→   600→   600→   600→  id          String    @id @default(cuid())
+   101→   601→   601→   601→  email       String    @unique
+   102→   602→   602→   602→  name        String
+   103→   603→   603→   603→  role        String    @default("viewer") // admin, buyer, seller, auditor, viewer
+   104→   604→   604→   604→  businessId  String? // which business this user belongs to
+   105→   605→   605→   605→  avatarUrl   String?
+   106→   606→   606→   606→  isActive    Boolean   @default(true)
+   107→   607→   607→   607→  lastLoginAt DateTime?
+   108→   608→   608→   608→  createdAt   DateTime  @default(now())
+   109→   609→   609→   609→  updatedAt   DateTime  @updatedAt
+   110→   610→   610→   610→
+   111→   611→   611→   611→  @@index([role])
+   112→   612→   612→   612→  @@index([businessId])
+   113→   613→   613→   613→  @@index([isActive])
+   114→   614→   614→   614→}
+   115→   615→   615→   615→
+   116→   616→   616→   616→// ============================================================
+   117→   617→   617→   617→// MODULE 7: PAYMENT LINKS — Shareable Payment URLs
+   118→   618→   618→   618→// ============================================================
+   119→   619→   619→   619→
+   120→   620→   620→   620→model PaymentLink {
+   121→   621→   621→   621→  id               String    @id @default(cuid())
+   122→   622→   622→   622→  linkRef          String    @unique
+   123→   623→   623→   623→  businessId       String
+   124→   624→   624→   624→  title            String?
+   125→   625→   625→   625→  description      String?
+   126→   626→   626→   626→  amount           Float // 0 = open amount (payer decides)
+   127→   627→   627→   627→  currency         String    @default("USD")
+   128→   628→   628→   628→  allowedMethods   String    @default("[]") // JSON array of allowed payment method types
+   129→   629→   629→   629→  allowedCountries String? // JSON array of country codes, null = all
+   130→   630→   630→   630→  maxPayments      Int       @default(1) // 0 = unlimited
+   131→   631→   631→   631→  paymentCount     Int       @default(0)
+   132→   632→   632→   632→  totalCollected   Float     @default(0)
+   133→   633→   633→   633→  status           String    @default("active") // active, paused, expired, depleted
+   134→   634→   634→   634→  expiresAt        DateTime?
+   135→   635→   635→   635→  metadata         String?
+   136→   636→   636→   636→  createdAt        DateTime  @default(now())
+   137→   637→   637→   637→  updatedAt        DateTime  @updatedAt
+   138→   638→   638→   638→
+   139→   639→   639→   639→  payments  PaymentLinkPayment[]
+   140→   640→   640→   640→  createdBy String?
+   141→   641→   641→   641→
+   142→   642→   642→   642→  @@index([businessId])
+   143→   643→   643→   643→  @@index([status])
+   144→   644→   644→   644→  @@index([currency])
+   145→   645→   645→   645→  @@index([createdAt])
+   146→   646→   646→   646→}
+   147→   647→   647→   647→
+   148→   648→   648→   648→model PaymentLinkPayment {
+   149→   649→   649→   649→  id            String    @id @default(cuid())
+   150→   650→   650→   650→  paymentLinkId String
+   151→   651→   651→   651→  payerName     String?
+   152→   652→   652→   652→  payerEmail    String?
+   153→   653→   653→   653→  payerCountry  String?
+   154→   654→   654→   654→  amount        Float
+   155→   655→   655→   655→  currency      String
+   156→   656→   656→   656→  paymentMethod String // bank_transfer, card, mobile_money, digital_wallet, crypto, upi, pix, mpesa, etc.
+   157→   657→   657→   657→  provider      String?
+   158→   658→   658→   658→  status        String    @default("pending") // pending, processing, completed, failed, refunded
+   159→   659→   659→   659→  feeAmount     Float?
+   160→   660→   660→   660→  netAmount     Float?
+   161→   661→   661→   661→  providerTxId  String?
+   162→   662→   662→   662→  metadata      String?
+   163→   663→   663→   663→  completedAt   DateTime?
+   164→   664→   664→   664→  createdAt     DateTime  @default(now())
+   165→   665→   665→   665→  updatedAt     DateTime  @updatedAt
+   166→   666→   666→   666→
+   167→   667→   667→   667→  paymentLink PaymentLink @relation(fields: [paymentLinkId], references: [id], onDelete: Cascade)
+   168→   668→   668→   668→
+   169→   669→   669→   669→  @@index([paymentLinkId])
+   170→   670→   670→   670→  @@index([status])
+   171→   671→   671→   671→  @@index([payerCountry])
+   172→   672→   672→   672→  @@index([paymentMethod])
+   173→   673→   673→   673→  @@index([createdAt])
+   174→   674→   674→   674→}
+   175→   675→   675→   675→
+   176→   676→   676→   676→// ============================================================
+   177→   677→   677→   677→// MODULE 8: GLOBAL PAYMENT METHODS CATALOG
+   178→   678→   678→   678→// ============================================================
+   179→   679→   679→   679→
+   180→   680→   680→   680→model GlobalPaymentMethod {
+   181→   681→   681→   681→  id             String   @id @default(cuid())
+   182→   682→   682→   682→  methodCode     String // mpesa, upi, pix, alipay, wechat_pay, gcash, grabpay, ovo, dana, bca, promptpay, fps, sepa, ach, swift, etc.
+   183→   683→   683→   683→  methodName     String // M-Pesa, UPI, PIX, Alipay, etc.
+   184→   684→   684→   684→  provider       String // safaricom, npci, bcb, ant_group, tencent, gcash, grab, etc.
+   185→   685→   685→   685→  type           String // mobile_money, digital_wallet, bank_transfer, card, crypto, real_time_payment
+   186→   686→   686→   686→  countries      String // JSON array of ISO country codes where available
+   187→   687→   687→   687→  currencies     String // JSON array of supported currency codes
+   188→   688→   688→   688→  minAmount      Float?
+   189→   689→   689→   689→  maxAmount      Float?
+   190→   690→   690→   690→  feePercent     Float    @default(0) // percentage fee
+   191→   691→   691→   691→  fixedFee       Float    @default(0) // fixed fee per transaction
+   192→   692→   692→   692→  settlementTime Int? // settlement time in minutes
+   193→   693→   693→   693→  isActive       Boolean  @default(true)
+   194→   694→   694→   694→  icon           String? // emoji or icon name
+   195→   695→   695→   695→  metadata       String?
+   196→   696→   696→   696→  createdAt      DateTime @default(now())
+   197→   697→   697→   697→  updatedAt      DateTime @updatedAt
+   198→   698→   698→   698→
+   199→   699→   699→   699→  @@unique([methodCode])
+   200→   700→   700→   700→  @@index([type])
+   201→   701→   701→   701→  @@index([isActive])
+   202→   702→   702→   702→}
+   203→   703→   703→   703→
+   204→   704→   704→   704→// ============================================================// MODULE 9: MULTI-CURRENCY WALLET// ============================================================
+   205→   705→   705→   705→
+   206→   706→   706→   706→model Wallet {
+   207→   707→   707→   707→  id               String   @id @default(cuid())
+   208→   708→   708→   708→  businessId       String
+   209→   709→   709→   709→  currency         String
+   210→   710→   710→   710→  balance          Float    @default(0)
+   211→   711→   711→   711→  availableBalance Float    @default(0)
+   212→   712→   712→   712→  pendingBalance   Float    @default(0)
+   213→   713→   713→   713→  frozenBalance    Float    @default(0)
+   214→   714→   714→   714→  isDefault        Boolean  @default(false)
+   215→   715→   715→   715→  status           String   @default("active") // active, frozen, closed
+   216→   716→   716→   716→  createdAt        DateTime @default(now())
+   217→   717→   717→   717→  updatedAt        DateTime @updatedAt
+   218→   718→   718→   718→
+   219→   719→   719→   719→  business          Business             @relation(fields: [businessId], references: [id])
+   220→   720→   720→   720→  transactions      WalletTransaction[]
+   221→   721→   721→   721→  deposits          Deposit[]
+   222→   722→   722→   722→  withdrawals       Withdrawal[]
+   223→   723→   723→   723→  cryptoWithdrawals CryptoWithdrawal[]
+   224→   724→   724→   724→  conversionsOut    CurrencyConversion[] @relation("ConversionFrom")
+   225→   725→   725→   725→  conversionsIn     CurrencyConversion[] @relation("ConversionTo")
+   226→   726→   726→   726→
+   227→   727→   727→   727→  label String?
+   228→   728→   728→   728→
+   229→   729→   729→   729→  @@unique([businessId, currency])
+   230→   730→   730→   730→  @@index([businessId])
+   231→   731→   731→   731→  @@index([currency])
+   232→   732→   732→   732→  @@index([status])
+   233→   733→   733→   733→}
+   234→   734→   734→   734→
+   235→   735→   735→   735→model WalletTransaction {
+   236→   736→   736→   736→  id             String   @id @default(cuid())
+   237→   737→   737→   737→  walletId       String
+   238→   738→   738→   738→  txRef          String   @unique
+   239→   739→   739→   739→  type           String // credit, debit, transfer_in, transfer_out, conversion, fee, refund, deposit, withdrawal, crypto_withdrawal
+   240→   740→   740→   740→  amount         Float
+   241→   741→   741→   741→  balanceBefore  Float
+   242→   742→   742→   742→  balanceAfter   Float
+   243→   743→   743→   743→  currency       String
+   244→   744→   744→   744→  description    String?
+   245→   745→   745→   745→  referenceType  String? // escrow, payment_link, invoice, transfer, conversion, deposit, withdrawal, crypto_withdrawal
+   246→   746→   746→   746→  referenceId    String?
+   247→   747→   747→   747→  counterpartyId String? // other wallet/business involved
+   248→   748→   748→   748→  status         String   @default("completed") // pending, completed, failed, reversed
+   249→   749→   749→   749→  metadata       String?
+   250→   750→   750→   750→  createdAt      DateTime @default(now())
+   251→   751→   751→   751→
+   252→   752→   752→   752→  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+   253→   753→   753→   753→
+   254→   754→   754→   754→  @@index([walletId])
+   255→   755→   755→   755→  @@index([type])
+   256→   756→   756→   756→  @@index([referenceType])
+   257→   757→   757→   757→  @@index([status])
+   258→   758→   758→   758→  @@index([createdAt])
+   259→   759→   759→   759→}
+   260→   760→   760→   760→
+   261→   761→   761→   761→// ── Deposit Model ─────────────────────────────────────────────
+   262→   762→   762→   762→
+   263→   763→   763→   763→model Deposit {
+   264→   764→   764→   764→  id            String    @id @default(cuid())
+   265→   765→   765→   765→  depositRef    String    @unique
+   266→   766→   766→   766→  walletId      String
+   267→   767→   767→   767→  amount        Float
+   268→   768→   768→   768→  currency      String
+   269→   769→   769→   769→  paymentMethod String // bank_transfer, card, mobile_money, payment_link, external
+   270→   770→   770→   770→  provider      String? // paystack, stripe, flutterwave, intasend, manual
+   271→   771→   771→   771→  providerTxId  String? // external provider transaction ID
+   272→   772→   772→   772→  status        String    @default("pending") // pending, processing, completed, failed, reversed
+   273→   773→   773→   773→  bankName      String? // source bank name for bank transfers
+   274→   774→   774→   774→  bankRef       String? // bank reference / cheque number
+   275→   775→   775→   775→  cardLast4     String? // last 4 digits of card used
+   276→   776→   776→   776→  notes         String?
+   277→   777→   777→   777→  completedAt   DateTime?
+   278→   778→   778→   778→  failedReason  String?
+   279→   779→   779→   779→  metadata      String?
+   280→   780→   780→   780→  createdAt     DateTime  @default(now())
+   281→   781→   781→   781→  updatedAt     DateTime  @updatedAt
+   282→   782→   782→   782→
+   283→   783→   783→   783→  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+   284→   784→   784→   784→
+   285→   785→   785→   785→  @@index([walletId])
+   286→   786→   786→   786→  @@index([status])
+   287→   787→   787→   787→  @@index([paymentMethod])
+   288→   788→   788→   788→  @@index([provider])
+   289→   789→   789→   789→  @@index([createdAt])
+   290→   790→   790→   790→}
+   291→   791→   791→   791→
+   292→   792→   792→   792→// ── Withdrawal Model ──────────────────────────────────────────
+   293→   793→   793→   793→
+   294→   794→   794→   794→model Withdrawal {
+   295→   795→   795→   795→  id            String    @id @default(cuid())
+   296→   796→   796→   796→  withdrawalRef String    @unique
+   297→   797→   797→   797→  walletId      String
+   298→   798→   798→   798→  amount        Float
+   299→   799→   799→   799→  currency      String
+   300→   800→   800→   800→  paymentMethod String // bank_transfer, mobile_money, external
+   301→   801→   801→   801→  provider      String? // paystack, stripe, flutterwave, intasend, manual
+   302→   802→   802→   802→  providerTxId  String?
+   303→   803→   803→   803→  status        String    @default("pending") // pending, processing, completed, failed, reversed
+   304→   804→   804→   804→  bankName      String? // destination bank name
+   305→   805→   805→   805→  bankAccount   String? // destination bank account (masked)
+   306→   806→   806→   806→  bankCode      String? // bank sort/routing code
+   307→   807→   807→   807→  recipientName String?
+   308→   808→   808→   808→  feeAmount     Float     @default(0)
+   309→   809→   809→   809→  netAmount     Float?
+   310→   810→   810→   810→  notes         String?
+   311→   811→   811→   811→  completedAt   DateTime?
+   312→   812→   812→   812→  failedReason  String?
+   313→   813→   813→   813→  metadata      String?
+   314→   814→   814→   814→  createdAt     DateTime  @default(now())
+   315→   815→   815→   815→  updatedAt     DateTime  @updatedAt
+   316→   816→   816→   816→
+   317→   817→   817→   817→  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+   318→   818→   818→   818→
+   319→   819→   819→   819→  @@index([walletId])
+   320→   820→   820→   820→  @@index([status])
+   321→   821→   821→   821→  @@index([paymentMethod])
+   322→   822→   822→   822→  @@index([createdAt])
+   323→   823→   823→   823→}
+   324→   824→   824→   824→
+   325→   825→   825→   825→// ── Crypto Withdrawal Model ───────────────────────────────────
+   326→   826→   826→   826→
+   327→   827→   827→   827→model CryptoWithdrawal {
+   328→   828→   828→   828→  id             String    @id @default(cuid())
+   329→   829→   829→   829→  withdrawalRef  String    @unique
+   330→   830→   830→   830→  walletId       String
+   331→   831→   831→   831→  amount         Float // amount in wallet fiat currency to convert
+   332→   832→   832→   832→  cryptoAmount   Float? // amount in crypto after conversion
+   333→   833→   833→   833→  currency       String // wallet fiat currency (e.g. USD, KES)
+   334→   834→   834→   834→  cryptoCurrency String // target crypto (USDT, USDC, BTC, ETH, SOL, BNB)
+   335→   835→   835→   835→  network        String // trc20, erc20, bsc, solana, bitcoin, bep2
+   336→   836→   836→   836→  walletAddress  String // destination crypto wallet address
+   337→   837→   837→   837→  status         String    @default("pending") // pending, processing, completed, failed, reversed
+   338→   838→   838→   838→  exchangeRate   Float? // fiat-to-crypto rate at time of withdrawal
+   339→   839→   839→   839→  networkFee     Float     @default(0) // blockchain network fee in crypto
+   340→   840→   840→   840→  processingFee  Float     @default(0) // platform processing fee in fiat
+   341→   841→   841→   841→  gasPrice       String? // gwei/sats per byte at time of execution
+   342→   842→   842→   842→  txHash         String? // on-chain transaction hash
+   343→   843→   843→   843→  explorerUrl    String? // block explorer URL
+   344→   844→   844→   844→  notes          String?
+   345→   845→   845→   845→  completedAt    DateTime?
+   346→   846→   846→   846→  failedReason   String?
+   347→   847→   847→   847→  metadata       String?
+   348→   848→   848→   848→  createdAt      DateTime  @default(now())
+   349→   849→   849→   849→  updatedAt      DateTime  @updatedAt
+   350→   850→   850→   850→
+   351→   851→   851→   851→  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+   352→   852→   852→   852→
+   353→   853→   853→   853→  @@index([walletId])
+   354→   854→   854→   854→  @@index([status])
+   355→   855→   855→   855→  @@index([cryptoCurrency])
+   356→   856→   856→   856→  @@index([network])
+   357→   857→   857→   857→  @@index([createdAt])
+   358→   858→   858→   858→}
+   359→   859→   859→   859→
+   360→   860→   860→   860→// ── Currency Conversion Model ─────────────────────────────────
+   361→   861→   861→   861→
+   362→   862→   862→   862→model CurrencyConversion {
+   363→   863→   863→   863→  id            String   @id @default(cuid())
+   364→   864→   864→   864→  conversionRef String   @unique
+   365→   865→   865→   865→  fromWalletId  String
+   366→   866→   866→   866→  toWalletId    String
+   367→   867→   867→   867→  fromCurrency  String
+   368→   868→   868→   868→  toCurrency    String
+   369→   869→   869→   869→  fromAmount    Float
+   370→   870→   870→   870→  toAmount      Float
+   371→   871→   871→   871→  exchangeRate  Float
+   372→   872→   872→   872→  feePercent    Float    @default(0.5) // 0.5% conversion fee
+   373→   873→   873→   873→  feeAmount     Float
+   374→   874→   874→   874→  netAmount     Float // toAmount - feeAmount
+   375→   875→   875→   875→  provider      String   @default("internal")
+   376→   876→   876→   876→  status        String   @default("completed") // pending, completed, failed, reversed
+   377→   877→   877→   877→  metadata      String?
+   378→   878→   878→   878→  createdAt     DateTime @default(now())
+   379→   879→   879→   879→
+   380→   880→   880→   880→  fromWallet Wallet @relation("ConversionFrom", fields: [fromWalletId], references: [id], onDelete: Cascade)
+   381→   881→   881→   881→  toWallet   Wallet @relation("ConversionTo", fields: [toWalletId], references: [id], onDelete: Cascade)
+   382→   882→   882→   882→
+   383→   883→   883→   883→  @@index([fromWalletId])
+   384→   884→   884→   884→  @@index([toWalletId])
+   385→   885→   885→   885→  @@index([fromCurrency, toCurrency])
+   386→   886→   886→   886→  @@index([status])
+   387→   887→   887→   887→  @@index([createdAt])
+   388→   888→   888→   888→}
+   389→   889→   889→   889→
+   390→   890→   890→   890→// ============================================================
+   391→   891→   891→   891→// MODULE 10: AI FRAUD DETECTION
+   392→   892→   892→   892→// ============================================================
+   393→   893→   893→   893→
+   394→   894→   894→   894→model FraudAlert {
+   395→   895→   895→   895→  id             String    @id @default(cuid())
+   396→   896→   896→   896→  alertRef       String    @unique
+   397→   897→   897→   897→  businessId     String?
+   398→   898→   898→   898→  relatedType    String // escrow, payment_intent, payment_link, wallet
+   399→   899→   899→   899→  relatedId      String?
+   400→   900→   900→   900→  severity       String    @default("medium") // low, medium, high, critical
+   401→   901→   901→   901→  fraudType      String // unusual_amount, velocity_breach, geo_mismatch, sanctioned_entity, fake_identity, account_takeover, structure_pattern
+   402→   902→   902→   902→  score          Float // 0-100 fraud confidence score
+   403→   903→   903→   903→  description    String
+   404→   904→   904→   904→  recommendation String?
+   405→   905→   905→   905→  status         String    @default("open") // open, investigating, confirmed_fraud, false_positive, escalated, resolved
+   406→   906→   906→   906→  resolvedBy     String?
+   407→   907→   907→   907→  resolvedAt     DateTime?
+   408→   908→   908→   908→  metadata       String?
+   409→   909→   909→   909→  createdAt      DateTime  @default(now())
+   410→   910→   910→   910→  updatedAt      DateTime  @updatedAt
+   411→   911→   911→   911→
+   412→   912→   912→   912→  @@index([businessId])
+   413→   913→   913→   913→  @@index([severity])
+   414→   914→   914→   914→  @@index([fraudType])
+   415→   915→   915→   915→  @@index([status])
+   416→   916→   916→   916→  @@index([score])
+   417→   917→   917→   917→  @@index([createdAt])
+   418→   918→   918→   918→}
+   419→   919→   919→   919→
+   420→   920→   920→   920→model FraudRule {
+   421→   921→   921→   921→  id              String    @id @default(cuid())
+   422→   922→   922→   922→  name            String
+   423→   923→   923→   923→  description     String?
+   424→   924→   924→   924→  condition       String // JSON rule definition
+   425→   925→   925→   925→  action          String // alert, block, require_review, flag
+   426→   926→   926→   926→  severity        String    @default("medium")
+   427→   927→   927→   927→  isActive        Boolean   @default(true)
+   428→   928→   928→   928→  triggerCount    Int       @default(0)
+   429→   929→   929→   929→  lastTriggeredAt DateTime?
+   430→   930→   930→   930→  createdAt       DateTime  @default(now())
+   431→   931→   931→   931→  updatedAt       DateTime  @updatedAt
+   432→   932→   932→   932→
+   433→   933→   933→   933→  @@index([isActive])
+   434→   934→   934→   934→  @@index([severity])
+   435→   935→   935→   935→}
+   436→   936→   936→   936→
+   437→   937→   937→   937→// ============================================================
+   438→   938→   938→   938→// MODULE 11: BUSINESS MATCHING — AI Buyer-Supplier Discovery
+   439→   939→   939→   939→// ============================================================
+   440→   940→   940→   940→
+   441→   941→   941→   941→model BusinessMatch {
+   442→   942→   942→   942→  id                String   @id @default(cuid())
+   443→   943→   943→   943→  seekerId          String // business looking for a match
+   444→   944→   944→   944→  candidateId       String // business being matched
+   445→   945→   945→   945→  matchType         String // supplier, buyer, partner, logistics, financial
+   446→   946→   946→   946→  matchScore        Float // 0-100 AI compatibility score
+   447→   947→   947→   947→  reasons           String? // JSON array of match reasons
+   448→   948→   948→   948→  status            String   @default("suggested") // suggested, contacted, interested, declined, engaged
+   449→   949→   949→   949→  seekerResponse    String?
+   450→   950→   950→   950→  candidateResponse String?
+   451→   951→   951→   951→  metadata          String?
+   452→   952→   952→   952→  createdAt         DateTime @default(now())
+   453→   953→   953→   953→  updatedAt         DateTime @updatedAt
+   454→   954→   954→   954→
+   455→   955→   955→   955→  @@unique([seekerId, candidateId, matchType])
+   456→   956→   956→   956→  @@index([seekerId])
+   457→   957→   957→   957→  @@index([candidateId])
+   458→   958→   958→   958→  @@index([matchScore])
+   459→   959→   959→   959→  @@index([status])
+   460→   960→   960→   960→}
+   461→   961→   961→   961→
+   462→   962→   962→   962→// ============================================================
+   463→   963→   963→   963→// MODULE 12: AI COLLECTIONS — Payment Reminders & Aging
+   464→   964→   964→   964→// ============================================================
+   465→   965→   965→   965→
+   466→   966→   966→   966→model CollectionCase {
+   467→   967→   967→   967→  id                String    @id @default(cuid())
+   468→   968→   968→   968→  caseRef           String    @unique
+   469→   969→   969→   969→  invoiceId         String?
+   470→   970→   970→   970→  businessId        String // creditor
+   471→   971→   971→   971→  debtorId          String
+   472→   972→   972→   972→  originalAmount    Float
+   473→   973→   973→   973→  outstandingAmount Float
+   474→   974→   974→   974→  currency          String
+   475→   975→   975→   975→  agingBucket       String    @default("current") // current, 1-30, 31-60, 61-90, 90+
+   476→   976→   976→   976→  priority          String    @default("normal") // low, normal, high, urgent
+   477→   977→   977→   977→  status            String    @default("active") // active, paused, resolved, written_off, escalated
+   478→   978→   978→   978→  reminderCount     Int       @default(0)
+   479→   979→   979→   979→  lastReminderAt    DateTime?
+   480→   980→   980→   980→  nextReminderDue   DateTime?
+   481→   981→   981→   981→  aiStrategy        String? // AI-recommended collection strategy
+   482→   982→   982→   982→  resolution        String?
+   483→   983→   983→   983→  resolvedAt        DateTime?
+   484→   984→   984→   984→  metadata          String?
+   485→   985→   985→   985→  createdAt         DateTime  @default(now())
+   486→   986→   986→   986→  updatedAt         DateTime  @updatedAt
+   487→   987→   987→   987→
+   488→   988→   988→   988→  reminders CollectionReminder[]
+   489→   989→   989→   989→
+   490→   990→   990→   990→  @@index([businessId])
+   491→   991→   991→   991→  @@index([debtorId])
+   492→   992→   992→   992→  @@index([agingBucket])
+   493→   993→   993→   993→  @@index([priority])
+   494→   994→   994→   994→  @@index([status])
+   495→   995→   995→   995→}
+   496→   996→   996→   996→
+   497→   997→   997→   997→model CollectionReminder {
+   498→   998→   998→   998→  id          String    @id @default(cuid())
+   499→   999→   999→   999→  caseId      String
+   500→  1000→  1000→  1000→  channel     String // email, sms, whatsapp, in_app
+   501→  1001→  1001→  1001→  template    String // friendly, firm, final, legal
+   502→  1002→  1002→  1002→  status      String    @default("sent") // sent, delivered, read, failed
+   503→  1003→  1003→  1003→  sentAt      DateTime  @default(now())
+   504→  1004→  1004→  1004→  response    String?
+   505→  1005→  1005→  1005→  respondedAt DateTime?
+   506→  1006→  1006→  1006→  createdAt   DateTime  @default(now())
+   507→  1007→  1007→  1007→
+   508→  1008→  1008→  1008→  case CollectionCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+   509→  1009→  1009→  1009→
+   510→  1010→  1010→  1010→  @@index([caseId])
+   511→  1011→  1011→  1011→  @@index([channel])
+   512→  1012→  1012→  1012→  @@index([status])
+   513→  1013→  1013→  1013→}
+   514→  1014→  1014→  1014→
+   515→  1015→  1015→  1015→// ============================================================
+   516→  1016→  1016→  1016→// MODULE 13: COMPLIANCE ENGINE — Rules & Screening
+   517→  1017→  1017→  1017→// ============================================================
+   518→  1018→  1018→  1018→
+   519→  1019→  1019→  1019→model ComplianceRule {
+   520→  1020→  1020→  1020→  id             String   @id @default(cuid())
+   521→  1021→  1021→  1021→  name           String
+   522→  1022→  1022→  1022→  description    String?
+   523→  1023→  1023→  1023→  ruleType       String // sanctions_check, kyc_requirement, aml_threshold, transaction_limit, country_restriction, industry_restriction
+   524→  1024→  1024→  1024→  condition      String // JSON rule definition
+   525→  1025→  1025→  1025→  action         String // block, flag_for_review, require_additional_doc, allow
+   526→  1026→  1026→  1026→  severity       String   @default("medium") // low, medium, high, critical
+   527→  1027→  1027→  1027→  isActive       Boolean  @default(true)
+   528→  1028→  1028→  1028→  triggeredCount Int      @default(0)
+   529→  1029→  1029→  1029→  createdAt      DateTime @default(now())
+   530→  1030→  1030→  1030→  updatedAt      DateTime @updatedAt
+   531→  1031→  1031→  1031→
+   532→  1032→  1032→  1032→  @@index([ruleType])
+   533→  1033→  1033→  1033→  @@index([isActive])
+   534→  1034→  1034→  1034→  @@index([severity])
+   535→  1035→  1035→  1035→}
+   536→  1036→  1036→  1036→
+   537→  1037→  1037→  1037→model ComplianceScreening {
+   538→  1038→  1038→  1038→  id              String    @id @default(cuid())
+   539→  1039→  1039→  1039→  businessId      String?
+   540→  1040→  1040→  1040→  transactionType String? // escrow, payment, wallet
+   541→  1041→  1041→  1041→  transactionId   String?
+   542→  1042→  1042→  1042→  screeningType   String // sanctions, pep, adverse_media, country_risk
+   543→  1043→  1043→  1043→  result          String // clear, match, potential_match, alert
+   544→  1044→  1044→  1044→  riskLevel       String // low, medium, high, critical
+   545→  1045→  1045→  1045→  details         String?
+   546→  1046→  1046→  1046→  matchedLists    String? // JSON array of matched sanction/list names
+   547→  1047→  1047→  1047→  status          String    @default("completed") // pending, in_progress, completed, escalated
+   548→  1048→  1048→  1048→  reviewedBy      String?
+   549→  1049→  1049→  1049→  reviewedAt      DateTime?
+   550→  1050→  1050→  1050→  createdAt       DateTime  @default(now())
+   551→  1051→  1051→  1051→  updatedAt       DateTime  @updatedAt
+   552→  1052→  1052→  1052→
+   553→  1053→  1053→  1053→  @@index([businessId])
+   554→  1054→  1054→  1054→  @@index([screeningType])
+   555→  1055→  1055→  1055→  @@index([result])
+   556→  1056→  1056→  1056→  @@index([riskLevel])
+   557→  1057→  1057→  1057→  @@index([status])
+   558→  1058→  1058→  1058→  @@index([createdAt])
+   559→  1059→  1059→  1059→}
+   560→  1060→  1060→  1060→
+   561→  1061→  1061→  1061→// ============================================================
+   562→  1062→  1062→  1062→// MODULE 14: REFERRAL SYSTEM — Referral Links & Bonuses
+   563→  1063→  1063→  1063→// ============================================================
+   564→  1064→  1064→  1064→
+   565→  1065→  1065→  1065→model ReferralBonus {
+   566→  1066→  1066→  1066→  id            String   @id @default(cuid())
+   567→  1067→  1067→  1067→  bonusRef      String   @unique
+   568→  1068→  1068→  1068→  referrerId    String // Account who referred
+   569→  1069→  1069→  1069→  refereeId     String // Account who was referred
+   570→  1070→  1070→  1070→  depositId     String // The deposit that triggered the bonus
+   571→  1071→  1071→  1071→  walletId      String // Wallet that received the bonus
+   572→  1072→  1072→  1072→  bonusAmount   Float    @default(100.00)
+   573→  1073→  1073→  1073→  bonusCurrency String   @default("USD")
+   574→  1074→  1074→  1074→  status        String   @default("credited") // credited, pending, revoked
+   575→  1075→  1075→  1075→  creditedAt    DateTime @default(now())
+   576→  1076→  1076→  1076→  createdAt     DateTime @default(now())
+   577→  1077→  1077→  1077→  updatedAt     DateTime @updatedAt
+   578→  1078→  1078→  1078→
+   579→  1079→  1079→  1079→  @@index([referrerId])
+   580→  1080→  1080→  1080→  @@index([refereeId])
+   581→  1081→  1081→  1081→  @@index([status])
+   582→  1082→  1082→  1082→  @@index([creditedAt])
+   583→  1083→  1083→  1083→}
+   584→  1084→  1084→  1084→
+   585→  1085→  1085→  1085→// ============================================================
+   586→  1086→  1086→  1086→// MODULE 15: NOTIFICATIONS — In-App & Push Notifications
+   587→  1087→  1087→  1087→// ============================================================
+   588→  1088→  1088→  1088→
+   589→  1089→  1089→  1089→model Notification {
+   590→  1090→  1090→  1090→  id        String   @id @default(cuid())
+   591→  1091→  1091→  1091→  accountId  String
+   592→  1092→  1092→  1092→  title     String
+   593→  1093→  1093→  1093→  body      String
+   594→  1094→  1094→  1094→  type      String   @default("info") // info, success, warning, error, payment, escrow, invoice, system
+   595→  1095→  1095→  1095→  category  String   @default("general") // payment_received, payment_sent, escrow_created, escrow_funded, escrow_released, invoice_created, invoice_paid, invoice_overdue, collection_reminder, fraud_alert, compliance_alert, system_maintenance, referral_bonus
+   596→  1096→  1096→  1096→  isRead    Boolean  @default(false)
+   597→  1097→  1097→  1097→  readAt    DateTime?
+   598→  1098→  1098→  1098→  actionUrl String? // deep link to relevant page
+   599→  1099→  1099→  1099→  metadata  String? // JSON with additional context
+   600→  1100→  1100→  1100→  createdAt DateTime @default(now())
+   601→  1101→  1101→  1101→
+   602→  1102→  1102→  1102→  @@index([accountId])
+   603→  1103→  1103→  1103→  @@index([type])
+   604→  1104→  1104→  1104→  @@index([category])
+   605→  1105→  1105→  1105→  @@index([isRead])
+   606→  1106→  1106→  1106→  @@index([createdAt])
+   607→  1107→  1107→  1107→}
+   608→  1108→  1108→  1108→
+   609→  1109→  1109→  1109→// ============================================================
+   610→  1110→  1110→  1110→// MODULE 16: SUBSCRIPTIONS — Recurring Billing Plans
+   611→  1111→  1111→  1111→// ============================================================
+   612→  1112→  1112→  1112→
+   613→  1113→  1113→  1113→model Subscription {
+   614→  1114→  1114→  1114→  id          String   @id @default(cuid())
+   615→  1115→  1115→  1115→  businessId  String
+   616→  1116→  1116→  1116→  planName    String // starter, professional, enterprise, custom
+   617→  1117→  1117→  1117→  amount      Float
+   618→  1118→  1118→  1118→  currency    String   @default("USD")
+   619→  1119→  1119→  1119→  interval    String   @default("monthly") // daily, weekly, monthly, quarterly, yearly
+   620→  1120→  1120→  1120→  status      String   @default("active") // active, past_due, cancelled, paused, trialing
+   621→  1121→  1121→  1121→  startDate   DateTime @default(now())
+   622→  1122→  1122→  1122→  endDate     DateTime?
+   623→  1123→  1123→  1123→  trialEndsAt DateTime?
+   624→  1124→  1124→  1124→  currentPeriodStart DateTime @default(now())
+   625→  1125→  1125→  1125→  currentPeriodEnd   DateTime
+   626→  1126→  1126→  1126→  cancelledAt DateTime?
+   627→  1127→  1127→  1127→  cancellationReason String?
+   628→  1128→  1128→  1128→  metadata    String?
+   629→  1129→  1129→  1129→  createdAt   DateTime @default(now())
+   630→  1130→  1130→  1130→  updatedAt   DateTime @updatedAt
+   631→  1131→  1131→  1131→
+   632→  1132→  1132→  1132→  invoices Invoice[]
+   633→  1133→  1133→  1133→
+   634→  1134→  1134→  1134→  @@index([businessId])
+   635→  1135→  1135→  1135→  @@index([status])
+   636→  1136→  1136→  1136→  @@index([planName])
+   637→  1137→  1137→  1137→  @@index([interval])
+   638→  1138→  1138→  1138→  @@index([currentPeriodEnd])
+   639→  1139→  1139→  1139→}
+   640→  1140→  1140→  1140→
