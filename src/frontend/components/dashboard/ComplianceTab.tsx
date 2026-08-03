@@ -16,7 +16,7 @@ export function ComplianceTab() {
 
   // Rules endpoint requires admin/auditor; degrade gracefully for other roles
   const rulesAccessDenied = rulesError && rulesError.includes('403')
-  const hasError = (screeningsError && !rulesAccessDenied) || (rulesError && !rulesAccessDenied)
+  const hasError = !!screeningsError || (!!rulesError && !rulesAccessDenied)
   const errorMessage = screeningsError || (rulesAccessDenied ? null : rulesError) || ''
 
   const handleRetry = () => {

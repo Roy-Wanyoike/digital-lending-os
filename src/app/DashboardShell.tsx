@@ -124,19 +124,18 @@ export function DashboardShell({ session }: { session: Session }) {
 
   return (
     <TooltipProvider>
-      <div className="h-screen overflow-hidden flex flex-col bg-background">
-        <div className="flex flex-1">
-          <aside className="hidden lg:flex w-60 bg-card border-r flex-col flex-shrink-0 overflow-hidden">
+      <div className="h-screen overflow-hidden flex bg-background">
+        <aside className="hidden lg:flex w-60 bg-card border-r flex-col flex-shrink-0 overflow-y-auto">
+          <SidebarNav visibleTabs={visibleTabs} activeTab={safeTab} onTabChange={handleTabChange} />
+        </aside>
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent side="left" className="w-60 p-0 bg-card border-border">
+            <SheetHeader className="sr-only"><SheetTitle>Navigation</SheetTitle><SheetDescription>Menu</SheetDescription></SheetHeader>
             <SidebarNav visibleTabs={visibleTabs} activeTab={safeTab} onTabChange={handleTabChange} />
-          </aside>
-          <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-            <SheetContent side="left" className="w-60 p-0 bg-card border-border">
-              <SheetHeader className="sr-only"><SheetTitle>Navigation</SheetTitle><SheetDescription>Menu</SheetDescription></SheetHeader>
-              <SidebarNav visibleTabs={visibleTabs} activeTab={safeTab} onTabChange={handleTabChange} />
-            </SheetContent>
-          </Sheet>
-          <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-            <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b px-4 sm:px-6 py-3">
+          </SheetContent>
+        </Sheet>
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="flex-shrink-0 z-30 bg-background/80 backdrop-blur-md border-b px-4 sm:px-6 py-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button>
@@ -182,7 +181,7 @@ export function DashboardShell({ session }: { session: Session }) {
                 </div>
               </div>
             </header>
-            <main className="flex-1 p-4 sm:p-6">
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6">
               <Suspense fallback={<TabSkeleton />}>
                 {ActiveTabComponent ? (
                   <ErrorBoundary name={activeNav?.label || safeTab}>
@@ -191,11 +190,10 @@ export function DashboardShell({ session }: { session: Session }) {
                 ) : <TabSkeleton />}
               </Suspense>
             </main>
-            <footer className="border-t px-4 sm:px-6 py-4 mt-auto">
+            <footer className="flex-shrink-0 border-t px-4 sm:px-6 py-4">
               <p className="text-xs text-muted-foreground text-center">Youngsend Trust Network — The Financial Operating System for Global Commerce</p>
             </footer>
           </div>
-        </div>
       </div>
     </TooltipProvider>
   )

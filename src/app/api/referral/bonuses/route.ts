@@ -47,7 +47,7 @@ async function getHandler(request: NextRequest) {
       where: { id: { in: Array.from(accountIds) } },
       select: { id: true, name: true, email: true },
     })
-    const accountMap = new Map(accounts.map((a) => [a.id, a]))
+    const accountMap = new Map<string, { id: string; name: string | null; email: string | null }>(accounts.map((a) => [a.id, a]))
 
     const enriched = bonuses.map((b) => ({
       ...b,

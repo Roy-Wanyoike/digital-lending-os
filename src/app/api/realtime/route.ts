@@ -22,110 +22,112 @@ function formatSSE(event: string, data: unknown): string {
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-  // ─── 1. Authenticate ──────────────────────────────────────────
-  // The browser sends session cookies automatically for same-origin requests.
-  const user = await getApiUser(request as any)
-  if (!user) {
-    return errorResponse('Authentication required', 401)
-  }
+  try {
+    // ─── 1. Authenticate ──────────────────────────────────────────
+    // The browser sends session cookies automatically for same-origin requests.
+    const user = await getApiUser(request as any)
+    if (!user) {
+      return errorResponse('Authentication required', 401)
+    }
 
-  // ─── 2. Connection limit ─────────────────────────────────────
-  // Prevent a single user from opening unbounded connections (DoS).
-  const activeConns = eventBus.getConnectionCount()
-  if (activeConns >= MAX_CONNECTIONS) {
-    return errorResponse('Server is at maximum connection capacity', 503)
-  }
+    // ─── 2. Connection limit ─────────────────────────────────────
+    // Prevent a single user from opening unbounded connections (DoS).
+    const activeConns = eventBus.getConnectionCount()
+    if (activeConns >= MAX_CONNECTIONS) {
+      return errorResponse('Server is at maximum connection capacity', 503)
+    }
 
-  // Per-user connection limit: max 5 concurrent SSE streams per user
-  const userConnections = eventBus.getConnectionsByPrefix(user.id)
-  if (userConnections >= 5) {
-    return errorResponse('Too many concurrent connections', 429)
-  }
+    // Per-user connection limit: max 5 concurrent SSE streams per user
+    const userConnections = eventBus.getConnectionsByPrefix(user.id)
+    if (userConnections >= 5) {
+      return errorResponse('Too many concurrent connections', 429)
+    }
 
-  // ─── 3. Derive tenantId from session, NOT from query params ───
-  const tenantId = user.tenantId || undefined
+    // ─── 3. Derive tenantId from session, NOT from query params ───
+    const tenantId = user.tenantId || undefined
 
-  // Generate a unique connection ID (prefixed with userId for tracking)
-  const connectionId = `sse-${user.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    // Generate a unique connection ID (prefixed with userId for tracking)
+    const connectionId = `sse-${user.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
-  const encoder = new TextEncoder()
-  let controllerClosed = false
+    const encoder = new TextEncoder()
+    let controllerClosed = false
 
-  const stream = new ReadableStream({
-    start(controller) {
-      // Send initial connection confirmation
-      const connectMsg = formatSSE('connected', {
-        connectionId,
-        tenantId: tenantId ?? null,
-        timestamp: Date.now(),
-      })
-      controller.enqueue(encoder.encode(connectMsg))
+    const stream = new ReadableStream({
+      start(controller) {
+        // Send initial connection confirmation
+        const connectMsg = formatSSE('connected', {
+          connectionId,
+          tenantId: tenantId ?? null,
+          timestamp: Date.now(),
+        })
+        controller.enqueue(encoder.encode(connectMsg))
 
-      // Subscribe to specific known events for forwarding.
-      // NOTE: We do NOT subscribe to '*' wildcard here because EventBus.emit()
-      // delivers to specific event keys only; a '*' subscription would be dead code.
-      const knownEvents = [
-        'wallet.deposit',
-        'payment.completed',
-        'payment.failed',
-        'escrow.updated',
-        'escrow.created',
-      ]
+        // Subscribe to specific known events for forwarding.
+        const knownEvents = [
+          'wallet.deposit',
+          'payment.completed',
+          'payment.failed',
+          'escrow.updated',
+          'escrow.created',
+        ]
 
-      const handler = (evt: RealtimeEvent) => {
-        if (controllerClosed) return
-        try {
-          const msg = formatSSE(evt.event, evt)
-          controller.enqueue(encoder.encode(msg))
-        } catch {
-          // Controller might be closed already
+        const handler = (evt: RealtimeEvent) => {
+          if (controllerClosed) return
+          try {
+            const msg = formatSSE(evt.event, evt)
+            controller.enqueue(encoder.encode(msg))
+          } catch {
+            // Controller might be closed already
+          }
         }
-      }
 
-      for (const eventName of knownEvents) {
-        eventBus.on(eventName, handler, { connectionId, tenantId, accountId: user.id })
-      }
+        for (const eventName of knownEvents) {
+          eventBus.on(eventName, handler, { connectionId, tenantId, accountId: user.id })
+        }
 
-      // Heartbeat: send a comment line every 15 seconds to keep connection alive.
-      // SSE comment lines start with `:` and are ignored by EventSource on the client.
-      const heartbeatTimer = setInterval(() => {
-        if (controllerClosed) {
+        // Heartbeat: send a comment line every 15 seconds to keep connection alive.
+        const heartbeatTimer = setInterval(() => {
+          if (controllerClosed) {
+            clearInterval(heartbeatTimer)
+            return
+          }
+          try {
+            controller.enqueue(encoder.encode(`: heartbeat ${Date.now()}\n\n`))
+          } catch {
+            clearInterval(heartbeatTimer)
+          }
+        }, HEARTBEAT_INTERVAL)
+
+        // Cleanup when the client disconnects
+        request.signal.addEventListener('abort', () => {
+          controllerClosed = true
           clearInterval(heartbeatTimer)
-          return
-        }
-        try {
-          controller.enqueue(encoder.encode(`: heartbeat ${Date.now()}\n\n`))
-        } catch {
-          clearInterval(heartbeatTimer)
-        }
-      }, HEARTBEAT_INTERVAL)
+          eventBus.disconnect(connectionId)
+          try {
+            controller.close()
+          } catch {
+            // Already closed
+          }
+        })
+      },
 
-      // Cleanup when the client disconnects
-      request.signal.addEventListener('abort', () => {
+      cancel() {
         controllerClosed = true
-        clearInterval(heartbeatTimer)
         eventBus.disconnect(connectionId)
-        try {
-          controller.close()
-        } catch {
-          // Already closed
-        }
-      })
-    },
+      },
+    })
 
-    cancel() {
-      controllerClosed = true
-      eventBus.disconnect(connectionId)
-    },
-  })
-
-  return new Response(stream, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no', // Disable nginx buffering (if behind proxy)
-    },
-  })
+    return new Response(stream, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      },
+    })
+  } catch (error) {
+    console.error('[realtime] SSE connection setup failed:', error)
+    return errorResponse('Failed to establish SSE connection', 500)
+  }
 }

@@ -59,15 +59,12 @@ export function useApi<T>(url: string, options: UseApiOptions = {}): UseApiResul
   const [key, setKey] = useState(0)
   const mountedRef = useRef(true)
 
-  // Lazy router access to avoid server-side import issues
+  // Router for auth-redirect on 401 responses.
+  // useRouter() is safe here — this hook is only called from client components
+  // that live inside the Next.js router context.
   const routerRef = useRef<ReturnType<typeof useRouter> | null>(null)
-  try {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const router = useRouter()
-    routerRef.current = router
-  } catch {
-    // Not available outside router context — that's fine
-  }
+  const router = useRouter()
+  routerRef.current = router
 
   const refetch = useCallback(() => {
     _fetchCache.delete(url)

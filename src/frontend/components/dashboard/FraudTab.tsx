@@ -22,7 +22,7 @@ export function FraudTab() {
 
   // Rules endpoint requires admin/auditor; degrade gracefully for other roles
   const rulesAccessDenied = rulesError && rulesError.includes('403')
-  const hasError = (alertsError && !rulesAccessDenied) || (rulesError && !rulesAccessDenied)
+  const hasError = !!alertsError || (!!rulesError && !rulesAccessDenied)
   const errorMessage = alertsError || (rulesAccessDenied ? null : rulesError) || ''
 
   if (aLoading || rLoading) return <LoadingSkeleton />

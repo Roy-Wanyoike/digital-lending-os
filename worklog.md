@@ -334,3 +334,192 @@ Does not exist. Not required — root `layout.tsx` provides `<html>`, `<body>`, 
 3. **Pre-existing TS errors** (not introduced by this task): 2 errors in `src/app/api/referral/bonuses/route.ts` and 2 in `src/frontend/components/DashboardGuard.tsx` — should be triaged separately.
 4. **CSRF token**: NextAuth handles CSRF automatically for credentials provider, but verify the `NEXTAUTH_SECRET` is set in production (the startup warning in auth.ts handles this).
 5. **Account lockout**: Rate limiting is in-memory only (`rateLimit()` util). For production, consider persistent rate limiting (Redis) to survive server restarts.
+
+---
+Task ID: 1
+Agent: Principal QA Engineer (Agent 1 — Infrastructure & Startup)
+
+Work Log:
+- Appended `NEXTAUTH_URL=http://localhost:3000` and `NEXTAUTH_SECRET=dev-secret-change-in-production-min-32-chars-ok` to `.env` (previously only had `DATABASE_URL`)
+- Verified database file exists at `/home/z/my-project/db/custom.db` (1.1 MB) and contains 5 tables: Tenant, Account, Business, CommercePassport, Verification
+- Ran `npx prisma generate` — Prisma Client v6.19.2 generated successfully to `./node_modules/@prisma/client` in 324ms
+- Killed all stale node/next/postcss processes with `pkill -9`
+- Started dev server in background (`npm run dev`); Turbopack compiled and server became ready in ~800ms
+- Non-critical deprecation warning: middleware file convention deprecated in Next.js 16 (recommends "proxy" instead) — informational only, no fix needed
+
+Stage Summary:
+- All 5 smoke tests passed:
+  - `GET /` → 200 ✅
+  - `GET /login` → 200 ✅
+  - `GET /api/health` → 200 ✅ (body: `{"status":"ok","checks":{"database":"ok"},"timestamp":"..."}`)
+  - `GET /api/ready` → 200 ✅
+- Dev server is running on http://localhost:3000 (PID 1997, next-server PID 2009)
+- No application code changes were made — only `.env` was updated
+- No OOM or startup errors observed
+
+---
+Task ID: 2
+Agent: Principal QA Engineer (Agent 2 — Scrolling & Layout)
+
+Work Log:
+- Audited all 10+ files for scrolling/overflow issues: DashboardShell.tsx, DashboardSidebar.tsx, SidebarNav.tsx, layout.tsx, page.tsx, LandingPageServer.tsx, LandingPage.tsx, login/page.tsx, register/page.tsx, error.tsx, not-found.tsx, loading.tsx, globals.css, (dashboard)/layout.tsx, (dashboard) sub-pages (withdrawals, deposits, conversion), DashboardGuard.tsx
+- Identified root cause of dashboard scrolling issue: DashboardShell.tsx had incorrect flex layout nesting (flex-col root → unnecessary flex row wrapper) and the scroll container was the content area div wrapping header+main+footer, not just main
+- Refactored DashboardShell.tsx from nested flex-col→flex pattern to flat flex (row) pattern
+- Moved overflow-y-auto from content area wrapper to <main> element (the correct scroll container)
+- Changed sidebar aside from overflow-hidden to overflow-y-auto (allows independent sidebar scrolling)
+- Changed header from sticky top-0 to flex-shrink-0 (no longer needs sticky since it's outside the scroll container)
+- Changed footer from mt-auto to flex-shrink-0 (flex layout keeps it at bottom)
+- Removed unnecessary nested <div className="flex flex-1"> wrapper
+- Verified all non-dashboard pages (landing, login, register, error, not-found, loading) use min-h-screen with no overflow-hidden — natural document scrolling works correctly
+- Verified root layout.tsx has no overflow-hidden on html or body
+- Verified globals.css has no global overflow rules
+- Verified dashboard sub-pages (withdrawals, deposits, conversion) render content-only (space-y-6) — no layout constraints
+- Noted DashboardSidebar.tsx (src/frontend/components/) is dead code — not imported anywhere
+
+Stage Summary:
+- 1 file modified: src/app/DashboardShell.tsx
+- 5 targeted CSS class changes in DashboardShell.tsx:
+  1. Root: `flex flex-col` → `flex` (row direction)
+  2. Sidebar: `overflow-hidden` → `overflow-y-auto`
+  3. Content area: removed `overflow-y-auto`
+  4. Header: `sticky top-0` → `flex-shrink-0`
+  5. Main: added `overflow-y-auto`
+  6. Footer: `mt-auto` → `flex-shrink-0`
+- 1 nesting level removed (unnecessary <div className="flex flex-1"> wrapper)
+- Correct dashboard scroll pattern achieved: viewport-locked root → sidebar + (header | main scroll | footer)
+- All non-dashboard pages verified clean — no overflow issues found
+- No changes needed to: layout.tsx, globals.css, SidebarNav.tsx, auth pages, error pages, landing pages, dashboard sub-pages
+
+---
+Task ID: 3
+Agent: Principal QA Engineer (Agent 3 — API Routes Audit)
+
+Work Log:
+- Listed all 81 API route files under src/app/api/ (originally estimated as 72)
+- Scanned all routes for 5 crash-risk patterns: missing try/catch, direct @prisma/client imports, unhandled req.json(), top-level side effects, untyped params (not Promise)
+- Verified `@/lib/*` path alias maps to `./src/backend/lib/*` — all imports resolve correctly
+- Confirmed `db` proxy at `src/backend/lib/db.ts` uses `require('@prisma/client')` — Turbopack-safe
+- Confirmed `withErrorHandler` HOF wraps handler in try/catch + normalizes AuthError/ZodError/unknown → no crash
+- Confirmed `withApiTelemetry` HOF wraps handler in try/catch + re-throws (complements withErrorHandler)
+- Confirmed `getApiUser()` has internal try/catch → returns null on JWT errors (never throws)
+- Confirmed `getLogger()` uses no-op OTel stubs → safe for top-level usage
+- Identified 1 crash risk: `src/app/api/realtime/route.ts` — SSE endpoint with NO outer try/catch, NO withErrorHandler, NO withApiTelemetry
+- Fixed realtime/route.ts by wrapping entire GET handler in try/catch with error response fallback
+- Verified all 5 webhook routes (stripe, paystack, flutterwave, intasend, paya) have proper try/catch and use request.text() (safer than request.json())
+- Verified all known-problematic routes from prior sessions are now safe: currency, referral/bonuses, dashboard/stats, payment-links/[id]/pay
+- Verified auth/[...nextauth]/route.ts is safe (NextAuth internal handler — standard pattern)
+- Ran tsc --noEmit: 2 TS errors in referral/bonuses (type inference on Proxy) and 2 in DashboardGuard.tsx (frontend) — none are runtime crash risks; all tolerated by ignoreBuildErrors: true
+
+Stage Summary:
+- 81 API route files audited
+- 1 file fixed: src/app/api/realtime/route.ts (added outer try/catch to SSE GET handler)
+- 0 files with direct @prisma/client imports (all use lazy db proxy)
+- 0 files with unresolved imports
+- 0 files with top-level crash-risk side effects
+- 4 pre-existing TS errors (2 route, 2 frontend) — not runtime crash risks
+
+---
+Task ID: 4
+Agent: Principal QA Engineer (Agent 4 — Frontend Components Audit)
+
+Work Log:
+- Audited providers.tsx: ✓ 'use client', valid imports, correct SessionProvider > ThemeProvider wrapping. No issues.
+- Audited ErrorBoundary.tsx: ✓ getDerivedStateFromError, componentDidCatch, fallback UI, name prop. No issues.
+- Audited root page.tsx: ✓ Server component, auth() in try/catch, valid imports. No issues.
+- Audited LandingPage.tsx: ✓ 'use client' on ClientBanner, LandingPageServer is pure RSC. No issues.
+- Audited LandingPageServer.tsx: ✓ No server-only imports in client context. No issues.
+- Audited use-api.ts: FOUND — useRouter() wrapped in try/catch (Rules of Hooks violation). FIXED by removing try/catch.
+- Audited use-realtime.ts: ✓ Exponential backoff, max reconnect ceiling, proper cleanup. No issues.
+- Audited use-mobile.ts: FOUND — missing 'use client' directive. FIXED.
+- Audited dashboard-helpers.tsx: ✓ ROLE_TABS, NAV_ITEMS, all types, helper functions valid. No issues.
+- Audited DashboardShell.tsx: ✓ Valid imports, dynamic tab loading, ErrorBoundary wrapping. No issues.
+- Audited SidebarNav.tsx: ✓ 'use client', valid imports. No issues.
+- Audited all 13 dashboard tab components (OverviewTab, TrustGraphTab, EscrowTab, PaymentsTab, PassportTab, DigitalTwinTab, PaymentLinksTab, WalletTab, FraudTab, ReferralTab, MatchingTab, CollectionsTab, ComplianceTab): All have 'use client', valid imports, loading/error states. FOUND error handling logic bug in FraudTab and ComplianceTab.
+- Audited (dashboard)/withdrawals/page.tsx: ✓ 'use client', valid. No issues.
+- Audited (dashboard)/deposits/page.tsx: ✓ 'use client', valid. No issues.
+- Audited (dashboard)/conversion/page.tsx: ✓ 'use client', valid. No issues.
+- Audited pay/[ref]/page.tsx: ✓ 'use client', Suspense boundary, handles loading/error states, works without auth. No issues.
+
+Stage Summary:
+- 3 files fixed:
+  1. src/frontend/hooks/use-mobile.ts — added missing 'use client' directive
+  2. src/frontend/components/dashboard/FraudTab.tsx — fixed error handling logic: alerts error was incorrectly hidden when rules endpoint returned 403
+  3. src/frontend/components/dashboard/ComplianceTab.tsx — same error handling logic fix as FraudTab
+  4. src/frontend/hooks/use-api.ts — removed useRouter() from try/catch block to fix Rules of Hooks violation
+- 0 missing 'use client' directives remaining (all 13 tabs + providers + ErrorBoundary + DashboardShell + LandingPage + SidebarNav + DashboardGuard confirmed)
+- 0 broken imports across all 25+ frontend files
+- 0 null access crash risks (all data access uses optional chaining || fallbacks)
+- Error boundaries correctly wrap each dashboard tab via DashboardShell
+- Public payment page (/pay/[ref]) works without auth — confirmed via Suspense boundary + direct fetch
+---
+Task ID: 5
+Agent: Principal QA Engineer (Agent 5 — Build & TypeScript)
+
+Work Log:
+- Ran `npx tsc --noEmit` — found 4 TypeScript errors across 2 files (0 critical, 4 moderate)
+- Categorized errors:
+  - Moderate: `src/app/api/referral/bonuses/route.ts` lines 54-55 — `Property 'name' does not exist on type '{}'` due to Prisma select type not being inferred through Map constructor
+  - Moderate: `src/frontend/components/DashboardGuard.tsx` line 8 — `Property 'error' does not exist on type` because next-auth `useSession()` does not return an `error` property
+- Fixed referral/bonuses/route.ts: Added explicit generic type parameter to Map constructor: `new Map<string, { id: string; name: string | null; email: string | null }>(...)`
+- Fixed DashboardGuard.tsx: Removed `error` from useSession destructuring (not in the return type); removed dead error-handling JSX block. Session errors are already covered by the `unauthenticated` status branch which triggers redirect.
+- Re-ran `tsc --noEmit` — 0 errors (clean)
+- Scanned all `@/` imports (50 unique paths) — all resolve correctly via tsconfig.json path aliases
+- Verified `@/*` catch-all maps to `./src/*`, with specific overrides for `@/components/*`, `@/hooks/*`, `@/lib/*`, etc.
+- Ran `npx next build` — compiled successfully in 25.9s, 62 static pages generated, 0 compilation errors
+- One deprecation warning: middleware file convention deprecated in Next.js 16 (advises "proxy" instead) — not actionable in this task
+
+Stage Summary:
+- TypeScript errors: 4 found → 0 remaining (100% resolved)
+- Build: PASS — Next.js 16.1.3 production build compiles successfully
+- All imports verified resolving correctly
+- No critical/runtime-crash errors found
+
+---
+
+# Integration: Final Smoke Test
+
+**Date**: 2026-08-03
+**Agent**: Distinguished Engineer (Integration Lead)
+
+## Smoke Test Results — 8/8 PASS ✅
+
+| # | Endpoint | Expected | Actual | Status |
+|---|----------|----------|--------|--------|
+| 1 | GET / (Homepage) | 200 | 200 | ✅ |
+| 2 | GET /login | 200 | 200 | ✅ |
+| 3 | GET /register | 200 | 200 | ✅ |
+| 4 | GET /api/health | 200 | 200 | ✅ |
+| 5 | GET /api/ready | 200 | 200 | ✅ |
+| 6 | GET /api/auth/csrf | 200 | 200 | ✅ |
+| 7 | GET /api/wallets (no auth) | 401 | 401 | ✅ |
+| 8 | GET /api/dashboard/stats (no auth) | 401 | 401 | ✅ |
+
+## Compilation — Zero Errors
+All routes compiled successfully with Turbopack. No errors in compile log.
+
+## All Fixes Applied by 5 Agents
+
+### Agent 1 — Infrastructure & Startup
+- Added `NEXTAUTH_URL` and `NEXTAUTH_SECRET` to `.env`
+- Generated Prisma client, verified database (5 tables)
+- Restarted server, confirmed all smoke tests pass
+
+### Agent 2 — Scrolling & Layout
+- Refactored `DashboardShell.tsx`: flat flex-row root, sidebar `overflow-y-auto`, header `flex-shrink-0`, main `overflow-y-auto`, footer `flex-shrink-0`
+- Audited 10+ layout files — no other scroll issues found
+
+### Agent 3 — API Routes
+- Audited all 81 API route files
+- Fixed `realtime/route.ts` — only route missing try/catch (crash risk)
+- Verified all webhooks use safe `request.text()` parsing
+
+### Agent 4 — Frontend Components
+- Fixed `use-api.ts`: removed `useRouter()` from inside try/catch (React hook violation)
+- Added `'use client'` to `use-mobile.ts`
+- Fixed error logic bugs in `FraudTab.tsx` and `ComplianceTab.tsx`
+
+### Agent 5 — Build & TypeScript
+- Fixed 4 TS errors → 0 remaining
+- `referral/bonuses/route.ts`: typed Map generic
+- `DashboardGuard.tsx`: removed non-existent `error` from useSession destructuring
+- Build passes: 62 static pages, 25.9s compile

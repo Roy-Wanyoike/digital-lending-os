@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 export default function DashboardGuard({ children }: { children: React.ReactNode }) {
-  const { data: session, status, error } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [redirecting, setRedirecting] = useState(false);
 
@@ -33,23 +33,6 @@ export default function DashboardGuard({ children }: { children: React.ReactNode
     return (
       <div className="flex h-screen items-center justify-center">
         <p className="text-sm text-muted-foreground">Redirecting to login...</p>
-      </div>
-    );
-  }
-
-  // Error fetching session — show error state instead of crashing
-  if (error) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <p className="text-sm text-destructive">Session error: {error.message || 'Unknown error'}</p>
-          <button
-            className="text-sm text-primary underline hover:no-underline"
-            onClick={() => window.location.href = '/login'}
-          >
-            Go to login
-          </button>
-        </div>
       </div>
     );
   }
