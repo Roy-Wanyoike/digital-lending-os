@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRequestBaseUrl } from '@/lib/utils'
 import { db } from '@/lib/db'
-import { getApiUser, AuthError, successResponse, errorResponse } from '@/lib/auth/api-helpers'
+import { getApiUser, requireAuth, AuthError, successResponse, errorResponse } from '@/lib/auth/api-helpers'
 import { randomUUID } from 'crypto'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
@@ -131,6 +131,8 @@ async function getHandler(request: NextRequest) {
 // Returns: referrer info if code is valid
 async function postHandler(request: NextRequest) {
   try {
+    const user = await requireAuth(request)
+
     const body = await request.json()
     const { referralCode } = body
 
@@ -169,6 +171,9 @@ async function postHandler(request: NextRequest) {
       },
     })
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode })
+    }
     console.error('Referral POST error:', error)
     return errorResponse('Failed to validate referral code', 500)
   }

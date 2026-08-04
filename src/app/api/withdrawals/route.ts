@@ -55,7 +55,7 @@ async function getHandler(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error('Withdrawals GET error:', error);
     return NextResponse.json({ error: 'Failed to fetch withdrawals' }, { status: 500 });
@@ -135,7 +135,7 @@ async function postHandler(request: NextRequest) {
     return NextResponse.json(withdrawal, { status: 201 });
   } catch (error) {
     if (error instanceof AuthError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error('Withdrawals POST error:', error);
     return NextResponse.json({ error: 'Failed to create withdrawal' }, { status: 500 });
