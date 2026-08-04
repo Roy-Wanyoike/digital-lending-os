@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const cryptoWithdrawalSchema = z.object({
@@ -54,8 +54,7 @@ const FIAT_TO_USD: Record<string, number> = {
 
 async function postHandler(request: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
 
     const body = await request.json()
     const parsed = cryptoWithdrawalSchema.safeParse(body)

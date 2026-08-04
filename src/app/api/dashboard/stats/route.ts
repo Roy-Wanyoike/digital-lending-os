@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
@@ -221,9 +221,9 @@ async function getHandler(request: NextRequest) {
 // POST /api/dashboard/stats — Force-refresh cached stats
 async function postHandler(request: NextRequest) {
   try {
-    const user = await getApiUser(request);
-    if (!user || !user.tenantId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const user = await requireAuth(request);
+    if (!user.tenantId) {
+      return NextResponse.json({ error: 'Tenant ID required' }, { status: 400 });
     }
 
     const cacheManager = await getCache();

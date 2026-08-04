@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth } from '@/lib/auth/api-helpers';
 import { ok, created, badRequest, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 import { depositCreateSchema, paginationSchema } from '@/backend/lib/validation/schemas';
 import { getLogger } from '@/backend/lib/telemetry/logger';
@@ -51,8 +51,7 @@ export const GET = withApiTelemetry(getDepositsHandler, '/api/deposits');
 
 // POST /api/deposits — Create a new deposit
 export const POST = withErrorHandler(async (request: NextRequest) => {
-  const user = await getApiUser(request);
-  if (!user) return unauthorized();
+  const user = await requireAuth(request);
 
   const body = await request.json();
   const parsed = depositCreateSchema.safeParse(body);

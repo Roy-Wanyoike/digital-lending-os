@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const convertSchema = z.object({
   fromWalletId: z.string().min(1),
   toWalletId: z.string().min(1),
-  fromAmount: z.number().positive('Amount must be greater than 0'),
+  fromAmount: z.number().positive('Amount must be greater than 0').max(10000000, 'Amount exceeds maximum limit of 10,000,000'),
 })
 
 // Demo exchange rates (in production, use CurrencyRate table or external API)
@@ -37,8 +37,7 @@ function getRate(from: string, to: string): number {
 // POST /api/wallets/convert — Convert between wallets
 async function postHandler(request: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
 
     const body = await request.json()
     const parsed = convertSchema.safeParse(body)
@@ -163,6 +162,25 @@ async function postHandler(request: NextRequest) {
           availableBalance: Math.round((freshTo.availableBalance + netAmount) * 100) / 100,
         },
       })
+
+      // Record the conversion fee for audit trail (fee already deducted from gross before credit)
+      if (feeAmount > 0) {
+        await tx.walletTransaction.create({
+          data: {
+            walletId: data.toWalletId,
+            txRef: `WTX-${randomUUID().slice(0, 8).toUpperCase()}`,
+            type: 'fee',
+            amount: feeAmount,
+            balanceBefore: Math.round((toBalBefore + netAmount) * 100) / 100,
+            balanceAfter: Math.round((toBalBefore + netAmount) * 100) / 100,
+            currency: toWallet.currency,
+            description: `Conversion fee ${feePercent}% on ${grossToAmount.toFixed(2)} ${toWallet.currency} (Ref: ${conversionRef})`,
+            referenceType: 'conversion',
+            referenceId: conv.id,
+            status: 'completed',
+          },
+        })
+      }
 
       return conv
     })

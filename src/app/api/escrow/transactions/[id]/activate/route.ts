@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+import { requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { eventBus } from "@/backend/services/event-bus";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
@@ -10,8 +10,7 @@ async function postHandler(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getApiUser(request);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request);
     const { id } = await params;
 
     const escrow = await db.escrowTransaction.findFirst({

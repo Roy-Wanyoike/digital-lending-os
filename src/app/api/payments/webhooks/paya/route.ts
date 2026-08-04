@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { providerRegistry, emitPaymentCompleted, emitPaymentFailed } from '@/lib/payment'
+import { providerRegistry, emitPaymentCompleted, emitPaymentFailed, processWebhookEvent } from '@/lib/payment'
 import { db } from '@/lib/db'
 
 // ─── Paya Webhook ───────────────────────────────────────
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     // Demo mode (no secret + test mode) → validateWebhookSignature returns true
     if (!provider.validateWebhookSignature(body, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
     const payload = JSON.parse(body) as {
@@ -77,14 +77,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, ignored: true, reason: 'no_reference' })
     }
 
-    // Update the matching PaymentTransaction (if any)
-    const tx = await db.paymentTransaction.findFirst({
-      where: { providerTxId: providerPaymentId, provider: 'paya' },
-    })
+    // Wrap fetch (for idempotency + stale-read protection) and all mutations in a transaction
+    const txResult = await db.$transaction(async (txPrisma: any) => {
+      // Fetch payment transaction inside tx for atomic idempotency check
+      const tx = await txPrisma.paymentTransaction.findFirst({
+        where: { providerTxId: providerPaymentId, provider: 'paya' },
+      })
 
-    if (tx) {
+      if (!tx) return null
+
+      // Idempotency: if already settled, skip all mutations
+      if (tx.status === 'settled') return { idempotent: true, tx }
+
+      let resolvedStatus: 'completed' | 'failed' | null = null
+
       if (isCompleted) {
-        await db.paymentTransaction.update({
+        resolvedStatus = 'completed'
+
+        await txPrisma.paymentTransaction.update({
           where: { id: tx.id },
           data: {
             status: 'settled',
@@ -93,7 +103,7 @@ export async function POST(request: NextRequest) {
         })
 
         if (tx.intentId) {
-          await db.paymentIntent.update({
+          await txPrisma.paymentIntent.update({
             where: { id: tx.intentId },
             data: {
               status: 'completed',
@@ -102,13 +112,13 @@ export async function POST(request: NextRequest) {
           })
 
           // Escrow funding side-effect
-          const intent = await db.paymentIntent.findUnique({
+          const intent = await txPrisma.paymentIntent.findUnique({
             where: { id: tx.intentId },
             include: { escrow: true },
           })
 
           if (intent?.escrowId && intent.escrow?.status === 'created') {
-            await db.escrowTransaction.update({
+            await txPrisma.escrowTransaction.update({
               where: { id: intent.escrowId },
               data: {
                 status: 'funded',
@@ -117,7 +127,7 @@ export async function POST(request: NextRequest) {
               },
             })
 
-            await db.escrowAuditLog.create({
+            await txPrisma.escrowAuditLog.create({
               data: {
                 escrowId: intent.escrowId,
                 action: 'funded',
@@ -129,12 +139,12 @@ export async function POST(request: NextRequest) {
 
             // Auto-activate if funded amount matches escrow amount
             if (Math.abs(intent.escrow.amount - intent.sourceAmount) < 0.01) {
-              await db.escrowTransaction.update({
+              await txPrisma.escrowTransaction.update({
                 where: { id: intent.escrowId },
                 data: { status: 'in_escrow' },
               })
 
-              await db.escrowAuditLog.create({
+              await txPrisma.escrowAuditLog.create({
                 data: {
                   escrowId: intent.escrowId,
                   action: 'activated',
@@ -147,39 +157,83 @@ export async function POST(request: NextRequest) {
         }
 
         // Payment link side-effect (if reference maps to a PaymentLink.linkRef)
-        const link = await db.paymentLink.findFirst({
+        const link = await txPrisma.paymentLink.findFirst({
           where: { linkRef: providerPaymentId },
         })
 
         if (link) {
           const amount = typeof payload.amount === 'number' ? payload.amount : 0
-          await db.paymentLink.update({
-            where: { id: link.id },
-            data: {
-              paymentCount: { increment: 1 },
-              totalCollected: { increment: amount },
-              ...(link.maxPayments > 0 && link.paymentCount + 1 >= link.maxPayments
-                ? { status: 'depleted' }
-                : {}),
-            },
+
+          // Idempotency: check for duplicate payment link payment
+          const existingLinkPayment = await txPrisma.paymentLinkPayment.findFirst({
+            where: { paymentLinkId: link.id, providerTxId: providerPaymentId },
           })
 
-          await db.paymentLinkPayment.create({
-            data: {
-              paymentLinkId: link.id,
-              amount,
-              currency: (payload.currency || link.currency).toUpperCase(),
-              paymentMethod: 'bank_transfer',
-              provider: 'paya',
-              status: 'completed',
-              netAmount: amount,
-              providerTxId: providerPaymentId,
-              completedAt: payload.paid_at ? new Date(payload.paid_at) : new Date(),
-            },
+          if (!existingLinkPayment) {
+            await txPrisma.paymentLink.update({
+              where: { id: link.id },
+              data: {
+                paymentCount: { increment: 1 },
+                totalCollected: { increment: amount },
+                ...(link.maxPayments > 0 && link.paymentCount + 1 >= link.maxPayments
+                  ? { status: 'depleted' }
+                  : {}),
+              },
+            })
+
+            await txPrisma.paymentLinkPayment.create({
+              data: {
+                paymentLinkId: link.id,
+                amount,
+                currency: (payload.currency || link.currency).toUpperCase(),
+                paymentMethod: 'bank_transfer',
+                provider: 'paya',
+                status: 'completed',
+                netAmount: amount,
+                providerTxId: providerPaymentId,
+                completedAt: payload.paid_at ? new Date(payload.paid_at) : new Date(),
+              },
+            })
+          }
+        }
+      } else if (isFailed) {
+        resolvedStatus = 'failed'
+
+        await txPrisma.paymentTransaction.update({
+          where: { id: tx.id },
+          data: { status: 'failed' },
+        })
+
+        if (tx.intentId) {
+          await txPrisma.paymentIntent.update({
+            where: { id: tx.intentId },
+            data: { status: 'failed' },
           })
         }
+      }
 
-        // ─── Emit realtime event ────────────────────────────
+      return { tx, resolvedStatus }
+    })
+
+    // After transaction commits: state machine sync + realtime events
+    if (txResult) {
+      const { tx, resolvedStatus } = txResult
+
+      // State machine sync after successful commit (non-fatal)
+      try {
+        await processWebhookEvent({
+          provider: 'paya',
+          providerRef: providerPaymentId,
+          eventType: event,
+          status: resolvedStatus === 'failed' ? 'failed' : 'success',
+          rawPayload: { providerPaymentId, event, status },
+        })
+      } catch (err) {
+        console.error('[Paya Webhook] State machine sync failed:', err)
+      }
+
+      // ─── Emit realtime event ────────────────────────────
+      if (resolvedStatus === 'completed' || !resolvedStatus) {
         let payaTenantId: string | undefined
         if (tx.intentId) {
           try {
@@ -196,19 +250,7 @@ export async function POST(request: NextRequest) {
           status: 'settled', intentId: tx.intentId,
           settledAt: payload.paid_at ? new Date(payload.paid_at).toISOString() : new Date().toISOString(),
         }, payaTenantId)
-      } else if (isFailed) {
-        await db.paymentTransaction.update({
-          where: { id: tx.id },
-          data: { status: 'failed' },
-        })
-
-        if (tx.intentId) {
-          await db.paymentIntent.update({
-            where: { id: tx.intentId },
-            data: { status: 'failed' },
-          })
-        }
-
+      } else if (resolvedStatus === 'failed') {
         // ─── Emit realtime failure event ───────────────────
         emitPaymentFailed({
           id: tx.id, txRef: tx.txRef, providerTxId: tx.providerTxId,

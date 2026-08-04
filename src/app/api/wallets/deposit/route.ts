@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 import { eventBus } from '@/backend/services/event-bus'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
@@ -11,7 +11,7 @@ const REFERRAL_BONUS_CURRENCY = 'USD'
 
 const depositSchema = z.object({
   walletId: z.string().min(1, 'Wallet ID is required'),
-  amount: z.number().positive('Amount must be greater than 0'),
+  amount: z.number().positive('Amount must be greater than 0').max(10000000, 'Amount exceeds maximum limit of 10,000,000'),
   paymentMethod: z.enum(['bank_transfer', 'card', 'mobile_money', 'payment_link', 'external']),
   provider: z.string().optional(),
   providerTxId: z.string().optional(),
@@ -24,8 +24,7 @@ const depositSchema = z.object({
 // POST /api/wallets/deposit — Initiate a deposit
 async function postHandler(request: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
 
     const body = await request.json()
     const parsed = depositSchema.safeParse(body)
@@ -71,14 +70,7 @@ async function postHandler(request: NextRequest) {
     })
     const hasReferrer = !!account?.referredBy
 
-    // Check if the referrer already got a bonus for this referee
-    let bonusAlreadyGiven = false
-    if (hasReferrer) {
-      const existingBonus = await db.referralBonus.findFirst({
-        where: { refereeId: user.id },
-      })
-      bonusAlreadyGiven = !!existingBonus
-    }
+
 
     const deposit = await db.$transaction(async (tx: any) => {
       // Read wallet inside transaction to get latest balance (prevents race conditions)
@@ -132,63 +124,71 @@ async function postHandler(request: NextRequest) {
         })
 
         // ---- REFERRAL BONUS: Credit $100 to referrer on referee's first deposit ----
-        if (hasReferrer && !bonusAlreadyGiven && account!.referredBy) {
-          // Find the referrer's USD wallet
-          const referrerBusiness = await tx.account.findUnique({
-            where: { id: account!.referredBy },
-            select: { businessId: true, tenantId: true },
+        if (hasReferrer && account!.referredBy) {
+          // Check inside transaction to prevent TOCTOU race
+          const existingBonus = await tx.referralBonus.findFirst({
+            where: { refereeId: user.id },
           })
-          if (referrerBusiness?.businessId) {
-            const referrerWallet = await tx.wallet.findFirst({
-              where: {
-                businessId: referrerBusiness.businessId,
-                currency: REFERRAL_BONUS_CURRENCY,
-                status: 'active',
-              },
+          if (existingBonus) {
+            // Bonus already given for this referee, skip
+          } else {
+            // Find the referrer's USD wallet
+            const referrerBusiness = await tx.account.findUnique({
+              where: { id: account!.referredBy },
+              select: { businessId: true, tenantId: true },
             })
-            if (referrerWallet) {
-              const balBefore = referrerWallet.balance
-              const balAfter = Math.round((balBefore + REFERRAL_BONUS_AMOUNT) * 100) / 100
-
-              // Credit the referrer's wallet
-              await tx.wallet.update({
-                where: { id: referrerWallet.id },
-                data: {
-                  balance: balAfter,
-                  availableBalance: Math.round((referrerWallet.availableBalance + REFERRAL_BONUS_AMOUNT) * 100) / 100,
-                },
-              })
-
-              // Record the bonus transaction
-              await tx.walletTransaction.create({
-                data: {
-                  walletId: referrerWallet.id,
-                  txRef: `WTX-${randomUUID().slice(0, 8).toUpperCase()}`,
-                  type: 'bonus',
-                  amount: REFERRAL_BONUS_AMOUNT,
-                  balanceBefore: balBefore,
-                  balanceAfter: balAfter,
+            if (referrerBusiness?.businessId) {
+              const referrerWallet = await tx.wallet.findFirst({
+                where: {
+                  businessId: referrerBusiness.businessId,
                   currency: REFERRAL_BONUS_CURRENCY,
-                  description: `Referral bonus: ${user.email} made their first deposit`,
-                  referenceType: 'referral_bonus',
-                  referenceId: dep.id,
-                  status: 'completed',
+                  status: 'active',
                 },
               })
+              if (referrerWallet) {
+                const balBefore = referrerWallet.balance
+                const balAfter = Math.round((balBefore + REFERRAL_BONUS_AMOUNT) * 100) / 100
 
-              // Create the referral bonus record
-              await tx.referralBonus.create({
-                data: {
-                  bonusRef: `RFB-${randomUUID().slice(0, 8).toUpperCase()}`,
-                  referrerId: account!.referredBy,
-                  refereeId: user.id,
-                  depositId: dep.id,
-                  walletId: referrerWallet.id,
-                  bonusAmount: REFERRAL_BONUS_AMOUNT,
-                  bonusCurrency: REFERRAL_BONUS_CURRENCY,
-                  status: 'credited',
-                },
-              })
+                // Credit the referrer's wallet
+                await tx.wallet.update({
+                  where: { id: referrerWallet.id },
+                  data: {
+                    balance: balAfter,
+                    availableBalance: Math.round((referrerWallet.availableBalance + REFERRAL_BONUS_AMOUNT) * 100) / 100,
+                  },
+                })
+
+                // Record the bonus transaction
+                await tx.walletTransaction.create({
+                  data: {
+                    walletId: referrerWallet.id,
+                    txRef: `WTX-${randomUUID().slice(0, 8).toUpperCase()}`,
+                    type: 'bonus',
+                    amount: REFERRAL_BONUS_AMOUNT,
+                    balanceBefore: balBefore,
+                    balanceAfter: balAfter,
+                    currency: REFERRAL_BONUS_CURRENCY,
+                    description: `Referral bonus: ${user.email} made their first deposit`,
+                    referenceType: 'referral_bonus',
+                    referenceId: dep.id,
+                    status: 'completed',
+                  },
+                })
+
+                // Create the referral bonus record
+                await tx.referralBonus.create({
+                  data: {
+                    bonusRef: `RFB-${randomUUID().slice(0, 8).toUpperCase()}`,
+                    referrerId: account!.referredBy,
+                    refereeId: user.id,
+                    depositId: dep.id,
+                    walletId: referrerWallet.id,
+                    bonusAmount: REFERRAL_BONUS_AMOUNT,
+                    bonusCurrency: REFERRAL_BONUS_CURRENCY,
+                    status: 'credited',
+                  },
+                })
+              }
             }
           }
         }
@@ -199,8 +199,8 @@ async function postHandler(request: NextRequest) {
 
     // Check if referral bonus was just credited
     let referralBonusCredited = false
-    if (isAutoComplete && hasReferrer && !bonusAlreadyGiven) {
- const newBonus = await db.referralBonus.findFirst({
+    if (isAutoComplete && hasReferrer) {
+      const newBonus = await db.referralBonus.findFirst({
         where: { refereeId: user.id, depositId: deposit.id },
       })
       referralBonusCredited = !!newBonus

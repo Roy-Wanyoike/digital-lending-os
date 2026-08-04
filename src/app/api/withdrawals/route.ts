@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
 import { logAudit } from '@/lib/audit-logger';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 
@@ -67,10 +67,7 @@ export const GET = withApiTelemetry(getHandler, '/api/withdrawals');
 // POST /api/withdrawals — Create a new withdrawal
 async function postHandler(request: NextRequest) {
   try {
-    const user = await getApiUser(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    const user = await requireAuth(request);
 
     const body = await request.json();
     const { walletId, amount, paymentMethod, provider, bankName, bankAccount, bankCode, recipientName, notes } = body;

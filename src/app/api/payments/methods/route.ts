@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
-import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ── Zod Schemas ─────────────────────────────────────────────
@@ -61,8 +61,7 @@ async function getHandler(request: NextRequest) {
 // ── POST: Add payment method ────────────────────────────────
 async function postHandler(request: NextRequest) {
   try {
-    const user = await getApiUser(request);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request);
     const body = await request.json();
     const parsed = addMethodSchema.safeParse(body);
 

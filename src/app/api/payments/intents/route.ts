@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
-import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { processPayment } from "@/backend/services/temporal-bridge";
 import { withPaymentIdempotency, recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
 
@@ -148,8 +148,7 @@ async function getHandler(request: NextRequest) {
 // ── POST: Create payment intent (inner handler, wrapped with idempotency) ──
 async function createPaymentIntent(request: NextRequest) {
   try {
-    const user = await getApiUser(request);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request);
 
     // ── Idempotency check ─────────────────────────────────────
     const idempotencyKey = request.headers.get('idempotency-key');

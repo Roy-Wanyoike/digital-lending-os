@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted } from '@/lib/payment'
+import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted, processWebhookEvent } from '@/lib/payment'
 import { db } from '@/lib/db'
 
 // ─── Flutterwave Webhook ─────────────────────────────────
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!provider.validateWebhookSignature(body, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
     const payload = JSON.parse(body)
@@ -24,19 +24,25 @@ export async function POST(request: NextRequest) {
       const providerPaymentId = String(data.id || '')
       const txRef = data.tx_ref
 
-      // Update payment transaction
-      const tx = await db.paymentTransaction.findFirst({
-        where: { providerTxId: txRef, provider: 'flutterwave' },
-      })
+      // Wrap fetch (for idempotency + stale-read protection) and all mutations in a transaction
+      const txResult = await db.$transaction(async (txPrisma: any) => {
+        // Fetch payment transaction inside tx for atomic idempotency check
+        const tx = await txPrisma.paymentTransaction.findFirst({
+          where: { providerTxId: txRef, provider: 'flutterwave' },
+        })
 
-      if (tx) {
-        await db.paymentTransaction.update({
+        if (!tx) return null
+
+        // Idempotency: if already settled, skip all mutations
+        if (tx.status === 'settled') return { idempotent: true, tx }
+
+        await txPrisma.paymentTransaction.update({
           where: { id: tx.id },
           data: { status: 'settled', settledAt: new Date() },
         })
 
         if (tx.intentId) {
-          await db.paymentIntent.update({
+          await txPrisma.paymentIntent.update({
             where: { id: tx.intentId },
             data: {
               status: 'completed',
@@ -46,13 +52,13 @@ export async function POST(request: NextRequest) {
           })
 
           // Handle escrow funding
-          const intent = await db.paymentIntent.findUnique({
+          const intent = await txPrisma.paymentIntent.findUnique({
             where: { id: tx.intentId },
             include: { escrow: true },
           })
 
           if (intent?.escrowId && intent.escrow?.status === 'created') {
-            await db.escrowTransaction.update({
+            await txPrisma.escrowTransaction.update({
               where: { id: intent.escrowId },
               data: {
                 status: 'funded',
@@ -61,7 +67,7 @@ export async function POST(request: NextRequest) {
               },
             })
 
-            await db.escrowAuditLog.create({
+            await txPrisma.escrowAuditLog.create({
               data: {
                 escrowId: intent.escrowId,
                 action: 'funded',
@@ -71,7 +77,7 @@ export async function POST(request: NextRequest) {
             })
 
             if (Math.abs(intent.escrow.amount - data.amount) < 0.01) {
-              await db.escrowTransaction.update({
+              await txPrisma.escrowTransaction.update({
                 where: { id: intent.escrowId },
                 data: { status: 'in_escrow' },
               })
@@ -81,39 +87,66 @@ export async function POST(request: NextRequest) {
 
         // Handle payment link
         if (txRef) {
-          const link = await db.paymentLink.findFirst({
+          const link = await txPrisma.paymentLink.findFirst({
             where: { linkRef: txRef },
           })
 
           if (link) {
-            await db.paymentLink.update({
-              where: { id: link.id },
-              data: {
-                paymentCount: { increment: 1 },
-                totalCollected: { increment: data.amount },
-                ...(link.maxPayments > 0 && link.paymentCount + 1 >= link.maxPayments
-                  ? { status: 'depleted' }
-                  : {}),
-              },
+            // Idempotency: check for duplicate payment link payment
+            const existingLinkPayment = await txPrisma.paymentLinkPayment.findFirst({
+              where: { paymentLinkId: link.id, providerTxId: providerPaymentId },
             })
 
-            await db.paymentLinkPayment.create({
-              data: {
-                paymentLinkId: link.id,
-                payerName: data.customer?.name,
-                payerEmail: data.customer?.email,
-                amount: data.amount,
-                currency: (data.currency || link.currency).toUpperCase(),
-                paymentMethod: data.payment_type || 'card',
-                provider: 'flutterwave',
-                status: 'completed',
-                feeAmount: data.app_fee,
-                netAmount: data.amount - (data.app_fee || 0),
-                providerTxId: providerPaymentId,
-                completedAt: new Date(),
-              },
-            })
+            if (!existingLinkPayment) {
+              await txPrisma.paymentLink.update({
+                where: { id: link.id },
+                data: {
+                  paymentCount: { increment: 1 },
+                  totalCollected: { increment: data.amount },
+                  ...(link.maxPayments > 0 && link.paymentCount + 1 >= link.maxPayments
+                    ? { status: 'depleted' }
+                    : {}),
+                },
+              })
+
+              await txPrisma.paymentLinkPayment.create({
+                data: {
+                  paymentLinkId: link.id,
+                  payerName: data.customer?.name,
+                  payerEmail: data.customer?.email,
+                  amount: data.amount,
+                  currency: (data.currency || link.currency).toUpperCase(),
+                  paymentMethod: data.payment_type || 'card',
+                  provider: 'flutterwave',
+                  status: 'completed',
+                  feeAmount: data.app_fee,
+                  netAmount: data.amount - (data.app_fee || 0),
+                  providerTxId: providerPaymentId,
+                  completedAt: new Date(),
+                },
+              })
+            }
           }
+        }
+
+        return { tx }
+      })
+
+      // After transaction commits: state machine sync + realtime events
+      if (txResult) {
+        const { tx } = txResult
+
+        // State machine sync after successful commit (non-fatal)
+        try {
+          await processWebhookEvent({
+            provider: 'flutterwave',
+            providerRef: txRef,
+            eventType: payload.event,
+            status: 'success',
+            rawPayload: { txRef, amount: data.amount, currency: data.currency },
+          })
+        } catch (err) {
+          console.error('[Flutterwave Webhook] State machine sync failed:', err)
         }
 
         // ─── Emit realtime event ────────────────────────────

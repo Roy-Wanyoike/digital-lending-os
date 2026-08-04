@@ -1,53 +1,133 @@
 /**
- * OpenTelemetry Custom Metrics for Youngsend Fintech Platform
+ * Custom Metrics for Youngsend Fintech Platform
  *
+ * In-process in-memory metrics implementation (no @opentelemetry/sdk-metrics dependency).
  * Metrics:
  * - youngsend_payment_total: Counter (provider, status, currency)
  * - youngsend_payment_amount: Histogram (provider, currency, custom buckets)
  * - youngsend_request_duration: Histogram (route, method, status)
- * - youngsend_active_sessions: Gauge
- * - youngsend_cache_hit_ratio: Gauge (cache_type)
+ * - youngsend_active_sessions: UpDownCounter
+ * - youngsend_cache_hit_ratio: Gauge
  * - youngsend_kafka_consumer_lag: Gauge (topic, consumer_group)
  * - youngsend_fraud_alerts: Counter (severity, type)
  *
- * Uses @opentelemetry/sdk-metrics with OTLP export.
+ * Provides getMetricsSnapshot() / resetMetrics() for testing and debugging.
  */
 
-// @opentelemetry stubs — no-op when OTel packages are not installed
-// All metrics functions are safe no-ops that preserve the API contract.
-
-const ATTR_SERVICE_NAME = 'service.name';
-const ATTR_SERVICE_VERSION = 'service.version';
-const ATTR_DEPLOYMENT_ENVIRONMENT = 'deployment.environment';
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 type MeterProvider = { shutdown(): Promise<void> };
 type UpDownCounter = { add(value: number, attrs?: Record<string, string>): void };
 type Histogram = { record(value: number, attrs?: Record<string, string>): void };
 type Counter = { add(value: number, attrs?: Record<string, string>): void };
 type ObservableGauge = { addCallback(cb: (result: { observe(value: number, attrs: Record<string, string>): void }) => void): void };
-type Meter = { createCounter(name: string, opts?: Record<string, unknown>): Counter; createHistogram(name: string, opts?: Record<string, unknown>): Histogram; createUpDownCounter(name: string, opts?: Record<string, unknown>): UpDownCounter; createObservableGauge(name: string, opts?: Record<string, unknown>): ObservableGauge };
-
-const noopCounter: Counter = { add() {} };
-const noopHistogram: Histogram = { record() {} };
-const noopUpDownCounter: UpDownCounter = { add() {} };
-const noopGauge: ObservableGauge = { addCallback() {} };
-const noopMeter: Meter = {
-  createCounter: () => noopCounter,
-  createHistogram: () => noopHistogram,
-  createUpDownCounter: () => noopUpDownCounter,
-  createObservableGauge: () => noopGauge,
+type Meter = {
+  createCounter(name: string, opts?: Record<string, unknown>): Counter;
+  createHistogram(name: string, opts?: Record<string, unknown>): Histogram;
+  createUpDownCounter(name: string, opts?: Record<string, unknown>): UpDownCounter;
+  createObservableGauge(name: string, opts?: Record<string, unknown>): ObservableGauge;
 };
 
-const noopMetrics: YoungsendMetrics = {
-  paymentTotal: noopCounter,
-  paymentAmount: noopHistogram,
-  requestDuration: noopHistogram,
-  activeSessions: noopUpDownCounter,
-  cacheHitRatio: noopGauge,
-  kafkaConsumerLag: noopGauge,
-  fraudAlerts: noopCounter,
-};
+// ─── Snapshot Types ─────────────────────────────────────────────────────────
 
+export interface CounterSnapshot {
+  name: string;
+  type: 'counter';
+  values: Array<{ attrs: Record<string, string>; value: number }>;
+}
+
+export interface HistogramSnapshot {
+  name: string;
+  type: 'histogram';
+  values: Array<{ attrs: Record<string, string>; values: number[] }>;
+}
+
+export interface UpDownCounterSnapshot {
+  name: string;
+  type: 'up_down_counter';
+  values: Array<{ attrs: Record<string, string>; value: number }>;
+}
+
+export interface GaugeSnapshot {
+  name: string;
+  type: 'gauge';
+  values: Array<{ attrs: Record<string, string>; value: number }>;
+}
+
+export type MetricSnapshot = CounterSnapshot | HistogramSnapshot | UpDownCounterSnapshot | GaugeSnapshot;
+
+// ─── In-Memory Metric Storage ───────────────────────────────────────────────
+
+const allMetrics: Map<string, { type: string; data: Map<string, unknown> }> = new Map();
+
+function attrsKey(attrs?: Record<string, string>): string {
+  if (!attrs || Object.keys(attrs).length === 0) return '__default__';
+  return JSON.stringify(attrs, Object.keys(attrs).sort());
+}
+
+function getOrCreateMetric(name: string, type: string): Map<string, unknown> {
+  if (!allMetrics.has(name)) {
+    allMetrics.set(name, { type, data: new Map() });
+  }
+  return (allMetrics.get(name)!).data;
+}
+
+// ─── In-Memory Implementations ──────────────────────────────────────────────
+
+class InMemoryCounter implements Counter {
+ constructor(private readonly _name: string) {}
+  add(value: number, attrs?: Record<string, string>): void {
+    const data = getOrCreateMetric(this._name, 'counter');
+    const key = attrsKey(attrs);
+    data.set(key, (data.get(key) as number || 0) + value);
+  }
+}
+
+class InMemoryHistogram implements Histogram {
+  constructor(private readonly _name: string) {}
+  record(value: number, attrs?: Record<string, string>): void {
+    const data = getOrCreateMetric(this._name, 'histogram');
+    const key = attrsKey(attrs);
+    let arr = data.get(key) as number[] | undefined;
+    if (!arr) {
+      arr = [];
+      data.set(key, arr);
+    }
+    arr.push(value);
+  }
+}
+
+class InMemoryUpDownCounter implements UpDownCounter {
+  constructor(private readonly _name: string) {}
+  add(value: number, attrs?: Record<string, string>): void {
+    const data = getOrCreateMetric(this._name, 'up_down_counter');
+    const key = attrsKey(attrs);
+    data.set(key, (data.get(key) as number || 0) + value);
+  }
+}
+
+class InMemoryObservableGauge implements ObservableGauge {
+  private readonly _callbacks: Array<(result: { observe(value: number, attrs: Record<string, string>): void }) => void> = [];
+  constructor(private readonly _name: string) {}
+  addCallback(cb: (result: { observe(value: number, attrs: Record<string, string>): void }) => void): void {
+    this._callbacks.push(cb);
+  }
+}
+
+class InMemoryMeter implements Meter {
+  createCounter(name: string, _opts?: Record<string, unknown>): Counter {
+    return new InMemoryCounter(name);
+  }
+  createHistogram(name: string, _opts?: Record<string, unknown>): Histogram {
+    return new InMemoryHistogram(name);
+  }
+  createUpDownCounter(name: string, _opts?: Record<string, unknown>): UpDownCounter {
+    return new InMemoryUpDownCounter(name);
+  }
+  createObservableGauge(name: string, _opts?: Record<string, unknown>): ObservableGauge {
+    return new InMemoryObservableGauge(name);
+  }
+}
 
 // ─── Metric Singleton ───────────────────────────────────────────────────────
 
@@ -121,16 +201,22 @@ export function createMeterProvider(config: MetricsConfig = {}): MeterProvider {
   const otlpEndpoint = config.otlpEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   const exportIntervalMs = config.exportIntervalMs || 30000;
 
-  // No-op: OTel packages not installed. Use noop stubs.
-  _meterProvider = { shutdown: async () => {} } as MeterProvider;
-  _meter = noopMeter;
-  _metrics = noopMetrics;
+  _meter = new InMemoryMeter();
+
+  _metrics = {
+    paymentTotal: _meter.createCounter('youngsend_payment_total'),
+    paymentAmount: _meter.createHistogram('youngsend_payment_amount'),
+    requestDuration: _meter.createHistogram('youngsend_request_duration'),
+    activeSessions: _meter.createUpDownCounter('youngsend_active_sessions'),
+    cacheHitRatio: _meter.createObservableGauge('youngsend_cache_hit_ratio'),
+    kafkaConsumerLag: _meter.createObservableGauge('youngsend_kafka_consumer_lag'),
+    fraudAlerts: _meter.createCounter('youngsend_fraud_alerts'),
+  };
+
+  _meterProvider = { shutdown: async () => { allMetrics.clear(); } } as MeterProvider;
 
   return _meterProvider;
 }
-
-// No-op instrument creation removed — using noop stubs above
-
 
 // ─── Accessors ──────────────────────────────────────────────────────────────
 
@@ -153,6 +239,51 @@ export function getMetrics(): YoungsendMetrics {
     createMeterProvider();
   }
   return _metrics!;
+}
+
+/**
+ * Return a snapshot of all recorded metrics (useful for testing and debugging).
+ */
+export function getMetricsSnapshot(): MetricSnapshot[] {
+  const result: MetricSnapshot[] = [];
+  for (const [name, entry] of allMetrics) {
+    if (entry.type === 'counter' || entry.type === 'up_down_counter') {
+      const values: Array<{ attrs: Record<string, string>; value: number }> = [];
+      for (const [key, val] of entry.data) {
+        values.push({
+          attrs: key === '__default__' ? {} : JSON.parse(key),
+          value: val as number,
+        });
+      }
+      result.push({ name, type: entry.type as 'counter' | 'up_down_counter', values });
+    } else if (entry.type === 'histogram') {
+      const values: Array<{ attrs: Record<string, string>; values: number[] }> = [];
+      for (const [key, val] of entry.data) {
+        values.push({
+          attrs: key === '__default__' ? {} : JSON.parse(key),
+          values: [...(val as number[])],
+        });
+      }
+      result.push({ name, type: 'histogram', values });
+    } else if (entry.type === 'gauge') {
+      const values: Array<{ attrs: Record<string, string>; value: number }> = [];
+      for (const [key, val] of entry.data) {
+        values.push({
+          attrs: key === '__default__' ? {} : JSON.parse(key),
+          value: val as number,
+        });
+      }
+      result.push({ name, type: 'gauge', values });
+    }
+  }
+  return result;
+}
+
+/**
+ * Clear all recorded metric data.
+ */
+export function resetMetrics(): void {
+  allMetrics.clear();
 }
 
 /**

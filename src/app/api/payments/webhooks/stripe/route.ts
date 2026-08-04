@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!provider.validateWebhookSignature(body, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
     const payload = JSON.parse(body)
@@ -32,91 +32,92 @@ export async function POST(request: NextRequest) {
           provider: 'stripe' as PaymentProviderCode,
         })
 
-        // --- State machine sync (before any other side-effects) ---
-        await processWebhookEvent({
-          provider: 'stripe',
-          providerRef: providerPaymentId,
-          eventType,
-          status: result.status === 'completed' ? 'success' : 'failed',
-          rawPayload: { sessionId: providerPaymentId, reference },
-        }).catch((err) => {
-          console.error('[Stripe Webhook] State machine sync failed:', err)
-        })
+        // Wrap fetch (for idempotency + stale-read protection) and all mutations in a transaction
+        const txResult = await db.$transaction(async (txPrisma: any) => {
+          // Fetch payment transaction inside tx for atomic idempotency check (BUG 8/9)
+          const tx = await txPrisma.paymentTransaction.findFirst({
+            where: { providerTxId: providerPaymentId, provider: 'stripe' },
+          })
 
-        // Find and update the payment transaction
-        const tx = await db.paymentTransaction.findFirst({
-          where: { providerTxId: providerPaymentId, provider: 'stripe' },
-        })
+          if (!tx) return null;
 
-        if (tx && result.status === 'completed') {
-          // Wrap all DB mutations in a single transaction for atomicity
-          await db.$transaction(async (txPrisma: any) => {
-            await txPrisma.paymentTransaction.update({
-              where: { id: tx.id },
-              data: { status: 'settled', settledAt: new Date() },
+          // Idempotency: if already settled, skip all mutations (BUG 8)
+          if (tx.status === 'settled') return { idempotent: true, tx };
+
+          if (result.status !== 'completed') return { tx };
+
+          await txPrisma.paymentTransaction.update({
+            where: { id: tx.id },
+            data: { status: 'settled', settledAt: new Date() },
+          })
+
+          // Update payment intent (actualFee + completedAt)
+          if (tx.intentId) {
+            await txPrisma.paymentIntent.update({
+              where: { id: tx.intentId },
+              data: {
+                status: 'completed',
+                actualFee: result.fee ? result.fee / 100 : null,
+                completedAt: new Date(),
+              },
             })
 
-            // Update payment intent (actualFee + completedAt - state synced above)
-            if (tx.intentId) {
-              await txPrisma.paymentIntent.update({
-                where: { id: tx.intentId },
+            // Check if linked to escrow
+            const intent = await txPrisma.paymentIntent.findUnique({
+              where: { id: tx.intentId },
+              include: { escrow: true },
+            })
+
+            if (intent?.escrowId && intent.escrow?.status === 'created') {
+              await txPrisma.escrowTransaction.update({
+                where: { id: intent.escrowId },
                 data: {
-                  status: 'completed',
-                  actualFee: result.fee ? result.fee / 100 : null,
-                  completedAt: new Date(),
+                  status: 'funded',
+                  fundedAmount: intent.sourceAmount,
+                  paymentIntentId: intent.id,
                 },
               })
 
-              // Check if linked to escrow
-              const intent = await txPrisma.paymentIntent.findUnique({
-                where: { id: tx.intentId },
-                include: { escrow: true },
+              await txPrisma.escrowAuditLog.create({
+                data: {
+                  escrowId: intent.escrowId,
+                  action: 'funded',
+                  actor: 'system',
+                  details: `Escrow funded via Stripe webhook. TX: ${providerPaymentId}`,
+                  metadata: JSON.stringify({ providerPaymentId, reference }),
+                },
               })
 
-              if (intent?.escrowId && intent.escrow?.status === 'created') {
+              if (Math.abs(intent.escrow.amount - intent.sourceAmount) < 0.01) {
                 await txPrisma.escrowTransaction.update({
                   where: { id: intent.escrowId },
-                  data: {
-                    status: 'funded',
-                    fundedAmount: intent.sourceAmount,
-                    paymentIntentId: intent.id,
-                  },
+                  data: { status: 'in_escrow' },
                 })
 
                 await txPrisma.escrowAuditLog.create({
                   data: {
                     escrowId: intent.escrowId,
-                    action: 'funded',
+                    action: 'activated',
                     actor: 'system',
-                    details: `Escrow funded via Stripe webhook. TX: ${providerPaymentId}`,
-                    metadata: JSON.stringify({ providerPaymentId, reference }),
+                    details: 'Escrow auto-activated after full Stripe payment.',
                   },
                 })
-
-                if (Math.abs(intent.escrow.amount - intent.sourceAmount) < 0.01) {
-                  await txPrisma.escrowTransaction.update({
-                    where: { id: intent.escrowId },
-                    data: { status: 'in_escrow' },
-                  })
-
-                  await txPrisma.escrowAuditLog.create({
-                    data: {
-                      escrowId: intent.escrowId,
-                      action: 'activated',
-                      actor: 'system',
-                      details: 'Escrow auto-activated after full Stripe payment.',
-                    },
-                  })
-                }
               }
+            }
 
-              // Check if linked to payment link
-              if (reference) {
-                const link = await txPrisma.paymentLink.findFirst({
-                  where: { linkRef: reference },
+            // Check if linked to payment link
+            if (reference) {
+              const link = await txPrisma.paymentLink.findFirst({
+                where: { linkRef: reference },
+              })
+
+              if (link) {
+                // Idempotency: check for duplicate payment link payment (BUG 8)
+                const existingLinkPayment = await txPrisma.paymentLinkPayment.findFirst({
+                  where: { paymentLinkId: link.id, providerTxId: providerPaymentId },
                 })
 
-                if (link) {
+                if (!existingLinkPayment) {
                   await txPrisma.paymentLink.update({
                     where: { id: link.id },
                     data: {
@@ -145,9 +146,29 @@ export async function POST(request: NextRequest) {
                 }
               }
             }
-          })
+          }
 
-          // --- Emit realtime event ---
+          return { tx };
+        })
+
+        // After transaction commits: state machine sync + realtime events (BUG 7)
+        if (txResult) {
+          const { tx } = txResult;
+
+          // State machine sync after successful commit (non-fatal if it fails)
+          try {
+            await processWebhookEvent({
+              provider: 'stripe',
+              providerRef: providerPaymentId,
+              eventType,
+              status: result.status === 'completed' ? 'success' : 'failed',
+              rawPayload: { sessionId: providerPaymentId, reference },
+            })
+          } catch (err) {
+            console.error('[Stripe Webhook] State machine sync failed:', err)
+          }
+
+          // Emit realtime event
           let stripeTenantId: string | undefined
           if (tx.intentId) {
             try {

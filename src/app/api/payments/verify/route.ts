@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { providerRegistry, type PaymentProviderCode } from '@/lib/payment'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { requireAuth, AuthError } from '@/lib/auth/api-helpers'
 import { getPaymentStateMachine as getSM, recordPaymentTransition } from '@/backend/lib/payment/route-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
@@ -35,8 +35,7 @@ const verifySchema = z.object({
 // ─── POST: Verify a payment with the provider ──────────────
 async function postHandler(request: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
     const body = await request.json()
     const parsed = verifySchema.safeParse(body)
 

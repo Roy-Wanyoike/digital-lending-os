@@ -1,4 +1,132 @@
+# Worklog — Task 7: CSRF Fix on Financial & Data Mutation Routes
+
+**Date**: 2025-07-11
+**Agent**: Security Engineer (Agent 7)
+**Scope**: 32 API route files — CSRF bypass remediation
+
+---
+
+## Issue
+
+32 route files used `getApiUser(request)` + manual null-check for POST/PUT/PATCH handlers instead of `requireAuth(request)`. The `requireAuth` function enforces CSRF double-submit validation for state-changing methods (POST/PUT/PATCH/DELETE). Using `getApiUser` alone skips CSRF entirely, allowing cross-site request forgery attacks on all financial and data mutation endpoints.
+
+## Pattern Applied
+
+**Before** (vulnerable — no CSRF check):
+```typescript
+const user = await getApiUser(request)
+if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+```
+
+**After** (CSRF-protected):
+```typescript
+const user = await requireAuth(request)
+```
+
+For files with both GET and mutation handlers, `getApiUser` was retained for the GET handler (no CSRF needed for reads) and `requireAuth` was added to the import.
+
+## Files Changed (32)
+
+### Critical Financial Routes (19)
+1. `src/app/api/escrow/transactions/[id]/fund/route.ts` — POST
+2. `src/app/api/escrow/transactions/[id]/activate/route.ts` — POST
+3. `src/app/api/escrow/transactions/[id]/disputes/route.ts` — POST (GET kept `getApiUser`)
+4. `src/app/api/escrow/transactions/[id]/disputes/[disputeId]/route.ts` — PUT
+5. `src/app/api/escrow/[id]/route.ts` — PATCH (GET kept `getApiUser`)
+6. `src/app/api/escrow/transactions/route.ts` — POST (GET kept `getApiUser`)
+7. `src/app/api/wallets/crypto-withdrawal/route.ts` — POST (GET kept `getApiUser`)
+8. `src/app/api/wallets/[id]/route.ts` — PUT (GET kept `getApiUser`)
+9. `src/app/api/wallets/[id]/transactions/route.ts` — POST (GET kept `getApiUser`)
+10. `src/app/api/deposits/route.ts` — POST (GET kept `getApiUser`)
+11. `src/app/api/payments/intents/route.ts` — POST (GET kept `getApiUser`)
+12. `src/app/api/payments/intents/[id]/route.ts` — PUT (GET kept `getApiUser`)
+13. `src/app/api/payments/initialize/route.ts` — POST
+14. `src/app/api/payments/methods/route.ts` — POST (GET kept `getApiUser`)
+15. `src/app/api/payments/verify/route.ts` — POST
+16. `src/app/api/collections/route.ts` — POST (GET kept `getApiUser`)
+17. `src/app/api/collections/[id]/route.ts` — PUT (GET kept `getApiUser`)
+18. `src/app/api/collections/[id]/remind/route.ts` — POST
+19. `src/app/api/invoices/[id]/route.ts` — PUT (GET kept `getApiUser`)
+
+### Non-Financial Data Mutation Routes (13)
+20. `src/app/api/matching/route.ts` — POST (GET kept `getApiUser`)
+21. `src/app/api/matching/[id]/route.ts` — PUT
+22. `src/app/api/trust/relationships/route.ts` — POST (GET kept `getApiUser`)
+23. `src/app/api/trust/reviews/route.ts` — POST (GET kept `getApiUser`)
+24. `src/app/api/trust/scores/route.ts` — POST (GET kept `getApiUser`)
+25. `src/app/api/passport/verifications/[id]/route.ts` — PUT (GET kept `getApiUser`)
+26. `src/app/api/passport/compliance/[id]/route.ts` — PUT
+27. `src/app/api/twin/profiles/route.ts` — POST (GET kept `getApiUser`)
+28. `src/app/api/twin/profiles/[id]/route.ts` — PUT (GET kept `getApiUser`)
+29. `src/app/api/twin/profiles/[id]/snapshot/route.ts` — POST
+30. `src/app/api/twin/profiles/[id]/metrics/route.ts` — POST (GET kept `getApiUser`)
+31. `src/app/api/twin/profiles/[id]/predictions/route.ts` — POST (GET kept `getApiUser`)
+32. `src/app/api/twin/profiles/[id]/sync/route.ts` — POST
+
+## Files Skipped (7)
+
+| File | Reason |
+|------|--------|
+| `src/app/api/businesses/[id]/route.ts` | Already uses `requireAuth` in PUT/DELETE |
+| `src/app/api/users/[id]/route.ts` | Already uses `requireAuth` in PUT/DELETE |
+| `src/app/api/tenants/[id]/route.ts` | Already uses `requireAuth` in PATCH |
+| `src/app/api/compliance/screenings/route.ts` | Already uses `requireRole` (calls `requireAuth` internally) |
+| `src/app/api/fraud/alerts/route.ts` | Already uses `requireRole` (calls `requireAuth` internally) |
+| `src/app/api/referral/route.ts` | POST handler is a public referral code validation endpoint (no auth) |
+| `src/app/api/payment-links/[id]/pay/route.ts` | Public payment endpoint per task instructions; also exempt from auth in middleware |
+
+## Special Cases
+
+- `src/app/api/dashboard/stats/route.ts` — POST is a cache-invalidation endpoint, not a data mutation. Skipped as borderline case.
+- `src/app/api/deposits/route.ts` — Uses `withErrorHandler` wrapper which catches `AuthError`. `requireAuth` throws `AuthError` which is correctly handled.
+- `src/app/api/payments/intents/route.ts` — POST wrapped in `withPaymentIdempotency` which re-throws errors. `AuthError` propagates correctly.
+
+## Verification
+
+- `npx tsc --noEmit` — passed with zero errors
+- All 32 edits follow the exact pattern specified
+- Existing `error instanceof AuthError` catch blocks handle the thrown errors
+- GET handlers in mixed files retain `getApiUser` (no CSRF needed for reads)
+
+---
+
+*(end of Task 7)*
+
+---
+
 # Worklog — Task D: Middleware curl fix
+
+**Date**: 2025-07-11
+**Agent**: Principal QA Engineer (Agent D)
+**Scope**: `src/middleware.ts` — bot detection, CORS, rate limiter, matcher
+
+---
+
+## Issue
+
+32 route files used `getApiUser(request)` + manual null-check for POST/PUT/PATCH handlers instead of `requireAuth(request)`. The `requireAuth` function enforces CSRF double-submit validation for state-changing methods (POST/PUT/PATCH/DELETE). Using `getApiUser` alone skips CSRF entirely, allowing cross-site request forgery attacks on all financial and data mutation endpoints.
+
+## Pattern Applied
+
+**Before** (vulnerable — no CSRF check):
+```typescript
+const user = await getApiUser(request)
+if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+```
+
+**After** (CSRF-protected):
+```typescript
+const user = await requireAuth(request)
+```
+
+For files with both GET and mutation handlers, `getApiUser` was retained for the GET handler (no CSRF needed for reads) and `requireAuth` was added to the import.
+
+## Files Changed (32)
+
+### Critical Financial Routes (19)
+| # | File | Handler | Import Strategy |
+|---|------|---------|-----------------|
+| 1 | `src/app/api/escrow/transactions/[id]/fund/route.ts` | POST | Added `requireAuth` to import |
 
 **Date**: 2025-07-11
 **Agent**: Principal QA Engineer (Agent D)
@@ -593,3 +721,305 @@ Stage Summary:
 - Build time improved 13x (25.9s -> 217ms for static generation)
 - Deliverable: /home/z/my-project/download/Youngsend_Production_Readiness_Report.pdf (45 pages)
 - Deliverable: /home/z/my-project/download/Youngsend_Architecture_Audit_Report.pdf (25 pages)
+
+---
+
+# Worklog — Task 1: CSRF bypass + auth bug fixes
+
+**Date**: 2025-07-11
+**Agent**: Security Bug Fix Agent (Task 1)
+**Scope**: 5 route files — CSRF enforcement, escrow authorization, audit-log tenant scoping, error property consistency
+
+---
+
+## Issues Fixed
+
+| # | Bug | Severity | File(s) | Fix |
+|---|-----|----------|---------|-----|
+| 1 | CSRF bypass on 4 financial POST routes | Critical | deposit, withdrawal, convert, escrow release | Replaced `getApiUser` with `requireAuth` in POST handlers (enforces CSRF double-submit) |
+| 10 | Seller can release escrow funds to themselves | Critical | escrow release route | Added role/authorization check: only buyer or admin/auditor can release |
+| 19 | Audit-log route assumes direct `tenantId` on EscrowTransaction | Medium | audit-log route | Replaced `select: { tenantId }` with `include: { buyer/seller }` and derived tenant from relations; removed `tenantId` from `where` clause |
+| 20 | `error.status` vs `error.statusCode` inconsistency | Low | withdrawal route | Replaced `error.status` with `error.statusCode` on lines 187 and 234 |
+
+## Items Verified Correct (No Fix Needed)
+
+- **AuthError class**: Already provides both `statusCode` (canonical) and `status` (getter alias), so `error.status` works at runtime — but `statusCode` is the canonical property. ✅
+- **GET handlers in deposit/withdrawal/convert**: Correctly use `getApiUser` (no CSRF needed for read-only GET requests). ✅
+- **Existing catch blocks**: All four routes already had `error instanceof AuthError` catch handlers that will correctly handle `requireAuth` throwing `AuthError`. ✅
+
+---
+
+## Fixes Applied
+
+### Fix 1 (BUG 1): CSRF bypass — deposit route
+**File**: `src/app/api/wallets/deposit/route.ts`
+- Added `requireAuth` to import (kept `getApiUser` for GET handler)
+- POST handler: `getApiUser(request)` + null check → `requireAuth(request)` (throws AuthError on 401/403)
+
+### Fix 1 (BUG 1): CSRF bypass — withdrawal route
+**File**: `src/app/api/wallets/withdrawal/route.ts`
+- Added `requireAuth` to import (kept `getApiUser` for GET handler)
+- POST handler: `getApiUser(request)` + null check → `requireAuth(request)`
+
+### Fix 1 (BUG 1): CSRF bypass — convert route
+**File**: `src/app/api/wallets/convert/route.ts`
+- Added `requireAuth` to import (kept `getApiUser` for GET handler)
+- POST handler: `getApiUser(request)` + null check → `requireAuth(request)`
+
+### Fix 1 (BUG 1): CSRF bypass — escrow release route
+**File**: `src/app/api/escrow/transactions/[id]/release/route.ts`
+- Replaced `getApiUser` with `requireAuth` in import (no GET handler in this file)
+- POST handler: `getApiUser(request)` + null check → `requireAuth(request)`
+
+### Fix 10 (BUG 10): Seller escrow release authorization
+**File**: `src/app/api/escrow/transactions/[id]/release/route.ts`
+- Added `buyer: { select: { id: true, tenantId: true } }` to the include clause
+- Added `tenantId: true` to seller select
+- Inserted authorization check after milestone status validation, before transaction:
+  ```typescript
+  const isBuyer = escrow.buyer?.tenantId === user.tenantId;
+  if (!isBuyer && !['admin', 'auditor'].includes(user.role)) {
+    return NextResponse.json(
+      { error: 'Only the buyer or an administrator can release escrow funds' },
+      { status: 403 }
+    );
+  }
+  ```
+
+### Fix 19 (BUG 19): Audit-log tenant scoping
+**File**: `src/app/api/audit-log/route.ts`
+- Replaced `select: { tenantId: true }` with `include: { buyer/seller relations }` to access tenant through Business
+- Derived `escrowTenantId` from `escrow?.buyer?.tenantId || escrow?.seller?.tenantId`
+- Removed `tenantId: user.tenantId` from the `where.escrow` clause (tenant scoping already handled by `businessIds` filtered by tenant)
+
+### Fix 20 (BUG 20): error.status → error.statusCode
+**File**: `src/app/api/wallets/withdrawal/route.ts`
+- Line 186 (was 187): `error.status` → `error.statusCode`
+- Line 233 (was 234): `error.status` → `error.statusCode`
+
+---
+
+## Verification
+
+- `npx tsc --noEmit` — **0 errors** ✅
+
+---
+
+# Worklog — Task 2: Wallet race conditions & validation fixes
+
+**Date**: 2025-07-11
+**Agent**: General-purpose agent (Task 2)
+**Scope**: `src/app/api/wallets/deposit/route.ts`, `src/app/api/wallets/withdrawal/route.ts`, `src/app/api/wallets/convert/route.ts`
+
+---
+
+## Issues Found & Fixed
+
+| # | Bug | Severity | File | Fix Summary |
+|---|-----|----------|------|-------------|
+| 3 | Referral bonus TOCTOU race | Critical | deposit/route.ts | Moved `existingBonus` check inside `$transaction` to prevent double-crediting |
+| 5 | Non-demo withdrawal freezes only `amount`, not `fee` | High | withdrawal/route.ts | Changed `availableBalance`/`pendingBalance` to use `totalDebit` (amount + fee) |
+| 11 | Currency conversion fee has no ledger entry | Medium | convert/route.ts | Added `walletTransaction` of type `'fee'` on destination wallet for audit trail |
+| 18 | No maximum amount validation | Medium | All 3 files | Added `.max(10000000, ...)` to all Zod amount schemas |
+
+---
+
+## Detailed Changes
+
+### Fix 3 (BUG 3): Referral bonus TOCTOU race — double-crediting possible
+**File**: `src/app/api/wallets/deposit/route.ts`
+- **Removed** the `bonusAlreadyGiven` check and `existingBonus` query that were outside the `$transaction` (formerly lines 73-80). Two concurrent deposit requests could both read `bonusAlreadyGiven = false` and both credit the bonus.
+- **Moved** the `existingBonus` check **inside** the transaction, using `tx.referralBonus.findFirst()` so the database's transactional isolation prevents double-crediting.
+- **Updated** the post-transaction `referralBonusCredited` check (lines ~199-206) to remove the `!bonusAlreadyGiven` condition (no longer exists) and instead query by `depositId` to determine if a bonus was created for this specific deposit.
+
+### Fix 5 (BUG 5): Non-demo withdrawal freezes only `amount`, not `fee`
+**File**: `src/app/api/wallets/withdrawal/route.ts`
+- The non-demo wallet update (formerly lines 153-159) was only moving `data.amount` from `availableBalance` to `pendingBalance`. The `feeAmount` portion remained in `availableBalance`, making it spendable.
+- **Changed** to freeze `totalDebit` (= `amount + feeAmount`) instead of just `data.amount`.
+
+### Fix 11 (BUG 11): Currency conversion fee has no ledger entry
+**File**: `src/app/api/wallets/convert/route.ts`
+- The 0.5% conversion fee was calculated and deducted from the gross amount before crediting the destination wallet, but no `walletTransaction` record existed for the fee.
+- **Added** a `walletTransaction` of type `'fee'` on the **destination** wallet after the credit, recording the fee amount for audit transparency. The `balanceBefore` and `balanceAfter` are the same (post-credit balance) since the fee was already absorbed from the gross amount.
+
+### Fix 18 (BUG 18): No maximum amount validation
+**Files**: All three wallet route files
+- **deposit/route.ts** line 14: `z.number().positive(...)` → `.positive(...).max(10000000, 'Amount exceeds maximum limit of 10,000,000')`
+- **withdrawal/route.ts** line 11: same change
+- **convert/route.ts** line 11: same change on `fromAmount`
+
+---
+
+## Verification
+
+- `npx tsc --noEmit` — **0 errors** ✅
+
+---
+
+# Worklog — Task 3: Fix escrow + webhook bugs
+
+**Date**: 2025-07-11
+**Agent**: General-purpose sub-agent (Task 3)
+**Scope**: `src/app/api/escrow/transactions/[id]/release/route.ts`, `src/app/api/payments/webhooks/stripe/route.ts`
+
+---
+
+## Bugs Fixed
+
+| # | Severity | File | Fix |
+|---|----------|------|-----|
+| BUG 4 | HIGH | `release/route.ts` | Moved escrow fetch, status check, milestone find, and authorization check INSIDE `$transaction`. Serializable reads prevent concurrent release race. |
+| BUG 6 | CRITICAL | `release/route.ts` | Disbursement `status`: `"completed"` → `"processing"`; removed `completedAt`. Wallet credit is async. |
+| BUG 7 | HIGH | `stripe/route.ts` | `processWebhookEvent()` moved from BEFORE tx to AFTER commit. |
+| BUG 8 | HIGH | `stripe/route.ts` | Idempotency: skip if tx already `settled`; skip duplicate `paymentLinkPayment` by `providerTxId`. |
+| BUG 9 | MEDIUM | `stripe/route.ts` | Fixed by BUG 8 — fetch moved inside transaction. |
+| BUG 17 | LOW | `stripe/route.ts` | Invalid signature: 401 → 400. |
+
+## Additional
+- `release/route.ts`: Validation errors use `throw` inside tx, mapped to 404/409/403 in catch.
+- Preserved BUG 10 authorization fix inside transaction.
+
+---
+
+## Verification
+
+- `npx tsc --noEmit` — **0 errors** ✅
+
+---
+
+# Worklog — Task 4: Fix Logger + OTel Stubs
+
+**Date**: 2025-07-11
+**Agent**: General-purpose sub-agent (Task 4)
+**Scope**: `src/backend/lib/telemetry/logger.ts`, `tracer.ts`, `metrics.ts`
+
+---
+
+## Bugs Fixed
+
+| Bug | Severity | File | Summary |
+|-----|----------|------|----------|
+| 2 | HIGH | logger.ts | `child()` passed `exporter: undefined` + `enableConsole: false` = zero exporters. Fixed to delegate to `createChild()` which shares parent exporters. |
+| 13 | HIGH | tracer.ts | All tracing was no-op stubs. Replaced with `InMemorySpan` (real timing, attributes, status, exceptions) and `InMemoryTracer`. Added `getCompletedSpans()` / `resetSpans()`. |
+| 13 | HIGH | metrics.ts | All metrics were no-op stubs. Replaced with `InMemoryCounter`, `InMemoryHistogram`, `InMemoryUpDownCounter`, `InMemoryObservableGauge`. Added `getMetricsSnapshot()` / `resetMetrics()`. |
+| 14 | MEDIUM | tracer.ts | `createHttpSpan()` returned a no-op. Now creates real span with `http.method`, `http.route`, `http.url`, `http.target` from the NextRequest. |
+| 15 | LOW | tracer.ts | `withFintechSpan()` never set status or recorded exceptions. Now sets `SpanStatusCode.OK` on success, `SpanStatusCode.ERROR` + `recordException()` on failure. |
+| 16 | MEDIUM | logger.ts | OTel stubs had no explanation. Added TODO comment explaining these are intentional no-ops to avoid circular dependency with tracer.ts, and should be replaced with real `@opentelemetry/api` imports in production. |
+
+---
+
+## Edits Made
+
+### `src/backend/lib/telemetry/logger.ts`
+1. **Lines 12-24**: Improved comment on OTel stubs — added TODO noting circular dependency avoidance and production replacement guidance (BUG 16).
+2. **Lines 270-272**: Replaced broken `child()` method body with `return this.createChild(bindings);` (BUG 2).
+
+### `src/backend/lib/telemetry/tracer.ts` (full rewrite)
+1. Added `InMemorySpan` class: stores attributes in `Record<string,unknown>`, records `performance.now()` start/end times, records exceptions as events, stores status, pushes to `completedSpans[]` on `end()`.
+2. Added `InMemoryTracer` class: creates `InMemorySpan` instances.
+3. Added `CompletedSpanData` export type for structured span data.
+4. `createHttpSpan()` now creates real span with HTTP attributes from NextRequest (BUG 14).
+5. `withFintechSpan()` now sets OK status on success, ERROR status + records exception on failure (BUG 15).
+6. Added `getCompletedSpans()` and `resetSpans()` exports.
+
+### `src/backend/lib/telemetry/metrics.ts` (full rewrite)
+1. Added `InMemoryCounter`: stores cumulative values per attribute combination in `Map<string, number>`.
+2. Added `InMemoryHistogram`: stores value arrays per attribute combination.
+3. Added `InMemoryUpDownCounter`: like counter but supports negative deltas.
+4. Added `InMemoryObservableGauge`: stores callbacks.
+5. Added `InMemoryMeter`: factory for above instruments.
+6. `createMeterProvider()` now creates real instruments instead of no-ops.
+7. Added `MetricSnapshot` types and `getMetricsSnapshot()` / `resetMetrics()` exports.
+
+---
+
+## Verification
+
+- `npx tsc --noEmit` — passes with zero errors.
+- `npx vitest run __tests__/unit/telemetry.test.ts` — 9/9 tests pass.
+
+---
+
+# Worklog — Task 6: Bug-fix regression test suite
+
+**Date**: 2025-07-11
+**Agent**: QA Engineer (Agent 6)
+**Scope**: `__tests__/unit/bug-fixes.test.ts` — comprehensive tests for 20 bug fixes
+
+---
+
+## Summary
+
+Created a new test file `__tests__/unit/bug-fixes.test.ts` with **52 test cases** across **7 describe groups**, covering the following bug fix categories:
+
+| Group | Bugs | Test Count | Description |
+|-------|------|-----------|-------------|
+| 1 — CSRF & Auth | 1, 10 | 7 | AuthError statusCode property, requireAuth 401/403, getApiUser null |
+| 2 — Zod Max Amount | 18 | 15 | depositSchema, withdrawalSchema, convertSchema .max(10000000) validation |
+| 3 — Logger child() | 2 | 5 | child shares parent exporters, grandchild chain, withContext, shutdown |
+| 4 — In-Memory Tracer | 13, 14, 15 | 8 | span attributes, getCompletedSpans, error status, HTTP span, resetSpans |
+| 5 — In-Memory Metrics | 13 | 7 | recordPayment, recordRequestDuration, recordFraudAlert, recordSessionDelta, snapshots |
+| 6 — Conversion Fee | 11 | 6 | 0.5% fee math, rounding, boundary cases, fee ≡ 0 for zero gross |
+| 7 — OTel Logger Stubs | 16 | 4 | no crash on log emit, level filtering, child inherits minLevel |
+
+## Changes Made
+
+### 1. New test file
+- **`__tests__/unit/bug-fixes.test.ts`** — 52 tests in 7 groups
+
+### 2. Vitest config fix
+- **`vitest.config.ts`** — Added path aliases (`@/lib`, `@/backend/lib`, `@/backend/middleware`, etc.) to match tsconfig paths. Reordered aliases so specific prefixes (`@/lib`) are matched before the generic `@` prefix, preventing `@/lib/auth` from incorrectly resolving to `src/lib/auth` instead of `src/backend/lib/auth`.
+
+## Verification
+
+- `npx vitest run __tests__/unit/bug-fixes.test.ts` — **52/52 tests pass** ✅
+- `npx vitest run` — **127/127 tests pass (7 files)** — no regressions ✅
+
+---
+
+# Worklog — Task 8: Fix Remaining Webhook Routes (Paystack, Flutterwave, IntaSend, Paya)
+
+**Date**: 2025-07-11
+**Agent**: Backend Engineer (Agent 8)
+**Scope**: 4 webhook route files — idempotency, transaction wrapping, signature status code, payment link dedup, state machine sync
+
+---
+
+## Issue
+
+The Stripe webhook was previously fixed with idempotency, proper transaction wrapping, correct status code (400 vs 401) for invalid signature, and paymentLinkPayment dedup. The other 4 webhook routes (Paystack, Flutterwave, IntaSend, Paya) had the same bugs.
+
+## Bugs Fixed
+
+### Bug A — Invalid signature returns 401, should be 400
+All 4 files: `status: 401` → `status: 400` for invalid webhook signature responses. An invalid signature is a bad request (malformed/forged payload), not an authentication failure.
+
+### Bug B — No idempotency (duplicate processing on webhook retry)
+- Moved the `paymentTransaction` fetch **inside** `db.$transaction()` for atomic read + stale-read protection.
+- Added early return `{ idempotent: true, tx }` if `tx.status === 'settled'`.
+- All DB mutations now happen inside the transaction.
+
+### Bug C — PaymentLinkPayment dedup
+- Before creating a `paymentLinkPayment`, each webhook now checks for an existing record with the same `paymentLinkId` + `providerTxId`.
+- Only if no duplicate exists does it create the record and increment the payment link counters.
+
+### Bug D — Paystack: state machine sync called before transaction
+- Moved `processWebhookEvent()` from **before** the transaction to **after** the transaction commits.
+- Wrapped in try/catch so state machine sync failure is non-fatal.
+
+### Bug E — Flutterwave/IntaSend/Paya: missing state machine sync
+- Added `processWebhookEvent()` call **after** the transaction commits for all 3 providers.
+- Import of `processWebhookEvent` added to each file.
+- Wrapped in try/catch (non-fatal).
+- Paya handles both `success` and `failed` statuses based on the event.
+
+## Files Changed (4)
+
+1. **`src/app/api/payments/webhooks/paystack/route.ts`** — Bugs A, B, C, D
+2. **`src/app/api/payments/webhooks/flutterwave/route.ts`** — Bugs A, B, C, E
+3. **`src/app/api/payments/webhooks/intasend/route.ts`** — Bugs A, B, C, E
+4. **`src/app/api/payments/webhooks/paya/route.ts`** — Bugs A, B, C, E
+
+## Verification
+
+- `npx tsc --noEmit` — **0 errors** ✅

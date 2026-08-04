@@ -35,9 +35,13 @@ async function getHandler(request: NextRequest) {
     if (escrowId) {
       const escrow = await db.escrowTransaction.findUnique({
         where: { id: escrowId },
-        select: { tenantId: true },
+        include: {
+          buyer: { select: { tenantId: true } },
+          seller: { select: { tenantId: true } },
+        },
       });
-      if (!escrow || escrow.tenantId !== user.tenantId) {
+      const escrowTenantId = escrow?.buyer?.tenantId || escrow?.seller?.tenantId;
+      if (!escrow || escrowTenantId !== user.tenantId) {
         return errorResponse('Escrow not found', 404);
       }
     }
@@ -45,7 +49,6 @@ async function getHandler(request: NextRequest) {
     // Build tenant-scoped where: only audit logs for escrows involving this user's businesses
     const where: any = {
       escrow: {
-        tenantId: user.tenantId,
         OR: [
           { buyerId: { in: businessIds } },
           { sellerId: { in: businessIds } },

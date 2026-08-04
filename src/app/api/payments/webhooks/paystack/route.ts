@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!provider.validateWebhookSignature(body, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
     }
 
     const payload = JSON.parse(body)
@@ -26,25 +26,19 @@ export async function POST(request: NextRequest) {
       const providerPaymentId = data.reference
       const metadata = data.metadata?.custom_fields?.reduce((acc: any, f: any) => { acc[f.variable_name] = f.value; return acc }, {}) || data.metadata || {}
 
-      // ─── State machine sync (before any other side-effects) ───
-      await processWebhookEvent({
-        provider: 'paystack',
-        providerRef: providerPaymentId,
-        eventType: event,
-        status: 'success',
-        rawPayload: { reference: providerPaymentId, amount: data.amount, currency: data.currency },
-      }).catch((err) => {
-        // Non-fatal: state machine sync should not break the webhook
-        console.error('[Paystack Webhook] State machine sync failed:', err)
-      })
+      // Wrap fetch (for idempotency + stale-read protection) and all mutations in a transaction
+      const txResult = await db.$transaction(async (txPrisma: any) => {
+        // Fetch payment transaction inside tx for atomic idempotency check
+        const tx = await txPrisma.paymentTransaction.findFirst({
+          where: { providerTxId: providerPaymentId, provider: 'paystack' },
+        })
 
-      // Update payment transaction
-      const tx = await db.paymentTransaction.findFirst({
-        where: { providerTxId: providerPaymentId, provider: 'paystack' },
-      })
+        if (!tx) return null
 
-      if (tx) {
-        await db.paymentTransaction.update({
+        // Idempotency: if already settled, skip all mutations
+        if (tx.status === 'settled') return { idempotent: true, tx }
+
+        await txPrisma.paymentTransaction.update({
           where: { id: tx.id },
           data: {
             status: 'settled',
@@ -52,9 +46,9 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        // Update payment intent (actualFee + completedAt — state is already synced above)
+        // Update payment intent (actualFee + completedAt)
         if (tx.intentId) {
-          await db.paymentIntent.update({
+          await txPrisma.paymentIntent.update({
             where: { id: tx.intentId },
             data: {
               status: 'completed',
@@ -64,13 +58,13 @@ export async function POST(request: NextRequest) {
           })
 
           // Check escrow link
-          const intent = await db.paymentIntent.findUnique({
+          const intent = await txPrisma.paymentIntent.findUnique({
             where: { id: tx.intentId },
             include: { escrow: true },
           })
 
           if (intent?.escrowId && intent.escrow?.status === 'created') {
-            await db.escrowTransaction.update({
+            await txPrisma.escrowTransaction.update({
               where: { id: intent.escrowId },
               data: {
                 status: 'funded',
@@ -79,7 +73,7 @@ export async function POST(request: NextRequest) {
               },
             })
 
-            await db.escrowAuditLog.create({
+            await txPrisma.escrowAuditLog.create({
               data: {
                 escrowId: intent.escrowId,
                 action: 'funded',
@@ -90,12 +84,12 @@ export async function POST(request: NextRequest) {
             })
 
             if (Math.abs(intent.escrow.amount - data.amount / 100) < 0.01) {
-              await db.escrowTransaction.update({
+              await txPrisma.escrowTransaction.update({
                 where: { id: intent.escrowId },
                 data: { status: 'in_escrow' },
               })
 
-              await db.escrowAuditLog.create({
+              await txPrisma.escrowAuditLog.create({
                 data: {
                   escrowId: intent.escrowId,
                   action: 'activated',
@@ -109,40 +103,67 @@ export async function POST(request: NextRequest) {
 
         // Check payment link
         const ref = metadata.reference || providerPaymentId
-        const link = await db.paymentLink.findFirst({
+        const link = await txPrisma.paymentLink.findFirst({
           where: { linkRef: ref },
         })
 
         if (link) {
-          await db.paymentLink.update({
-            where: { id: link.id },
-            data: {
-              paymentCount: { increment: 1 },
-              totalCollected: { increment: data.amount / 100 },
-              ...(link.maxPayments > 0 && link.paymentCount + 1 >= link.maxPayments
-                ? { status: 'depleted' }
-                : {}),
-            },
+          // Idempotency: check for duplicate payment link payment
+          const existingLinkPayment = await txPrisma.paymentLinkPayment.findFirst({
+            where: { paymentLinkId: link.id, providerTxId: providerPaymentId },
           })
 
-          await db.paymentLinkPayment.create({
-            data: {
-              paymentLinkId: link.id,
-              payerName: data.customer?.first_name
-                ? `${data.customer.first_name} ${data.customer.last_name || ''}`.trim()
-                : null,
-              payerEmail: data.customer?.email,
-              amount: data.amount / 100,
-              currency: data.currency,
-              paymentMethod: data.channel || 'card',
-              provider: 'paystack',
-              status: 'completed',
-              feeAmount: data.fees ? data.fees / 100 : null,
-              netAmount: data.amount / 100 - (data.fees || 0) / 100,
-              providerTxId: providerPaymentId,
-              completedAt: new Date(data.paid_at),
-            },
+          if (!existingLinkPayment) {
+            await txPrisma.paymentLink.update({
+              where: { id: link.id },
+              data: {
+                paymentCount: { increment: 1 },
+                totalCollected: { increment: data.amount / 100 },
+                ...(link.maxPayments > 0 && link.paymentCount + 1 >= link.maxPayments
+                  ? { status: 'depleted' }
+                  : {}),
+              },
+            })
+
+            await txPrisma.paymentLinkPayment.create({
+              data: {
+                paymentLinkId: link.id,
+                payerName: data.customer?.first_name
+                  ? `${data.customer.first_name} ${data.customer.last_name || ''}`.trim()
+                  : null,
+                payerEmail: data.customer?.email,
+                amount: data.amount / 100,
+                currency: data.currency,
+                paymentMethod: data.channel || 'card',
+                provider: 'paystack',
+                status: 'completed',
+                feeAmount: data.fees ? data.fees / 100 : null,
+                netAmount: data.amount / 100 - (data.fees || 0) / 100,
+                providerTxId: providerPaymentId,
+                completedAt: new Date(data.paid_at),
+              },
+            })
+          }
+        }
+
+        return { tx }
+      })
+
+      // After transaction commits: state machine sync + realtime events
+      if (txResult) {
+        const { tx } = txResult
+
+        // State machine sync after successful commit (non-fatal)
+        try {
+          await processWebhookEvent({
+            provider: 'paystack',
+            providerRef: providerPaymentId,
+            eventType: event,
+            status: 'success',
+            rawPayload: { reference: providerPaymentId, amount: data.amount, currency: data.currency },
           })
+        } catch (err) {
+          console.error('[Paystack Webhook] State machine sync failed:', err)
         }
 
         // ─── Emit realtime event ────────────────────────────

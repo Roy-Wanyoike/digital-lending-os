@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
-import { getApiUser, AuthError } from "@/lib/auth/api-helpers";
+import { requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { eventBus } from "@/backend/services/event-bus";
 import { processEscrow } from "@/backend/services/temporal-bridge";
 import { recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
@@ -18,8 +18,7 @@ async function postHandler(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getApiUser(request);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request);
     const { id } = await params;
     const body = await request.json();
     const parsed = releaseSchema.safeParse(body);
@@ -32,58 +31,40 @@ async function postHandler(
     }
 
     const { milestoneId } = parsed.data;
-
-    // Fetch escrow with milestones
-    const escrow = await db.escrowTransaction.findFirst({
-      where: {
-        id,
-        OR: [
-          { buyer: { tenantId: user.tenantId } },
-          { seller: { tenantId: user.tenantId } },
-        ],
-      },
-      include: {
-        milestones: { orderBy: { sequence: "asc" } },
-        seller: { select: { id: true, name: true } },
-      },
-    });
-
-    if (!escrow) {
-      return NextResponse.json(
-        { error: "Escrow transaction not found" },
-        { status: 404 }
-      );
-    }
-
-    if (escrow.status !== "in_escrow") {
-      return NextResponse.json(
-        {
-          error: `Cannot release funds from escrow with status '${escrow.status}'. Only 'in_escrow' escrows can release funds.`,
-        },
-        { status: 409 }
-      );
-    }
-
-    // Find the milestone
-    const milestone = escrow.milestones.find((m: any) => m.id === milestoneId);
-    if (!milestone) {
-      return NextResponse.json(
-        { error: "Milestone not found for this escrow" },
-        { status: 404 }
-      );
-    }
-
-    if (milestone.status === "released") {
-      return NextResponse.json(
-        { error: "Milestone has already been released" },
-        { status: 409 }
-      );
-    }
-
     const now = new Date();
 
-    // Wrap all DB mutations in a single transaction for atomicity
+    // Wrap fetch, validation, and all DB mutations in a single transaction for atomicity
     const updatedEscrow = await db.$transaction(async (tx: any) => {
+      // Fetch escrow inside transaction for serializable read
+      const escrow = await tx.escrowTransaction.findFirst({
+        where: {
+          id,
+          OR: [
+            { buyer: { tenantId: user.tenantId } },
+            { seller: { tenantId: user.tenantId } },
+          ],
+        },
+        include: {
+          milestones: { orderBy: { sequence: "asc" } },
+          buyer: { select: { id: true, name: true, tenantId: true } },
+          seller: { select: { id: true, name: true, tenantId: true } },
+        },
+      });
+
+      if (!escrow) throw new Error('Escrow transaction not found');
+      if (escrow.status !== 'in_escrow') throw new Error(`Cannot release funds from escrow with status '${escrow.status}'. Only 'in_escrow' escrows can release funds.`);
+
+      // Authorization check (preserve the BUG 10 fix)
+      const isBuyer = escrow.buyer?.tenantId === user.tenantId;
+      if (!isBuyer && !['admin', 'auditor'].includes(user.role)) {
+        throw new Error('Only the buyer or an administrator can release escrow funds');
+      }
+
+      // Find the milestone
+      const milestone = escrow.milestones.find((m: any) => m.id === milestoneId);
+      if (!milestone) throw new Error('Milestone not found for this escrow');
+      if (milestone.status === 'released') throw new Error('Milestone has already been released');
+
       // Update milestone status
       await tx.escrowMilestone.update({
         where: { id: milestoneId },
@@ -93,16 +74,15 @@ async function postHandler(
         },
       });
 
-      // Create disbursement
+      // Create disbursement (status: processing — actual wallet credit is async)
       const disbursement = await tx.disbursement.create({
         data: {
           escrowId: id,
           milestoneId,
           amount: milestone.amount,
           currency: escrow.currency,
-          status: "completed",
+          status: "processing",
           paymentRef: `DIS-${escrow.txRef}-${milestone.sequence}`,
-          completedAt: now,
         },
       });
 
@@ -163,10 +143,10 @@ async function postHandler(
         });
       }
 
-      return { result, disbursementId: disbursement.id };
+      return { result, disbursementId: disbursement.id, milestoneTitle: milestone.title, milestoneSequence: milestone.sequence, milestoneAmount: milestone.amount };
     });
 
-    const { result: escrowResult, disbursementId } = updatedEscrow;
+    const { result: escrowResult, disbursementId, milestoneTitle, milestoneSequence, milestoneAmount } = updatedEscrow;
 
     // ─── Emit realtime event ────────────────────────────
     try {
@@ -178,14 +158,14 @@ async function postHandler(
         status: escrowResult.status,
         action: 'milestone_released',
         milestoneId,
-        milestoneTitle: milestone.title,
+        milestoneTitle,
       }, user.tenantId);
     } catch (err) {
       console.error('[escrow.updated] emit failed:', err);
     }
 
     // Wire to Temporal workflow (falls back to direct execution if Temporal is unavailable)
-    void processEscrow({ escrowId: id, milestoneId, milestoneSequence: milestone.sequence, tenantId: user.tenantId });
+    void processEscrow({ escrowId: id, milestoneId, milestoneSequence, tenantId: user.tenantId });
 
     // ── State machine: record payment transition (release) ──
     void recordPaymentTransition(id, 'in_escrow', escrowResult.status, user.email || user.id || 'authenticated');
@@ -193,13 +173,29 @@ async function postHandler(
     // ─── Audit trail ────────────────────────────────
     try {
       const { auditLog } = await import('@/backend/lib/audit-helper')
-      await auditLog({ action: 'escrow.release', resource: 'escrow', resourceId: id, userId: user.id, tenantId: user.tenantId, details: { milestoneId, milestoneTitle: milestone.title, amount: milestone.amount, disbursementId, newStatus: escrowResult.status } })
+      await auditLog({ action: 'escrow.release', resource: 'escrow', resourceId: id, userId: user.id, tenantId: user.tenantId, details: { milestoneId, milestoneTitle, amount: milestoneAmount, disbursementId, newStatus: escrowResult.status } })
     } catch (e) { console.error('Audit log failed:', e) }
 
     return NextResponse.json({ data: escrowResult });
   } catch (error) {
     console.error("Error releasing escrow funds:", error);
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
+
+    // Map thrown errors from inside the transaction to proper HTTP status codes
+    const msg = error instanceof Error ? error.message : '';
+    if (msg === 'Escrow transaction not found') {
+      return NextResponse.json({ error: msg }, { status: 404 });
+    }
+    if (msg.startsWith('Cannot release')) {
+      return NextResponse.json({ error: msg }, { status: 409 });
+    }
+    if (msg.startsWith('Only the buyer')) {
+      return NextResponse.json({ error: msg }, { status: 403 });
+    }
+    if (msg.includes('Milestone')) {
+      return NextResponse.json({ error: msg }, { status: 409 });
+    }
+
     return NextResponse.json(
       { error: "Failed to release escrow funds" },
       { status: 500 }

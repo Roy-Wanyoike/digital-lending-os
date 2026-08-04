@@ -9,7 +9,10 @@
  * - Console exporter for development, OTLP log exporter for production
  */
 
-// @opentelemetry/api stubs — no-op when OTel is not installed
+// OTel trace-context stubs — safe no-ops when @opentelemetry/api is not installed.
+// TODO: When OTel is installed in production, replace these with real imports from
+// `@opentelemetry/api`. Avoiding dynamic import here to prevent circular dependency
+// with tracer.ts. The tracer.ts module now provides real in-memory tracing.
 const trace = {
   getSpan: (_ctx: unknown) => null as any,
   getTracer: () => ({ startSpan: () => ({ end() {}, setAttribute() {}, setStatus() {}, recordException() {}, spanContext: () => null }) }),
@@ -268,15 +271,7 @@ export class YoungsendLogger {
    * Create a child logger with bound context fields (tenant_id, user_id, etc.).
    */
   child(bindings: Record<string, unknown>): YoungsendLogger {
-    return new YoungsendLogger({
-      serviceName: this.serviceName,
-      minLevel: this.minLevel,
-      exporter: undefined, // Don't duplicate exporters
-      enableConsole: false,
-      boundContext: { ...this.boundContext, ...bindings },
-      // Reuse parent exporters
-    }) as YoungsendLogger & { exporters: LogExporter[] };
-    // We need to set exporters on child
+    return this.createChild(bindings);
   }
 
   /**

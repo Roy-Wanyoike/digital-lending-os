@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 import { processWithdrawal } from '@/backend/services/temporal-bridge'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const withdrawalSchema = z.object({
   walletId: z.string().min(1, 'Wallet ID is required'),
-  amount: z.number().positive('Amount must be greater than 0'),
+  amount: z.number().positive('Amount must be greater than 0').max(10000000, 'Amount exceeds maximum limit of 10,000,000'),
   paymentMethod: z.enum(['bank_transfer', 'mobile_money', 'external']),
   provider: z.string().optional(),
   bankName: z.string().optional(),
@@ -21,8 +21,7 @@ const withdrawalSchema = z.object({
 // POST /api/wallets/withdrawal — Initiate a fiat withdrawal
 async function postHandler(request: NextRequest) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
 
     const body = await request.json()
     const parsed = withdrawalSchema.safeParse(body)
@@ -150,12 +149,12 @@ async function postHandler(request: NextRequest) {
           },
         })
       } else {
-        // For non-demo, freeze the funds in pendingBalance
+        // For non-demo, freeze the total debit (amount + fee) in pendingBalance
         await tx.wallet.update({
           where: { id: data.walletId },
           data: {
-            availableBalance: Math.round((freshWallet.availableBalance - data.amount) * 100) / 100,
-            pendingBalance: Math.round((freshWallet.pendingBalance + data.amount) * 100) / 100,
+            availableBalance: Math.round((freshWallet.availableBalance - totalDebit) * 100) / 100,
+            pendingBalance: Math.round((freshWallet.pendingBalance + totalDebit) * 100) / 100,
           },
         })
       }
@@ -184,7 +183,7 @@ async function postHandler(request: NextRequest) {
 
     return NextResponse.json({ data: withdrawal }, { status: 201 })
   } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     const msg = error instanceof Error ? error.message : ''
     if (msg.includes('Insufficient') || msg.includes('Wallet not found')) {
       return NextResponse.json({ error: msg }, { status: 400 })
@@ -231,7 +230,7 @@ async function getHandler(request: NextRequest) {
 
     return NextResponse.json({ data: withdrawals })
   } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     console.error('Error listing withdrawals:', error)
     return NextResponse.json({ error: 'Failed to list withdrawals' }, { status: 500 })
   }

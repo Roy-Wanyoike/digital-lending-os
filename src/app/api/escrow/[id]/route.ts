@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 import { eventBus } from '@/backend/services/event-bus';
 
@@ -41,8 +41,7 @@ async function patchHandler(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getApiUser(req);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const user = await requireAuth(req);
     const { id } = await params;
     const body = await req.json();
     const { action } = body;

@@ -13,6 +13,13 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@/lib': path.resolve(__dirname, './src/backend/lib'),
+      '@/backend/lib': path.resolve(__dirname, './src/backend/lib'),
+      '@/backend/middleware': path.resolve(__dirname, './src/backend/middleware'),
+      '@/backend/services': path.resolve(__dirname, './src/backend/services'),
+      '@/backend/config': path.resolve(__dirname, './src/backend/config'),
+      '@/backend': path.resolve(__dirname, './src/backend'),
+      '@/app': path.resolve(__dirname, './src/app'),
       '@': path.resolve(__dirname, './src'),
     },
   },
