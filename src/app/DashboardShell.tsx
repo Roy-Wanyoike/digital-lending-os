@@ -6,6 +6,7 @@ import type { Session } from 'next-auth'
 import { Menu, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRealtime } from '@/hooks/use-realtime'
+import { invalidateCache } from '@/hooks/use-api'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
@@ -76,27 +77,55 @@ export function DashboardShell({ session }: { session: Session }) {
     enabled: true,
   })
 
-  // Realtime toast notifications
+  // Realtime toast notifications + cache invalidation
   useEffect(() => {
     if (!sseConnected) return
     const handleDeposit = (evt: any) => {
       const d = evt.data
       toast.success('Deposit Confirmed', { description: `${d.amount?.toFixed(2)} ${d.currency} deposited to wallet` })
+      invalidateCache('/api/wallets')
+      invalidateCache('/api/dashboard/stats')
     }
-    const handlePayment = (evt: any) => {
+    const handleWithdrawal = (evt: any) => {
+      const d = evt.data
+      toast.info('Withdrawal Processed', { description: `${d.amount?.toFixed(2)} ${d.currency} withdrawn from wallet` })
+      invalidateCache('/api/wallets')
+      invalidateCache('/api/dashboard/stats')
+    }
+    const handlePaymentCompleted = (evt: any) => {
       const d = evt.data
       toast.success('Payment Completed', { description: `${d.amount?.toFixed(2)} ${d.currency} via ${d.provider}` })
+      invalidateCache('/api/payments/intents')
+      invalidateCache('/api/dashboard/stats')
+    }
+    const handlePaymentFailed = (evt: any) => {
+      const d = evt.data
+      toast.error('Payment Failed', { description: `${d.amount?.toFixed(2)} ${d.currency} — ${d.reason || 'Unknown error'}` })
+      invalidateCache('/api/payments/intents')
+      invalidateCache('/api/dashboard/stats')
     }
     const handleEscrow = (evt: any) => {
       const d = evt.data
       const actionLabels: Record<string, string> = { created: 'Created', activated: 'Activated', funded: 'Funded', cancelled: 'Cancelled', milestone_released: 'Milestone Released' }
       const label = actionLabels[d.action] || d.status || 'Updated'
       toast.info(`Escrow ${label}`, { description: `${d.txRef} — ${d.amount?.toFixed(2)} ${d.currency}` })
+      invalidateCache('/api/escrow/transactions')
+      invalidateCache('/api/dashboard/stats')
     }
     subscribe('wallet.deposit', handleDeposit)
-    subscribe('payment.completed', handlePayment)
+    subscribe('wallet.withdrawal', handleWithdrawal)
+    subscribe('payment.completed', handlePaymentCompleted)
+    subscribe('payment.failed', handlePaymentFailed)
     subscribe('escrow.updated', handleEscrow)
-    return () => { unsubscribe('wallet.deposit', handleDeposit); unsubscribe('payment.completed', handlePayment); unsubscribe('escrow.updated', handleEscrow) }
+    subscribe('escrow.created', handleEscrow)
+    return () => {
+      unsubscribe('wallet.deposit', handleDeposit)
+      unsubscribe('wallet.withdrawal', handleWithdrawal)
+      unsubscribe('payment.completed', handlePaymentCompleted)
+      unsubscribe('payment.failed', handlePaymentFailed)
+      unsubscribe('escrow.updated', handleEscrow)
+      unsubscribe('escrow.created', handleEscrow)
+    }
   }, [sseConnected, subscribe, unsubscribe])
 
   // Set role from session
@@ -120,7 +149,7 @@ export function DashboardShell({ session }: { session: Session }) {
   const ActiveTabComponent = TAB_COMPONENTS[safeTab]
   const userName = (session?.user as any)?.name || 'User'
   const userEmail = session?.user?.email || ''
-  const userInitials = userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  const userInitials = userName.split(' ').map((n: any) => n[0]).join('').toUpperCase().slice(0, 2)
 
   return (
     <TooltipProvider>

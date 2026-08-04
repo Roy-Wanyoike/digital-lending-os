@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { Scale, Search, AlertTriangle, ShieldAlert } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -41,7 +40,7 @@ export function ComplianceTab() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard title="Total Rules" value={allRules.length.toString()} icon={Scale} />
         <KPICard title="Active Screenings" value={activeScreenings.toString()} icon={Search} />
@@ -120,6 +119,6 @@ export function ComplianceTab() {
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }

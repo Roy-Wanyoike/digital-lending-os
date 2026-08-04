@@ -49,100 +49,103 @@ export async function POST(request: NextRequest) {
         })
 
         if (tx && result.status === 'completed') {
-          await db.paymentTransaction.update({
-            where: { id: tx.id },
-            data: { status: 'settled', settledAt: new Date() },
-          })
-
-          // Update payment intent (actualFee + completedAt - state synced above)
-          if (tx.intentId) {
-            await db.paymentIntent.update({
-              where: { id: tx.intentId },
-              data: {
-                status: 'completed',
-                actualFee: result.fee ? result.fee / 100 : null,
-                completedAt: new Date(),
-              },
+          // Wrap all DB mutations in a single transaction for atomicity
+          await db.$transaction(async (txPrisma: any) => {
+            await txPrisma.paymentTransaction.update({
+              where: { id: tx.id },
+              data: { status: 'settled', settledAt: new Date() },
             })
 
-            // Check if linked to escrow
-            const intent = await db.paymentIntent.findUnique({
-              where: { id: tx.intentId },
-              include: { escrow: true },
-            })
-
-            if (intent?.escrowId && intent.escrow?.status === 'created') {
-              await db.escrowTransaction.update({
-                where: { id: intent.escrowId },
+            // Update payment intent (actualFee + completedAt - state synced above)
+            if (tx.intentId) {
+              await txPrisma.paymentIntent.update({
+                where: { id: tx.intentId },
                 data: {
-                  status: 'funded',
-                  fundedAmount: intent.sourceAmount,
-                  paymentIntentId: intent.id,
+                  status: 'completed',
+                  actualFee: result.fee ? result.fee / 100 : null,
+                  completedAt: new Date(),
                 },
               })
 
-              await db.escrowAuditLog.create({
-                data: {
-                  escrowId: intent.escrowId,
-                  action: 'funded',
-                  actor: 'system',
-                  details: `Escrow funded via Stripe webhook. TX: ${providerPaymentId}`,
-                  metadata: JSON.stringify({ providerPaymentId, reference }),
-                },
+              // Check if linked to escrow
+              const intent = await txPrisma.paymentIntent.findUnique({
+                where: { id: tx.intentId },
+                include: { escrow: true },
               })
 
-              if (Math.abs(intent.escrow.amount - intent.sourceAmount) < 0.01) {
-                await db.escrowTransaction.update({
+              if (intent?.escrowId && intent.escrow?.status === 'created') {
+                await txPrisma.escrowTransaction.update({
                   where: { id: intent.escrowId },
-                  data: { status: 'in_escrow' },
+                  data: {
+                    status: 'funded',
+                    fundedAmount: intent.sourceAmount,
+                    paymentIntentId: intent.id,
+                  },
                 })
 
-                await db.escrowAuditLog.create({
+                await txPrisma.escrowAuditLog.create({
                   data: {
                     escrowId: intent.escrowId,
-                    action: 'activated',
+                    action: 'funded',
                     actor: 'system',
-                    details: 'Escrow auto-activated after full Stripe payment.',
+                    details: `Escrow funded via Stripe webhook. TX: ${providerPaymentId}`,
+                    metadata: JSON.stringify({ providerPaymentId, reference }),
                   },
                 })
+
+                if (Math.abs(intent.escrow.amount - intent.sourceAmount) < 0.01) {
+                  await txPrisma.escrowTransaction.update({
+                    where: { id: intent.escrowId },
+                    data: { status: 'in_escrow' },
+                  })
+
+                  await txPrisma.escrowAuditLog.create({
+                    data: {
+                      escrowId: intent.escrowId,
+                      action: 'activated',
+                      actor: 'system',
+                      details: 'Escrow auto-activated after full Stripe payment.',
+                    },
+                  })
+                }
+              }
+
+              // Check if linked to payment link
+              if (reference) {
+                const link = await txPrisma.paymentLink.findFirst({
+                  where: { linkRef: reference },
+                })
+
+                if (link) {
+                  await txPrisma.paymentLink.update({
+                    where: { id: link.id },
+                    data: {
+                      paymentCount: { increment: 1 },
+                      totalCollected: { increment: (result.amount ?? 0) / 100 },
+                      ...(link.maxPayments > 0 && link.paymentCount + 1 >= link.maxPayments
+                        ? { status: 'depleted' }
+                        : {}),
+                    },
+                  })
+
+                  await txPrisma.paymentLinkPayment.create({
+                    data: {
+                      paymentLinkId: link.id,
+                      amount: (result.amount ?? 0) / 100,
+                      currency: (result.currency ?? 'USD'),
+                      paymentMethod: 'card',
+                      provider: 'stripe',
+                      status: 'completed',
+                      feeAmount: result.fee ? result.fee / 100 : null,
+                      netAmount: (result.amount ?? 0) / 100 - (result.fee ? result.fee / 100 : 0),
+                      providerTxId: providerPaymentId,
+                      completedAt: new Date(),
+                    },
+                  })
+                }
               }
             }
-
-            // Check if linked to payment link
-            if (reference) {
-              const link = await db.paymentLink.findFirst({
-                where: { linkRef: reference },
-              })
-
-              if (link) {
-                await db.paymentLink.update({
-                  where: { id: link.id },
-                  data: {
-                    paymentCount: { increment: 1 },
-                    totalCollected: { increment: (result.amount ?? 0) / 100 },
-                    ...(link.maxPayments > 0 && link.paymentCount + 1 >= link.maxPayments
-                      ? { status: 'depleted' }
-                      : {}),
-                  },
-                })
-
-                await db.paymentLinkPayment.create({
-                  data: {
-                    paymentLinkId: link.id,
-                    amount: (result.amount ?? 0) / 100,
-                    currency: (result.currency ?? 'USD'),
-                    paymentMethod: 'card',
-                    provider: 'stripe',
-                    status: 'completed',
-                    feeAmount: result.fee ? result.fee / 100 : null,
-                    netAmount: (result.amount ?? 0) / 100 - (result.fee ? result.fee / 100 : 0),
-                    providerTxId: providerPaymentId,
-                    completedAt: new Date(),
-                  },
-                })
-              }
-            }
-          }
+          })
 
           // --- Emit realtime event ---
           let stripeTenantId: string | undefined

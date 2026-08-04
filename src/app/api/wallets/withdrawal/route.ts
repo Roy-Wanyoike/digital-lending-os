@@ -60,6 +60,7 @@ async function postHandler(request: NextRequest) {
     const feeAmount = Math.max(flatFee, percentFee)
     const totalDebit = Math.round((data.amount + feeAmount) * 100) / 100
 
+    // Early rejection check (optimization; real check happens inside transaction)
     if (wallet.availableBalance < totalDebit) {
       return NextResponse.json({ error: `Insufficient available balance. Required: ${data.amount} + ${feeAmount.toFixed(2)} fee = ${totalDebit.toFixed(2)}, Available: ${wallet.availableBalance.toFixed(2)}` }, { status: 400 })
     }
@@ -70,7 +71,16 @@ async function postHandler(request: NextRequest) {
     // Demo auto-complete
     const isAutoComplete = data.provider === 'demo'
 
-    const withdrawal = await db.$transaction(async (tx) => {
+    const withdrawal = await db.$transaction(async (tx: any) => {
+      // Read wallet inside transaction to get latest balance (prevents race conditions)
+      const freshWallet = await tx.wallet.findUnique({ where: { id: data.walletId } })
+      if (!freshWallet) throw new Error('Wallet not found')
+
+      // Real balance check inside transaction
+      if (freshWallet.availableBalance < totalDebit) {
+        throw new Error(`Insufficient available balance. Required: ${data.amount} + ${feeAmount.toFixed(2)} fee = ${totalDebit.toFixed(2)}, Available: ${freshWallet.availableBalance.toFixed(2)}`)
+      }
+
       const wdr = await tx.withdrawal.create({
         data: {
           withdrawalRef,
@@ -92,9 +102,9 @@ async function postHandler(request: NextRequest) {
       })
 
       if (isAutoComplete) {
-        const balanceBefore = wallet.balance
+        const balanceBefore = freshWallet.balance
         const balanceAfter = Math.round((balanceBefore - data.amount) * 100) / 100
-        const availBefore = wallet.availableBalance
+        const availBefore = freshWallet.availableBalance
         const availAfter = Math.round((availBefore - data.amount) * 100) / 100
 
         await tx.walletTransaction.create({
@@ -105,7 +115,7 @@ async function postHandler(request: NextRequest) {
             amount: data.amount,
             balanceBefore,
             balanceAfter,
-            currency: wallet.currency,
+            currency: freshWallet.currency,
             description: `Withdrawal to ${data.bankName || data.paymentMethod}${data.recipientName ? ` (${data.recipientName})` : ''} — Fee: ${feeAmount.toFixed(2)}`,
             referenceType: 'withdrawal',
             referenceId: wdr.id,
@@ -123,7 +133,7 @@ async function postHandler(request: NextRequest) {
               amount: feeAmount,
               balanceBefore: balanceAfter,
               balanceAfter: Math.round((balanceAfter - feeAmount) * 100) / 100,
-              currency: wallet.currency,
+              currency: freshWallet.currency,
               description: `Withdrawal fee for ${withdrawalRef}`,
               referenceType: 'withdrawal',
               referenceId: wdr.id,
@@ -144,8 +154,8 @@ async function postHandler(request: NextRequest) {
         await tx.wallet.update({
           where: { id: data.walletId },
           data: {
-            availableBalance: Math.round((wallet.availableBalance - data.amount) * 100) / 100,
-            pendingBalance: Math.round((wallet.pendingBalance + data.amount) * 100) / 100,
+            availableBalance: Math.round((freshWallet.availableBalance - data.amount) * 100) / 100,
+            pendingBalance: Math.round((freshWallet.pendingBalance + data.amount) * 100) / 100,
           },
         })
       }
@@ -175,6 +185,10 @@ async function postHandler(request: NextRequest) {
     return NextResponse.json({ data: withdrawal }, { status: 201 })
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
+    const msg = error instanceof Error ? error.message : ''
+    if (msg.includes('Insufficient') || msg.includes('Wallet not found')) {
+      return NextResponse.json({ error: msg }, { status: 400 })
+    }
     console.error('Error creating withdrawal:', error)
     return NextResponse.json({ error: 'Failed to create withdrawal' }, { status: 500 })
   }

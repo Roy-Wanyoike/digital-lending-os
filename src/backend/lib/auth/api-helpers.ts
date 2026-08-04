@@ -29,7 +29,7 @@ export async function getApiUser(req: NextRequest): Promise<ApiUser | null> {
     return {
       id: user.id,
       email: user.email || '',
-      role: user.role || 'USER',
+      role: user.role || 'viewer',
       tenantId: user.tenantId || '',
       businessId: user.businessId || '',
     };

@@ -52,3 +52,23 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Tool outputs
+tool-results/
+
+# Downloads
+ download/
+
+# Agent context
+agent-ctx/
+
+# Database files
+db/*.db
+db/*.db-journal
+
+# Backup files
+*.bak
+
+# IDE
+.idea/
+.vscode/

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const updateUserSchema = z.object({
@@ -53,8 +53,7 @@ async function putHandler(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
     if (user.role !== 'admin') return NextResponse.json({ error: 'Admin required to update users' }, { status: 403 })
     const { id } = await params
     const body = await request.json()
@@ -101,8 +100,7 @@ async function deleteHandler(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
     if (user.role !== 'admin') return NextResponse.json({ error: 'Admin required to deactivate users' }, { status: 403 })
     const { id } = await params
     const existing = await db.account.findUnique({ where: { id } })

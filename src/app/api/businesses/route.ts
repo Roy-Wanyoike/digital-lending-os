@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth } from '@/lib/auth/api-helpers';
 import { ok, created, badRequest, unauthorized, forbidden, withErrorHandler } from '@/backend/lib/api-response';
 import { businessCreateSchema } from '@/backend/lib/validation/schemas';
 import { getLogger } from '@/backend/lib/telemetry/logger';
@@ -55,8 +55,7 @@ const getBusinessesHandler = withErrorHandler(async (req: NextRequest) => {
 export const GET = withApiTelemetry(getBusinessesHandler, '/api/businesses');
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
-  const user = await getApiUser(req);
-  if (!user) return unauthorized();
+  const user = await requireAuth(req);
   if (user.role !== 'admin') return forbidden();
 
   const body = await req.json();

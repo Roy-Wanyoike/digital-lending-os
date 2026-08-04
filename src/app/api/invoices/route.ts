@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { getApiUser } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 import { ok, created, badRequest, unauthorized, forbidden, withErrorHandler } from '@/backend/lib/api-response';
 import { invoiceCreateSchema } from '@/backend/lib/validation/schemas';
@@ -16,7 +16,7 @@ async function getHandler(req: NextRequest) {
     where: { tenantId: user.tenantId },
     select: { id: true },
   });
-  const businessIds = businesses.map((b) => b.id);
+  const businessIds = businesses.map((b: any) => b.id);
 
   if (businessIds.length === 0) {
     return ok({ invoices: [] });
@@ -31,8 +31,7 @@ async function getHandler(req: NextRequest) {
 }
 
 async function postHandler(req: NextRequest) {
-  const user = await getApiUser(req);
-  if (!user) return unauthorized();
+  const user = await requireAuth(req);
 
   const body = await req.json();
   const parsed = invoiceCreateSchema.safeParse(body);

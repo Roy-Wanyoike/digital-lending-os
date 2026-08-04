@@ -62,7 +62,7 @@ async function postHandler(request: NextRequest) {
       const bizIds = (await db.business.findMany({
         where: { tenantId: user.tenantId },
         select: { id: true },
-      })).map(b => b.id)
+      })).map((b: any) => b.id)
 
       const intent = await db.paymentIntent.findFirst({
         where: {

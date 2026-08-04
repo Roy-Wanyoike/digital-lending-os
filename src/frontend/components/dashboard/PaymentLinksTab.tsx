@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { motion } from 'framer-motion'
 import { Link2, Plus, DollarSign, Zap, Copy, ExternalLink, X, CreditCard } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -149,7 +148,7 @@ export function PaymentLinksTab() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard title="Total Links" value={totalLinks.toString()} icon={Link2} />
@@ -332,6 +331,6 @@ export function PaymentLinksTab() {
         </DialogContent>
       </Dialog>
 
-    </motion.div>
+    </div>
   )
 }

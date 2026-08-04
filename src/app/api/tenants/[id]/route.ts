@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/lib/db';
-import { getApiUser, requireRole, AuthError } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+
+const patchTenantSchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  plan: z.string().optional(),
+  ownerEmail: z.string().email().optional(),
+  ownerName: z.string().min(1).max(200).optional(),
+  maxBusinesses: z.number().int().min(1).optional(),
+  maxUsers: z.number().int().min(1).optional(),
+  features: z.record(z.string(), z.unknown()).or(z.array(z.unknown())).optional(),
+  status: z.enum(['active', 'suspended', 'trial', 'churned']).optional(),
+});
 async function getHandler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,8 +26,8 @@ async function getHandler(
     }
     const { id } = await params;
 
-    // Only allow users to view their own tenant (unless SUPER_ADMIN)
-    if (user.tenantId !== id && user.role !== 'SUPER_ADMIN') {
+    // Only allow users to view their own tenant (unless admin)
+    if (user.tenantId !== id && user.role !== 'admin') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -46,32 +58,36 @@ async function patchHandler(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getApiUser(req);
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    const user = await requireAuth(req);
     const { id } = await params;
 
-    if (user.tenantId !== id && user.role !== 'SUPER_ADMIN') {
+    if (user.tenantId !== id && user.role !== 'admin') {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    // Only allow ADMIN or SUPER_ADMIN to update tenant
-    if (!['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    // Only allow admin to update tenant
+    if (user.role !== 'admin') {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const body = await req.json();
+    const parsed = patchTenantSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+        { status: 400 }
+      );
+    }
 
     const updateData: Record<string, unknown> = {};
-    if (body.name !== undefined) updateData.name = body.name;
-    if (body.plan !== undefined) updateData.plan = body.plan;
-    if (body.ownerEmail !== undefined) updateData.ownerEmail = body.ownerEmail;
-    if (body.ownerName !== undefined) updateData.ownerName = body.ownerName;
-    if (body.maxBusinesses !== undefined) updateData.maxBusinesses = body.maxBusinesses;
-    if (body.maxUsers !== undefined) updateData.maxUsers = body.maxUsers;
-    if (body.features !== undefined) updateData.features = typeof body.features === 'object' ? JSON.stringify(body.features) : body.features;
-    if (body.status !== undefined) updateData.status = body.status;
+    if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
+    if (parsed.data.plan !== undefined) updateData.plan = parsed.data.plan;
+    if (parsed.data.ownerEmail !== undefined) updateData.ownerEmail = parsed.data.ownerEmail;
+    if (parsed.data.ownerName !== undefined) updateData.ownerName = parsed.data.ownerName;
+    if (parsed.data.maxBusinesses !== undefined) updateData.maxBusinesses = parsed.data.maxBusinesses;
+    if (parsed.data.maxUsers !== undefined) updateData.maxUsers = parsed.data.maxUsers;
+    if (parsed.data.features !== undefined) updateData.features = JSON.stringify(parsed.data.features);
+    if (parsed.data.status !== undefined) updateData.status = parsed.data.status;
 
     const tenant = await db.tenant.update({
       where: { id },

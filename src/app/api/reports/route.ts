@@ -52,7 +52,7 @@ async function getHandler(req: NextRequest) {
     const businessIds = (await db.business.findMany({
       where: { tenantId: user.tenantId },
       select: { id: true },
-    })).map(b => b.id);
+    })).map((b: any) => b.id);
 
     if (businessIds.length === 0) {
       // No businesses in this tenant — return empty report

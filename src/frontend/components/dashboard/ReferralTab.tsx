@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { motion } from 'framer-motion'
 import {
   Gift, Copy, Check, Users, DollarSign, Link2, Share2,
   ArrowUpRight, ExternalLink, TrendingUp, Sparkles, CircleDollarSign,
@@ -114,10 +113,7 @@ export function ReferralTab() {
     <div className="space-y-6">
       {/* Referred By Banner */}
       {referrerInfo && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
+        <div className="animate-fade-in">
           <Card className="bg-gradient-to-r from-blue-50 dark:from-blue-950/50 to-indigo-50 dark:to-indigo-950/50 border-blue-200 dark:border-blue-800">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
@@ -130,15 +126,11 @@ export function ReferralTab() {
               <Badge className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40">Referred</Badge>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       )}
 
       {/* Hero Card — Referral Link */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-      >
+      <div className="animate-fade-in">
         <Card className="overflow-hidden">
           <div className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 p-6 sm:p-8 text-white">
             <div className="flex items-start justify-between mb-4">
@@ -214,7 +206,7 @@ export function ReferralTab() {
             </div>
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -346,11 +338,9 @@ export function ReferralTab() {
 
       {/* Bottom CTA for empty state */}
       {stats.totalReferred === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="text-center py-6"
+        <div
+          className="text-center py-6 animate-fade-in"
+          style={{ animationDelay: '0.5s', animationFillMode: 'both' }}
         >
           <Card className="bg-gradient-to-r from-amber-50 dark:from-amber-950/50 to-orange-50 dark:to-orange-950/50 border-amber-200 dark:border-amber-800">
             <CardContent className="p-6 flex flex-col items-center">
@@ -369,7 +359,7 @@ export function ReferralTab() {
               </Button>
             </CardContent>
           </Card>
-        </motion.div>
+        </div>
       )}
     </div>
   )

@@ -65,7 +65,7 @@ async function postHandler(
     }
 
     // Find the milestone
-    const milestone = escrow.milestones.find((m) => m.id === milestoneId);
+    const milestone = escrow.milestones.find((m: any) => m.id === milestoneId);
     if (!milestone) {
       return NextResponse.json(
         { error: "Milestone not found for this escrow" },
@@ -82,93 +82,100 @@ async function postHandler(
 
     const now = new Date();
 
-    // Update milestone status
-    await db.escrowMilestone.update({
-      where: { id: milestoneId },
-      data: {
-        status: "released",
-        releasedAt: now,
-      },
-    });
-
-    // Create disbursement
-    const disbursement = await db.disbursement.create({
-      data: {
-        escrowId: id,
-        milestoneId,
-        amount: milestone.amount,
-        currency: escrow.currency,
-        status: "completed",
-        paymentRef: `DIS-${escrow.txRef}-${milestone.sequence}`,
-        completedAt: now,
-      },
-    });
-
-    // Check if all milestones are released
-    const allMilestones = await db.escrowMilestone.findMany({
-      where: { escrowId: id },
-    });
-    const allReleased = allMilestones.every((m) => m.status === "released");
-    const totalReleased = allMilestones
-      .filter((m) => m.status === "released")
-      .reduce((sum, m) => sum + m.amount, 0);
-
-    const updateData: Record<string, unknown> = {
-      releasedAmount: totalReleased,
-    };
-
-    if (allReleased) {
-      updateData.status = "completed";
-      updateData.completedAt = now;
-    } else {
-      updateData.status = "partial_release";
-    }
-
-    const updatedEscrow = await db.escrowTransaction.update({
-      where: { id },
-      data: updateData,
-      include: {
-        buyer: { select: { id: true, name: true } },
-        seller: { select: { id: true, name: true } },
-        milestones: { orderBy: { sequence: "asc" } },
-        disbursements: true,
-      },
-    });
-
-    // Audit log for milestone release
-    await db.escrowAuditLog.create({
-      data: {
-        escrowId: id,
-        action: "milestone_released",
-        details: `Milestone "${milestone.title}" (seq ${milestone.sequence}) released. Amount: ${milestone.amount} ${escrow.currency}. Disbursement ${disbursement.paymentRef} created.`,
-        metadata: JSON.stringify({
-          milestoneId,
-          milestoneTitle: milestone.title,
-          amount: milestone.amount,
-          disbursementId: disbursement.id,
-        }),
-      },
-    });
-
-    // If all released, add completion log
-    if (allReleased) {
-      await db.escrowAuditLog.create({
+    // Wrap all DB mutations in a single transaction for atomicity
+    const updatedEscrow = await db.$transaction(async (tx: any) => {
+      // Update milestone status
+      await tx.escrowMilestone.update({
+        where: { id: milestoneId },
         data: {
-          escrowId: id,
-          action: "completed",
-          details: `All milestones released. Escrow ${escrow.txRef} completed. Total released: ${totalReleased} ${escrow.currency}.`,
+          status: "released",
+          releasedAt: now,
         },
       });
-    }
+
+      // Create disbursement
+      const disbursement = await tx.disbursement.create({
+        data: {
+          escrowId: id,
+          milestoneId,
+          amount: milestone.amount,
+          currency: escrow.currency,
+          status: "completed",
+          paymentRef: `DIS-${escrow.txRef}-${milestone.sequence}`,
+          completedAt: now,
+        },
+      });
+
+      // Check if all milestones are released
+      const allMilestones = await tx.escrowMilestone.findMany({
+        where: { escrowId: id },
+      });
+      const allReleased = allMilestones.every((m: any) => m.status === "released");
+      const totalReleased = allMilestones
+        .filter((m: any) => m.status === "released")
+        .reduce((sum: any, m: any) => sum + m.amount, 0);
+
+      const updateData: Record<string, unknown> = {
+        releasedAmount: totalReleased,
+      };
+
+      if (allReleased) {
+        updateData.status = "completed";
+        updateData.completedAt = now;
+      } else {
+        updateData.status = "partial_release";
+      }
+
+      const result = await tx.escrowTransaction.update({
+        where: { id },
+        data: updateData,
+        include: {
+          buyer: { select: { id: true, name: true } },
+          seller: { select: { id: true, name: true } },
+          milestones: { orderBy: { sequence: "asc" } },
+          disbursements: true,
+        },
+      });
+
+      // Audit log for milestone release
+      await tx.escrowAuditLog.create({
+        data: {
+          escrowId: id,
+          action: "milestone_released",
+          details: `Milestone "${milestone.title}" (seq ${milestone.sequence}) released. Amount: ${milestone.amount} ${escrow.currency}. Disbursement ${disbursement.paymentRef} created.`,
+          metadata: JSON.stringify({
+            milestoneId,
+            milestoneTitle: milestone.title,
+            amount: milestone.amount,
+            disbursementId: disbursement.id,
+          }),
+        },
+      });
+
+      // If all released, add completion log
+      if (allReleased) {
+        await tx.escrowAuditLog.create({
+          data: {
+            escrowId: id,
+            action: "completed",
+            details: `All milestones released. Escrow ${escrow.txRef} completed. Total released: ${totalReleased} ${escrow.currency}.`,
+          },
+        });
+      }
+
+      return { result, disbursementId: disbursement.id };
+    });
+
+    const { result: escrowResult, disbursementId } = updatedEscrow;
 
     // ─── Emit realtime event ────────────────────────────
     try {
       eventBus.emit('escrow.updated', {
-        id: updatedEscrow.id,
-        txRef: updatedEscrow.txRef,
-        amount: updatedEscrow.amount,
-        currency: updatedEscrow.currency,
-        status: updatedEscrow.status,
+        id: escrowResult.id,
+        txRef: escrowResult.txRef,
+        amount: escrowResult.amount,
+        currency: escrowResult.currency,
+        status: escrowResult.status,
         action: 'milestone_released',
         milestoneId,
         milestoneTitle: milestone.title,
@@ -181,15 +188,15 @@ async function postHandler(
     void processEscrow({ escrowId: id, milestoneId, milestoneSequence: milestone.sequence, tenantId: user.tenantId });
 
     // ── State machine: record payment transition (release) ──
-    void recordPaymentTransition(id, 'in_escrow', updatedEscrow.status, user.email || user.id || 'authenticated');
+    void recordPaymentTransition(id, 'in_escrow', escrowResult.status, user.email || user.id || 'authenticated');
 
     // ─── Audit trail ────────────────────────────────
     try {
       const { auditLog } = await import('@/backend/lib/audit-helper')
-      await auditLog({ action: 'escrow.release', resource: 'escrow', resourceId: id, userId: user.id, tenantId: user.tenantId, details: { milestoneId, milestoneTitle: milestone.title, amount: milestone.amount, disbursementId: disbursement.id, newStatus: updatedEscrow.status } })
+      await auditLog({ action: 'escrow.release', resource: 'escrow', resourceId: id, userId: user.id, tenantId: user.tenantId, details: { milestoneId, milestoneTitle: milestone.title, amount: milestone.amount, disbursementId, newStatus: escrowResult.status } })
     } catch (e) { console.error('Audit log failed:', e) }
 
-    return NextResponse.json({ data: updatedEscrow });
+    return NextResponse.json({ data: escrowResult });
   } catch (error) {
     console.error("Error releasing escrow funds:", error);
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });

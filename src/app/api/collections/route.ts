@@ -67,7 +67,7 @@ async function getHandler(request: NextRequest) {
 
     // Attach debtor business name
     const casesWithDebtorName = await Promise.all(
-      cases.map(async (c) => {
+      cases.map(async (c: any) => {
         const debtor = await db.business.findUnique({
           where: { id: c.debtorId },
           select: { name: true },

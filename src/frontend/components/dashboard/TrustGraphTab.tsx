@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 import { Search, ChevronRight } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,7 +30,7 @@ export function TrustGraphTab() {
   )
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold">Trust Network</h2>
@@ -114,6 +113,6 @@ export function TrustGraphTab() {
           )}
         </DialogContent>
       </Dialog>
-    </motion.div>
+    </div>
   )
 }

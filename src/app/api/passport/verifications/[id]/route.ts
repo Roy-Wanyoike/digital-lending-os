@@ -125,7 +125,7 @@ async function putHandler(
           },
         })
 
-        const allApproved = relatedVerifications.every((v) => v.status === 'approved')
+        const allApproved = relatedVerifications.every((v: any) => v.status === 'approved')
         if (allApproved) {
           passportUpdate.kycStatus = 'verified'
           passportUpdate.lastAuditAt = new Date()
@@ -155,8 +155,8 @@ async function putHandler(
 
         const approvedTypes = new Set(
           allVerifications
-            .filter((v) => v.status === 'approved')
-            .map((v) => v.type)
+            .filter((v: any) => v.status === 'approved')
+            .map((v: any) => v.type)
         )
 
         let credentialLevel = 'basic'

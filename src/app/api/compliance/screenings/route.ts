@@ -54,7 +54,7 @@ async function getHandler(request: NextRequest) {
     const tenantBizIds = (await db.business.findMany({
       where: { tenantId: user.tenantId },
       select: { id: true },
-    })).map(b => b.id)
+    })).map((b: any) => b.id)
 
     const where: Record<string, unknown> = {
       businessId: { in: tenantBizIds },

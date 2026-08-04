@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 import type { ApiUser } from '@/lib/auth/api-helpers';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
@@ -54,8 +54,7 @@ async function getHandler(req: NextRequest) {
 
 async function postHandler(req: NextRequest) {
   try {
-    const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    const user = await requireAuth(req);
 
     if (user.role !== 'admin') {
       return errorResponse('Insufficient permissions', 403);
@@ -96,6 +95,7 @@ async function postHandler(req: NextRequest) {
     return successResponse(newUser, 201);
   } catch (error: any) {
     console.error('Users POST error:', error);
+    if (error instanceof AuthError) return errorResponse(error.message, error.status);
     return errorResponse('Failed to create user', 500);
   }
 }

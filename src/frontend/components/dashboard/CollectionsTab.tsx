@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -49,7 +48,7 @@ export function CollectionsTab() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">Aging Summary</h3>
         <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
@@ -114,6 +113,6 @@ export function CollectionsTab() {
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }

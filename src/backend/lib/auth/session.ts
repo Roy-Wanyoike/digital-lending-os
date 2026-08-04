@@ -28,7 +28,7 @@ export async function getCurrentUser() {
       id: user.id,
       email: session.user.email,
       name: session.user.name,
-      role: user.role || 'USER',
+      role: user.role || 'viewer',
       tenantId: user.tenantId || '',
       businessId: user.businessId || '',
     }

@@ -97,33 +97,33 @@ async function postHandler(request: NextRequest) {
     let communicationScore = 50.0
 
     if (reviews.length > 0) {
-      const ratingsWithPayment = reviews.filter((r) => r.paymentRating !== null)
-      const ratingsWithDelivery = reviews.filter((r) => r.deliveryRating !== null)
-      const ratingsWithQuality = reviews.filter((r) => r.qualityRating !== null)
-      const ratingsWithComm = reviews.filter((r) => r.communicationRating !== null)
+      const ratingsWithPayment = reviews.filter((r: any) => r.paymentRating !== null)
+      const ratingsWithDelivery = reviews.filter((r: any) => r.deliveryRating !== null)
+      const ratingsWithQuality = reviews.filter((r: any) => r.qualityRating !== null)
+      const ratingsWithComm = reviews.filter((r: any) => r.communicationRating !== null)
 
       if (ratingsWithPayment.length > 0) {
-        const sum = ratingsWithPayment.reduce((acc, r) => acc + (r.paymentRating || 0), 0)
+        const sum = ratingsWithPayment.reduce((acc: any, r: any) => acc + (r.paymentRating || 0), 0)
         paymentScore = (sum / ratingsWithPayment.length) * 20
       }
 
       if (ratingsWithDelivery.length > 0) {
-        const sum = ratingsWithDelivery.reduce((acc, r) => acc + (r.deliveryRating || 0), 0)
+        const sum = ratingsWithDelivery.reduce((acc: any, r: any) => acc + (r.deliveryRating || 0), 0)
         deliveryScore = (sum / ratingsWithDelivery.length) * 20
       }
 
       if (ratingsWithQuality.length > 0) {
-        const sum = ratingsWithQuality.reduce((acc, r) => acc + (r.qualityRating || 0), 0)
+        const sum = ratingsWithQuality.reduce((acc: any, r: any) => acc + (r.qualityRating || 0), 0)
         qualityScore = (sum / ratingsWithQuality.length) * 20
       }
 
       if (ratingsWithComm.length > 0) {
-        const sum = ratingsWithComm.reduce((acc, r) => acc + (r.communicationRating || 0), 0)
+        const sum = ratingsWithComm.reduce((acc: any, r: any) => acc + (r.communicationRating || 0), 0)
         communicationScore = (sum / ratingsWithComm.length) * 20
       }
 
       if (ratingsWithPayment.length === 0 && ratingsWithDelivery.length === 0) {
-        const avgRating = reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length
+        const avgRating = reviews.reduce((acc: any, r: any) => acc + r.rating, 0) / reviews.length
         paymentScore = avgRating * 20
         deliveryScore = avgRating * 20
         qualityScore = avgRating * 20
@@ -145,7 +145,7 @@ async function postHandler(request: NextRequest) {
     const verifications = await db.verification.findMany({
       where: { businessId },
     })
-    const approvedVerifications = verifications.filter((v) => v.status === 'approved').length
+    const approvedVerifications = verifications.filter((v: any) => v.status === 'approved').length
     const complianceScore = clamp(
       verifications.length > 0 ? (approvedVerifications / verifications.length) * 100 : 50
     )
@@ -168,7 +168,7 @@ async function postHandler(request: NextRequest) {
         communicationScore,
         complianceScore,
         totalReviews: reviews.length,
-        totalTransactions: events.filter((e) => e.eventType === 'transaction_completed').length,
+        totalTransactions: events.filter((e: any) => e.eventType === 'transaction_completed').length,
         scoreVersion: { increment: 1 },
         lastCalculated: new Date(),
       },

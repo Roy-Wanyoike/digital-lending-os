@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiUser } from '@/lib/auth/api-helpers';
+import { z } from 'zod';
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+
+const createEscrowSchema = z.object({
+  amount: z.coerce.number().positive('Amount must be a positive number'),
+  currency: z.string().length(3).default('USD'),
+  description: z.string().max(2000).optional(),
+  sellerId: z.string().min(1, 'sellerId is required'),
+});
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined;
 let _cacheAttempted = false;
@@ -27,7 +35,7 @@ async function getHandler(req: NextRequest) {
       where: { tenantId: user.tenantId },
       select: { id: true },
     });
-    const businessIds = businesses.map((b) => b.id);
+    const businessIds = businesses.map((b: any) => b.id);
 
     if (businessIds.length === 0) {
       return NextResponse.json({ escrows: [] });
@@ -68,15 +76,18 @@ function generateTxRef(): string {
 
 async function postHandler(req: NextRequest) {
   try {
-    const user = await getApiUser(req);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const user = await requireAuth(req);
 
     const body = await req.json();
-    const { amount, currency, description, sellerId } = body;
-
-    if (!amount || !sellerId) {
-      return NextResponse.json({ error: 'amount and sellerId are required' }, { status: 400 });
+    const parsed = createEscrowSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+        { status: 400 }
+      );
     }
+
+    const { amount, currency, description, sellerId } = parsed.data;
 
     // Get buyerId from user's first business
     const buyerBusiness = await db.business.findFirst({
@@ -103,8 +114,8 @@ async function postHandler(req: NextRequest) {
         txRef,
         buyerId: buyerBusiness.id,
         sellerId,
-        amount: parseFloat(amount),
-        currency: currency || 'USD',
+        amount,
+        currency,
         description: description || null,
         status: 'created',
       },
@@ -117,6 +128,7 @@ async function postHandler(req: NextRequest) {
     return NextResponse.json(escrow, { status: 201 });
   } catch (error) {
     console.error('Escrow POST error:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: 'Failed to create escrow transaction' }, { status: 500 });
   }
 }

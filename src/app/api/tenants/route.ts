@@ -1,10 +1,25 @@
 import { NextRequest } from 'next/server';
+import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
-import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 import { logAudit } from '@/lib/audit-logger';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+
+const registerSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters').max(100, 'Name must be at most 100 characters'),
+  ownerEmail: z.string().email('Invalid email address').optional(),
+  ownerName: z.string().min(1).max(200).optional(),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128, 'Password must be at most 128 characters').regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and digit').optional(),
+  businessName: z.string().min(2).max(200).optional(),
+  plan: z.string().optional(),
+  slug: z.string().optional(),
+  referralCode: z.string().optional(),
+}).refine(
+  (data) => !data.password || (data.ownerName && data.ownerEmail),
+  { message: 'ownerName and ownerEmail are required when password is provided', path: ['password'] }
+);
 function generateSlug(name: string): string {
   const base = name
     .toLowerCase()
@@ -61,6 +76,10 @@ async function getHandler(req: NextRequest) {
 async function postHandler(req: NextRequest) {
   try {
     const body = await req.json();
+    const parsed = registerSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(parsed.error.issues.map((i) => i.message).join(', '), 400);
+    }
     const { name, slug, plan, ownerName, ownerEmail, password, referralCode } = body;
 
     if (!name) return errorResponse('Name is required', 400);
@@ -102,7 +121,7 @@ async function postHandler(req: NextRequest) {
       const hashedPassword = await bcrypt.hash(password, 12);
 
       // Create tenant, owner account, and default business in a transaction
-      const result = await db.$transaction(async (tx) => {
+      const result = await db.$transaction(async (tx: any) => {
         const tenant = await tx.tenant.create({
           data: {
             name,
@@ -162,8 +181,7 @@ async function postHandler(req: NextRequest) {
     }
 
     // --- Admin-only tenant creation (no password) ---
-    const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    const user = await requireAuth(req);
     if (user.role !== 'admin') {
       return errorResponse('Insufficient permissions', 403);
     }
@@ -196,6 +214,7 @@ async function postHandler(req: NextRequest) {
     return successResponse(tenant, 201);
   } catch (error: any) {
     console.error('Tenants POST error:', error);
+    if (error instanceof AuthError) return errorResponse(error.message, error.status);
     return errorResponse('Failed to create tenant', 500);
   }
 }

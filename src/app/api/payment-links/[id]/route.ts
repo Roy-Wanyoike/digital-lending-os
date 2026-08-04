@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 async function getHandler(
@@ -40,10 +40,7 @@ async function patchHandler(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getApiUser(req);
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    const user = await requireAuth(req);
     const { id } = await params;
     const body = await req.json();
 
@@ -85,10 +82,7 @@ async function deleteHandler(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getApiUser(req);
-    if (!user) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    const user = await requireAuth(req);
     const { id } = await params;
 
     const existing = await db.paymentLink.findFirst({

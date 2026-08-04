@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 async function getHandler(req: NextRequest) {
@@ -16,7 +16,7 @@ async function getHandler(req: NextRequest) {
     const businessIds = (await db.business.findMany({
       where: { tenantId: user.tenantId },
       select: { id: true },
-    })).map(b => b.id);
+    })).map((b: any) => b.id);
 
     const where: any = { businessId: { in: businessIds } };
     if (status) where.status = status;
@@ -31,14 +31,14 @@ async function getHandler(req: NextRequest) {
     });
 
     // Enrich with business names
-    const subBizIds = [...new Set(subscriptions.map(s => s.businessId))];
+    const subBizIds = [...new Set(subscriptions.map((s: any) => s.businessId))];
     const businesses = await db.business.findMany({
       where: { id: { in: subBizIds } },
       select: { id: true, name: true },
     });
-    const bizMap = Object.fromEntries(businesses.map(b => [b.id, b.name]));
+    const bizMap = Object.fromEntries(businesses.map((b: any) => [b.id, b.name]));
 
-    return successResponse(subscriptions.map(s => ({
+    return successResponse(subscriptions.map((s: any) => ({
       ...s,
       business: { id: s.businessId, name: bizMap[s.businessId] || 'Unknown' },
     })));
@@ -50,8 +50,7 @@ async function getHandler(req: NextRequest) {
 
 async function postHandler(req: NextRequest) {
   try {
-    const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    const user = await requireAuth(req);
     if (user.role !== 'admin') return errorResponse('Insufficient permissions', 403);
 
     const body = await req.json();
@@ -103,6 +102,7 @@ async function postHandler(req: NextRequest) {
     return successResponse(subscription, 201);
   } catch (error: any) {
     console.error('Subscriptions POST error:', error);
+    if (error instanceof AuthError) return errorResponse(error.message, error.status);
     return errorResponse('Failed to create subscription', 500);
   }
 }

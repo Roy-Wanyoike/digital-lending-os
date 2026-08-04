@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
   Wallet as WalletIcon, Plus, ArrowDownRight, RefreshCw,
   Download, Upload, ArrowLeftRight, Bitcoin, Info,
@@ -345,7 +344,7 @@ export function WalletTab() {
   if (bizError || ratesError || walletsError) return <ErrorState message={bizError || ratesError || walletsError || ''} onRetry={refetch} />
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Business selector */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -400,9 +399,8 @@ export function WalletTab() {
       )}
 
       {/* Action Buttons + Transaction History */}
-      <AnimatePresence>
-        {selectedWalletId && selectedWallet && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+      {selectedWalletId && selectedWallet && (
+          <div className="animate-fade-in">
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <h3 className="font-semibold">{selectedWallet.currency} Wallet — {CURRENCY_FLAGS[selectedWallet.currency] || ''}</h3>
               <div className="flex gap-2 flex-wrap">
@@ -451,9 +449,8 @@ export function WalletTab() {
                 </div>
               </CardContent>
             </Card>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* ═══ DIALOGS ═══ */}
 
@@ -709,6 +706,6 @@ export function WalletTab() {
       </Dialog>
 
 
-    </motion.div>
+    </div>
   )
 }

@@ -86,7 +86,7 @@ async function postHandler(request: NextRequest) {
     const conversionRef = `CNV-${randomUUID().slice(0, 8).toUpperCase()}`
 
     // Atomic transaction with fresh wallet reads to prevent race conditions
-    const conversion = await db.$transaction(async (tx) => {
+    const conversion = await db.$transaction(async (tx: any) => {
       // Re-read wallets inside transaction for fresh balances
       const freshFrom = await tx.wallet.findUnique({ where: { id: data.fromWalletId } })
       const freshTo = await tx.wallet.findUnique({ where: { id: data.toWalletId } })

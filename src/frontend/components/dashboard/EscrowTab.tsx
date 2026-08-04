@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { Shield, Plus, Eye, DollarSign, Play, ChevronRight, AlertTriangle, CheckCircle, Clock, X, ExternalLink, CreditCard } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -183,7 +182,7 @@ export function EscrowTab() {
   const selectedTxn = allTxns.find(t => t.id === selectedId)
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard title="Total Volume" value={formatCurrency(totalVolume)} icon={DollarSign} />
@@ -281,11 +280,10 @@ export function EscrowTab() {
       </Card>
 
       {/* Detail Drawer */}
-      <AnimatePresence>
-        {selectedTxn && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex justify-end">
+      {selectedTxn && (
+          <div className="fixed inset-0 z-50 flex justify-end animate-fade-in">
             <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedId(null)} />
-            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="relative w-full max-w-xl bg-background shadow-xl h-full overflow-y-auto border-l">
+            <div className="relative w-full max-w-xl bg-background shadow-xl h-full overflow-y-auto border-l animate-slide-in-right">
               <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold">{selectedTxn.txRef}</h3>
@@ -362,10 +360,9 @@ export function EscrowTab() {
                   <div><p className="text-muted-foreground">Refunded</p><p>{formatCurrency(selectedTxn.refundedAmount, selectedTxn.currency)}</p></div>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
 
       {/* Fund Dialog */}
       <Dialog open={fundOpen} onOpenChange={setFundOpen}>
@@ -473,6 +470,6 @@ export function EscrowTab() {
       </Dialog>
 
 
-    </motion.div>
+    </div>
   )
 }

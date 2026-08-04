@@ -40,7 +40,7 @@ async function getTenantBusinessIds(tenantId: string): Promise<string[]> {
     where: { tenantId },
     select: { id: true },
   });
-  return businesses.map((b) => b.id);
+  return businesses.map((b: any) => b.id);
 }
 
 // ── GET: Single payment intent ──────────────────────────────

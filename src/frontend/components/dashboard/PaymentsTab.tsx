@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -29,7 +28,7 @@ export function PaymentsTab() {
   const filteredMethods = methodFilter === 'All' ? allMethods : allMethods.filter(m => m.type === methodFilter)
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Exchange Rate Cards */}
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">Live Exchange Rates</h3>
@@ -141,6 +140,6 @@ export function PaymentsTab() {
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }

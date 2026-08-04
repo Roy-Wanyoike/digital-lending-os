@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { CheckCircle, Clock, XCircle, Shield, AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -35,7 +34,7 @@ export function PassportTab() {
   })
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
         <KPICard title="KYC Verified" value={kycCounts.verified.toString()} icon={CheckCircle} />
         <KPICard title="KYC Pending" value={kycCounts.pending.toString()} icon={Clock} />
@@ -113,6 +112,6 @@ export function PassportTab() {
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }

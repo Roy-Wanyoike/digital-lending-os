@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -25,7 +24,7 @@ export function MatchingTab() {
   const pipelineColors = ['#94a3b8', '#3b82f6', '#f59e0b', '#10b981', '#ef4444']
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
         {pipelineCounts.map((p, i) => (
           <PipelineCard key={p.status} label={p.status} count={p.count} color={pipelineColors[i]} />
@@ -69,6 +68,6 @@ export function MatchingTab() {
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }

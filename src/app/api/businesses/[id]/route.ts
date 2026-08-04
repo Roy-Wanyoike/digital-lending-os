@@ -1,8 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { db } from '@/lib/db'
-import { getApiUser, AuthError } from '@/lib/auth/api-helpers'
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+
+const updateBusinessSchema = z.object({
+  name: z.string().min(2).max(200).optional(),
+  legalName: z.string().max(300).optional(),
+  registrationNo: z.string().max(100).optional(),
+  taxId: z.string().max(100).optional(),
+  country: z.string().max(10).optional(),
+  city: z.string().max(100).optional(),
+  industry: z.string().max(100).optional(),
+  website: z.string().url().optional().or(z.literal('')),
+  employeeCount: z.number().int().min(0).optional(),
+  annualRevenue: z.number().min(0).optional(),
+  description: z.string().max(2000).optional(),
+  logoUrl: z.string().url().optional().or(z.literal('')),
+  status: z.enum(['active', 'pending', 'verified', 'deactivated', 'suspended']).optional(),
+});
 async function getHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -49,10 +66,16 @@ async function putHandler(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
     const { id } = await params
     const body = await request.json()
+    const parsed = updateBusinessSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues.map((i) => i.message).join(', ') },
+        { status: 400 }
+      )
+    }
 
     const existing = await db.business.findUnique({ where: { id } })
     if (!existing) {
@@ -80,8 +103,8 @@ async function putHandler(
 
     const updateData: Record<string, unknown> = {}
     for (const field of allowedFields) {
-      if (body[field] !== undefined) {
-        updateData[field] = body[field]
+      if (parsed.data[field] !== undefined) {
+        updateData[field] = parsed.data[field]
       }
     }
 
@@ -113,8 +136,7 @@ async function deleteHandler(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    const user = await requireAuth(request)
     const { id } = await params
 
     const existing = await db.business.findUnique({ where: { id } })

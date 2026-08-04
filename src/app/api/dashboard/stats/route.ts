@@ -33,7 +33,7 @@ async function getHandler(request: NextRequest) {
       const tenantBusinessIds = (await db.business.findMany({
         where: { tenantId: user.tenantId },
         select: { id: true },
-      })).map(b => b.id);
+      })).map((b: any) => b.id);
 
       const escrowTenantFilter = {
         OR: [
@@ -158,7 +158,7 @@ async function getHandler(request: NextRequest) {
       }
 
       // Build recentTransactions (flatten for API response)
-      const recentTransactionsFlat = recentTransactions.map((tx) => ({
+      const recentTransactionsFlat = recentTransactions.map((tx: any) => ({
         id: tx.id,
         txRef: tx.txRef,
         amount: tx.amount,
@@ -182,7 +182,7 @@ async function getHandler(request: NextRequest) {
       const averageTrustScore =
         trustScores.length > 0
           ? Math.round(
-              (trustScores.reduce((sum, ts) => sum + (ts.overallScore ?? 0), 0) / trustScores.length) * 100
+              (trustScores.reduce((sum: any, ts: any) => sum + (ts.overallScore ?? 0), 0) / trustScores.length) * 100
             ) / 100
           : 0;
 

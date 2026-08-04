@@ -83,11 +83,11 @@ export function middleware(request: NextRequest) {
   const isApi = pathname.startsWith('/api/');
 
   // --- Security headers (all responses) ---
+  // NOTE: X-Frame-Options, X-Content-Type-Options, Referrer-Policy are set in
+  // next.config.ts headers() — avoid duplicating them here.
   const res = NextResponse.next();
-  res.headers.set('x-frame-options', 'DENY');
-  res.headers.set('x-content-type-options', 'nosniff');
-  res.headers.set('referrer-policy', 'strict-origin-when-cross-origin');
   res.headers.set('x-xss-protection', '1; mode=block');
+  res.headers.set('content-security-policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.stripe.com https://api.paystack.co https://api.flutterwave.io https://api.intasend.com; frame-src https://js.stripe.com https://checkout.paystack.com https://checkout.flutterwave.com;");
   res.headers.set('x-request-id', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   // --- CORS headers (all responses) ---

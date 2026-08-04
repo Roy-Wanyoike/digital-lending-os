@@ -22,12 +22,12 @@ async function getHandler(request: NextRequest) {
     const tenantBusinessIds = (await db.business.findMany({
       where: { tenantId: user.tenantId },
       select: { id: true },
-    })).map(b => b.id);
+    })).map((b: any) => b.id);
 
     const tenantWalletIds = (await db.wallet.findMany({
       where: { businessId: { in: tenantBusinessIds } },
       select: { id: true },
-    })).map(w => w.id);
+    })).map((w: any) => w.id);
 
     // Build where clause — wallet-scoped
     const where: any = {

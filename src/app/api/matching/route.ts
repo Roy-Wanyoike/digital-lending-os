@@ -46,7 +46,7 @@ async function getHandler(request: NextRequest) {
     const tenantBizIds = (await db.business.findMany({
       where: { tenantId: user.tenantId },
       select: { id: true },
-    })).map(b => b.id)
+    })).map((b: any) => b.id)
 
     const where: Record<string, unknown> = {
       OR: [
@@ -72,7 +72,7 @@ async function getHandler(request: NextRequest) {
 
     // Attach business names
     const matchesWithNames = await Promise.all(
-      matches.map(async (match) => {
+      matches.map(async (match: any) => {
         const [seeker, candidate] = await Promise.all([
           db.business.findUnique({ where: { id: match.seekerId }, select: { name: true } }),
           db.business.findUnique({ where: { id: match.candidateId }, select: { name: true } }),
@@ -151,7 +151,7 @@ async function postHandler(request: NextRequest) {
     const shuffled = candidates.sort(() => Math.random() - 0.5).slice(0, 5)
 
     const matches = await Promise.all(
-      shuffled.map((candidate) =>
+      shuffled.map((candidate: any) =>
         db.businessMatch.create({
           data: {
             seekerId: data.seekerId,

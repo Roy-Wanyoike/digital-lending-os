@@ -30,8 +30,8 @@ async function getHandler(request: NextRequest) {
     }
     if (severity) where.severity = severity
 
-    // NOTE: ComplianceRule has no tenantId column. Rules are system-wide.
-    // This is a known limitation — see ADR-008 for migration plan.
+    where.tenantId = user.tenantId
+
     const rules = await db.complianceRule.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -72,9 +72,9 @@ async function postHandler(request: NextRequest) {
       return NextResponse.json({ error: 'Condition must be a JSON object' }, { status: 400 })
     }
 
-    // NOTE: ComplianceRule has no tenantId column. This is a known limitation — see ADR-008.
     const rule = await db.complianceRule.create({
       data: {
+        tenantId: user.tenantId,
         name: data.name,
         description: data.description,
         ruleType: data.ruleType,

@@ -9,16 +9,7 @@ const nextConfig: NextConfig = {
   // Security: remove the X-Powered-By response header
   poweredByHeader: false,
 
-  // React strict mode double-renders in dev, doubling memory pressure.
-  // Enable only in CI/production where we have headroom.
-  reactStrictMode: process.env.NODE_ENV === 'production',
-
-  // TypeScript type-checking is handled separately via `tsc --noEmit` in CI.
-  // Skipping here avoids OOM in memory-constrained build environments
-  // (tsc needs ~400MB+ which exceeds container limits; compilation itself is fine).
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  reactStrictMode: true,
 
   // Keep native/heavy packages external to the server bundle
   serverExternalPackages: ["bcryptjs", "@prisma/client", "ioredis"],

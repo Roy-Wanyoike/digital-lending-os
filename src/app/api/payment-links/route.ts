@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiUser } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
@@ -12,7 +12,7 @@ async function getHandler(req: NextRequest) {
       where: { tenantId: user.tenantId },
       select: { id: true },
     });
-    const businessIds = businesses.map((b) => b.id);
+    const businessIds = businesses.map((b: any) => b.id);
 
     if (businessIds.length === 0) {
       return NextResponse.json({ data: [] });
@@ -24,7 +24,7 @@ async function getHandler(req: NextRequest) {
     });
 
     // Map DB fields to expected frontend fields
-    const linksWithExtras = paymentLinks.map(link => ({
+    const linksWithExtras = paymentLinks.map((link: any) => ({
       ...link,
       _paymentCount: link.paymentCount,
       totalCollected: link.totalCollected,
@@ -44,8 +44,7 @@ function generateLinkRef(): string {
 
 async function postHandler(req: NextRequest) {
   try {
-    const user = await getApiUser(req);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    const user = await requireAuth(req);
 
     const body = await req.json();
     const { title, description, amount, currency, businessId, allowedMethods, allowedCountries, maxPayments, expiresIn } = body;
@@ -88,6 +87,7 @@ async function postHandler(req: NextRequest) {
     return NextResponse.json(paymentLink, { status: 201 });
   } catch (error) {
     console.error('PaymentLinks POST error:', error);
+    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
     return NextResponse.json({ error: 'Failed to create payment link' }, { status: 500 });
   }
 }

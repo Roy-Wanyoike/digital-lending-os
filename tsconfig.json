@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
@@ -24,21 +24,51 @@
       }
     ],
     "paths": {
-      "@/components/*": ["./src/frontend/components/*"],
-      "@/hooks/*": ["./src/frontend/hooks/*"],
-      "@/lib/*": ["./src/backend/lib/*"],
-      "@/app/*": ["./src/app/*"],
-      "@/frontend/components/*": ["./src/frontend/components/*"],
-      "@/frontend/hooks/*": ["./src/frontend/hooks/*"],
-      "@/frontend/types/*": ["./src/frontend/types/*"],
-      "@/frontend/utils/*": ["./src/frontend/utils/*"],
-      "@/frontend/*": ["./src/frontend/*"],
-      "@/backend/lib/*": ["./src/backend/lib/*"],
-      "@/backend/services/*": ["./src/backend/services/*"],
-      "@/backend/config/*": ["./src/backend/config/*"],
-      "@/backend/middleware/*": ["./src/backend/middleware/*"],
-      "@/backend/*": ["./src/backend/*"],
-      "@/*": ["./src/*"]
+      "@/components/*": [
+        "./src/frontend/components/*"
+      ],
+      "@/hooks/*": [
+        "./src/frontend/hooks/*"
+      ],
+      "@/lib/*": [
+        "./src/backend/lib/*"
+      ],
+      "@/app/*": [
+        "./src/app/*"
+      ],
+      "@/frontend/components/*": [
+        "./src/frontend/components/*"
+      ],
+      "@/frontend/hooks/*": [
+        "./src/frontend/hooks/*"
+      ],
+      "@/frontend/types/*": [
+        "./src/frontend/types/*"
+      ],
+      "@/frontend/utils/*": [
+        "./src/frontend/utils/*"
+      ],
+      "@/frontend/*": [
+        "./src/frontend/*"
+      ],
+      "@/backend/lib/*": [
+        "./src/backend/lib/*"
+      ],
+      "@/backend/services/*": [
+        "./src/backend/services/*"
+      ],
+      "@/backend/config/*": [
+        "./src/backend/config/*"
+      ],
+      "@/backend/middleware/*": [
+        "./src/backend/middleware/*"
+      ],
+      "@/backend/*": [
+        "./src/backend/*"
+      ],
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
   "include": [

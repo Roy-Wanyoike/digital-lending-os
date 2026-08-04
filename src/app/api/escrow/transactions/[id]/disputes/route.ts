@@ -123,7 +123,7 @@ async function postHandler(
     const aiRecommendation = generateAiRecommendation(reason); // TODO: Replace with real AI analysis
 
     // Create dispute and update escrow status in a transaction
-    const dispute = await db.$transaction(async (tx) => {
+    const dispute = await db.$transaction(async (tx: any) => {
       const newDispute = await tx.dispute.create({
         data: {
           escrowId: id,

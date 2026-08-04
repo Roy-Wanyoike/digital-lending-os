@@ -1,6 +1,5 @@
 'use client'
 
-import { motion } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -43,7 +42,7 @@ export function FraudTab() {
   }))
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div>
         <h3 className="text-sm font-semibold text-foreground mb-3">Alerts by Severity</h3>
         <div className="flex gap-2 sm:gap-3 overflow-x-auto pb-2">
@@ -142,6 +141,6 @@ export function FraudTab() {
           )}
         </CardContent>
       </Card>
-    </motion.div>
+    </div>
   )
 }

@@ -118,6 +118,7 @@ async function postHandler(request: NextRequest) {
     const processingFee = Math.max(data.amount * 0.01, 1.0) // 1% min $1
     const totalDebit = Math.round((data.amount + processingFee) * 100) / 100
 
+    // Early rejection check (optimization; real check happens inside transaction)
     if (wallet.availableBalance < totalDebit) {
       return NextResponse.json({ error: `Insufficient available balance. Required: ${data.amount} + ${processingFee.toFixed(2)} fee = ${totalDebit.toFixed(2)}, Available: ${wallet.availableBalance.toFixed(2)}` }, { status: 400 })
     }
@@ -134,7 +135,16 @@ async function postHandler(request: NextRequest) {
     // Demo: auto-complete
     const isAutoComplete = true
 
-    const cryptoWdr = await db.$transaction(async (tx) => {
+    const cryptoWdr = await db.$transaction(async (tx: any) => {
+      // Read wallet inside transaction to get latest balance (prevents race conditions)
+      const freshWallet = await tx.wallet.findUnique({ where: { id: data.walletId } })
+      if (!freshWallet) throw new Error('Wallet not found')
+
+      // Real balance check inside transaction
+      if (freshWallet.availableBalance < totalDebit) {
+        throw new Error(`Insufficient available balance. Required: ${data.amount} + ${processingFee.toFixed(2)} fee = ${totalDebit.toFixed(2)}, Available: ${freshWallet.availableBalance.toFixed(2)}`)
+      }
+
       const cw = await tx.cryptoWithdrawal.create({
         data: {
           withdrawalRef,
@@ -156,9 +166,9 @@ async function postHandler(request: NextRequest) {
       })
 
       if (isAutoComplete) {
-        const balanceBefore = wallet.balance
+        const balanceBefore = freshWallet.balance
         const balanceAfter = Math.round((balanceBefore - totalDebit) * 100) / 100
-        const availBefore = wallet.availableBalance
+        const availBefore = freshWallet.availableBalance
         const availAfter = Math.round((availBefore - totalDebit) * 100) / 100
 
         // Main withdrawal transaction
@@ -170,7 +180,7 @@ async function postHandler(request: NextRequest) {
             amount: data.amount,
             balanceBefore,
             balanceAfter: Math.round((balanceBefore - data.amount) * 100) / 100,
-            currency: wallet.currency,
+            currency: freshWallet.currency,
             description: `Crypto withdrawal: ${netCryptoAmount.toFixed(6)} ${data.cryptoCurrency} (${data.network}) → ${data.walletAddress.slice(0, 10)}...${data.walletAddress.slice(-6)}`,
             referenceType: 'crypto_withdrawal',
             referenceId: cw.id,
@@ -188,7 +198,7 @@ async function postHandler(request: NextRequest) {
               amount: processingFee,
               balanceBefore: Math.round((balanceBefore - data.amount) * 100) / 100,
               balanceAfter,
-              currency: wallet.currency,
+              currency: freshWallet.currency,
               description: `Crypto withdrawal processing fee (${withdrawalRef})`,
               referenceType: 'crypto_withdrawal',
               referenceId: cw.id,

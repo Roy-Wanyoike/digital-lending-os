@@ -8,6 +8,83 @@ datasource db {
 }
 
 // ============================================================
+// ENUM TYPES
+// ============================================================
+
+enum AccountRole {
+  admin
+  viewer
+  buyer
+  seller
+  auditor
+}
+
+enum TenantStatus {
+  active
+  suspended
+  trial
+  churned
+}
+
+enum BusinessStatus {
+  active
+  suspended
+  pending
+  deactivated
+}
+
+enum EscrowStatus {
+  created
+  funded
+  in_escrow
+  completed
+  cancelled
+  disputed
+}
+
+enum PaymentStatus {
+  pending
+  processing
+  completed
+  failed
+  refunded
+  cancelled
+}
+
+enum WalletStatus {
+  active
+  frozen
+  closed
+}
+
+enum TransactionType {
+  credit
+  debit
+}
+
+enum KycStatus {
+  not_started
+  in_progress
+  verified
+  rejected
+  expired
+}
+
+enum FraudSeverity {
+  low
+  medium
+  high
+  critical
+}
+
+enum ComplianceStatus {
+  pending
+  clear
+  suspicious
+  blocked
+}
+
+// ============================================================
 // MODULE 0: MULTI-TENANCY — Tenant & Account
 // ============================================================
 
@@ -16,7 +93,7 @@ model Tenant {
   name          String
   slug          String   @unique // used in subdomain/URL: youngsend.space-z.ai
   plan          String   @default("starter") // starter, professional, enterprise
-  status        String   @default("active") // active, suspended, trial_expired
+  status        TenantStatus @default(active)
   maxBusinesses Int      @default(5)
   maxUsers      Int      @default(10)
   features      String   @default("{}") // JSON: feature flags
@@ -25,8 +102,10 @@ model Tenant {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  businesses Business[]
-  accounts   Account[]
+  businesses      Business[]
+  accounts        Account[]
+  users           User[]
+  complianceRules ComplianceRule[]
 
   @@index([slug])
   @@index([status])
@@ -37,7 +116,7 @@ model Account {
   email        String
   passwordHash String
   name         String
-  role         String    @default("admin") // admin, buyer, seller, auditor, viewer
+  role         AccountRole    @default(admin)
   tenantId     String
   businessId   String? // which business this user primarily operates as
   avatarUrl    String?
@@ -51,6 +130,10 @@ model Account {
   referredBy           String?
   notificationsEnabled Boolean @default(true)
   twoFactorEnabled     Boolean @default(false)
+
+  referralBonusesAsReferrer ReferralBonus[] @relation("ReferralReferrer")
+  referralBonusesAsReferee  ReferralBonus[] @relation("ReferralReferee")
+  notifications             Notification[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -78,24 +161,36 @@ model Business {
   annualRevenue  Float?
   description    String?
   logoUrl        String?
-  status         String    @default("pending") // pending, verified, suspended, deactivated
+  status         BusinessStatus    @default(pending)
   verifiedAt     DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   // Relations
-  tenant                Tenant                 @relation(fields: [tenantId], references: [id])
-  passport              CommercePassport?
-  trustScore            TrustScore?
-  digitalTwin           FinancialDigitalTwin?
-  sentRelationships     BusinessRelationship[] @relation("SentRelationships")
-  receivedRelationships BusinessRelationship[] @relation("ReceivedRelationships")
-  escrowAsBuyer         EscrowTransaction[]    @relation("Buyer")
-  escrowAsSeller        EscrowTransaction[]    @relation("Seller")
-  sentInvoices          Invoice[]              @relation("InvoiceSender")
-  receivedInvoices      Invoice[]              @relation("InvoiceReceiver")
-  verifications         Verification[]
-  wallets               Wallet[]
+  tenant                      Tenant                     @relation(fields: [tenantId], references: [id])
+  passport                    CommercePassport?
+  trustScore                  TrustScore?
+  digitalTwin                 FinancialDigitalTwin?
+  sentRelationships           BusinessRelationship[]       @relation("SentRelationships")
+  receivedRelationships       BusinessRelationship[]       @relation("ReceivedRelationships")
+  escrowAsBuyer               EscrowTransaction[]          @relation("Buyer")
+  escrowAsSeller              EscrowTransaction[]          @relation("Seller")
+  sentInvoices                Invoice[]                    @relation("InvoiceSender")
+  receivedInvoices            Invoice[]                    @relation("InvoiceReceiver")
+  verifications               Verification[]
+  wallets                     Wallet[]
+  reviewsFrom                 Review[]                     @relation("ReviewFrom")
+  reviewsTo                   Review[]                     @relation("ReviewTo")
+  paymentMethods              PaymentMethod[]
+  paymentLinks                PaymentLink[]
+  users                       User[]
+  fraudAlerts                 FraudAlert[]
+  collectionCasesAsCreditor   CollectionCase[]             @relation("CollectionCreditor")
+  collectionCasesAsDebtor     CollectionCase[]             @relation("CollectionDebtor")
+  subscriptions               Subscription[]
+  matchesAsSeeker             BusinessMatch[]              @relation("MatchSeeker")
+  matchesAsCandidate          BusinessMatch[]              @relation("MatchCandidate")
+  complianceScreenings        ComplianceScreening[]
 
   @@index([tenantId])
   @@index([country])
@@ -108,7 +203,7 @@ model CommercePassport {
   businessId      String    @unique
   passportHash    String    @unique
   credentialLevel String    @default("basic") // basic, standard, enhanced, premium
-  kycStatus       String    @default("not_started") // not_started, in_progress, verified, rejected
+  kycStatus       KycStatus    @default(not_started)
   kycVerifiedAt   DateTime?
   amlStatus       String    @default("not_started") // not_started, cleared, flagged, rejected
   amlCheckedAt    DateTime?
@@ -245,6 +340,9 @@ model Review {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
+  fromBusiness Business @relation("ReviewFrom", fields: [fromBusinessId], references: [id], onDelete: Cascade)
+  toBusiness   Business @relation("ReviewTo", fields: [toBusinessId], references: [id], onDelete: Cascade)
+
   @@index([toBusinessId])
   @@index([rating])
   @@index([createdAt])
@@ -262,7 +360,7 @@ model EscrowTransaction {
   amount           Float
   currency         String         @default("USD")
   description      String?
-  status           String         @default("created") // created, funded, in_escrow, partial_release, completed, disputed, refunded, cancelled
+  status           EscrowStatus         @default(created)
   currentMilestone Int            @default(0)
   totalMilestones  Int            @default(1)
   fundedAmount     Float          @default(0)
@@ -323,7 +421,7 @@ model Disbursement {
   currency    String
   fromAccount String?
   toAccount   String?
-  status      String    @default("pending") // pending, processing, completed, failed
+  status      PaymentStatus    @default(pending) // pending, processing, completed, failed
   paymentRef  String?
   completedAt DateTime?
   createdAt   DateTime  @default(now())
@@ -459,6 +557,8 @@ model PaymentMethod {
   metadata   String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId])
   @@index([type])
@@ -600,16 +700,21 @@ model User {
   id          String    @id @default(cuid())
   email       String    @unique
   name        String
-  role        String    @default("viewer") // admin, buyer, seller, auditor, viewer
+  role        AccountRole    @default(viewer)
   businessId  String? // which business this user belongs to
+  tenantId    String? // which tenant this user belongs to
   avatarUrl   String?
   isActive    Boolean   @default(true)
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id])
+  business Business? @relation(fields: [businessId], references: [id])
+
   @@index([role])
   @@index([businessId])
+  @@index([tenantId])
   @@index([isActive])
 }
 
@@ -636,6 +741,7 @@ model PaymentLink {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  business  Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   payments  PaymentLinkPayment[]
   createdBy String?
 
@@ -655,7 +761,7 @@ model PaymentLinkPayment {
   currency      String
   paymentMethod String // bank_transfer, card, mobile_money, digital_wallet, crypto, upi, pix, mpesa, etc.
   provider      String?
-  status        String    @default("pending") // pending, processing, completed, failed, refunded
+  status        PaymentStatus    @default(pending) // pending, processing, completed, failed, refunded
   feeAmount     Float?
   netAmount     Float?
   providerTxId  String?
@@ -712,7 +818,7 @@ model Wallet {
   pendingBalance   Float    @default(0)
   frozenBalance    Float    @default(0)
   isDefault        Boolean  @default(false)
-  status           String   @default("active") // active, frozen, closed
+  status           WalletStatus   @default(active)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -897,7 +1003,7 @@ model FraudAlert {
   businessId     String?
   relatedType    String // escrow, payment_intent, payment_link, wallet
   relatedId      String?
-  severity       String    @default("medium") // low, medium, high, critical
+  severity       FraudSeverity    @default(medium) // low, medium, high, critical
   fraudType      String // unusual_amount, velocity_breach, geo_mismatch, sanctioned_entity, fake_identity, account_takeover, structure_pattern
   score          Float // 0-100 fraud confidence score
   description    String
@@ -908,6 +1014,8 @@ model FraudAlert {
   metadata       String?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+
+  business Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId])
   @@index([severity])
@@ -952,6 +1060,9 @@ model BusinessMatch {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  seeker    Business @relation("MatchSeeker", fields: [seekerId], references: [id], onDelete: Cascade)
+  candidate Business @relation("MatchCandidate", fields: [candidateId], references: [id], onDelete: Cascade)
+
   @@unique([seekerId, candidateId, matchType])
   @@index([seekerId])
   @@index([candidateId])
@@ -985,6 +1096,8 @@ model CollectionCase {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  business  Business @relation("CollectionCreditor", fields: [businessId], references: [id], onDelete: Cascade)
+  debtor    Business @relation("CollectionDebtor", fields: [debtorId], references: [id])
   reminders CollectionReminder[]
 
   @@index([businessId])
@@ -1018,6 +1131,7 @@ model CollectionReminder {
 
 model ComplianceRule {
   id             String   @id @default(cuid())
+  tenantId       String
   name           String
   description    String?
   ruleType       String // sanctions_check, kyc_requirement, aml_threshold, transaction_limit, country_restriction, industry_restriction
@@ -1029,6 +1143,9 @@ model ComplianceRule {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
   @@index([ruleType])
   @@index([isActive])
   @@index([severity])
@@ -1049,6 +1166,8 @@ model ComplianceScreening {
   reviewedAt      DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  business Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId])
   @@index([screeningType])
@@ -1076,6 +1195,9 @@ model ReferralBonus {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  referrer Account @relation("ReferralReferrer", fields: [referrerId], references: [id])
+  referee  Account @relation("ReferralReferee", fields: [refereeId], references: [id])
+
   @@index([referrerId])
   @@index([refereeId])
   @@index([status])
@@ -1098,6 +1220,8 @@ model Notification {
   actionUrl String? // deep link to relevant page
   metadata  String? // JSON with additional context
   createdAt DateTime @default(now())
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId])
   @@index([type])
@@ -1129,6 +1253,7 @@ model Subscription {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   invoices Invoice[]
 
   @@index([businessId])

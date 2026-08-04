@@ -38,7 +38,7 @@ async function getHandler(request: NextRequest) {
 
     // Enrich with referrer/referee names
     const accountIds = new Set<string>()
-    bonuses.forEach((b) => {
+    bonuses.forEach((b: any) => {
       accountIds.add(b.referrerId)
       accountIds.add(b.refereeId)
     })
@@ -47,9 +47,9 @@ async function getHandler(request: NextRequest) {
       where: { id: { in: Array.from(accountIds) } },
       select: { id: true, name: true, email: true },
     })
-    const accountMap = new Map<string, { id: string; name: string | null; email: string | null }>(accounts.map((a) => [a.id, a]))
+    const accountMap = new Map<string, { id: string; name: string | null; email: string | null }>(accounts.map((a: any) => [a.id, a]))
 
-    const enriched = bonuses.map((b) => ({
+    const enriched = bonuses.map((b: any) => ({
       ...b,
       referrerName: accountMap.get(b.referrerId)?.name || 'Unknown',
       refereeName: accountMap.get(b.refereeId)?.name || 'Unknown',

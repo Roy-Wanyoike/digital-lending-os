@@ -1,8 +1,24 @@
 import { NextRequest } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/lib/db';
-import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+
+const createNotificationSchema = z.object({
+  title: z.string().min(1, 'Title is required').max(500),
+  body: z.string().min(1, 'Body is required').max(5000),
+  type: z.enum(['info', 'warning', 'error', 'success']).optional().default('info'),
+  category: z.string().max(100).optional(),
+  actionUrl: z.string().url().optional().or(z.literal('')),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  targetAccountIds: z.array(z.string()).optional(),
+});
+
+const updateNotificationSchema = z.object({
+  ids: z.array(z.string()).optional(),
+  markAll: z.boolean().optional(),
+});
 async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
@@ -44,13 +60,15 @@ async function getHandler(req: NextRequest) {
 
 async function postHandler(req: NextRequest) {
   try {
-    const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    const user = await requireAuth(req);
 
     const body = await req.json();
-    const { title, body: notifBody, type, category, actionUrl, metadata, targetAccountIds } = body;
+    const parsed = createNotificationSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(parsed.error.issues.map((i) => i.message).join(', '), 400);
+    }
 
-    if (!title || !notifBody) return errorResponse('Title and body are required', 400);
+    const { title, body: notifBody, type, category, actionUrl, metadata, targetAccountIds } = parsed.data;
 
     // If targetAccountIds provided (admin creating for others), validate admin role
     let accountIds: string[];
@@ -61,7 +79,7 @@ async function postHandler(req: NextRequest) {
         where: { id: { in: targetAccountIds }, tenantId: user.tenantId },
         select: { id: true },
       });
-      accountIds = validAccounts.map(a => a.id);
+      accountIds = validAccounts.map((a: any) => a.id);
     } else {
       accountIds = [user.id];
     }
@@ -81,6 +99,7 @@ async function postHandler(req: NextRequest) {
     return successResponse({ created: notifications.count }, 201);
   } catch (error: any) {
     console.error('Notifications POST error:', error);
+    if (error instanceof AuthError) return errorResponse(error.message, error.status);
     return errorResponse('Failed to create notification', 500);
   }
 }
@@ -88,11 +107,15 @@ async function postHandler(req: NextRequest) {
 // Mark notifications as read
 async function patchHandler(req: NextRequest) {
   try {
-    const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    const user = await requireAuth(req);
 
     const body = await req.json();
-    const { ids, markAll } = body;
+    const parsed = updateNotificationSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(parsed.error.issues.map((i) => i.message).join(', '), 400);
+    }
+
+    const { ids, markAll } = parsed.data;
 
     if (markAll) {
       await db.notification.updateMany({
@@ -113,6 +136,7 @@ async function patchHandler(req: NextRequest) {
     return errorResponse('Provide ids or markAll', 400);
   } catch (error: any) {
     console.error('Notifications PATCH error:', error);
+    if (error instanceof AuthError) return errorResponse(error.message, error.status);
     return errorResponse('Failed to mark notifications', 500);
   }
 }

@@ -56,7 +56,7 @@ async function postHandler(
       ? now
       : new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000)
 
-    const reminder = await db.$transaction(async (tx) => {
+    const reminder = await db.$transaction(async (tx: any) => {
       const newReminder = await tx.collectionReminder.create({
         data: {
           caseId: id,

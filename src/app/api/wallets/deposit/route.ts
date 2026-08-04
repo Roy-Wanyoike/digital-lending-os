@@ -80,7 +80,11 @@ async function postHandler(request: NextRequest) {
       bonusAlreadyGiven = !!existingBonus
     }
 
-    const deposit = await db.$transaction(async (tx) => {
+    const deposit = await db.$transaction(async (tx: any) => {
+      // Read wallet inside transaction to get latest balance (prevents race conditions)
+      const freshWallet = await tx.wallet.findUnique({ where: { id: data.walletId } })
+      if (!freshWallet) throw new Error('Wallet not found')
+
       const dep = await tx.deposit.create({
         data: {
           depositRef,
@@ -100,7 +104,7 @@ async function postHandler(request: NextRequest) {
       })
 
       if (isAutoComplete) {
-        const balanceBefore = wallet.balance
+        const balanceBefore = freshWallet.balance
         const balanceAfter = Math.round((balanceBefore + data.amount) * 100) / 100
 
         await tx.walletTransaction.create({
@@ -111,7 +115,7 @@ async function postHandler(request: NextRequest) {
             amount: data.amount,
             balanceBefore,
             balanceAfter,
-            currency: wallet.currency,
+            currency: freshWallet.currency,
             description: `Deposit via ${data.paymentMethod}${data.provider ? ` (${data.provider})` : ''}${data.notes ? ` — ${data.notes}` : ''}`,
             referenceType: 'deposit',
             referenceId: dep.id,
@@ -123,7 +127,7 @@ async function postHandler(request: NextRequest) {
           where: { id: data.walletId },
           data: {
             balance: balanceAfter,
-            availableBalance: Math.round((wallet.availableBalance + data.amount) * 100) / 100,
+            availableBalance: Math.round((freshWallet.availableBalance + data.amount) * 100) / 100,
           },
         })
 

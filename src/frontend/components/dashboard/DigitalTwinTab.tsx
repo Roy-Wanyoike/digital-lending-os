@@ -1,23 +1,28 @@
 'use client'
 
-import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useEffect } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { AreaChart, Area, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
+// recharts is dynamically imported below to reduce initial bundle size
 import { useApi, CircularScore, LoadingSkeleton, ErrorState, type TwinProfile, formatCurrency } from '@/lib/dashboard-helpers'
 
 export function DigitalTwinTab() {
   const { data: twins, loading, error, refetch } = useApi<TwinProfile[]>('/api/twin/profiles?limit=20')
   const [selectedTwin, setSelectedTwin] = useState<TwinProfile | null>(null)
+  const [Recharts, setRecharts] = useState<typeof import('recharts') | null>(null)
 
-  if (loading) return <LoadingSkeleton />
+  useEffect(() => {
+    import('recharts').then(mod => setRecharts(mod))
+  }, [])
+
+  if (loading || !Recharts) return <LoadingSkeleton />
   if (error) return <ErrorState message={error} onRetry={refetch} />
 
   const allTwins = twins || []
+  const { AreaChart, Area, XAxis, YAxis, Tooltip: RTooltip, ResponsiveContainer, CartesianGrid, Legend } = Recharts
 
   const trajectoryColor = (t: string) => {
     if (t?.toLowerCase()?.includes('rapid') || t?.toLowerCase()?.includes('grow')) return 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
@@ -45,7 +50,7 @@ export function DigitalTwinTab() {
   })) || []
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div>
         <h2 className="text-lg font-semibold">Digital Twin Profiles</h2>
         <p className="text-sm text-muted-foreground">AI-powered business health assessments</p>
@@ -134,6 +139,6 @@ export function DigitalTwinTab() {
           )}
         </DialogContent>
       </Dialog>
-    </motion.div>
+    </div>
   )
 }

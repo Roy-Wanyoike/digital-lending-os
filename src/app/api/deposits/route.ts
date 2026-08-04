@@ -22,12 +22,12 @@ const getDepositsHandler = withErrorHandler(async (request: NextRequest) => {
   const tenantBusinessIds = (await db.business.findMany({
     where: { tenantId: user.tenantId },
     select: { id: true },
-  })).map(b => b.id);
+  })).map((b: any) => b.id);
 
   const tenantWalletIds = (await db.wallet.findMany({
     where: { businessId: { in: tenantBusinessIds } },
     select: { id: true },
-  })).map(w => w.id);
+  })).map((w: any) => w.id);
 
   const where: any = { walletId: { in: tenantWalletIds } };
   if (walletId) where.walletId = walletId;

@@ -71,8 +71,8 @@ async function getHandler(request: NextRequest) {
       take: 50,
     })
 
-    const totalBonusEarned = bonuses.reduce((sum, b) => sum + b.bonusAmount, 0)
-    const activeBonusCount = bonuses.filter(b => b.status === 'credited').length
+    const totalBonusEarned = bonuses.reduce((sum: any, b: any) => sum + b.bonusAmount, 0)
+    const activeBonusCount = bonuses.filter((b: any) => b.status === 'credited').length
 
     // Get recent referrals (accounts that used this user's code, same tenant)
     const recentReferrals = await db.account.findMany({

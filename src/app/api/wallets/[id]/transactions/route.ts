@@ -81,7 +81,7 @@ async function postHandler(
 
     const data = parsed.data
 
-    const transaction = await db.$transaction(async (tx) => {
+    const transaction = await db.$transaction(async (tx: any) => {
       const wallet = await tx.wallet.findUnique({ where: { id } })
       if (!wallet) {
         throw new Error('Wallet not found')

@@ -35,7 +35,7 @@ async function getHandler(request: NextRequest) {
         where: { tenantId: user.tenantId },
         select: { id: true },
       })
-    ).map((b) => b.id);
+    ).map((b: any) => b.id);
 
     if (tenantBusinessIds.length === 0) {
       return successResponse({ data: [], total: 0 });
@@ -64,7 +64,7 @@ async function getHandler(request: NextRequest) {
         db.walletTransaction.count({ where: walletWhere }),
       ]);
 
-      const mapped = transactions.map((tx) => ({
+      const mapped = transactions.map((tx: any) => ({
         id: tx.id,
         amount: tx.amount,
         currency: tx.currency,
@@ -103,7 +103,7 @@ async function getHandler(request: NextRequest) {
         db.paymentTransaction.count({ where: paymentWhere }),
       ]);
 
-      const mapped = transactions.map((tx) => ({
+      const mapped = transactions.map((tx: any) => ({
         id: tx.id,
         amount: tx.amount,
         currency: tx.currency,
@@ -176,12 +176,12 @@ async function getHandler(request: NextRequest) {
       db.paymentTransaction.count({ where: paymentWhere }),
     ]);
 
-    const walletItems: TransactionItem[] = walletTransactions.map((tx) => ({
+    const walletItems: TransactionItem[] = walletTransactions.map((tx: any) => ({
       ...tx,
       source: 'wallet' as const,
     }));
 
-    const paymentItems: TransactionItem[] = paymentTransactions.map((tx) => ({
+    const paymentItems: TransactionItem[] = paymentTransactions.map((tx: any) => ({
       ...tx,
       description: null,
       source: 'payment' as const,

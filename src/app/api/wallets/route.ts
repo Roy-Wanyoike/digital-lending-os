@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 import { logAudit } from '@/lib/audit-logger';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
@@ -32,7 +32,7 @@ async function getHandler(req: NextRequest) {
       where: { tenantId: user.tenantId },
       select: { id: true },
     });
-    const businessIds = businesses.map((b) => b.id);
+    const businessIds = businesses.map((b: any) => b.id);
 
     if (businessIds.length === 0) {
       return successResponse([]);
@@ -73,8 +73,7 @@ export const GET = withApiTelemetry(getHandler, '/api/wallets');
 
 async function postHandler(req: NextRequest) {
   try {
-    const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    const user = await requireAuth(req);
 
     const body = await req.json();
     const { currency, businessId } = body;
@@ -122,6 +121,7 @@ async function postHandler(req: NextRequest) {
 
     return successResponse(wallet, 201);
   } catch (error: any) {
+    if (error instanceof AuthError) return errorResponse(error.message, error.status);
     if (error.message === 'Authentication required') return errorResponse(error.message, 401);
     console.error('Wallets POST error:', error);
     return errorResponse('Failed to create wallet', 500);

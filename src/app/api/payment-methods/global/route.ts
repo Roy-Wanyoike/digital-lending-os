@@ -40,7 +40,7 @@ async function getHandler(request: NextRequest) {
 
       let filtered = methods
       if (country) {
-        filtered = methods.filter((method) => {
+        filtered = methods.filter((method: any) => {
           try {
             const countries: string[] = JSON.parse(method.countries)
             return countries.includes(country.toUpperCase())

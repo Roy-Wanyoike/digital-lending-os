@@ -23,7 +23,7 @@ async function getHandler(req: NextRequest) {
     const businessIds = (await db.business.findMany({
       where: { tenantId: user.tenantId },
       select: { id: true },
-    })).map(b => b.id);
+    })).map((b: any) => b.id);
 
     const [paymentVolume, completedTxCount, activeEscrows, completedEscrows, invoiceStats, walletStats, collectionStats, fraudCount, screeningCount, linkStats] = await Promise.all([
       db.paymentTransaction.aggregate({

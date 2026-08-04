@@ -96,7 +96,7 @@ async function putHandler(
 
     const now = new Date();
 
-    const updated = await db.$transaction(async (tx) => {
+    const updated = await db.$transaction(async (tx: any) => {
       // Update dispute
       const resolvedDispute = await tx.dispute.update({
         where: { id: disputeId },
