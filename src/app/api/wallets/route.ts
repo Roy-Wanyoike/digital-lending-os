@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { logAudit } from '@/lib/audit-logger';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 
@@ -27,12 +28,8 @@ async function getHandler(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const filterBusinessId = searchParams.get('businessId');
 
-    // Get all business IDs belonging to this tenant
-    const businesses = await db.business.findMany({
-      where: { tenantId: user.tenantId },
-      select: { id: true },
-    });
-    const businessIds = businesses.map((b: any) => b.id);
+    // Get all business IDs belonging to this tenant (cached)
+    const businessIds = await getTenantBusinessIds(user.tenantId, db);
 
     if (businessIds.length === 0) {
       return successResponse([]);
@@ -61,7 +58,9 @@ async function getHandler(req: NextRequest) {
       ? await cacheManager.getOrSet(cacheKey, fetchWallets, { ttl: 60_000 })
       : await fetchWallets();
 
-    return successResponse(wallets);
+    const response = successResponse(wallets);
+    response.headers.set('Cache-Control', 'private, max-age=3, stale-while-revalidate=5');
+    return response;
   } catch (error: any) {
     if (error.message === 'Authentication required') return errorResponse(error.message, 401);
     console.error('Wallets GET error:', error);

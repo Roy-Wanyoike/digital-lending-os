@@ -19,18 +19,32 @@ type CacheEntry<T = unknown> = {
 
 const store = new Map<string, CacheEntry>()
 
+// Prevent unbounded growth — evict oldest entries when limit is reached.
+// Keys are iterated in insertion order, so first key is the oldest.
+const MAX_STORE_SIZE = 10_000
+
 function isExpired(entry: CacheEntry): boolean {
   return Date.now() > entry.expiresAt
+}
+
+function evictOldest(): void {
+  while (store.size > MAX_STORE_SIZE) {
+    const oldest = store.keys().next().value
+    if (oldest !== undefined) store.delete(oldest)
+    else break
+  }
 }
 
 // Periodically purge expired entries (every 60s)
 if (typeof globalThis !== 'undefined' && typeof (globalThis as any).__cachePurge === 'undefined') {
   (globalThis as any).__cachePurge = true
-  setInterval(() => {
+  const timer = setInterval(() => {
     for (const [key, entry] of store) {
       if (isExpired(entry)) store.delete(key)
     }
   }, 60_000)
+  // .unref() prevents this timer from keeping the Node.js process alive
+  if (timer.unref) timer.unref()
 }
 
 // ── TTL presets (seconds) ──────────────────────────────────────────────────
@@ -71,6 +85,7 @@ export async function setCache<T = unknown>(key: string, value: T, ttlSeconds: n
     value,
     expiresAt: Date.now() + ttlSeconds * 1000,
   })
+  evictOldest()
 }
 
 /**

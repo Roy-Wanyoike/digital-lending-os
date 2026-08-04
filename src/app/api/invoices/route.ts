@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getApiUser, requireAuth } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { ok, created, badRequest, unauthorized, forbidden, withErrorHandler } from '@/backend/lib/api-response';
 import { invoiceCreateSchema } from '@/backend/lib/validation/schemas';
 import { getLogger } from '@/backend/lib/telemetry/logger';
@@ -12,22 +13,27 @@ async function getHandler(req: NextRequest) {
   const user = await getApiUser(req);
   if (!user) return unauthorized();
 
-  const businesses = await db.business.findMany({
-    where: { tenantId: user.tenantId },
-    select: { id: true },
-  });
-  const businessIds = businesses.map((b: any) => b.id);
+  const businessIds = await getTenantBusinessIds(user.tenantId, db);
 
   if (businessIds.length === 0) {
     return ok({ invoices: [] });
   }
 
-  const invoices = await db.invoice.findMany({
-    where: { senderId: { in: businessIds } },
-    orderBy: { createdAt: 'desc' },
-  });
+  const { searchParams } = new URL(req.url);
+  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
+  const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
 
-  return ok({ invoices });
+  const [invoices, total] = await Promise.all([
+    db.invoice.findMany({
+      where: { senderId: { in: businessIds } },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+    }),
+    db.invoice.count({ where: { senderId: { in: businessIds } } }),
+  ]);
+
+  return ok({ invoices, pagination: { limit, offset, total, pages: Math.ceil(total / limit) } });
 }
 
 async function postHandler(req: NextRequest) {

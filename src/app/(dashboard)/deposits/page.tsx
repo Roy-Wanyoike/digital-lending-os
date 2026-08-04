@@ -1,57 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useState } from 'react';
 import { ArrowDownLeft, Plus, RefreshCw, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { useApi, invalidateCache } from '@/hooks/use-api';
 
 interface Deposit {
   id: string;
   amount: number;
   currency: string;
-  method: string;
+  paymentMethod: string;
   status: string;
   depositRef?: string;
-  description: string | null;
+  notes?: string | null;
   createdAt: string;
   wallet?: { id: string; currency: string } | null;
 }
 
 export default function DepositsPage() {
-  const { data: session } = useSession();
-  const [deposits, setDeposits] = useState<Deposit[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: deposits, loading, error, refetch: refetchDeposits } = useApi<Deposit[]>('/api/deposits');
+  const { data: wallets, refetch: refetchWallets } = useApi<Array<{ id: string; currency: string }>>('/api/wallets');
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ walletId: '', amount: '', method: 'manual', description: '' });
   const [creating, setCreating] = useState(false);
-  const [wallets, setWallets] = useState<Array<{ id: string; currency: string }>>([]);
 
-  useEffect(() => {
-    fetchDeposits();
-    fetchWallets();
-  }, []);
-
-  async function fetchDeposits() {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/deposits');
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
-      setDeposits(data.deposits || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed');
-    } finally { setLoading(false); }
-  }
-
-  async function fetchWallets() {
-    try {
-      const res = await fetch('/api/wallets');
-      if (res.ok) {
-        const data = await res.json();
-        setWallets(((Array.isArray(data.data) ? data.data : (data.wallets || [])) as any[]).map((w: any) => ({ id: w.id, currency: w.currency })));
-      }
-    } catch (e) { /* ignore */ }
-  }
+  // Derive wallet options for the form dropdown
+  const walletOptions = wallets
+    ? wallets.map((w: any) => ({ id: w.id, currency: w.currency }))
+    : [];
 
   async function handleCreate() {
     if (!form.walletId || !form.amount) { alert('Wallet and amount required'); return; }
@@ -60,12 +35,17 @@ export default function DepositsPage() {
       const res = await fetch('/api/deposits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, amount: parseFloat(form.amount) }),
+        body: JSON.stringify({ walletId: form.walletId, amount: parseFloat(form.amount), paymentMethod: form.method, notes: form.description }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error?.message || d.error || 'Failed'); }
       setShowCreate(false);
       setForm({ walletId: '', amount: '', method: 'manual', description: '' });
-      fetchDeposits();
+      // Invalidate caches so other tabs see updated data
+      invalidateCache('/api/deposits');
+      invalidateCache('/api/wallets');
+      invalidateCache('/api/dashboard/stats');
+      refetchDeposits();
+      refetchWallets();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed');
     } finally { setCreating(false); }
@@ -88,7 +68,7 @@ export default function DepositsPage() {
           <p className="text-gray-500 mt-1">Add funds to your wallets</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={fetchDeposits} className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> Refresh</button>
+          <button onClick={() => { invalidateCache('/api/deposits'); refetchDeposits(); }} className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> Refresh</button>
           <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"><Plus className="h-4 w-4" /> New Deposit</button>
         </div>
       </div>
@@ -99,7 +79,7 @@ export default function DepositsPage() {
           <div className="grid grid-cols-2 gap-4">
             <select value={form.walletId} onChange={(e) => setForm({ ...form, walletId: e.target.value })} className="border rounded-lg px-3 py-2 text-sm">
               <option value="">Select Wallet</option>
-              {wallets.map(w => <option key={w.id} value={w.id}>{w.currency} Wallet</option>)}
+              {walletOptions.map(w => <option key={w.id} value={w.id}>{w.currency} Wallet</option>)}
             </select>
             <input type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
             <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} className="border rounded-lg px-3 py-2 text-sm">
@@ -121,7 +101,7 @@ export default function DepositsPage() {
         <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="bg-white rounded-xl shadow-sm border p-5 animate-pulse"><div className="h-4 bg-gray-200 rounded w-1/3"></div></div>)}</div>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">{error}</div>
-      ) : deposits.length === 0 ? (
+      ) : !deposits || deposits.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
           <ArrowDownLeft className="h-12 w-12 mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500">No deposits yet</p>
@@ -146,7 +126,7 @@ export default function DepositsPage() {
                   <td className="px-6 py-4 text-sm font-mono text-gray-500">{d.depositRef?.slice(0, 16) || d.id.slice(0, 8)}</td>
                   <td className="px-6 py-4 text-sm text-gray-900">{d.wallet?.currency || d.currency}</td>
                   <td className="px-6 py-4 text-right text-sm font-semibold text-green-600">+{d.amount.toLocaleString()} {d.currency}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{d.method.replace('_', ' ')}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{(d.paymentMethod || '').replace('_', ' ')}</td>
                   <td className="px-6 py-4"><div className="flex items-center gap-1.5">{statusIcon(d.status)}<span className="text-sm">{d.status}</span></div></td>
                   <td className="px-6 py-4 text-sm text-gray-500">{new Date(d.createdAt).toLocaleDateString()}</td>
                 </tr>

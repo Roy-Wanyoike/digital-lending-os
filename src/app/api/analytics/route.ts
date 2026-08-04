@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 async function getHandler(req: NextRequest) {
@@ -20,12 +21,9 @@ async function getHandler(req: NextRequest) {
       default: startDate = new Date(now.getTime() - 30 * 86400000);
     }
 
-    const businessIds = (await db.business.findMany({
-      where: { tenantId: user.tenantId },
-      select: { id: true },
-    })).map((b: any) => b.id);
+    const businessIds = await getTenantBusinessIds(user.tenantId, db);
 
-    const [paymentVolume, completedTxCount, activeEscrows, completedEscrows, invoiceStats, walletStats, collectionStats, fraudCount, screeningCount, linkStats] = await Promise.all([
+    const [paymentVolume, completedTxCount, activeEscrows, completedEscrows, invoiceStats, walletStats, collectionStats, fraudCount, screeningCount, linkStats, overdueInvoices] = await Promise.all([
       db.paymentTransaction.aggregate({
         _sum: { amount: true },
         _count: true,
@@ -70,11 +68,10 @@ async function getHandler(req: NextRequest) {
         _count: true,
         where: { businessId: { in: businessIds }, createdAt: { gte: startDate } },
       }),
+      db.invoice.count({
+        where: { senderId: { in: businessIds }, status: 'overdue' },
+      }),
     ]);
-
-    const overdueInvoices = await db.invoice.count({
-      where: { senderId: { in: businessIds }, status: 'overdue' },
-    });
 
     return successResponse({
       period,

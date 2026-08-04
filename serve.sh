@@ -3,6 +3,7 @@
 cd /home/z/my-project
 pkill -9 -f 'next dev' 2>/dev/null
 pkill -9 -f 'next-server' 2>/dev/null
+pkill -9 -f 'standalone/server' 2>/dev/null
 sleep 1
 
 nohup env NODE_OPTIONS='--max-old-space-size=2048' \
@@ -11,4 +12,5 @@ nohup env NODE_OPTIONS='--max-old-space-size=2048' \
   > /tmp/next-dev.log 2>&1 &
 
 echo $! > /tmp/next-dev.pid
-echo "Server starting... PID=$(cat /tmp/next-dev.pid)"
+echo "Dev server starting... PID=$(cat /tmp/next-dev.pid)"
+echo "Logs: tail -f /tmp/next-dev.log"

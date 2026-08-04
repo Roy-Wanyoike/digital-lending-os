@@ -1,55 +1,31 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useState } from 'react';
 import { ArrowUpRight, Plus, RefreshCw, Clock, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { useApi, invalidateCache } from '@/hooks/use-api';
 
 interface Withdrawal {
   id: string;
   amount: number;
   currency: string;
-  method: string;
+  paymentMethod: string;
   status: string;
   withdrawalRef?: string;
   destination: string | null;
-  description: string | null;
+  notes: string | null;
   failedReason?: string | null;
   createdAt: string;
   wallet?: { id: string; currency: string } | null;
 }
 
 export default function WithdrawalsPage() {
-  const { data: session } = useSession();
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: withdrawals, loading, error, refetch: refetchWithdrawals } = useApi<Withdrawal[]>('/api/withdrawals');
+  const { data: wallets, refetch: refetchWallets } = useApi<Array<{ id: string; currency: string; balance: number }>>('/api/wallets');
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ walletId: '', amount: '', method: 'bank_transfer', destination: '', description: '' });
   const [creating, setCreating] = useState(false);
-  const [wallets, setWallets] = useState<Array<{ id: string; currency: string; balance: number }>>([]);
 
-  useEffect(() => { fetchWithdrawals(); fetchWallets(); }, []);
-
-  async function fetchWithdrawals() {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/withdrawals');
-      if (!res.ok) throw new Error('Failed');
-      const data = await res.json();
-      setWithdrawals(data.withdrawals || []);
-    } catch (err) { setError(err instanceof Error ? err.message : 'Failed'); }
-    finally { setLoading(false); }
-  }
-
-  async function fetchWallets() {
-    try {
-      const res = await fetch('/api/wallets');
-      if (res.ok) {
-        const data = await res.json();
-        setWallets(((Array.isArray(data.data) ? data.data : (data.wallets || [])) as any[]).map((w: any) => ({ id: w.id, currency: w.currency, balance: w.balance || 0 })));
-      }
-    } catch (e) { /* ignore */ }
-  }
+  const walletOptions = wallets || [];
 
   async function handleCreate() {
     if (!form.walletId || !form.amount || !form.method) { alert('All fields required'); return; }
@@ -58,13 +34,17 @@ export default function WithdrawalsPage() {
       const res = await fetch('/api/withdrawals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, amount: parseFloat(form.amount) }),
+        body: JSON.stringify({ walletId: form.walletId, amount: parseFloat(form.amount), paymentMethod: form.method, notes: form.description }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error?.message || d.error || 'Failed'); }
       setShowCreate(false);
       setForm({ walletId: '', amount: '', method: 'bank_transfer', destination: '', description: '' });
-      fetchWithdrawals();
-      fetchWallets(); // Refresh balances
+      // Invalidate caches so other tabs see updated data
+      invalidateCache('/api/withdrawals');
+      invalidateCache('/api/wallets');
+      invalidateCache('/api/dashboard/stats');
+      refetchWithdrawals();
+      refetchWallets();
     } catch (err) { alert(err instanceof Error ? err.message : 'Failed'); }
     finally { setCreating(false); }
   }
@@ -78,7 +58,7 @@ export default function WithdrawalsPage() {
     }
   };
 
-  const selectedWallet = wallets.find(w => w.id === form.walletId);
+  const selectedWallet = walletOptions.find(w => w.id === form.walletId);
 
   return (
     <div className="space-y-6">
@@ -88,7 +68,7 @@ export default function WithdrawalsPage() {
           <p className="text-gray-500 mt-1">Withdraw funds from your wallets</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={fetchWithdrawals} className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> Refresh</button>
+          <button onClick={() => { invalidateCache('/api/withdrawals'); refetchWithdrawals(); }} className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> Refresh</button>
           <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center gap-2"><Plus className="h-4 w-4" /> New Withdrawal</button>
         </div>
       </div>
@@ -102,7 +82,7 @@ export default function WithdrawalsPage() {
           <div className="grid grid-cols-2 gap-4">
             <select value={form.walletId} onChange={(e) => setForm({ ...form, walletId: e.target.value })} className="border rounded-lg px-3 py-2 text-sm">
               <option value="">Select Wallet</option>
-              {wallets.map(w => <option key={w.id} value={w.id}>{w.currency} — {w.balance.toLocaleString()} available</option>)}
+              {walletOptions.map(w => <option key={w.id} value={w.id}>{w.currency} — {w.balance.toLocaleString()} available</option>)}
             </select>
             <input type="number" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className="border rounded-lg px-3 py-2 text-sm" />
             <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} className="border rounded-lg px-3 py-2 text-sm">
@@ -129,7 +109,7 @@ export default function WithdrawalsPage() {
         <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="bg-white rounded-xl shadow-sm border p-5 animate-pulse"><div className="h-4 bg-gray-200 rounded w-1/3"></div></div>)}</div>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">{error}</div>
-      ) : withdrawals.length === 0 ? (
+      ) : !withdrawals || withdrawals.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
           <ArrowUpRight className="h-12 w-12 mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500">No withdrawals yet</p>
@@ -152,7 +132,7 @@ export default function WithdrawalsPage() {
                 <tr key={w.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm font-mono text-gray-500">{w.withdrawalRef?.slice(0, 16) || w.id.slice(0, 8)}</td>
                   <td className="px-6 py-4 text-right text-sm font-semibold text-red-600">-{w.amount.toLocaleString()} {w.currency}</td>
-                  <td className="px-6 py-4 text-sm text-gray-500">{w.method.replace('_', ' ')}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{(w.paymentMethod || '').replace('_', ' ')}</td>
                   <td className="px-6 py-4 text-sm text-gray-500 font-mono">{w.destination ? (w.destination.length > 20 ? w.destination.slice(0, 20) + '...' : w.destination) : 'N/A'}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1.5">

@@ -1,19 +1,32 @@
 #!/bin/bash
 # Youngsend production startup script
 # Loads environment variables and starts the Next.js production server
+# NOTE: next.config.ts sets output='standalone' in production, so we must
+# use node .next/standalone/server.js instead of "npx next start".
 
 set -e
 
 cd /home/z/my-project
 
-# Load .env file (next start does NOT auto-load .env in production mode)
+# Load .env file (standalone server does NOT auto-load .env)
 if [ -f .env ]; then
-  export $(grep -v '^#' .env | grep -v '^$' | xargs)
+  set -a
+  source <(grep -v '^#' .env | grep -v '^$')
+  set +a
 fi
 
 # Ensure NEXTAUTH_SECRET is always set (required in production)
 export NEXTAUTH_SECRET="${NEXTAUTH_SECRET:-youngsend-super-secret-key-change-in-production-2026}"
 export NEXTAUTH_URL="${NEXTAUTH_URL:-http://localhost:3000}"
 export DATABASE_URL="${DATABASE_URL:-file:/home/z/my-project/db/custom.db}"
+export HOSTNAME="0.0.0.0"
+export PORT="${PORT:-3000}"
+export NODE_ENV="production"
 
-exec npx next start -p "${PORT:-3000}"
+# Verify the standalone build exists
+if [ ! -f .next/standalone/server.js ]; then
+  echo "ERROR: .next/standalone/server.js not found. Run 'npm run build' first."
+  exit 1
+fi
+
+exec node .next/standalone/server.js

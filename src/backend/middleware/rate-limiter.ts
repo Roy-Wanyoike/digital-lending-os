@@ -78,5 +78,6 @@ export function pruneExpired(windowMs: number = DEFAULT_WINDOW_MS): void {
 
 // Auto-prune every 5 minutes to keep memory bounded
 if (typeof setInterval !== 'undefined') {
-  setInterval(() => pruneExpired(), 5 * 60 * 1000)
+  const pruneTimer = setInterval(() => pruneExpired(), 5 * 60 * 1000)
+  if (pruneTimer.unref) pruneTimer.unref()
 }

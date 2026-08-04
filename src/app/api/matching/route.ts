@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const MATCH_REASONS = [
@@ -43,10 +44,7 @@ async function getHandler(request: NextRequest) {
     const minScore = searchParams.get('minScore')
 
     // BusinessMatch has no seeker/candidate relations, filter by tenant business IDs
-    const tenantBizIds = (await db.business.findMany({
-      where: { tenantId: user.tenantId },
-      select: { id: true },
-    })).map((b: any) => b.id)
+    const tenantBizIds = await getTenantBusinessIds(user.tenantId, db)
 
     const where: Record<string, unknown> = {
       OR: [
@@ -70,20 +68,28 @@ async function getHandler(request: NextRequest) {
       db.businessMatch.count({ where }),
     ])
 
-    // Attach business names
-    const matchesWithNames = await Promise.all(
-      matches.map(async (match: any) => {
-        const [seeker, candidate] = await Promise.all([
-          db.business.findUnique({ where: { id: match.seekerId }, select: { name: true } }),
-          db.business.findUnique({ where: { id: match.candidateId }, select: { name: true } }),
-        ])
-        return {
-          ...match,
-          seekerName: seeker?.name ?? null,
-          candidateName: candidate?.name ?? null,
-        }
+    // Collect all unique business IDs for batch name lookup
+    const bizIds = new Set<string>()
+    for (const m of matches) {
+      bizIds.add(m.seekerId)
+      bizIds.add(m.candidateId)
+    }
+
+    // Single batch query for all business names
+    const bizNameMap = new Map<string, string>()
+    if (bizIds.size > 0) {
+      const bizRows = await db.business.findMany({
+        where: { id: { in: [...bizIds] } },
+        select: { id: true, name: true },
       })
-    )
+      for (const b of bizRows) bizNameMap.set(b.id, b.name)
+    }
+
+    const matchesWithNames = matches.map((match: any) => ({
+      ...match,
+      seekerName: bizNameMap.get(match.seekerId) ?? null,
+      candidateName: bizNameMap.get(match.candidateId) ?? null,
+    }))
 
     return NextResponse.json({
       data: matchesWithNames,

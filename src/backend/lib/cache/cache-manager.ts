@@ -407,5 +407,19 @@ export function createCacheManager(config?: CacheManagerConfig): CacheManager {
   return new CacheManager(undefined, config);
 }
 
-export default getCacheManager();
+// NOTE: Lazy default export — uses a Proxy so that `mod.default` does NOT
+// eagerly call getCacheManager() at module-evaluation time (which would load
+// ioredis). The real singleton is created only on first property access,
+// exactly like the Prisma lazy-proxy pattern in db.ts.
+let _lazyInstance: CacheManager | null = null
+export default new Proxy({} as CacheManager, {
+  get(_, prop) {
+    if (!_lazyInstance) _lazyInstance = getCacheManager()
+    return (_lazyInstance as any)[prop]
+  },
+  has(_, prop) {
+    if (!_lazyInstance) _lazyInstance = getCacheManager()
+    return prop in (_lazyInstance as any)
+  },
+})
 

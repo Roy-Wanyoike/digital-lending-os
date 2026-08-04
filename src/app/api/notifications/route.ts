@@ -25,29 +25,34 @@ async function getHandler(req: NextRequest) {
     if (!user) return errorResponse('Authentication required', 401);
 
     const url = new URL(req.url);
-    const limit = parseInt(url.searchParams.get('limit') || '50');
-    const offset = parseInt(url.searchParams.get('offset') || '0');
+    const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50')));
+    const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0'));
     const unreadOnly = url.searchParams.get('unread') === 'true';
     const type = url.searchParams.get('type');
 
-    const where: any = { accountId: user.id };
-    if (unreadOnly) where.isRead = false;
-    if (type) where.type = type;
+    const baseWhere: any = { accountId: user.id };
+    if (type) baseWhere.type = type;
+
+    const where = unreadOnly ? { ...baseWhere, isRead: false } : baseWhere;
 
     const [notifications, unreadCount, totalCount] = await Promise.all([
       db.notification.findMany({
         where,
+        select: { id: true, title: true, body: true, type: true, category: true, isRead: true, readAt: true, actionUrl: true, createdAt: true },
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
       }),
-      db.notification.count({ where: { accountId: user.id, isRead: false } }),
-      db.notification.count({ where: { accountId: user.id } }),
+      unreadOnly ? undefined : db.notification.count({ where: { accountId: user.id, isRead: false } }),
+      db.notification.count({ where: baseWhere }),
     ]);
+
+    // When unreadOnly=true, unreadCount equals totalCount
+    const finalUnreadCount = unreadOnly ? totalCount : (unreadCount ?? 0);
 
     return successResponse({
       data: notifications,
-      unreadCount,
+      unreadCount: finalUnreadCount,
       totalCount,
       limit,
       offset,

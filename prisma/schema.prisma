@@ -236,6 +236,7 @@ model Verification {
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
+  @@index([businessId])
   @@index([type])
   @@index([status])
 }
@@ -254,6 +255,7 @@ model ComplianceDocument {
 
   passport CommercePassport @relation(fields: [passportId], references: [id], onDelete: Cascade)
 
+  @@index([passportId])
   @@index([docType])
   @@index([status])
 }
@@ -319,6 +321,7 @@ model ReputationEvent {
 
   trustScore TrustScore @relation(fields: [trustScoreId], references: [id], onDelete: Cascade)
 
+  @@index([trustScoreId])
   @@index([eventType])
   @@index([createdAt])
 }
@@ -343,6 +346,7 @@ model Review {
   fromBusiness Business @relation("ReviewFrom", fields: [fromBusinessId], references: [id], onDelete: Cascade)
   toBusiness   Business @relation("ReviewTo", fields: [toBusinessId], references: [id], onDelete: Cascade)
 
+  @@index([fromBusinessId])
   @@index([toBusinessId])
   @@index([rating])
   @@index([createdAt])
@@ -392,6 +396,11 @@ model EscrowTransaction {
   @@index([sellerId])
   @@index([currency])
   @@index([createdAt])
+  @@index([buyerId, status])
+  @@index([sellerId, status])
+  @@index([buyerId, createdAt])
+  @@index([sellerId, createdAt])
+  @@index([status, createdAt])
 }
 
 model EscrowMilestone {
@@ -503,6 +512,10 @@ model PaymentIntent {
   @@index([toBusinessId])
   @@index([paymentMethod])
   @@index([createdAt])
+  @@index([fromBusinessId, status])
+  @@index([toBusinessId, status])
+  @@index([fromBusinessId, createdAt])
+  @@index([toBusinessId, createdAt])
 }
 
 model PaymentTransaction {
@@ -690,6 +703,9 @@ model Invoice {
   @@index([receiverId])
   @@index([status])
   @@index([dueDate])
+  @@index([senderId, createdAt])
+  @@index([senderId, status])
+  @@index([receiverId, status])
 }
 
 // ============================================================
@@ -862,6 +878,10 @@ model WalletTransaction {
   @@index([referenceType])
   @@index([status])
   @@index([createdAt])
+  @@index([walletId, createdAt])
+  @@index([walletId, type])
+  @@index([walletId, status])
+  @@index([referenceType, referenceId])
 }
 
 // ── Deposit Model ─────────────────────────────────────────────
@@ -893,6 +913,9 @@ model Deposit {
   @@index([paymentMethod])
   @@index([provider])
   @@index([createdAt])
+  @@index([walletId, createdAt])
+  @@index([walletId, status])
+  @@index([status, createdAt])
 }
 
 // ── Withdrawal Model ──────────────────────────────────────────
@@ -926,6 +949,9 @@ model Withdrawal {
   @@index([status])
   @@index([paymentMethod])
   @@index([createdAt])
+  @@index([walletId, createdAt])
+  @@index([walletId, status])
+  @@index([status, createdAt])
 }
 
 // ── Crypto Withdrawal Model ───────────────────────────────────
@@ -1023,6 +1049,8 @@ model FraudAlert {
   @@index([status])
   @@index([score])
   @@index([createdAt])
+  @@index([businessId, createdAt])
+  @@index([businessId, status])
 }
 
 model FraudRule {
@@ -1105,6 +1133,9 @@ model CollectionCase {
   @@index([agingBucket])
   @@index([priority])
   @@index([status])
+  @@index([businessId, status])
+  @@index([businessId, createdAt])
+  @@index([debtorId, status])
 }
 
 model CollectionReminder {
@@ -1228,6 +1259,8 @@ model Notification {
   @@index([category])
   @@index([isRead])
   @@index([createdAt])
+  @@index([accountId, isRead])
+  @@index([accountId, createdAt])
 }
 
 // ============================================================
@@ -1261,4 +1294,6 @@ model Subscription {
   @@index([planName])
   @@index([interval])
   @@index([currentPeriodEnd])
+  @@index([businessId, status])
+  @@index([status, currentPeriodEnd])
 }

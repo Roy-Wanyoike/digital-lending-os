@@ -11,7 +11,7 @@ import {
 } from '@/lib/dashboard-helpers'
 
 export function PassportTab() {
-  const { data: businesses, loading: bLoading, error: bizError } = useApi<Business[]>('/api/businesses?limit=20')
+  const { data: businesses, loading: bLoading, error: bizError } = useApi<Business[]>('/api/businesses?limit=50')
   const { data: verifications, loading: vLoading, error: verifError, refetch } = useApi<Verification[]>('/api/passport/verifications?limit=15')
 
   if (bLoading || vLoading) return <LoadingSkeleton />

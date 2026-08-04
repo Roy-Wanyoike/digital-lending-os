@@ -10,6 +10,12 @@
 // normalises AuthError, ZodError, and unknown errors into the standard
 // error envelope.
 //
+// The `ok()` helper automatically adds:
+//   - Cache-Control: private, max-age=5, stale-while-revalidate=30
+//   - ETag: weak hash of the response body
+// This enables browser-level caching and conditional requests (304).
+// For endpoints that need different caching, pass options.
+//
 
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
@@ -34,13 +40,58 @@ export interface ApiErrorEnvelope {
   }
 }
 
+// ─── ETag Generation ────────────────────────────────────────────────────
+// Simple hash for ETags. Uses a fast DJB2-style hash.
+// Prefixes with W/ for weak ETags (safe for JSON that may have
+// insignificant whitespace/field-order differences).
+
+function simpleHash(str: string): string {
+  let hash = 5381
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) & 0xffffffff
+  }
+  return (hash >>> 0).toString(36)
+}
+
+function computeETag(body: string): string {
+  return `W/"${simpleHash(body)}"`
+}
+
+// ─── Cache Options ──────────────────────────────────────────────────────
+
+export interface CacheOptions {
+  /** Override max-age in seconds. Default: 5 */
+  maxAge?: number
+  /** Override stale-while-revalidate in seconds. Default: 30 */
+  swr?: number
+  /** Disable Cache-Control header entirely */
+  noCache?: boolean
+}
+
 // ─── Success Helpers ────────────────────────────────────────────────────
 
-/** 200 OK */
-export function ok<T = unknown>(data: T, meta?: Record<string, unknown>) {
+/** 200 OK with automatic Cache-Control and ETag */
+export function ok<T = unknown>(data: T, meta?: Record<string, unknown>, cacheOpts?: CacheOptions) {
   const body: ApiSuccessEnvelope<T> = { data }
   if (meta) body.meta = meta
-  return NextResponse.json(body, { status: 200 })
+  const jsonStr = JSON.stringify(body)
+
+  const headers: Record<string, string> = {}
+
+  // Add Cache-Control
+  if (!cacheOpts?.noCache) {
+    const maxAge = cacheOpts?.maxAge ?? 5
+    const swr = cacheOpts?.swr ?? 30
+    headers['Cache-Control'] = `private, max-age=${maxAge}, stale-while-revalidate=${swr}`
+  }
+
+  // Add ETag
+  headers['ETag'] = computeETag(jsonStr)
+
+  return new NextResponse(jsonStr, {
+    status: 200,
+    headers,
+  })
 }
 
 /** 201 Created */

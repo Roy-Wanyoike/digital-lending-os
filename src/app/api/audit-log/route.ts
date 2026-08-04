@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, successResponse, errorResponse } from '@/lib/auth/api-helpers';
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 async function getHandler(request: NextRequest) {
@@ -14,36 +15,37 @@ async function getHandler(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20));
     const offset = Math.max(0, Number(searchParams.get('offset')) || 0);
 
-    // Resolve the user's business IDs (buyerId/sellerId on Escrow are Business IDs, not Account IDs)
-    const businessIds: string[] = [];
-    if (user.businessId) {
-      businessIds.push(user.businessId);
+    // Resolve the user's business IDs using cached lookup
+    let businessIds = await getTenantBusinessIds(user.tenantId, db);
+
+    // If escrowId is provided, verify it belongs to the user's tenant (parallel with business fetch)
+    let escrowCheck: Promise<void> | null = null;
+    if (escrowId) {
+      escrowCheck = (async () => {
+        const escrow = await db.escrowTransaction.findFirst({
+          where: {
+            id: escrowId,
+            OR: [
+              { buyer: { tenantId: user.tenantId } },
+              { seller: { tenantId: user.tenantId } },
+            ],
+          },
+          select: { id: true },
+        });
+        if (!escrow) throw new Error('NOT_FOUND');
+      })();
     }
-    const tenantBusinesses = await db.business.findMany({
-      where: { tenantId: user.tenantId },
-      select: { id: true },
-    });
-    for (const b of tenantBusinesses) {
-      if (!businessIds.includes(b.id)) businessIds.push(b.id);
+
+    if (escrowCheck) {
+      try {
+        await escrowCheck;
+      } catch {
+        return errorResponse('Escrow not found', 404);
+      }
     }
 
     if (businessIds.length === 0) {
       return successResponse({ data: [], total: 0 });
-    }
-
-    // If escrowId is provided, verify it belongs to the user's tenant
-    if (escrowId) {
-      const escrow = await db.escrowTransaction.findUnique({
-        where: { id: escrowId },
-        include: {
-          buyer: { select: { tenantId: true } },
-          seller: { select: { tenantId: true } },
-        },
-      });
-      const escrowTenantId = escrow?.buyer?.tenantId || escrow?.seller?.tenantId;
-      if (!escrow || escrowTenantId !== user.tenantId) {
-        return errorResponse('Escrow not found', 404);
-      }
     }
 
     // Build tenant-scoped where: only audit logs for escrows involving this user's businesses

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 function generateCaseRef(): string {
@@ -61,20 +62,18 @@ async function getHandler(request: NextRequest) {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: 'desc' },
+        include: {
+          debtor: { select: { name: true } },
+        },
       }),
       db.collectionCase.count({ where }),
     ])
 
-    // Attach debtor business name
-    const casesWithDebtorName = await Promise.all(
-      cases.map(async (c: any) => {
-        const debtor = await db.business.findUnique({
-          where: { id: c.debtorId },
-          select: { name: true },
-        })
-        return { ...c, debtorName: debtor?.name ?? null }
-      })
-    )
+    const casesWithDebtorName = cases.map((c: any) => ({
+      ...c,
+      debtorName: c.debtor?.name ?? null,
+      debtor: undefined,
+    }))
 
     return NextResponse.json({
       data: casesWithDebtorName,

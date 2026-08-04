@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, successResponse, errorResponse } from '@/lib/auth/api-helpers';
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 
 interface TransactionItem {
@@ -29,13 +30,8 @@ async function getHandler(request: NextRequest) {
     const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
     const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
 
-    // Fetch business IDs belonging to the tenant
-    const tenantBusinessIds = (
-      await db.business.findMany({
-        where: { tenantId: user.tenantId },
-        select: { id: true },
-      })
-    ).map((b: any) => b.id);
+    // Fetch business IDs belonging to the tenant (cached)
+    const tenantBusinessIds = await getTenantBusinessIds(user.tenantId, db);
 
     if (tenantBusinessIds.length === 0) {
       return successResponse({ data: [], total: 0 });

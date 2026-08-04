@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { ArrowLeftRight, RefreshCw, AlertCircle, Info } from 'lucide-react';
+import { useApi, invalidateCache } from '@/hooks/use-api';
 
 interface Wallet {
   id: string;
@@ -22,37 +23,13 @@ interface ConversionResult {
 
 export default function ConversionPage() {
   const { data: session } = useSession();
-  const [wallets, setWallets] = useState<Wallet[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: wallets, loading, error, refetch: refetchWallets } = useApi<Wallet[]>('/api/wallets');
   const [fromWalletId, setFromWalletId] = useState('');
   const [toWalletId, setToWalletId] = useState('');
   const [amount, setAmount] = useState('');
   const [quote, setQuote] = useState<ConversionResult | null>(null);
   const [converting, setConverting] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const [history, setHistory] = useState<any[]>([]);
-
-  useEffect(() => { fetchWallets(); fetchHistory(); }, []);
-
-  async function fetchWallets() {
-    try {
-      setLoading(true);
-      const res = await fetch('/api/wallets');
-      if (res.ok) {
-        const data = await res.json();
-        setWallets(Array.isArray(data.data) ? data.data : (Array.isArray(data.wallets) ? data.wallets : []));
-      }
-    } catch (err) { setError('Failed to load wallets'); }
-    finally { setLoading(false); }
-  }
-
-  async function fetchHistory() {
-    try {
-      // Fetch from the convert API or a dedicated history endpoint
-      // For now, we'll use the transactions API filtered by conversion type
-    } catch (e) { /* ignore */ }
-  }
 
   async function getQuote() {
     if (!fromWalletId || !toWalletId || !amount) return;
@@ -85,15 +62,17 @@ export default function ConversionPage() {
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Conversion failed'); }
       setQuote(null);
       setAmount('');
-      fetchWallets(); // Refresh balances
+      // Invalidate wallets cache so balances update across all tabs
+      invalidateCache('/api/wallets');
+      refetchWallets();
       alert('Conversion completed successfully!');
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Conversion failed');
     } finally { setConverting(false); }
   }
 
-  const fromWallet = wallets.find(w => w.id === fromWalletId);
-  const toWallet = wallets.find(w => w.id === toWalletId);
+  const fromWallet = wallets?.find(w => w.id === fromWalletId);
+  const toWallet = wallets?.find(w => w.id === toWalletId);
 
   return (
     <div className="space-y-6">
@@ -102,14 +81,14 @@ export default function ConversionPage() {
           <h1 className="text-2xl font-bold text-gray-900">Currency Conversion</h1>
           <p className="text-gray-500 mt-1">Convert between currencies at market rates</p>
         </div>
-        <button onClick={fetchWallets} className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> Refresh</button>
+        <button onClick={() => { invalidateCache('/api/wallets'); refetchWallets(); }} className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> Refresh</button>
       </div>
 
       {loading ? (
         <div className="animate-pulse"><div className="bg-white rounded-xl shadow-sm border p-8 h-64"></div></div>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">{error}</div>
-      ) : wallets.length < 2 ? (
+      ) : (wallets && wallets.length < 2) ? (
         <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
           <ArrowLeftRight className="h-12 w-12 mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500">You need at least 2 wallets with different currencies to convert</p>
@@ -124,7 +103,7 @@ export default function ConversionPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
                 <select value={fromWalletId} onChange={(e) => { setFromWalletId(e.target.value); setQuote(null); }} className="w-full border rounded-lg px-3 py-2 text-sm">
                   <option value="">Select source wallet</option>
-                  {wallets.map(w => (
+                  {wallets?.map(w => (
                     <option key={w.id} value={w.id}>{w.currency} — {w.balance.toLocaleString()} {w.currency} available</option>
                   ))}
                 </select>
@@ -145,7 +124,7 @@ export default function ConversionPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
                 <select value={toWalletId} onChange={(e) => { setToWalletId(e.target.value); setQuote(null); }} className="w-full border rounded-lg px-3 py-2 text-sm">
                   <option value="">Select target wallet</option>
-                  {wallets.filter(w => w.id !== fromWalletId).map(w => (
+                  {wallets?.filter(w => w.id !== fromWalletId).map(w => (
                     <option key={w.id} value={w.id}>{w.currency} — {w.balance.toLocaleString()} {w.currency}</option>
                   ))}
                 </select>
@@ -183,7 +162,7 @@ export default function ConversionPage() {
           <div className="bg-white rounded-xl shadow-sm border p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Supported Currencies</h2>
             <div className="grid grid-cols-2 gap-3">
-              {wallets.map(w => (
+              {wallets?.map(w => (
                 <div key={w.id} className="p-3 border rounded-lg">
                   <p className="font-medium text-gray-900">{w.currency}</p>
                   <p className="text-sm text-gray-500">{w.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+
 const recalculateSchema = z.object({
   businessId: z.string().min(1, 'businessId is required'),
 })
@@ -62,7 +63,7 @@ async function postHandler(request: NextRequest) {
 
     const { businessId } = parsed.data
 
-    // Verify business exists and belongs to tenant
+    // Verify business exists and belongs to tenant (single query)
     const business = await db.business.findUnique({ where: { id: businessId } })
     if (!business || business.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Business not found' }, { status: 404 })
@@ -79,15 +80,21 @@ async function postHandler(request: NextRequest) {
       })
     }
 
-    // Fetch all reviews for this business
-    const reviews = await db.review.findMany({
-      where: { toBusinessId: businessId, status: 'published' },
-    })
+    // Fetch reviews, events, and verifications in parallel
+    const [reviews, events, verifications] = await Promise.all([
+      db.review.findMany({
+        where: { toBusinessId: businessId, status: 'published' },
+      }),
+      db.reputationEvent.findMany({
+        where: { trustScoreId: trustScore.id },
+      }),
+      db.verification.findMany({
+        where: { businessId },
+        select: { status: true },
+      }),
+    ])
 
-    // Fetch all reputation events
-    const events = await db.reputationEvent.findMany({
-      where: { trustScoreId: trustScore.id },
-    })
+    const approvedVerifications = verifications.filter((v: any) => v.status === 'approved').length
 
     // Calculate scores based on reviews and events
     let paymentScore = 50.0
@@ -141,10 +148,7 @@ async function postHandler(request: NextRequest) {
     qualityScore = clamp(qualityScore + eventImpact)
     communicationScore = clamp(communicationScore + eventImpact)
 
-    const verifications = await db.verification.findMany({
-      where: { businessId },
-    })
-    const approvedVerifications = verifications.filter((v: any) => v.status === 'approved').length
+    // verifications already fetched in parallel above
     const complianceScore = clamp(
       verifications.length > 0 ? (approvedVerifications / verifications.length) * 100 : 50
     )

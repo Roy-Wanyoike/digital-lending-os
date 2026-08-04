@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, requireAuth } from '@/lib/auth/api-helpers';
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { ok, created, badRequest, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 import { depositCreateSchema, paginationSchema } from '@/backend/lib/validation/schemas';
 import { getLogger } from '@/backend/lib/telemetry/logger';
@@ -18,16 +19,15 @@ const getDepositsHandler = withErrorHandler(async (request: NextRequest) => {
   const status = searchParams.get('status');
   const walletId = searchParams.get('walletId');
 
-  // Find wallet IDs belonging to businesses in this tenant
-  const tenantBusinessIds = (await db.business.findMany({
-    where: { tenantId: user.tenantId },
-    select: { id: true },
-  })).map((b: any) => b.id);
+  // Find wallet IDs belonging to businesses in this tenant (parallelized)
+  const tenantBusinessIds = await getTenantBusinessIds(user.tenantId, db);
 
-  const tenantWalletIds = (await db.wallet.findMany({
-    where: { businessId: { in: tenantBusinessIds } },
-    select: { id: true },
-  })).map((w: any) => w.id);
+  const tenantWalletIds = tenantBusinessIds.length > 0
+    ? (await db.wallet.findMany({
+        where: { businessId: { in: tenantBusinessIds } },
+        select: { id: true },
+      })).map((w: any) => w.id)
+    : [];
 
   const where: any = { walletId: { in: tenantWalletIds } };
   if (walletId) where.walletId = walletId;
@@ -61,15 +61,11 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   const data = parsed.data;
 
-  // Verify wallet belongs to a business in the user's tenant
-  const wallet = await db.wallet.findFirst({ where: { id: data.walletId } });
-  if (!wallet) return badRequest('Wallet not found');
-
-  const business = await db.business.findFirst({
-    where: { id: wallet.businessId, tenantId: user.tenantId },
-    select: { id: true },
+  // Verify wallet belongs to tenant (single query via relation navigation)
+  const wallet = await db.wallet.findFirst({
+    where: { id: data.walletId, business: { tenantId: user.tenantId } },
   });
-  if (!business) return badRequest('Wallet not found');
+  if (!wallet) return badRequest('Wallet not found');
 
   const deposit = await db.deposit.create({
     data: {

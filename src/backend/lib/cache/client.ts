@@ -13,7 +13,13 @@
  *  - Connection metrics (latency, hit/miss, error counts)
  */
 
-import Redis, { Cluster, RedisOptions, ClusterOptions } from 'ioredis';
+// ioredis is lazily loaded via require() inside createClient() to avoid
+// paying the ~500KB module cost when REDIS_URL is not configured (dev mode).
+// Type imports only — erased at compile time, zero runtime cost.
+type RedisInstance = import('ioredis').default;
+type ClusterInstance = import('ioredis').Cluster;
+type RedisOpts = import('ioredis').RedisOptions;
+type ClusterOpts = import('ioredis').ClusterOptions;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -305,7 +311,7 @@ class ConnectionMetrics {
 // ─── Redis Client Implementation ─────────────────────────────────────────────
 
 class RedisCacheClient implements CacheClient {
-  private client: Redis | Cluster;
+  private client: any; // RedisInstance | ClusterInstance — lazy loaded
   private circuitBreaker: CircuitBreaker;
   private metrics: ConnectionMetrics;
   private _isAvailable = true;
@@ -323,24 +329,43 @@ class RedisCacheClient implements CacheClient {
       parseInt(process.env.LRU_CACHE_CAPACITY || '500', 10)
     );
 
-    this.client = this.createClient(redisUrl);
+    const client = this.createClient(redisUrl);
+    if (!client) {
+      // ioredis not available — operate in fallback-only mode
+      this._isAvailable = false;
+      this._status = 'fallback';
+      return;
+    }
+    this.client = client;
     this.setupEventHandlers();
   }
 
-  private createClient(redisUrl?: string): Redis | Cluster {
+  private createClient(redisUrl?: string): any {
     const url = redisUrl || process.env.REDIS_URL;
+
+    // Lazy-load ioredis only when a Redis URL is actually configured
+    let RedisCtor: any;
+    let ClusterCtor: any;
+    try {
+      const ioredis = require('ioredis');
+      RedisCtor = ioredis.default ?? ioredis;
+      ClusterCtor = ioredis.Cluster;
+    } catch {
+      // ioredis not installed — fall back to in-memory only
+      return null;
+    }
 
     // Cluster mode detection: comma-separated URLs
     if (url && url.includes(',')) {
       const nodes = url.split(',').map(
-        (u) =>
+        (u: string) =>
           ({
             host: new URL(u.trim()).hostname,
             port: parseInt(new URL(u.trim()).port || '6379', 10),
-          } as RedisOptions)
+          } as RedisOpts)
       );
 
-      const clusterOptions: ClusterOptions = {
+      const clusterOptions: ClusterOpts = {
         clusterRetryStrategy: (times) => {
           const delay = Math.min(times * 200, 5000);
           return delay;
@@ -364,7 +389,7 @@ class RedisCacheClient implements CacheClient {
         },
       };
 
-      const cluster = new Cluster(nodes, clusterOptions);
+      const cluster = new ClusterCtor(nodes, clusterOptions);
       cluster.connect().catch(() => {
         /* handled by event handlers */
       });
@@ -372,7 +397,7 @@ class RedisCacheClient implements CacheClient {
     }
 
     // Single-node mode
-    const options: RedisOptions = {
+    const options: RedisOpts = {
       password: process.env.REDIS_PASSWORD || undefined,
       db: parseInt(process.env.REDIS_DB || '0', 10),
       tls: url?.startsWith('rediss:') ? {} : undefined,
@@ -389,7 +414,7 @@ class RedisCacheClient implements CacheClient {
       family: 0,
     };
 
-    const client = url ? new Redis(url, options) : new Redis(options);
+    const client = url ? new RedisCtor(url, options) : new RedisCtor(options);
     client.connect().catch(() => {
       /* handled by event handlers */
     });

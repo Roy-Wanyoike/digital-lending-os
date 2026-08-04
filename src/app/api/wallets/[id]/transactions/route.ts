@@ -5,6 +5,9 @@ import { randomUUID } from 'crypto'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+
+/** Cache-Control header for wallet transaction lists (5s stale-while-revalidate). */
+const CACHE_CONTROL = 'private, max-age=2, stale-while-revalidate=5';
 const createTransactionSchema = z.object({
   type: z.enum(['credit', 'debit', 'transfer_in', 'transfer_out', 'conversion', 'fee', 'refund']),
   amount: z.number().positive('Amount must be greater than 0'),
@@ -27,15 +30,11 @@ async function getHandler(
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
     const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10))
 
-    const wallet = await db.wallet.findUnique({ where: { id } })
+    // Single query: verify wallet exists and belongs to tenant
+    const wallet = await db.wallet.findFirst({
+      where: { id, business: { tenantId: user.tenantId } },
+    })
     if (!wallet) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
-    }
-    if (!wallet.businessId) {
-      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
-    }
-    const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
-    if (!biz || biz.tenantId !== user.tenantId) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
 
@@ -53,7 +52,7 @@ async function getHandler(
       db.walletTransaction.count({ where }),
     ])
 
-    return NextResponse.json({ data: transactions, pagination: { limit, offset, total, hasMore: offset + limit < total } })
+    return NextResponse.json({ data: transactions, pagination: { limit, offset, total, hasMore: offset + limit < total } }, { headers: { 'Cache-Control': CACHE_CONTROL } })
   } catch (error) {
     console.error('Error listing wallet transactions:', error)
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })

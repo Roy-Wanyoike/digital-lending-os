@@ -15,16 +15,21 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["bcryptjs", "@prisma/client", "ioredis"],
 
   // Image optimization: prefer modern formats, limit generated sizes
+  // NOTE: remotePatterns was previously set to hostname: "**" which allowed
+  // any HTTPS origin — a security risk. Tightened to an explicit allow-list.
+  // If new external image hosts are needed, add them here.
   images: {
     formats: ["image/avif", "image/webp"],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "**",
-      },
+      // Add specific external domains as needed, e.g.:
+      // { protocol: "https", hostname: "cdn.youngsend.com" },
+      // { protocol: "https", hostname: "youngsend.com" },
     ],
+    // Fallback: unoptimized is false by default, which is correct.
+    // next/image will serve AVIF/WebP with lazy-loading automatically.
+    minimumCacheTTL: 60,
   },
 
   // Permanent redirect for legacy /dashboard path

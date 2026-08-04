@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
@@ -29,11 +30,8 @@ async function getHandler(request: NextRequest) {
     const cacheManager = await getCache();
 
     const fetchStats = async () => {
-      // Fetch business IDs belonging to the tenant
-      const tenantBusinessIds = (await db.business.findMany({
-        where: { tenantId: user.tenantId },
-        select: { id: true },
-      })).map((b: any) => b.id);
+      // Fetch business IDs belonging to the tenant (cached)
+      const tenantBusinessIds = await getTenantBusinessIds(user.tenantId, db);
 
       const escrowTenantFilter = {
         OR: [
@@ -207,7 +205,7 @@ async function getHandler(request: NextRequest) {
       ? await cacheManager.getOrSet(`dashboard:stats:${user.tenantId}`, fetchStats, { ttl: 30_000 })
       : await fetchStats();
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data }, { headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=10' } });
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
     console.error('Error fetching dashboard stats:', error);

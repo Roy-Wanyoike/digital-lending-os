@@ -14,6 +14,14 @@ export interface UseApiOptions {
   enabled?: boolean
   /** Callback on auth error (401). Default: redirect to /login. */
   onAuthError?: () => void
+  /**
+   * Stale-while-revalidate TTL in ms. Default: 30 000 (30s).
+   * While cached data is fresh, no request is made.
+   * While cached data is stale, stale data is shown immediately and a
+   * background revalidation request is fired.
+   * Set to 0 to disable SWR caching (always fetch).
+   */
+  dedupWindowMs?: number
 }
 
 export interface UseApiResult<T> {
@@ -23,16 +31,60 @@ export interface UseApiResult<T> {
   refetch: () => void
 }
 
-// Simple in-memory cache for deduplicating concurrent requests.
-// Keyed by URL. Cleared when refetch() is called.
-const _fetchCache = new Map<string, Promise<any>>()
+// ─── Stale-while-revalidate cache entry ─────────────────────────────
 
+interface CacheEntry<T = any> {
+  data: T
+  etag?: string
+  /** Timestamp when data was fetched */
+  fetchedAt: number
+}
+
+// In-flight request deduplication cache.
+// Keyed by URL. Prevents duplicate concurrent requests.
+const _inflight = new Map<string, Promise<any>>()
+
+// Stale-while-revalidate data cache.
+// Keyed by URL (without cache-busting keys).
+// Entries survive across component mounts/unmounts.
+const _dataCache = new Map<string, CacheEntry>()
+
+// Maximum entries in the data cache to prevent memory leaks
+const MAX_DATA_CACHE_SIZE = 200
+
+// Default SWR window: 30 seconds fresh, revalidate after that
+const DEFAULT_DEDUP_WINDOW_MS = 30_000
+
+/** Remove oldest entries if cache exceeds max size */
+function evictOldest() {
+  if (_dataCache.size <= MAX_DATA_CACHE_SIZE) return
+  // Convert to array, sort by fetchedAt ascending, delete oldest
+  const entries = Array.from(_dataCache.entries()).sort((a, b) => a[1].fetchedAt - b[1].fetchedAt)
+  const toRemove = entries.length - MAX_DATA_CACHE_SIZE
+  for (let i = 0; i < toRemove; i++) {
+    _dataCache.delete(entries[i][0])
+  }
+}
+
+/**
+ * Invalidate cached data for a specific URL or all URLs.
+ * Triggers a fresh fetch on the next render for affected hooks.
+ */
 export function invalidateCache(url?: string) {
   if (url) {
-    _fetchCache.delete(url)
+    _inflight.delete(url)
+    _dataCache.delete(url)
   } else {
-    _fetchCache.clear()
+    _inflight.clear()
+    _dataCache.clear()
   }
+}
+
+// ─── Stable URL key (strip cache-busting query params) ─────────────
+
+/** Strip `&k=N` cache-busting params for cache lookup */
+function stableUrl(url: string): string {
+  return url.replace(/[&?]k=\d+/, '')
 }
 
 /**
@@ -49,9 +101,12 @@ export function invalidateCache(url?: string) {
  * - 401 → redirects to /login (configurable via onAuthError)
  * - AbortController cleanup on unmount / URL change
  * - Refetch via cache-busting key increment
+ * - Stale-while-revalidate: serves cached data while revalidating in background
+ * - ETag support: sends If-None-Match to skip full response when unchanged
+ * - In-flight deduplication: concurrent requests to same URL share one fetch
  */
 export function useApi<T>(url: string, options: UseApiOptions = {}): UseApiResult<T> {
-  const { headers, enabled = true, onAuthError } = options
+  const { headers, enabled = true, onAuthError, dedupWindowMs = DEFAULT_DEDUP_WINDOW_MS } = options
 
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
@@ -60,14 +115,14 @@ export function useApi<T>(url: string, options: UseApiOptions = {}): UseApiResul
   const mountedRef = useRef(true)
 
   // Router for auth-redirect on 401 responses.
-  // useRouter() is safe here — this hook is only called from client components
-  // that live inside the Next.js router context.
   const routerRef = useRef<ReturnType<typeof useRouter> | null>(null)
   const router = useRouter()
   routerRef.current = router
 
   const refetch = useCallback(() => {
-    _fetchCache.delete(url)
+    const stable = stableUrl(url)
+    _inflight.delete(stable)
+    _dataCache.delete(stable)
     setKey(k => k + 1)
   }, [url])
 
@@ -80,21 +135,60 @@ export function useApi<T>(url: string, options: UseApiOptions = {}): UseApiResul
     let cancelled = false
     mountedRef.current = true
     const controller = new AbortController()
-    setLoading(true)
-    setError(null)
+    const stable = stableUrl(url)
 
-    // Check for in-flight duplicate request
-    const cacheKey = `${url}__${key}`
-    let pending = _fetchCache.get(cacheKey)
+    // Check SWR data cache
+    const cached = dedupWindowMs > 0 ? _dataCache.get(stable) : undefined
+    const now = Date.now()
+    const isFresh = cached && (now - cached.fetchedAt) < dedupWindowMs
+    const isStale = cached && (now - cached.fetchedAt) >= dedupWindowMs
+
+    // If we have fresh cached data, serve it immediately — no network request
+    if (isFresh) {
+      if (cancelled || !mountedRef.current) return
+      setData(cached.data as T)
+      setLoading(false)
+      setError(null)
+      return
+    }
+
+    // If we have stale data, show it immediately but revalidate in background
+    if (isStale) {
+      if (mountedRef.current && !cancelled) {
+        setData(cached.data as T)
+        setLoading(false)
+        // Don't clear error — we'll update it if revalidation fails
+      }
+    } else {
+      // No cache at all — show loading state
+      setLoading(true)
+      setError(null)
+    }
+
+    // Check for in-flight duplicate request (dedup)
+    let pending = _inflight.get(stable)
     if (!pending) {
+      // Build request headers with ETag support
+      const fetchHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...headers,
+      }
+      if (cached?.etag) {
+        fetchHeaders['If-None-Match'] = cached.etag
+      }
+
       pending = fetch(url, {
         signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          ...headers,
-        },
+        headers: fetchHeaders,
       })
         .then(r => {
+          // Handle 304 Not Modified — data unchanged, refresh cache timestamp
+          if (r.status === 304) {
+            if (cached) {
+              _dataCache.set(stable, { ...cached, fetchedAt: Date.now() })
+            }
+            return { __stale: true, data: cached?.data }
+          }
           // Handle 401 — redirect to login
           if (r.status === 401) {
             if (onAuthError) {
@@ -106,55 +200,86 @@ export function useApi<T>(url: string, options: UseApiOptions = {}): UseApiResul
           }
           if (!r.ok) {
             const errMsg = `Request failed with status ${r.status}`
-            setError(errMsg)
+            // Only set error if this is a primary fetch (not background revalidation)
+            if (!isStale) setError(errMsg)
             return null
           }
-          return r.json()
+          return r.json().then(json => ({
+            __stale: false,
+            data: json,
+            etag: r.headers.get('ETag') || undefined,
+          }))
         })
         .catch(err => {
           if (err.name === 'AbortError') return null
           throw err
         })
-      _fetchCache.set(cacheKey, pending)
+      _inflight.set(stable, pending)
     }
 
     pending
-      .then(d => {
+      .then(result => {
         if (cancelled || !mountedRef.current) return
+        if (!result) {
+          if (!isStale) {
+            setData(null)
+            setLoading(false)
+          }
+          return
+        }
 
-        if (d === null || d === undefined) {
-          setData(null)
-          setLoading(false)
+        let responseData = result.__stale ? result.data : result.data
+
+        if (responseData === null || responseData === undefined) {
+          if (!isStale) {
+            setData(null)
+            setLoading(false)
+          }
           return
         }
 
         // Auto-unwrap { data: T } envelope
-        if (typeof d === 'object' && !Array.isArray(d) && 'data' in d) {
-          const unwrapped = (d as any).data
+        let unwrapped: any = responseData
+        if (typeof responseData === 'object' && !Array.isArray(responseData) && 'data' in responseData) {
+          unwrapped = (responseData as any).data
           if (unwrapped === undefined || unwrapped === null) {
-            setData(null)
-          } else if (Array.isArray(unwrapped) || typeof unwrapped !== 'object' || !('error' in unwrapped)) {
-            setData(unwrapped as T)
-          } else {
-            setError('Unexpected response format')
-            setData(null)
+            if (!isStale) { setData(null); setLoading(false) }
+            return
+          } else if (!Array.isArray(unwrapped) && typeof unwrapped === 'object' && 'error' in unwrapped) {
+            if (!isStale) { setError('Unexpected response format'); setData(null); setLoading(false) }
+            return
           }
-        } else if (typeof d === 'object' && 'error' in d) {
-          setError((d as any).error || 'Request failed')
-          setData(null)
-        } else {
-          setData(d as T)
+        } else if (typeof responseData === 'object' && 'error' in responseData) {
+          if (!isStale) { setError((responseData as any).error || 'Request failed'); setData(null); setLoading(false) }
+          return
         }
+
+        // Update state
+        setData(unwrapped as T)
         setLoading(false)
+        setError(null)
+
+        // Update data cache
+        if (dedupWindowMs > 0 && !result.__stale) {
+          _dataCache.set(stable, {
+            data: unwrapped,
+            etag: result.etag,
+            fetchedAt: Date.now(),
+          })
+          evictOldest()
+        }
       })
       .catch(err => {
         if (cancelled || !mountedRef.current) return
-        setError(err.name === 'AbortError' ? null : 'Network error — check your connection')
-        setData(null)
-        setLoading(false)
+        // For background revalidation, don't overwrite stale data with error
+        if (!isStale) {
+          setError(err.name === 'AbortError' ? null : 'Network error — check your connection')
+          setData(null)
+          setLoading(false)
+        }
       })
       .finally(() => {
-        _fetchCache.delete(cacheKey)
+        _inflight.delete(stable)
       })
 
     return () => {
@@ -162,8 +287,7 @@ export function useApi<T>(url: string, options: UseApiOptions = {}): UseApiResul
       mountedRef.current = false
       controller.abort()
     }
-  }, [url, key, enabled, headers, onAuthError])
+  }, [url, key, enabled, headers, onAuthError, dedupWindowMs])
 
   return { data, loading, error, refetch }
 }
-

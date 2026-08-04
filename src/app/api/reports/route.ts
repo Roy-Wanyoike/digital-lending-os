@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 /** Allowed report types to prevent arbitrary switch-case fallthrough. */
@@ -48,11 +49,8 @@ async function getHandler(req: NextRequest) {
     const limit = Math.min(MAX_REPORT_LIMIT, Math.max(1, parseInt(url.searchParams.get('limit') || String(MAX_REPORT_LIMIT), 10)));
     const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10));
 
-    // Get business IDs for this tenant
-    const businessIds = (await db.business.findMany({
-      where: { tenantId: user.tenantId },
-      select: { id: true },
-    })).map((b: any) => b.id);
+    // Get business IDs for this tenant (cached)
+    const businessIds = await getTenantBusinessIds(user.tenantId, db);
 
     if (businessIds.length === 0) {
       // No businesses in this tenant — return empty report

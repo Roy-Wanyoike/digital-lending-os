@@ -74,9 +74,10 @@ async function getHandler(request: NextRequest) {
         include: {
           buyer: { select: { id: true, name: true } },
           seller: { select: { id: true, name: true } },
-          milestones: true,
-          disputes: true,
-          disbursements: true,
+          milestones: {
+            select: { id: true, sequence: true, title: true, amount: true, status: true, releasedAt: true },
+          },
+          _count: { select: { disputes: true, disbursements: true } },
         },
       }),
       db.escrowTransaction.count({ where }),
