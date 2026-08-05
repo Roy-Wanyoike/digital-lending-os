@@ -1,0 +1,133 @@
+# ─────────────────────────────────────────────────────────────────────
+# Observability Stack Extension — Prometheus, Grafana, Loki, Promtail,
+# Node Exporter, Postgres Exporter, Redis Exporter
+# ─────────────────────────────────────────────────────────────────────
+# Usage: docker compose -f docker-compose.yml -f infra/observability/docker-compose.observability.yml up -d
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Prometheus ────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: youngsend-prometheus
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - youngsend-net
+
+  # ── Grafana ───────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.3.0
+    container_name: youngsend-grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=youngsend_admin
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+    networks:
+      - youngsend-net
+
+  # ── Loki ──────────────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: youngsend-loki
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+    networks:
+      - youngsend-net
+
+  # ── Promtail ──────────────────────────────────────────────────────
+  promtail:
+    image: grafana/promtail:2.9.3
+    container_name: youngsend-promtail
+    volumes:
+      - ./promtail-config.yaml:/etc/promtail/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on:
+      - loki
+    restart: unless-stopped
+    networks:
+      - youngsend-net
+
+  # ── Node Exporter ─────────────────────────────────────────────────
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: youngsend-node-exporter
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+    networks:
+      - youngsend-net
+
+  # ── Postgres Exporter ─────────────────────────────────────────────
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: youngsend-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://youngsend:youngsend@postgres:5432/youngsend?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - youngsend-net
+
+  # ── Redis Exporter ────────────────────────────────────────────────
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.58.0
+    container_name: youngsend-redis-exporter
+    environment:
+      - REDIS_ADDR=redis:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - youngsend-net
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local
+
+networks:
+  youngsend-net:
+    external: true

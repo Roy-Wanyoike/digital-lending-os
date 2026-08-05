@@ -1,0 +1,20 @@
+apiVersion: v2
+name: youngsend
+version: 0.2.1
+appVersion: "0.2.1"
+description: Youngsend Multi-Tenant Fintech Platform
+type: application
+keywords:
+  - fintech
+  - payments
+  - multi-tenant
+  - nextjs
+  - youngsend
+maintainers:
+  - name: Youngsend Engineering
+    email: infra@youngsend.space-z.ai
+    url: https://youngsend.space-z.ai
+home: https://github.com/youngsend/youngsend
+sources:
+  - https://github.com/youngsend/youngsend
+icon: https://youngsend.space-z.ai/logo.svg

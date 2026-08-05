@@ -1,53 +1,49 @@
 # ─── Youngsend Edge Worker — Wrangler Configuration ──────────────
-# Deploy with: wrangler deploy --env production
-# Local dev:    wrangler dev --env staging
+# Deploy with: cd infra/cloudflare && npx wrangler deploy --env production
+# Local dev:    cd infra/cloudflare && npx wrangler dev --env staging
 
 name = "youngsend-edge"
-main = "worker.ts"
-compatibility_date = "2024-12-01"
+main = "worker/src/index.ts"
+compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Worker placement: route all traffic through the edge
-# The worker acts as a reverse proxy to the Next.js origin
+# Worker placement: route all traffic through the edge.
+# The worker acts as a reverse proxy to the Next.js origin.
 
 # ─── KV Namespace Bindings ───────────────────────────────────────
-# Used for: rate limiting sliding windows, A/B test assignments,
-# edge-side session hints, and purge token storage.
+# Used for: rate limiting sliding windows.
 
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id = "YOUR_RATE_LIMIT_KV_ID"
 preview_id = "YOUR_PREVIEW_RATE_LIMIT_KV_ID"
 
-[[kv_namespaces]]
-binding = "CACHE_KV"
-id = "YOUR_CACHE_KV_ID"
-preview_id = "YOUR_PREVIEW_CACHE_KV_ID"
+# ─── Environment Variables ───────────────────────────────────────
 
-[[kv_namespaces]]
-binding = "AB_TEST_KV"
-id = "YOUR_AB_TEST_KV_ID"
-preview_id = "YOUR_PREVIEW_AB_TEST_KV_ID"
+[vars]
+ENVIRONMENT = "production"
+ORIGIN_URL = "https://youngsend.space-z.ai"
+ALLOWED_ORIGINS = "https://youngsend.space-z.ai,https://www.youngsend.space-z.ai"
+ALLOWED_COUNTRIES = ""  # Empty = allow all. Set e.g. "US,GB,KE,NG,UG,TZ" to restrict.
+LOG_LEVEL = "info"
 
 # ─── Environment: Staging ──────────────────────────────────────
 [env.staging]
 name = "youngsend-edge-staging"
-vars = { ENVIRONMENT = "staging" }
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+ORIGIN_URL = "https://staging.youngsend.space-z.ai"
+ALLOWED_ORIGINS = "https://staging.youngsend.space-z.ai"
+ALLOWED_COUNTRIES = ""
+LOG_LEVEL = "debug"
 
 [[env.staging.kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id = "YOUR_STAGING_RATE_LIMIT_KV_ID"
 
-[[env.staging.kv_namespaces]]
-binding = "CACHE_KV"
-id = "YOUR_STAGING_CACHE_KV_ID"
-
-[[env.staging.kv_namespaces]]
-binding = "AB_TEST_KV"
-id = "YOUR_STAGING_AB_TEST_KV_ID"
-
 [env.staging.routes]
-pattern = "staging.youngsend.com/*"
+pattern = "staging.youngsend.space-z.ai/*"
 zone_id = "YOUR_STAGING_ZONE_ID"
 
 # ─── Environment: Production ────────────────────────────────────
@@ -58,41 +54,19 @@ name = "youngsend-edge-production"
 binding = "RATE_LIMIT_KV"
 id = "YOUR_PRODUCTION_RATE_LIMIT_KV_ID"
 
-[[env.production.kv_namespaces]]
-binding = "CACHE_KV"
-id = "YOUR_PRODUCTION_CACHE_KV_ID"
-
-[[env.production.kv_namespaces]]
-binding = "AB_TEST_KV"
-id = "YOUR_PRODUCTION_AB_TEST_KV_ID"
-
 [env.production.routes]
-pattern = "youngsend.com/*"
+pattern = "youngsend.space-z.ai/*"
 zone_id = "YOUR_PRODUCTION_ZONE_ID"
 
 [env.production.routes]
-pattern = "www.youngsend.com/*"
+pattern = "www.youngsend.space-z.ai/*"
 zone_id = "YOUR_PRODUCTION_ZONE_ID"
 
-[env.production.routes]
-pattern = "app.youngsend.com/*"
-zone_id = "YOUR_PRODUCTION_ZONE_ID"
-
+# ─── Secrets (set via `wrangler secret put <NAME>`)
+#   JWT_PUBLIC_KEY  — RSA public key PEM for JWT signature verification
 # ─── Build Configuration ─────────────────────────────────────────
 [build]
 command = "npx tsc --noEmit"
-
-# ─── Static Assets (for wrangler assets) ────────────────────────
-# Not used directly — static assets are served from origin through
-# the worker's cache-first strategy.
-
-# ─── Observability ──────────────────────────────────────────────
-# Workers Logpush is configured via the Cloudflare dashboard
-# to forward logs to our OTel Collector (Grafana Loki).
-
-# [observability]
-# enabled = true
-# head_sampling_rate = 0.1
 
 # ─── Limits & Quotas ─────────────────────────────────────────────
 # Script size:       1 MB (compressed)

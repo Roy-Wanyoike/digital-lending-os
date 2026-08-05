@@ -1,59 +1,56 @@
 # Dependencies
 node_modules
 
-# Build output
+# Next.js build output
 .next
-out
 
-# IDE / Editor
-.vscode
-.idea
-*.swp
-*.swo
-
-# Version control
+# Git
 .git
-git
 .gitignore
 
-# Docker
+# Environment — keep .env for build-time vars, ignore local overrides
+.env.local
+.env.*.local
+
+# Documentation
+*.md
+
+# IDEs
+.vscode
+.idea
+
+# Test / coverage
+coverage
+dist
+
+# SQLite databases
+db/*.db
+
+# Misc
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Docker files (avoid recursive copy)
 Dockerfile
 docker-compose*.yml
 .dockerignore
 
-# Environment files
-.env
-.env.local
-.env.*.local
+# Download artifacts
+download/
 
-# Testing
-coverage
-__tests__
+# Scripts
+scripts/
+
+# Infrastructure manifests (not needed at runtime)
+infra/
+
+# Test files
+__tests__/
 *.test.ts
 *.test.tsx
-vitest.config.ts
+vitest.config*.ts
 
-# Documentation
-docs
-*.md
-!README.md
-
-# Scripts & tools
-scripts/
-tool-results/
-agent-ctx/
-mini-services/
-examples/
-infra/
-download/
-*.log
-
-# Database (runtime only — provided via docker-compose volume mount)
-db/*.db
-db/*.db-journal
-
-# Misc
-.DS_Store
-Thumbs.db
-*.tgz
-npm-debug.log*
+# Lock file for other runtimes
+bun.lock

@@ -1,0 +1,188 @@
+# Youngsend Production Deployment
+# Triggered by manual dispatch or version tags (v*)
+# Includes automatic rollback on failure
+
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type PRODUCTION to confirm deploy'
+        required: true
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  DEPLOYMENT: youngsend-nextjs
+  NAMESPACE: youngsend-prod
+
+jobs:
+  # ── Build & Push ──────────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image tags
+        id: tags
+        run: |
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          TAG_LATEST="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          TAG_SHA="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${SHA_SHORT}"
+          TAG_VERSION="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF_NAME}"
+
+          # If triggered by a tag, add the version tag
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "tags=${TAG_LATEST},${TAG_SHA},${TAG_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "tag_version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=${TAG_LATEST},${TAG_SHA}" >> "$GITHUB_OUTPUT"
+            echo "tag_version=${TAG_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Building with tags:"
+          echo "  latest  -> ${TAG_LATEST}"
+          echo "  sha     -> ${TAG_SHA}"
+          echo "  version -> $(echo "${TAG_VERSION}" | xargs basename)"
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image exists in registry
+        run: |
+          docker buildx imagetools inspect \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-$(git rev-parse --short HEAD)
+
+  # ── Deploy ─────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Production
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    outputs:
+      rollback: ${{ steps.set-image.outcome == 'failure' || steps.rollout.outcome == 'failure' || steps.smoke.outcome == 'failure' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Record current revision
+        id: pre-revision
+        run: |
+          REVISION=$(kubectl rollout history deployment/${{ env.DEPLOYMENT }} -n ${{ env.NAMESPACE }} --output=jsonpath='{.metadata.generation}' 2>/dev/null || echo "unknown")
+          echo "revision=${REVISION}" >> "$GITHUB_OUTPUT"
+          echo "Pre-deploy revision: ${REVISION}"
+
+      - name: Set image to new version
+        id: set-image
+        run: |
+          kubectl set image \
+            deployment/${{ env.DEPLOYMENT }} \
+            nextjs=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-$(echo ${{ github.sha }} | cut -c1-7) \
+            -n ${{ env.NAMESPACE }}
+
+      - name: Rollout status
+        id: rollout
+        run: |
+          kubectl rollout status \
+            deployment/${{ env.DEPLOYMENT }} \
+            -n ${{ env.NAMESPACE }} \
+            --timeout=600s
+
+      - name: Smoke test
+        id: smoke
+        run: |
+          # Wait for service endpoint to be reachable
+          SERVICE_NAME="youngsend-nextjs"
+          ENDPOINT="${SERVICE_NAME}.${{ env.NAMESPACE }}.svc.cluster.local"
+
+          for i in $(seq 1 15); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "http://${ENDPOINT}:3000/api/health" --max-time 5 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Production health check passed (HTTP $STATUS)"
+
+              # Additional readiness check
+              READY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                "http://${ENDPOINT}:3000/api/ready" --max-time 5 2>/dev/null || echo "000")
+              echo "   /api/ready -> HTTP ${READY_STATUS}"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $STATUS, retrying in 5s..."
+            sleep 5
+          done
+
+          echo "❌ Production smoke test failed after 15 attempts"
+          exit 1
+
+  # ── Rollback on Failure ───────────────────────────────────────────
+  rollback-on-failure:
+    name: Rollback on Failure
+    needs: deploy
+    if: needs.deploy.outputs.rollback == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Rollback deployment
+        run: |
+          echo "🔄 Rolling back deployment/${{ env.DEPLOYMENT }} in ${{ env.NAMESPACE }}..."
+          kubectl rollout undo deployment/${{ env.DEPLOYMENT }} -n ${{ env.NAMESPACE }}
+          kubectl rollout status deployment/${{ env.DEPLOYMENT }} -n ${{ env.NAMESPACE }} --timeout=300s
+          echo "✅ Rollback complete"
+
+      - name: Notify rollback
+        if: always()
+        run: |
+          echo "::warning::Production deployment failed and was rolled back. Review logs in the deploy job."

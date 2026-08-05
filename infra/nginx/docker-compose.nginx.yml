@@ -1,0 +1,24 @@
+# ─────────────────────────────────────────────────────────────────────
+# Youngsend — Nginx Reverse Proxy (Docker Compose Extension)
+# Overlay on top of docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f infra/nginx/docker-compose.nginx.yml up -d
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Nginx Reverse Proxy ───────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: youngsend-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./snippets:/etc/nginx/snippets:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - youngsend-net

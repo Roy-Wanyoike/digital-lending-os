@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
   },
 
   // Keep native/heavy packages external to the server bundle
-  serverExternalPackages: ["bcryptjs", "@prisma/client", "ioredis"],
+  serverExternalPackages: ["bcryptjs", "@prisma/client", "ioredis", "@opentelemetry/api", "@opentelemetry/sdk-node"],
 
   // Image optimization: prefer modern formats, limit generated sizes
   // NOTE: remotePatterns was previously set to hostname: "**" which allowed

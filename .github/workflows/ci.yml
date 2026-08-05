@@ -1,6 +1,5 @@
-# Youngsend — Continuous Integration
-# Triggers on push/PR to main branch.
-# Pipeline: checkout → deps → lint → type-check → prisma generate → test → build
+# Youngsend CI Pipeline
+# Runs lint, type-check, tests, build, Docker build/push, and staging deploy
 
 name: CI
 
@@ -14,55 +13,201 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-jobs:
-  ci:
-    name: Lint · Type-Check · Test · Build
-    runs-on: ubuntu-latest
+env:
+  NODE_VERSION: '22'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
+jobs:
+  # ── Lint & Type-Check ─────────────────────────────────────────────
+  lint-and-typecheck:
+    name: Lint & Type-Check
+    runs-on: ubuntu-latest
     steps:
-      # ── Checkout ───────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── Node.js ────────────────────────────────────────────────
-      - name: Setup Node.js 20
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
-      # ── Dependencies ───────────────────────────────────────────
       - name: Install dependencies
         run: npm ci
 
-      # ── Lint ───────────────────────────────────────────────────
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: Lint
         run: npm run lint
 
-      # ── Type-check (fail fast) ─────────────────────────────────
-      - name: Type-check
-        run: npx tsc --noEmit --pretty
+      - name: Type-Check
+        run: npx tsc --noEmit
 
-      # ── Prisma Generate ────────────────────────────────────────
-      - name: Prisma Generate
+  # ── Tests ─────────────────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
         run: npx prisma generate
-        env:
-          DATABASE_URL: "file:./db/custom.db"
 
-      # ── Test ───────────────────────────────────────────────────
-      # Integration tests (in __tests__/api/) require a running dev server
-      # and are excluded from CI. Only pure unit tests (__tests__/unit/) run here.
-      - name: Test
-        run: npx vitest run --reporter=verbose || true
-        env:
-          DATABASE_URL: "file:./db/custom.db"
-          NODE_ENV: test
+      - name: Run tests with coverage
+        run: npx vitest run --coverage
 
-      # ── Build ──────────────────────────────────────────────────
-      - name: Build
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+
+  # ── Build ─────────────────────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build Next.js
         run: npm run build
         env:
-          DATABASE_URL: "file:./db/custom.db"
-          NEXTAUTH_SECRET: "ci-test-secret-not-for-production"
-          NEXT_TELEMETRY_DISABLED: "1"
-          NODE_OPTIONS: "--max-old-space-size=4096"
+          NODE_ENV: production
+
+      - name: Upload standalone artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextjs-standalone
+          path: |
+            .next/standalone
+            .next/static
+            public
+          retention-days: 7
+
+  # ── Docker Build & Push ───────────────────────────────────────────
+  docker-build:
+    name: Docker Build & Push
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Deploy to Staging ─────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    needs: docker-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: image
+        run: echo "tag=sha-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Deploy manifests to staging
+        run: |
+          kubectl apply -f infra/k8s/namespace.yaml
+          kubectl apply -f infra/k8s/configmap.yaml
+          kubectl apply -f infra/k8s/secret.yaml
+          kubectl apply -f infra/k8s/service.yaml
+          kubectl apply -f infra/k8s/deployment.yaml
+          kubectl apply -f infra/k8s/hpa.yaml
+          kubectl apply -f infra/k8s/ingress.yaml
+        working-directory: ${{ github.workspace }}
+
+      - name: Set image to new build
+        run: |
+          kubectl set image deployment/youngsend \
+            youngsend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.image.outputs.tag }} \
+            -n youngsend-staging
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/youngsend -n youngsend-staging --timeout=300s
+
+      - name: Smoke test
+        run: |
+          SERVICE_IP=$(kubectl get svc youngsend -n youngsend-staging -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+          if [ -n "$SERVICE_IP" ]; then
+            for i in $(seq 1 10); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://${SERVICE_IP}/api/health" --max-time 5)
+              if [ "$STATUS" = "200" ]; then
+                echo "✅ Health check passed (HTTP $STATUS)"
+                exit 0
+              fi
+              echo "Attempt $i: HTTP $STATUS, retrying in 5s..."
+              sleep 5
+            done
+            echo "❌ Health check failed after 10 attempts"
+            exit 1
+          else
+            echo "⚠️  No external IP yet, skipping smoke test"
+          fi

@@ -1,49 +1,178 @@
 # ─────────────────────────────────────────────────────────────────────
-# Youngsend — Local Development Stack
-# Usage: docker compose up -d
-# ─────────────────────────────────────────────────────────────────────
-# NOTE: This app uses SQLite (file:./db/custom.db), not PostgreSQL.
-#       The db/ directory is bind-mounted so data persists across restarts.
+# Youngsend — Cloud-Native Full Stack
+# Usage: docker compose --env-file .env.docker up -d
 # ─────────────────────────────────────────────────────────────────────
 
 services:
-  # ── Next.js Application ────────────────────────────────────────────
-  nextjs:
+  # ── 1. Next.js Application ──────────────────────────────────────────
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: youngsend-app
     ports:
       - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
     environment:
-      - NODE_ENV=production
-    env_file:
-      - .env
-    # No depends_on — Redis is optional; the app falls back to in-memory LRU cache.
-    volumes:
-      # Persist SQLite database file across container rebuilds
-      - ./db:/app/db
+      - DB_PROVIDER=postgresql
+      - DATABASE_POSTGRESQL_URL=postgresql://youngsend:youngsend@postgres:5432/youngsend
+      - REDIS_URL=redis://redis:6379/0
+      - KAFKA_BROKERS=kafka:9092
+      - OPENSEARCH_URL=https://opensearch:9200
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=admin
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 512M
     networks:
       - youngsend-net
-    restart: unless-stopped
 
-  # ── Redis 7 (optional cache) ──────────────────────────────────────
-  # The app falls back to an in-memory LRU cache when Redis is unavailable,
-  # but running Redis gives you proper TTL expiry, pub/sub, and rate-limiting.
+  # ── 2. PostgreSQL 16 ────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: youngsend-postgres
+    environment:
+      POSTGRES_USER: youngsend
+      POSTGRES_PASSWORD: youngsend
+      POSTGRES_DB: youngsend
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U youngsend -d youngsend"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - youngsend-net
+
+  # ── 3. Redis 7 ──────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: youngsend-redis
-    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
     volumes:
-      - redisdata:/data
+      - redis_data:/data
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
     networks:
       - youngsend-net
+
+  # ── 4. Zookeeper ────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: youngsend-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+    volumes:
+      - zk_data:/var/lib/zookeeper/data
     restart: unless-stopped
+    networks:
+      - youngsend-net
+
+  # ── 5. Kafka ────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: youngsend-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    restart: unless-stopped
+    networks:
+      - youngsend-net
+
+  # ── 6. OpenSearch ───────────────────────────────────────────────────
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: youngsend-opensearch
+    environment:
+      - discovery.type=single-node
+      - DISABLE_SECURITY_PLUGIN=true
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    restart: unless-stopped
+    networks:
+      - youngsend-net
+
+  # ── 7. OpenTelemetry Collector ──────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: youngsend-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./infra/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+    networks:
+      - youngsend-net
+
+  # ── 8. Jaeger All-in-One ────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.53
+    container_name: youngsend-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    # Note: Jaeger OTLP port 4317 is reachable via Docker network
+    # (otel-collector uses jaeger:4317) but not published to host
+    # to avoid conflict with otel-collector's 4317:4317
+    expose:
+      - "4317"
+    restart: unless-stopped
+    networks:
+      - youngsend-net
 
 volumes:
-  redisdata:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  zk_data:
+    driver: local
+  kafka_data:
+    driver: local
+  opensearch_data:
     driver: local
 
 networks:

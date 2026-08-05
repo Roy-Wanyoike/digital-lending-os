@@ -1,83 +1,71 @@
 # ─────────────────────────────────────────────────────────────────────
 # Youngsend — Production Multi-Stage Dockerfile
-# Target: <200 MB final image (standalone Next.js 16)
+# Node 22 · Alpine · Non-root · Standalone output
 # ─────────────────────────────────────────────────────────────────────
 
-# ── Stage 1: Dependencies ────────────────────────────────────────────
-FROM node:20-alpine AS deps
+# ── Stage 1: deps — Production dependencies ──────────────────────────
+FROM node:22-alpine AS deps
+
+# libc compat for Prisma query engine (Alpine uses musl)
 RUN apk add --no-cache libc6-compat
+
 WORKDIR /app
 
-COPY package.json package-lock.json* bun.lock* ./
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
-# Install ALL deps (including devDependencies) — needed for the build step.
-# Using npm ci for reproducible installs; falls back to npm install when no lockfile.
-RUN \
-  if [ -f package-lock.json ]; then npm ci; \
-  elif [ -f bun.lock ]; then corepack enable bun && bun install --frozen-lockfile; \
-  else npm install; \
-  fi
+# ── Stage 2: builder — Full install + build ──────────────────────────
+FROM node:22-alpine AS builder
 
-# ── Stage 2: Build ───────────────────────────────────────────────────
-FROM node:20-alpine AS builder
 RUN apk add --no-cache libc6-compat
+
 WORKDIR /app
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+# Copy Prisma schema so prisma generate can run before full source copy
+COPY prisma/ ./prisma/
 
-# Generate Prisma client before build
+COPY package.json package-lock.json ./
+RUN npm ci
+
 RUN npx prisma generate
 
-# Build Next.js in standalone mode (set in next.config.ts)
+# Copy remaining source
+COPY . .
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
 
-# ── Stage 3: Runtime ─────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+# ── Stage 3: runner — Minimal production image ───────────────────────
+FROM node:22-alpine AS runner
 
-# Install wget for HEALTHCHECK (CMD uses wget --spider)
-RUN apk add --no-cache wget
-
-# Security: run as non-root user
+# Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Set production environment
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
 WORKDIR /app
 
-# Copy standalone output from build stage
+# Copy standalone output (includes server.js + traced dependencies)
 COPY --from=builder /app/.next/standalone ./
 
-# Copy static & public assets (standalone does not bundle these)
+# Static assets and public directory (not included in standalone)
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 
-# Copy Prisma engine for runtime database access
-# (.prisma = generated client + query engine; @prisma = runtime JS)
+# Prisma — schema for runtime migrations, generated client + engine
+COPY --from=builder /app/prisma ./prisma
+COPY --from=deps /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
 
-# Create db/ directory for SQLite — the docker-compose volume mount
-# ./db:/app/db provides the actual database file at runtime.
-# This mkdir ensures the mount target exists with correct ownership.
-RUN mkdir -p /app/db && chown -R nextjs:nodejs /app/db
-
-# Ensure the nextjs user owns the app directory
-RUN chown -R nextjs:nodejs /app
+# Security: run as non-root
 USER nextjs
 
 EXPOSE 3000
 
-# Health check — hit the /api/health endpoint
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
+ENV NODE_ENV=production
+ENV HOSTNAME="0.0.0.0"
+ENV PORT=3000
+ENV NEXT_TELEMETRY_DISABLED=1
 
 CMD ["node", "server.js"]

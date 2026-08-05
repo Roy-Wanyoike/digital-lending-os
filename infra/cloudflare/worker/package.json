@@ -1,0 +1,19 @@
+{
+  "name": "youngsend-edge-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cloudflare Edge Worker for Youngsend — rate limiting, bot protection, auth, CORS, security headers, caching, geo-blocking",
+  "scripts": {
+    "build": "npx tsc --noEmit",
+    "deploy": "npx wrangler deploy",
+    "deploy:staging": "npx wrangler deploy --env staging",
+    "deploy:production": "npx wrangler deploy --env production",
+    "dev": "npx wrangler dev --env staging",
+    "typecheck": "npx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240614.0",
+    "wrangler": "^3.60.0",
+    "typescript": "^5.5.0"
+  }
+}

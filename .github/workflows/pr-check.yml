@@ -1,0 +1,210 @@
+# Youngsend PR Check
+# Runs on PRs not targeting main — full quality gate + bundle analysis
+
+name: PR Check
+
+on:
+  pull_request:
+    branches-ignore: [main]
+
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ── Parallel Quality Checks ───────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run ESLint
+        run: npm run lint
+
+  typecheck:
+    name: Type-Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run TypeScript compiler
+        run: npx tsc --noEmit
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run tests
+        run: npx vitest run
+
+  # ── Build (after quality checks pass) ──────────────────────────────
+  build:
+    name: Build
+    needs: [lint, typecheck, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build Next.js
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+  # ── Bundle Analysis ────────────────────────────────────────────────
+  bundle-analysis:
+    name: Bundle Size Analysis
+    needs: [lint, typecheck, test]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build with bundle analysis
+        run: |
+          ANALYZE=true npm run build
+        env:
+          NODE_ENV: production
+          NEXT_TELEMETRY_DISABLED: 1
+          ANALYZE: 'true'
+
+      - name: Calculate bundle sizes
+        id: sizes
+        run: |
+          echo "## Bundle Size Report" > bundle-report.md
+          echo "" >> bundle-report.md
+          echo "| File | Size (gzip) | Size (br) |" >> bundle-report.md
+          echo "|------|-------------|-----------|" >> bundle-report.md
+
+          # Collect JS chunk sizes from .next/static
+          if [ -d .next/static/chunks ]; then
+            for f in $(find .next/static/chunks -name '*.js' -o -name '*.css' 2>/dev/null | sort); do
+              FILENAME=$(basename "$f")
+              RAW_SIZE=$(wc -c < "$f")
+              GZIP_SIZE=$(gzip -c "$f" | wc -c)
+              BROTLI_SIZE=$(brotli -c "$f" 2>/dev/null | wc -c || echo "$(( RAW_SIZE * 3 / 4 ))")
+
+              # Format sizes to KB
+              RAW_KB=$(( RAW_SIZE / 1024 ))
+              GZIP_KB=$(( GZIP_SIZE / 1024 ))
+              BROTLI_KB=$(( BROTLI_SIZE / 1024 ))
+
+              echo "| ${FILENAME} | ${GZIP_KB} KB | ${BROTLI_KB} KB |" >> bundle-report.md
+            done
+          fi
+
+          # Add total
+          echo "" >> bundle-report.md
+          TOTAL_GZIP=$(find .next/static/chunks -name '*.js' -exec cat {} + 2>/dev/null | gzip | wc -c)
+          TOTAL_KB=$(( TOTAL_GZIP / 1024 ))
+          echo "**Total JS (gzip): ${TOTAL_KB} KB**" >> bundle-report.md
+
+          echo "report<<EOF" >> "$GITHUB_OUTPUT"
+          cat bundle-report.md >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Comment bundle sizes on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const report = `${{ steps.sizes.outputs.report }}`;
+            const body = `${report}\n\n---\n_Generated by [PR Check Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})_`;
+
+            // Find existing comment to update
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.data.find(
+              c => c.user.type === 'Bot' && c.body.includes('Bundle Size Report')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }

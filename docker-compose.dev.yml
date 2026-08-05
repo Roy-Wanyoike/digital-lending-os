@@ -1,0 +1,21 @@
+# ─────────────────────────────────────────────────────────────────────
+# Youngsend — Docker Compose Dev Override
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+  nextjs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      # Hot-reload: mount source so file-watcher picks up changes
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./prisma:/app/prisma
+      # Persist SQLite database
+      - ./db:/app/db
