@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Gift, Copy, Check, Users, DollarSign, Link2, Share2,
   ArrowUpRight, ExternalLink, TrendingUp, Sparkles, CircleDollarSign,
@@ -44,13 +44,16 @@ export function ReferralTab() {
   const { data, loading, error, refetch } = useApi<ReferralData>('/api/referral')
   const [copied, setCopied] = useState(false)
   const [shareMsg, setShareMsg] = useState('')
+  const mountedRef = useRef(true)
+
+  useEffect(() => { return () => { mountedRef.current = false } }, [])
 
   const copyLink = useCallback(async () => {
     if (!data?.referralLink) return
     try {
       await navigator.clipboard.writeText(data.referralLink)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2500)
+      setTimeout(() => { if (mountedRef.current) setCopied(false) }, 2500)
     } catch {
       // Fallback for non-HTTPS contexts
       const ta = document.createElement('textarea')
@@ -60,7 +63,7 @@ export function ReferralTab() {
       document.execCommand('copy')
       document.body.removeChild(ta)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2500)
+      setTimeout(() => { if (mountedRef.current) setCopied(false) }, 2500)
     }
   }, [data])
 
@@ -77,7 +80,7 @@ export function ReferralTab() {
     } else {
       copyLink()
       setShareMsg('Link copied to clipboard!')
-      setTimeout(() => setShareMsg(''), 3000)
+      setTimeout(() => { if (mountedRef.current) setShareMsg('') }, 3000)
     }
   }, [data, copyLink])
 

@@ -5,6 +5,7 @@ import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { collectionListCache } from '@/backend/lib/response-cache';
 function generateCaseRef(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   let result = 'COL-'
@@ -56,13 +57,33 @@ async function getHandler(request: NextRequest) {
     if (priority) where.priority = priority
     if (status) where.status = status
 
+    // Fast in-memory cache (3s TTL)
+    const collKey = `coll:${user.tenantId}:${page}:${limit}:${businessId || ''}:${debtorId || ''}:${agingBucket || ''}:${priority || ''}:${status || ''}`
+    const memCached = collectionListCache.get(collKey)
+    if (memCached) {
+      return NextResponse.json(memCached)
+    }
+
     const [cases, total] = await Promise.all([
       db.collectionCase.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: {
+        select: {
+          id: true,
+          caseRef: true,
+          businessId: true,
+          debtorId: true,
+          originalAmount: true,
+          outstandingAmount: true,
+          currency: true,
+          agingBucket: true,
+          priority: true,
+          status: true,
+          aiStrategy: true,
+          createdAt: true,
+          updatedAt: true,
           debtor: { select: { name: true } },
         },
       }),
@@ -75,7 +96,7 @@ async function getHandler(request: NextRequest) {
       debtor: undefined,
     }))
 
-    return NextResponse.json({
+    const result = {
       data: casesWithDebtorName,
       pagination: {
         page,
@@ -83,7 +104,12 @@ async function getHandler(request: NextRequest) {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    })
+    }
+
+    // Cache for 3s
+    collectionListCache.set(collKey, result)
+
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Error listing collection cases:', error)
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })

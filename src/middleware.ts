@@ -178,7 +178,11 @@ export function middleware(request: NextRequest) {
   res.headers.set('x-ratelimit-reset', rlHeaders['x-ratelimit-reset']);
   const duration = Date.now() - start;
   res.headers.set('x-response-time', `${duration}ms`);
-  console.log(`${method} ${pathname} 200 ${duration}ms`);
+
+  // Skip console.log for health/ready endpoints to reduce I/O during monitoring polls
+  if (pathname !== '/api/health' && pathname !== '/api/ready') {
+    console.log(`${method} ${pathname} 200 ${duration}ms`);
+  }
 
   return res;
 }

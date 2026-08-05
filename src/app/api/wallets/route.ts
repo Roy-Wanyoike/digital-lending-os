@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { logAudit } from '@/lib/audit-logger';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { walletListCache } from '@/backend/lib/response-cache';
 
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined;
@@ -48,15 +49,41 @@ async function getHandler(req: NextRequest) {
       ? `wallets:${user.tenantId}:${filterBusinessId}`
       : `wallets:${user.tenantId}`;
 
+    // First-level: synchronous in-memory cache (5s TTL)
+    const memCached = walletListCache.get(cacheKey);
+    if (memCached) {
+      const response = successResponse(memCached);
+      response.headers.set('Cache-Control', 'private, max-age=3, stale-while-revalidate=5');
+      return response;
+    }
+
     const cacheManager = await getCache();
     const fetchWallets = () => db.wallet.findMany({
       where: { businessId: { in: targetBusinessIds } },
+      select: {
+        id: true,
+        businessId: true,
+        currency: true,
+        balance: true,
+        availableBalance: true,
+        pendingBalance: true,
+        frozenBalance: true,
+        isDefault: true,
+        label: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
       orderBy: { createdAt: 'desc' },
+      take: 100,
     });
 
     const wallets = cacheManager
       ? await cacheManager.getOrSet(cacheKey, fetchWallets, { ttl: 60_000 })
       : await fetchWallets();
+
+    // Populate first-level cache
+    walletListCache.set(cacheKey, wallets);
 
     const response = successResponse(wallets);
     response.headers.set('Cache-Control', 'private, max-age=3, stale-while-revalidate=5');
@@ -88,6 +115,7 @@ async function postHandler(req: NextRequest) {
     // Verify businessId belongs to the user's tenant
     const business = await db.business.findFirst({
       where: { id: businessId, tenantId: user.tenantId },
+      select: { id: true, tenantId: true },
     });
 
     if (!business) return errorResponse('Business not found or not in your tenant', 403);
@@ -95,6 +123,7 @@ async function postHandler(req: NextRequest) {
     // Check if wallet already exists for this business + currency
     const existing = await db.wallet.findFirst({
       where: { businessId, currency },
+      select: { id: true },
     });
 
     if (existing) return errorResponse('Wallet already exists for this currency', 409);

@@ -153,6 +153,20 @@ export class PaymentStateMachine {
   // Transition guard lookup: "from->to" -> TransitionGuard
   private guardIndex: Map<string, TransitionGuard> = new Map()
 
+  // Max entries to prevent unbounded memory growth
+  private static readonly MAX_STATE_ENTRIES = 10_000
+  private static readonly MAX_IDEMPOTENCY_ENTRIES = 50_000
+  private static readonly MAX_HISTORY_ENTRIES = 10_000
+  private static readonly MAX_HISTORY_PER_PAYMENT = 100
+
+  private evictOldest(map: Map<string, unknown>, max: number): void {
+    while (map.size > max) {
+      const oldest = map.keys().next().value
+      if (oldest !== undefined) map.delete(oldest)
+      else break
+    }
+  }
+
   constructor() {
     for (const guard of LEGAL_TRANSITIONS) {
       const key = `${guard.from}->${guard.to}`
@@ -274,6 +288,7 @@ export class PaymentStateMachine {
     // ── Execute transition ───────────────────────────────────────
     const previousState = currentState
     this.stateStore.set(paymentId, target)
+    this.evictOldest(this.stateStore, PaymentStateMachine.MAX_STATE_ENTRIES)
 
     const transitionId = this.generateTransitionId()
     const timestamp = new Date().toISOString()
@@ -291,6 +306,7 @@ export class PaymentStateMachine {
 
     // ── Store idempotency result ────────────────────────────────
     this.idempotencyCache.set(effectiveKey, result)
+    this.evictOldest(this.idempotencyCache, PaymentStateMachine.MAX_IDEMPOTENCY_ENTRIES)
 
     // ── Append to history ───────────────────────────────────────
     const history = this.historyStore.get(paymentId) ?? []
@@ -307,7 +323,12 @@ export class PaymentStateMachine {
       metadata: context.metadata,
     }
     history.push(entry)
+    // Cap per-payment history length
+    if (history.length > PaymentStateMachine.MAX_HISTORY_PER_PAYMENT) {
+      history.splice(0, history.length - PaymentStateMachine.MAX_HISTORY_PER_PAYMENT)
+    }
     this.historyStore.set(paymentId, history)
+    this.evictOldest(this.historyStore, PaymentStateMachine.MAX_HISTORY_ENTRIES)
 
     return result
   }

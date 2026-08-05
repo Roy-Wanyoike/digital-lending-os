@@ -2,8 +2,8 @@ import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
-
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { analyticsCache } from '@/backend/lib/response-cache';
 async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
@@ -22,6 +22,13 @@ async function getHandler(req: NextRequest) {
     }
 
     const businessIds = await getTenantBusinessIds(user.tenantId, db);
+
+    // Fast in-memory cache (5s TTL) — analytics does 11 parallel aggregations
+    const analyticsKey = `analytics:${user.tenantId}:${period}`;
+    const memCached = analyticsCache.get(analyticsKey);
+    if (memCached) {
+      return successResponse(memCached);
+    }
 
     const [paymentVolume, completedTxCount, activeEscrows, completedEscrows, invoiceStats, walletStats, collectionStats, fraudCount, screeningCount, linkStats, overdueInvoices] = await Promise.all([
       db.paymentTransaction.aggregate({
@@ -73,7 +80,7 @@ async function getHandler(req: NextRequest) {
       }),
     ]);
 
-    return successResponse({
+    const result = {
       period,
       startDate,
       endDate: now,
@@ -98,7 +105,12 @@ async function getHandler(req: NextRequest) {
         paymentLinkRevenue: linkStats._sum.totalCollected || 0,
         paymentLinkCount: linkStats._count,
       },
-    });
+    };
+
+    // Cache the result for subsequent requests within 5s
+    analyticsCache.set(analyticsKey, result);
+
+    return successResponse(result);
   } catch (error: any) {
     console.error('Analytics GET error:', error);
     return errorResponse('Failed to fetch analytics', 500);

@@ -99,6 +99,7 @@ function LoginForm() {
               {/* V3: Forgot password link */}
               <Link
                 href="/forgot-password"
+                prefetch={false}
                 className="text-xs text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
               >
                 Forgot password?
@@ -142,6 +143,7 @@ function LoginForm() {
           Don&apos;t have an account?{' '}
           <Link
             href="/register"
+            prefetch={true}
             className="font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
           >
             Sign up
@@ -164,6 +166,7 @@ export default function LoginPage() {
       {/* Back to home link */}
       <Link
         href="/"
+        prefetch={false}
         className="absolute top-4 left-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         ← Back to home
@@ -185,9 +188,9 @@ export default function LoginPage() {
       {/* V2: Footer with legal links on login */}
       <p className="mt-8 text-xs text-muted-foreground">
         By signing in you agree to our{' '}
-        <Link href="/terms" className="underline hover:text-foreground transition-colors">Terms</Link>
+        <Link href="/terms" prefetch={false} className="underline hover:text-foreground transition-colors">Terms</Link>
         {' '}and{' '}
-        <Link href="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
+        <Link href="/privacy" prefetch={false} className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
       </p>
     </div>
   )

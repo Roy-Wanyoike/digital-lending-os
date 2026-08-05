@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
 import { CreditCard, Shield, CheckCircle, AlertCircle, Loader2, ExternalLink, Globe, Smartphone, Building } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -44,6 +43,22 @@ const METHOD_ICONS: Record<string, any> = {
   mpesa: Smartphone,
   bank_transfer: Building,
   digital_wallet: Globe,
+}
+
+// Lightweight CSS-based transition (replaces ~69KB framer-motion dependency)
+function TransitionWrapper({ show, children }: { show: boolean; children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        opacity: show ? 1 : 0,
+        transform: show ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.95)',
+        transition: 'opacity 200ms ease, transform 200ms ease',
+        display: show ? 'block' : 'none',
+      }}
+    >
+      {children}
+    </div>
+  )
 }
 
 export default function PaymentCheckoutPage() {
@@ -185,9 +200,7 @@ function PaymentCheckoutInner() {
           </div>
         )}
 
-        <AnimatePresence mode="wait">
-          {!payResult ? (
-            <motion.div key="form" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+        <TransitionWrapper show={!payResult}>
               {/* Payment Details Card */}
               <Card className="mb-6">
                 <CardContent className="p-6">
@@ -313,12 +326,11 @@ function PaymentCheckoutInner() {
                   </p>
                 </CardContent>
               </Card>
-            </motion.div>
-          ) : (
-            <motion.div key="result" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+          </TransitionWrapper>
+          <TransitionWrapper show={!!payResult}>
               <Card>
                 <CardContent className="p-12 text-center">
-                  {payResult.checkoutUrl ? (
+                  {payResult && payResult.checkoutUrl ? (
                     <>
                       <CheckCircle className="h-16 w-16 text-emerald-500 mx-auto mb-4" />
                       <h2 className="text-xl font-semibold mb-2">Redirecting to {payResult.providerName}...</h2>
@@ -327,18 +339,16 @@ function PaymentCheckoutInner() {
                         <ExternalLink className="h-4 w-4 mr-2" />Continue to Payment
                       </Button>
                     </>
-                  ) : (
+                  ) : payResult ? (
                     <>
                       <CheckCircle className="h-16 w-16 text-emerald-500 mx-auto mb-4" />
                       <h2 className="text-xl font-semibold mb-2">Payment Recorded</h2>
                       <p className="text-sm text-slate-500">Payment has been recorded in demo mode.</p>
                     </>
-                  )}
+                  ) : null}
                 </CardContent>
               </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
+          </TransitionWrapper>
       </main>
     </div>
   )

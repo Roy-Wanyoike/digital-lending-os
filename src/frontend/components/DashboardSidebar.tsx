@@ -58,6 +58,7 @@ export default function DashboardSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                 isActive
                   ? 'bg-primary/10 text-primary font-medium'

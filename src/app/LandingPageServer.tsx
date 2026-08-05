@@ -68,8 +68,8 @@ export function LandingPage() {
               <span className="text-sm font-medium text-foreground">Youngsend</span>
             </div>
             <nav className="flex items-center gap-6 text-xs text-muted-foreground">
-              <Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
-              <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+              <Link href="/terms" prefetch={false} className="hover:text-foreground transition-colors">Terms of Service</Link>
+              <Link href="/privacy" prefetch={false} className="hover:text-foreground transition-colors">Privacy Policy</Link>
               <a href="https://youngsend.com/contact" className="hover:text-foreground transition-colors">Contact</a>
             </nav>
             <p className="text-xs text-muted-foreground">2026 Youngsend. All rights reserved.</p>

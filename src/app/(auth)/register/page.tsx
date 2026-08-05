@@ -102,6 +102,7 @@ function RegisterPageInner() {
 
   // Auto-validate referral code on mount
   useEffect(() => {
+    let cancelled = false
     if (referralCode) {
       fetch('/api/referral', {
         method: 'POST',
@@ -110,10 +111,12 @@ function RegisterPageInner() {
       })
         .then(r => r.json())
         .then(d => {
+          if (cancelled) return
           if (d.valid) setReferralInfo({ name: d.referrer.name })
         })
         .catch(() => {})
     }
+    return () => { cancelled = true }
   }, [referralCode])
 
   return (
@@ -121,6 +124,7 @@ function RegisterPageInner() {
       {/* Back to home link */}
       <Link
         href="/"
+        prefetch={false}
         className="absolute top-4 left-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
         ← Back to home
@@ -253,6 +257,7 @@ function RegisterPageInner() {
             Already have an account?{' '}
             <Link
               href="/login"
+              prefetch={true}
               className="font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
             >
               Sign in
@@ -263,9 +268,9 @@ function RegisterPageInner() {
       {/* Footer with legal links */}
       <p className="mt-8 text-xs text-muted-foreground">
         By creating an account you agree to our{' '}
-        <Link href="/terms" className="underline hover:text-foreground transition-colors">Terms</Link>
+        <Link href="/terms" prefetch={false} className="underline hover:text-foreground transition-colors">Terms</Link>
         {' '}and{' '}
-        <Link href="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
+        <Link href="/privacy" prefetch={false} className="underline hover:text-foreground transition-colors">Privacy Policy</Link>
       </p>
     </div>
   )

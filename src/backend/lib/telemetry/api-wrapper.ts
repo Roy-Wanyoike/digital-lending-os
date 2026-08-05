@@ -7,8 +7,9 @@
  *   C) Handler execution
  *   D) Duration calculation (ms)
  *   E) x-request-id + x-response-time headers on every response
- *   F) Structured JSON log to console (one line per request)
- *   G) Error path: logs with stack trace, still sets headers, does NOT swallow
+ *   F) Response compression via CompressionStream (gzip) for JSON/text payloads
+ *   G) Structured JSON log to console (one line per request)
+ *   H) Error path: logs with stack trace, still sets headers, does NOT swallow
  *
  * This is intentionally decoupled from the heavier @opentelemetry stack so
  * routes can get basic request-level telemetry without pulling in OTel.
@@ -33,6 +34,49 @@ export interface ApiTelemetryLogEntry {
 // Next.js 16 route handler context shape
 export interface RouteContext<TParams = Record<string, string>> {
   params: Promise<TParams>;
+}
+
+// ─── Response Compression (zero-dependency, Node.js 18+) ──────────────────
+// Uses the Web CompressionStream API to gzip JSON/text responses inline.
+// Falls back to uncompressed if CompressionStream is unavailable.
+
+const HAS_COMPRESSION = typeof CompressionStream !== 'undefined';
+
+function maybeCompressResponse(response: Response, req: NextRequest): Response {
+  if (!HAS_COMPRESSION || !response.body) return response;
+
+  const acceptEncoding = req.headers.get('accept-encoding') || '';
+  if (!acceptEncoding.includes('gzip')) return response;
+
+  // Skip already-compressed or non-compressible responses
+  if (response.headers.get('content-encoding')) return response;
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('json') && !contentType.includes('text/')) return response;
+
+  try {
+    const gzipStream = new CompressionStream('gzip');
+    const compressedBody = response.body.pipeThrough(gzipStream);
+
+    const headers = new Headers(response.headers);
+    headers.set('Content-Encoding', 'gzip');
+    headers.delete('Content-Length');
+
+    // Merge Vary: Accept-Encoding with any existing Vary header
+    const vary = headers.get('Vary') || '';
+    if (!vary.includes('Accept-Encoding')) {
+      headers.set('Vary', vary ? `${vary}, Accept-Encoding` : 'Accept-Encoding');
+    }
+
+    return new Response(compressedBody, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  } catch {
+    // CompressionStream unavailable or failed — return uncompressed
+    return response;
+  }
 }
 
 // ─── Structured JSON Logger ────────────────────────────────────────────────
@@ -130,12 +174,13 @@ export function withApiTelemetry(
         request_id: requestId,
       });
 
-      return newResponse;
+      // G) Apply response compression for JSON/text payloads
+      return maybeCompressResponse(newResponse, req);
     } catch (error) {
       // D) Calculate duration on error path
       const durationMs = performance.now() - startTime;
 
-      // G) Log with stack, still set headers
+      // H) Log with stack, still set headers
       const message = error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? error.stack : undefined;
 

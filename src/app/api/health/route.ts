@@ -1,13 +1,21 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, ensurePragmas } from '@/lib/db';
 
 export async function GET() {
   try {
-    await db.$queryRaw`SELECT 1`;
+    // Ensure PRAGMAs are applied on warm start
+    await ensurePragmas();
+
+    const start = Date.now();
+    // Use a fast lightweight query that exercises the connection and returns a result
+    const result = await db.$queryRaw<Array<{ v: number }>>`SELECT 1 as v`;
+    const dbLatencyMs = Date.now() - start;
+
     return NextResponse.json({
       status: 'ok',
       checks: {
         database: 'ok',
+        dbLatencyMs,
       },
       timestamp: new Date().toISOString(),
     });
@@ -19,7 +27,9 @@ export async function GET() {
         status: 'degraded',
         checks: {
           database: 'error',
+          dbLatencyMs: null,
         },
+        error: message,
         timestamp: new Date().toISOString(),
       },
       { status: 503 },

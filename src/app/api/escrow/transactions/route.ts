@@ -5,6 +5,7 @@ import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { eventBus } from "@/backend/services/event-bus";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { escrowListCache } from '@/backend/lib/response-cache';
 // ── Zod Schemas ──────────────────────────────────────────────
 const milestoneSchema = z.object({
   title: z.string().min(1, "Milestone title is required"),
@@ -65,13 +66,34 @@ async function getHandler(request: NextRequest) {
     if (status) where.status = status;
     if (currency) where.currency = currency;
 
+    // Fast in-memory cache (3s TTL)
+    const escrowKey = `escrow:${user.tenantId}:${page}:${limit}:${buyerId || ''}:${sellerId || ''}:${status || ''}:${currency || ''}`;
+    const memCached = escrowListCache.get(escrowKey);
+    if (memCached) {
+      return NextResponse.json(memCached);
+    }
+
     const [transactions, total] = await Promise.all([
       db.escrowTransaction.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { createdAt: "desc" },
-        include: {
+        select: {
+          id: true,
+          txRef: true,
+          amount: true,
+          currency: true,
+          status: true,
+          description: true,
+          createdAt: true,
+          updatedAt: true,
+          expiresAt: true,
+          buyerId: true,
+          sellerId: true,
+          totalMilestones: true,
+          aiRiskScore: true,
+          aiRiskLevel: true,
           buyer: { select: { id: true, name: true } },
           seller: { select: { id: true, name: true } },
           milestones: {
@@ -83,7 +105,7 @@ async function getHandler(request: NextRequest) {
       db.escrowTransaction.count({ where }),
     ]);
 
-    return NextResponse.json({
+    const result = {
       data: transactions,
       pagination: {
         page,
@@ -91,7 +113,12 @@ async function getHandler(request: NextRequest) {
         total,
         totalPages: Math.ceil(total / limit),
       },
-    });
+    };
+
+    // Cache for 3s — avoids DB on rapid page flips
+    escrowListCache.set(escrowKey, result);
+
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
     console.error("Error listing escrow transactions:", error);

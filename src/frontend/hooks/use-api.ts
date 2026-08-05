@@ -67,13 +67,83 @@ function evictOldest() {
 }
 
 /**
+ * Prefetch a URL into the SWR data cache WITHOUT triggering a re-render.
+ * Used for hover/visible prefetching — data is ready when the component mounts.
+ * Returns a promise that resolves to the data (or null on error).
+ * Deduplicates: if a request for this URL is already in-flight, shares it.
+ */
+export function prefetchUrl<T = any>(url: string, options: { dedupWindowMs?: number } = {}): Promise<T | null> {
+  const { dedupWindowMs = DEFAULT_DEDUP_WINDOW_MS } = options
+  if (!url || dedupWindowMs <= 0) return Promise.resolve(null)
+
+  const stable = stableUrl(url)
+  const cached = _dataCache.get(stable)
+  if (cached && (Date.now() - cached.fetchedAt) < dedupWindowMs) {
+    return Promise.resolve(cached.data as T)
+  }
+
+  // Check for in-flight request — share it
+  let pending = _inflight.get(stable)
+  if (!pending) {
+    const fetchHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (cached?.etag) fetchHeaders['If-None-Match'] = cached.etag
+
+    pending = fetch(url, { headers: fetchHeaders })
+      .then(r => {
+        if (r.status === 304) {
+          if (cached) _dataCache.set(stable, { ...cached, fetchedAt: Date.now() })
+          return { __stale: true, data: cached?.data, etag: cached?.etag }
+        }
+        if (!r.ok) return null
+        return r.json().then(json => ({
+          __stale: false,
+          data: json,
+          etag: r.headers.get('ETag') || undefined,
+        }))
+      })
+      .catch(() => null)
+    _inflight.set(stable, pending)
+  }
+
+  return pending.then(result => {
+    _inflight.delete(stable)
+    if (!result) return null
+
+    let responseData = result.__stale ? result.data : result.data
+    if (responseData === null || responseData === undefined) return null
+
+    // Auto-unwrap { data: T } envelope
+    let unwrapped: any = responseData
+    if (typeof responseData === 'object' && !Array.isArray(responseData) && 'data' in responseData) {
+      unwrapped = responseData.data
+    }
+
+    if (dedupWindowMs > 0 && !result.__stale) {
+      _dataCache.set(stable, { data: unwrapped, etag: result.etag, fetchedAt: Date.now() })
+      evictOldest()
+    }
+    return unwrapped as T
+  })
+}
+
+/**
+ * Statically populate the SWR cache with known data.
+ * Used after a batch fetch to seed individual URL caches.
+ */
+export function seedCache(url: string, data: any) {
+  const stable = stableUrl(url)
+  _dataCache.set(stable, { data, fetchedAt: Date.now() })
+}
+
+/**
  * Invalidate cached data for a specific URL or all URLs.
  * Triggers a fresh fetch on the next render for affected hooks.
  */
 export function invalidateCache(url?: string) {
   if (url) {
-    _inflight.delete(url)
-    _dataCache.delete(url)
+    const stable = stableUrl(url)
+    _inflight.delete(stable)
+    _dataCache.delete(stable)
   } else {
     _inflight.clear()
     _dataCache.clear()

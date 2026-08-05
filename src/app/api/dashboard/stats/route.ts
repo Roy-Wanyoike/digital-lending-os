@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { dashboardStatsCache } from '@/backend/lib/response-cache';
 
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined;
@@ -116,7 +117,13 @@ async function getHandler(request: NextRequest) {
           where: escrowTenantFilter,
           take: 5,
           orderBy: { createdAt: 'desc' },
-          include: {
+          select: {
+            id: true,
+            txRef: true,
+            amount: true,
+            currency: true,
+            status: true,
+            createdAt: true,
             buyer: { select: { name: true } },
             seller: { select: { name: true } },
           },
@@ -201,9 +208,20 @@ async function getHandler(request: NextRequest) {
       };
     };
 
+    // First-level: synchronous in-memory cache (2s TTL) — zero async overhead
+    const memKey = `stats:${user.tenantId}`;
+    const memCached = dashboardStatsCache.get(memKey);
+    if (memCached) {
+      return NextResponse.json({ data: memCached }, { headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=10' } });
+    }
+
+    // Second-level: Redis-backed cache (30s TTL) with singleflight stampede protection
     const data = cacheManager
       ? await cacheManager.getOrSet(`dashboard:stats:${user.tenantId}`, fetchStats, { ttl: 30_000 })
       : await fetchStats();
+
+    // Populate first-level cache for subsequent requests within 2s
+    dashboardStatsCache.set(memKey, data);
 
     return NextResponse.json({ data }, { headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=10' } });
   } catch (error) {
@@ -224,6 +242,8 @@ async function postHandler(request: NextRequest) {
       return NextResponse.json({ error: 'Tenant ID required' }, { status: 400 });
     }
 
+    // Invalidate both cache layers
+    dashboardStatsCache.invalidate(`stats:${user.tenantId}`);
     const cacheManager = await getCache();
     const cacheKey = `dashboard:stats:${user.tenantId}`;
     if (cacheManager) {

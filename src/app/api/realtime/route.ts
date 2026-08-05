@@ -65,6 +65,7 @@ export async function GET(request: Request) {
         // Subscribe to specific known events for forwarding.
         const knownEvents = [
           'wallet.deposit',
+          'wallet.withdrawal',
           'payment.completed',
           'payment.failed',
           'escrow.updated',

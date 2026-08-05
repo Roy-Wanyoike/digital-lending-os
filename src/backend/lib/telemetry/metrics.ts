@@ -84,7 +84,12 @@ class InMemoryCounter implements Counter {
 }
 
 class InMemoryHistogram implements Histogram {
-  constructor(private readonly _name: string) {}
+  private readonly _name: string;
+  private readonly maxSamplesPerKey: number;
+  constructor(name: string, maxSamplesPerKey: number = 10_000) {
+    this._name = name;
+    this.maxSamplesPerKey = maxSamplesPerKey;
+  }
   record(value: number, attrs?: Record<string, string>): void {
     const data = getOrCreateMetric(this._name, 'histogram');
     const key = attrsKey(attrs);
@@ -93,7 +98,16 @@ class InMemoryHistogram implements Histogram {
       arr = [];
       data.set(key, arr);
     }
-    arr.push(value);
+    // Cap array size to prevent unbounded memory growth
+    if (arr.length >= this.maxSamplesPerKey) {
+      // Downsample: keep every other element when hitting the cap
+      const downsampled: number[] = [];
+      for (let i = 0; i < arr.length; i += 2) downsampled.push(arr[i]);
+      downsampled.push(value);
+      data.set(key, downsampled);
+    } else {
+      arr.push(value);
+    }
   }
 }
 

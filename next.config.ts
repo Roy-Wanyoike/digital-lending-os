@@ -11,6 +11,20 @@ const nextConfig: NextConfig = {
 
   reactStrictMode: true,
 
+  // Tree-shake heavy libraries so only the actually-imported symbols
+  // are included in each chunk rather than the entire barrel export.
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'date-fns',
+      'recharts',
+      'framer-motion',
+      'react-day-picker',
+      'embla-carousel-react',
+      'cmdk',
+    ],
+  },
+
   // Keep native/heavy packages external to the server bundle
   serverExternalPackages: ["bcryptjs", "@prisma/client", "ioredis"],
 

@@ -178,6 +178,7 @@ export function useRealtime(options: UseRealtimeOptions = {}): UseRealtimeReturn
       // Listen for known event types and dispatch to subscribers
       const knownEvents = [
         'wallet.deposit',
+        'wallet.withdrawal',
         'payment.completed',
         'payment.failed',
         'escrow.updated',

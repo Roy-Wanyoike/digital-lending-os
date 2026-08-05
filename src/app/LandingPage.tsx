@@ -50,7 +50,7 @@ export function ClientBanner() {
           Sign in to Dashboard
         </Button>
         <Button size="lg" variant="outline" className="px-8 h-11 text-base" asChild>
-          <Link href="/register">Create Account</Link>
+          <Link href="/register" prefetch={true}>Create Account</Link>
         </Button>
       </div>
     </>

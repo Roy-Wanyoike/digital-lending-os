@@ -6,7 +6,7 @@ import type { Session } from 'next-auth'
 import { Menu, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRealtime } from '@/hooks/use-realtime'
-import { invalidateCache } from '@/hooks/use-api'
+import { invalidateCache, seedCache } from '@/hooks/use-api'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
@@ -76,6 +76,23 @@ export function DashboardShell({ session }: { session: Session }) {
   const { isConnected: sseConnected, subscribe, unsubscribe } = useRealtime({
     enabled: true,
   })
+
+  // ─── Batch prefetch on mount ──────────────────────────────────
+  // Fetches stats + businesses in a single request, then seeds the
+  // individual URL caches so each tab's useApi hook gets an instant hit.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/dashboard/batch', { headers: { 'Content-Type': 'application/json' } })
+      .then(r => { if (!r.ok) return null; return r.json() })
+      .then(json => {
+        if (cancelled || !json?.data) return
+        const { stats, businesses } = json.data
+        if (stats) seedCache('/api/dashboard/stats', stats)
+        if (Array.isArray(businesses)) seedCache('/api/businesses?limit=50', businesses)
+      })
+      .catch(() => { /* silent — tabs will fall back to individual fetches */ })
+    return () => { cancelled = true }
+  }, [])
 
   // Realtime toast notifications + cache invalidation
   useEffect(() => {

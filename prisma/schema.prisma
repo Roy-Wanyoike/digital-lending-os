@@ -305,6 +305,8 @@ model BusinessRelationship {
   toBusiness   Business @relation("ReceivedRelationships", fields: [toBusinessId], references: [id], onDelete: Cascade)
 
   @@unique([fromBusinessId, toBusinessId, type])
+  @@index([fromBusinessId])
+  @@index([toBusinessId])
   @@index([type])
   @@index([trustLevel])
 }
@@ -460,6 +462,7 @@ model Dispute {
 
   @@index([escrowId])
   @@index([status])
+  @@index([escrowId, status])
 }
 
 model EscrowAuditLog {
@@ -765,6 +768,7 @@ model PaymentLink {
   @@index([status])
   @@index([currency])
   @@index([createdAt])
+  @@index([businessId, createdAt])
 }
 
 model PaymentLinkPayment {
@@ -852,6 +856,7 @@ model Wallet {
   @@index([businessId])
   @@index([currency])
   @@index([status])
+  @@index([businessId, status])
 }
 
 model WalletTransaction {
@@ -1206,6 +1211,7 @@ model ComplianceScreening {
   @@index([riskLevel])
   @@index([status])
   @@index([createdAt])
+  @@index([businessId, createdAt])
 }
 
 // ============================================================

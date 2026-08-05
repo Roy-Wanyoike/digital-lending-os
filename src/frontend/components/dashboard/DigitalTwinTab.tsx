@@ -6,16 +6,43 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-// recharts is dynamically imported below to reduce initial bundle size
 import { useApi, CircularScore, LoadingSkeleton, ErrorState, type TwinProfile, formatCurrency } from '@/lib/dashboard-helpers'
+import type { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
+
+// Re-exported type for the dynamic import state
+type RechartsModule = {
+  AreaChart: typeof AreaChart
+  Area: typeof Area
+  XAxis: typeof XAxis
+  YAxis: typeof YAxis
+  Tooltip: typeof Tooltip
+  ResponsiveContainer: typeof ResponsiveContainer
+  CartesianGrid: typeof CartesianGrid
+  Legend: typeof Legend
+}
 
 export function DigitalTwinTab() {
   const { data: twins, loading, error, refetch } = useApi<TwinProfile[]>('/api/twin/profiles?limit=20')
   const [selectedTwin, setSelectedTwin] = useState<TwinProfile | null>(null)
-  const [Recharts, setRecharts] = useState<typeof import('recharts') | null>(null)
+  const [Recharts, setRecharts] = useState<RechartsModule | null>(null)
 
   useEffect(() => {
-    import('recharts').then(mod => setRecharts(mod))
+    let cancelled = false
+    // Import curated bundle (tree-shakeable) instead of full 'recharts' module
+    import('@/lib/recharts-bundle').then((mod) => {
+      if (cancelled) return
+      setRecharts({
+        AreaChart: mod.AreaChart as any,
+        Area: mod.Area as any,
+        XAxis: mod.XAxis as any,
+        YAxis: mod.YAxis as any,
+        Tooltip: mod.Tooltip as any,
+        ResponsiveContainer: mod.ResponsiveContainer as any,
+        CartesianGrid: mod.CartesianGrid as any,
+        Legend: mod.Legend as any,
+      })
+    })
+    return () => { cancelled = true }
   }, [])
 
   if (loading || !Recharts) return <LoadingSkeleton />

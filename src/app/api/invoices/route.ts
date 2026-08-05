@@ -6,6 +6,7 @@ import { ok, created, badRequest, unauthorized, forbidden, withErrorHandler } fr
 import { invoiceCreateSchema } from '@/backend/lib/validation/schemas';
 import { getLogger } from '@/backend/lib/telemetry/logger';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { invoiceListCache } from '@/backend/lib/response-cache';
 
 const log = getLogger().withContext({ route: '/api/invoices' });
 
@@ -23,17 +24,43 @@ async function getHandler(req: NextRequest) {
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
   const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
 
+  // Fast in-memory cache (5s TTL)
+  const invCacheKey = `invoices:${user.tenantId}:${limit}:${offset}`;
+  const memCached = invoiceListCache.get(invCacheKey);
+  if (memCached) {
+    return ok(memCached);
+  }
+
   const [invoices, total] = await Promise.all([
     db.invoice.findMany({
       where: { senderId: { in: businessIds } },
       orderBy: { createdAt: 'desc' },
       take: limit,
       skip: offset,
+      select: {
+        id: true,
+        invoiceRef: true,
+        amount: true,
+        currency: true,
+        status: true,
+        notes: true,
+        dueDate: true,
+        createdAt: true,
+        updatedAt: true,
+        senderId: true,
+        receiverId: true,
+        paidAmount: true,
+      },
     }),
     db.invoice.count({ where: { senderId: { in: businessIds } } }),
   ]);
 
-  return ok({ invoices, pagination: { limit, offset, total, pages: Math.ceil(total / limit) } });
+  const result = { invoices, pagination: { limit, offset, total, pages: Math.ceil(total / limit) } };
+
+  // Cache for 5s
+  invoiceListCache.set(`invoices:${user.tenantId}:${limit}:${offset}`, result);
+
+  return ok(result);
 }
 
 async function postHandler(req: NextRequest) {

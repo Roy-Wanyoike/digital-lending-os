@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getApiUser, successResponse, errorResponse } from '@/lib/auth/api-helpers';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { transactionListCache } from '@/backend/lib/response-cache';
 
 interface TransactionItem {
   id: string;
@@ -30,6 +31,15 @@ async function getHandler(request: NextRequest) {
     const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
     const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
 
+    // Cache key includes tenantId, type, and pagination params
+    const txCacheKey = `tx:${user.tenantId}:${type}:${limit}:${offset}`;
+
+    // Fast in-memory cache (3s TTL) — avoids DB round-trips on rapid page flips
+    const memCached = transactionListCache.get(txCacheKey);
+    if (memCached) {
+      return successResponse(memCached);
+    }
+
     // Fetch business IDs belonging to the tenant (cached)
     const tenantBusinessIds = await getTenantBusinessIds(user.tenantId, db);
 
@@ -50,7 +60,14 @@ async function getHandler(request: NextRequest) {
       const [transactions, total] = await Promise.all([
         db.walletTransaction.findMany({
           where: walletWhere,
-          include: {
+          select: {
+            id: true,
+            amount: true,
+            currency: true,
+            status: true,
+            description: true,
+            createdAt: true,
+            walletId: true,
             wallet: { select: { id: true, currency: true, balance: true, businessId: true } },
           },
           orderBy: { createdAt: 'desc' },
@@ -72,7 +89,9 @@ async function getHandler(request: NextRequest) {
         wallet: tx.wallet,
       }));
 
-      return successResponse({ data: mapped, total });
+      const result = { data: mapped, total };
+      transactionListCache.set(txCacheKey, result);
+      return successResponse(result);
     }
 
     // --- Payment transactions only ---
@@ -89,7 +108,14 @@ async function getHandler(request: NextRequest) {
       const [transactions, total] = await Promise.all([
         db.paymentTransaction.findMany({
           where: paymentWhere,
-          include: {
+          select: {
+            id: true,
+            amount: true,
+            currency: true,
+            status: true,
+            createdAt: true,
+            provider: true,
+            intentId: true,
             intent: { select: { id: true, sourceCurrency: true, targetCurrency: true, status: true, fromBusinessId: true, toBusinessId: true } },
           },
           orderBy: { createdAt: 'desc' },
@@ -112,7 +138,9 @@ async function getHandler(request: NextRequest) {
         intent: tx.intent,
       }));
 
-      return successResponse({ data: mapped, total });
+      const result = { data: mapped, total };
+      transactionListCache.set(txCacheKey, result);
+      return successResponse(result);
     }
 
     // --- Default: merge both types, sorted by date ---
@@ -190,8 +218,9 @@ async function getHandler(request: NextRequest) {
 
     const paginated = merged.slice(offset, offset + limit);
     const total = walletCount + paymentCount;
-
-    return successResponse({ data: paginated, total });
+    const result = { data: paginated, total };
+    transactionListCache.set(txCacheKey, result);
+    return successResponse(result);
   } catch (error: unknown) {
     console.error('Transactions GET error:', error);
     // Do not leak internal error details to the client
