@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 
@@ -9,8 +9,9 @@ async function getHandler(req: NextRequest) {
     if (!user) return errorResponse('Authentication required', 401);
 
     const url = new URL(req.url);
+    const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10)));
     const status = url.searchParams.get('status');
-    const limit = parseInt(url.searchParams.get('limit') || '50');
 
     // Get business IDs for this tenant
     const businessIds = (await db.business.findMany({
@@ -21,14 +22,18 @@ async function getHandler(req: NextRequest) {
     const where: any = { businessId: { in: businessIds } };
     if (status) where.status = status;
 
-    const subscriptions = await db.subscription.findMany({
-      where,
-      include: {
-        _count: { select: { invoices: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    });
+    const [subscriptions, total] = await Promise.all([
+      db.subscription.findMany({
+        where,
+        include: {
+          _count: { select: { invoices: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      db.subscription.count({ where }),
+    ]);
 
     // Enrich with business names
     const subBizIds = [...new Set(subscriptions.map((s: any) => s.businessId))];
@@ -38,10 +43,18 @@ async function getHandler(req: NextRequest) {
     });
     const bizMap = Object.fromEntries(businesses.map((b: any) => [b.id, b.name]));
 
-    return successResponse(subscriptions.map((s: any) => ({
-      ...s,
-      business: { id: s.businessId, name: bizMap[s.businessId] || 'Unknown' },
-    })));
+    return NextResponse.json({
+      data: subscriptions.map((s: any) => ({
+        ...s,
+        business: { id: s.businessId, name: bizMap[s.businessId] || 'Unknown' },
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (error: any) {
     console.error('Subscriptions GET error:', error);
     return errorResponse('Failed to fetch subscriptions', 500);

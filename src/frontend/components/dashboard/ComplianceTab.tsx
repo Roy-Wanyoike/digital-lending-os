@@ -70,6 +70,9 @@ export function ComplianceTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {allRules.length === 0 && (
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No compliance rules configured</TableCell></TableRow>
+                  )}
                   {allRules.map(r => (
                     <TableRow key={r.id} className="even:bg-muted/50">
                       <TableCell className="font-medium">{r.name}</TableCell>
@@ -104,6 +107,9 @@ export function ComplianceTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {allScreenings.length === 0 && (
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No screenings yet</TableCell></TableRow>
+                )}
                 {allScreenings.map(s => (
                   <TableRow key={s.id} className="even:bg-muted/50">
                     <TableCell className="max-w-[120px] truncate">{s.businessId ? s.businessId.slice(0, 8) + '...' : '—'}</TableCell>

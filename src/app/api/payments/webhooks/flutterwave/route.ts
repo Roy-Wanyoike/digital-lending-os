@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted, processWebhookEvent } from '@/lib/payment'
+import { providerRegistry, emitPaymentCompleted, processWebhookEvent } from '@/lib/payment'
 import { db } from '@/lib/db'
 
 // ─── Flutterwave Webhook ─────────────────────────────────

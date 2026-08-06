@@ -96,6 +96,7 @@ export type BusinessCreateInput = z.infer<typeof businessCreateSchema>
 
 export const invoiceCreateSchema = z.object({
   businessId: idParamSchema,
+  receiverId: idParamSchema.optional(),
   amount: amountSchema,
   currency: currencySchema.default('USD'),
   description: z.string().max(2000).trim().default(''),

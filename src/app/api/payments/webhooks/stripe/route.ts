@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted, emitPaymentFailed, processWebhookEvent } from '@/lib/payment'
+import { providerRegistry, type PaymentProviderCode, emitPaymentCompleted, processWebhookEvent } from '@/lib/payment'
 import { db } from '@/lib/db'
 
 // --- Stripe Webhook ------------------------------------------

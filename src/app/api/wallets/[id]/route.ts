@@ -51,6 +51,7 @@ async function putHandler(
 ) {
   try {
     const user = await requireAuth(request)
+    if (user.role !== 'admin') return NextResponse.json({ error: 'Only admins can update wallet status' }, { status: 403 })
     const { id } = await params
     const body = await request.json()
     const parsed = updateWalletSchema.safeParse(body)

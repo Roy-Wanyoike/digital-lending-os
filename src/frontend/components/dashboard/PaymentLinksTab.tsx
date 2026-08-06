@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Link2, Plus, DollarSign, Zap, Copy, ExternalLink, X, CreditCard } from 'lucide-react'
+import { Link2, Plus, DollarSign, Zap, Copy, ExternalLink } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -181,6 +181,9 @@ export function PaymentLinksTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {allLinks.length === 0 && (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No payment links yet</TableCell></TableRow>
+                )}
                 {allLinks.map(link => (
                   <TableRow key={link.id} className="even:bg-muted/50">
                     <TableCell className="font-mono text-xs">{link.linkRef}</TableCell>

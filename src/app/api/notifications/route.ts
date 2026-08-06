@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
@@ -50,7 +50,7 @@ async function getHandler(req: NextRequest) {
     // When unreadOnly=true, unreadCount equals totalCount
     const finalUnreadCount = unreadOnly ? totalCount : (unreadCount ?? 0);
 
-    return successResponse({
+    return NextResponse.json({
       data: notifications,
       unreadCount: finalUnreadCount,
       totalCount,

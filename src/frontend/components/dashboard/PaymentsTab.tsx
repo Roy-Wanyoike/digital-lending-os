@@ -69,6 +69,9 @@ export function PaymentsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {allIntents.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No payment intents yet</TableCell></TableRow>
+                )}
                 {allIntents.slice(0, 15).map(pi => (
                   <TableRow key={pi.id} className="even:bg-muted/50">
                     <TableCell className="font-mono text-xs">{pi.intentRef}</TableCell>
@@ -115,6 +118,9 @@ export function PaymentsTab() {
             ))}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+            {filteredMethods.length === 0 && (
+              <div className="col-span-full text-center py-8 text-muted-foreground">No payment methods available</div>
+            )}
             {filteredMethods.map(m => (
               <Card key={m.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
-import { getTenantBusinessIds } from '@/backend/lib/tenant-cache'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { collectionListCache } from '@/backend/lib/response-cache';

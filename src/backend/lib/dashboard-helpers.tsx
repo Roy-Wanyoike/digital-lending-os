@@ -215,6 +215,15 @@ export interface Screening {
 
 export function formatCurrency(value: number, currency = 'USD'): string {
   const safe = typeof value === 'number' && isFinite(value) ? value : 0
+  if (currency === 'JPY') {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(safe)
+  }
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(safe)
+}
+
+/** Compact currency formatter for KPI cards (e.g. $1.0M, $500K) */
+export function formatCurrencyCompact(value: number, currency = 'USD'): string {
+  const safe = typeof value === 'number' && isFinite(value) ? value : 0
   if (currency === 'JPY' || safe >= 1000000) {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0, notation: 'compact' }).format(safe)
   }
@@ -247,18 +256,30 @@ export function getCountryFlag(country: string): string {
 
 export function getStatusBadgeVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   const s = status?.toLowerCase()?.replace(/[\s_-]/g, '') || ''
-  if (['completed', 'active', 'clear', 'resolved', 'engaged'].includes(s)) return 'default'
-  if (['disputed', 'critical', 'alert', 'confirmed', 'declined'].includes(s)) return 'destructive'
-  return 'secondary'
+  // Green outcomes
+  if (['completed', 'paid', 'clear', 'resolved', 'engaged'].includes(s)) return 'default'
+  // Red/negative outcomes
+  if (['failed', 'disputed', 'critical', 'alert', 'confirmed', 'declined', 'overdue'].includes(s)) return 'destructive'
+  // All others use outline (color is fully controlled by getStatusColor className)
+  return 'outline'
 }
 
 export function getStatusColor(status: string): string {
   const s = status?.toLowerCase()?.replace(/[\s_-]/g, '') || ''
-  if (['completed', 'active', 'clear', 'resolved', 'engaged'].includes(s)) return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-  if (['funded', 'inescrow', 'investigating', 'interested', 'potential_match'].includes(s)) return 'bg-amber-100 text-amber-700 border-amber-200'
-  if (['disputed', 'critical', 'alert', 'confirmed', 'declined'].includes(s)) return 'bg-red-100 text-red-700 border-red-200'
-  if (['created', 'pending', 'open', 'suggested'].includes(s)) return 'bg-slate-100 text-slate-600 border-slate-200'
-  return 'bg-slate-100 text-slate-600 border-slate-200'
+  // Green: positive outcomes
+  if (['completed', 'paid', 'clear', 'resolved', 'engaged'].includes(s))
+    return 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800'
+  // Red: negative outcomes
+  if (['failed', 'disputed', 'critical', 'alert', 'confirmed', 'declined', 'overdue'].includes(s))
+    return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800'
+  // Blue: in-progress / active states
+  if (['active', 'inescrow', 'processing', 'sent', 'investigating', 'interested', 'potential_match'].includes(s))
+    return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800'
+  // Yellow/Amber: pending / awaiting action
+  if (['pending', 'funded'].includes(s))
+    return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800'
+  // Gray: neutral / cancelled / draft
+  return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-700'
 }
 
 function safeNum(score: unknown): number {

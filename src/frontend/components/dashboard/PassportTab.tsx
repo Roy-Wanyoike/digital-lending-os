@@ -50,6 +50,9 @@ export function PassportTab() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto">
+            {allBiz.length === 0 && (
+              <div className="col-span-full text-center py-8 text-muted-foreground">No businesses found</div>
+            )}
             {allBiz.map(biz => (
               <Card key={biz.id} className="border">
                 <CardContent className="p-4">
@@ -98,6 +101,9 @@ export function PassportTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {allVerif.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No verifications yet</TableCell></TableRow>
+                )}
                 {allVerif.map(v => (
                   <TableRow key={v.id} className="even:bg-muted/50">
                     <TableCell className="font-mono text-xs">{v.id}</TableCell>

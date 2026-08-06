@@ -7,7 +7,7 @@
  * Target: <100KB total JS on the dashboard initial load.
  */
 
-import { readdir, readFile, stat } from 'node:fs/promises'
+import { readdir, stat } from 'node:fs/promises'
 import { join, extname } from 'node:path'
 
 // ── Budget thresholds (bytes) ───────────────────────────────────────────────

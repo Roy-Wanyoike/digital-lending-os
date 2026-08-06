@@ -9,7 +9,7 @@ import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 // ─── Zod Schema ──────────────────────────────────────────────
 const initSchema = z.object({
   provider: z.enum(['stripe', 'paystack', 'intasend', 'flutterwave', 'paya']).optional(),
-  amount: z.number().positive('Amount must be positive'),
+  amount: z.number().positive('Amount must be positive').max(10000000, 'Amount exceeds maximum limit of 10,000,000'),
   currency: z.string().min(3).max(3).default('USD'),
   email: z.string().email('Valid email required'),
   firstName: z.string().optional(),

@@ -17,6 +17,8 @@ async function getHandler(request: NextRequest) {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url)
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
     const businessId = searchParams.get('businessId') || ''
     const type = searchParams.get('type') || ''
     const status = searchParams.get('status') || ''
@@ -53,20 +55,33 @@ async function getHandler(request: NextRequest) {
       where.status = status
     }
 
-    const relationships = await db.businessRelationship.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        fromBusiness: {
-          select: { id: true, name: true, country: true, industry: true },
+    const [relationships, total] = await Promise.all([
+      db.businessRelationship.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          fromBusiness: {
+            select: { id: true, name: true, country: true, industry: true },
+          },
+          toBusiness: {
+            select: { id: true, name: true, country: true, industry: true },
+          },
         },
-        toBusiness: {
-          select: { id: true, name: true, country: true, industry: true },
-        },
+      }),
+      db.businessRelationship.count({ where }),
+    ])
+
+    return NextResponse.json({
+      data: relationships,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     })
-
-    return NextResponse.json({ data: relationships })
   } catch (error) {
     console.error('Error listing relationships:', error)
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })

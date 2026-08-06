@@ -87,7 +87,7 @@ async function postHandler(req: NextRequest) {
     data: {
       invoiceRef,
       senderId: data.businessId,
-      receiverId: data.businessId,
+      receiverId: data.receiverId || data.businessId,
       amount: data.amount,
       currency: data.currency,
       notes: data.description,

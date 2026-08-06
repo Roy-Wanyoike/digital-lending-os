@@ -21,6 +21,8 @@ async function getHandler(request: NextRequest) {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url)
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
     const toBusinessId = searchParams.get('toBusinessId') || ''
     const fromBusinessId = searchParams.get('fromBusinessId') || ''
     const minRating = searchParams.get('rating')
@@ -44,12 +46,25 @@ async function getHandler(request: NextRequest) {
     if (minRating) where.rating = { gte: parseFloat(minRating) }
     if (status) where.status = status
 
-    const reviews = await db.review.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    })
+    const [reviews, total] = await Promise.all([
+      db.review.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.review.count({ where }),
+    ])
 
-    return NextResponse.json({ data: reviews })
+    return NextResponse.json({
+      data: reviews,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    })
   } catch (error) {
     console.error('Error listing reviews:', error)
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })

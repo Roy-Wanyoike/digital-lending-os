@@ -8,13 +8,19 @@ import {
   Card,
   CardContent,
   CardHeader,
-  CardTitle,
   CardDescription,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { z } from 'zod'
+
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+})
+type LoginFormData = z.infer<typeof loginSchema>
 
 function LoginForm() {
   const router = useRouter()
@@ -27,11 +33,26 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof LoginFormData, string>>>({})
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
     setError('')
+    setFieldErrors({})
+
+    // Client-side validation
+    const parsed = loginSchema.safeParse({ email, password })
+    if (!parsed.success) {
+      const errors: Partial<Record<keyof LoginFormData, string>> = {}
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0] as keyof LoginFormData
+        if (!errors[key]) errors[key] = issue.message
+      }
+      setFieldErrors(errors)
+      return
+    }
+
+    setLoading(true)
 
     const result = await signIn('credentials', {
       email,
@@ -62,7 +83,7 @@ function LoginForm() {
           <span className="text-2xl font-bold text-foreground">Youngsend</span>
         </div>
         <div>
-          <CardTitle className="text-xl">Welcome back</CardTitle>
+          <h1 className="text-xl font-semibold leading-none">Welcome back</h1>
           <CardDescription className="mt-1">
             Financial Operating System for Global Commerce
           </CardDescription>
@@ -70,13 +91,13 @@ function LoginForm() {
       </CardHeader>
       <CardContent>
         {registered && (
-          <div className="rounded-md bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 mb-4">
+          <div role="status" className="rounded-md bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300 mb-4">
             Account created successfully. Please sign in.
           </div>
         )}
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+            <div role="alert" aria-live="assertive" className="rounded-md bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
               {error}
             </div>
           )}
@@ -87,11 +108,16 @@ function LoginForm() {
               type="email"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })) }}
               required
               disabled={loading}
               autoComplete="email"
+              aria-invalid={!!fieldErrors.email}
+              aria-describedby={fieldErrors.email ? 'email-error' : undefined}
             />
+            {fieldErrors.email && (
+              <p id="email-error" className="text-sm text-red-600 dark:text-red-400">{fieldErrors.email}</p>
+            )}
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -111,18 +137,22 @@ function LoginForm() {
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(prev => ({ ...prev, password: undefined })) }}
                 required
                 disabled={loading}
                 autoComplete="current-password"
                 className="pr-10"
+                aria-invalid={!!fieldErrors.password}
+                aria-describedby={fieldErrors.password ? 'password-error' : undefined}
               />
+              {fieldErrors.password && (
+                <p id="password-error" className="text-sm text-red-600 dark:text-red-400 mt-1">{fieldErrors.password}</p>
+              )}
               {/* V3: Password visibility toggle */}
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                tabIndex={-1}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -143,7 +173,7 @@ function LoginForm() {
           Don&apos;t have an account?{' '}
           <Link
             href="/register"
-            prefetch={true}
+            prefetch={false}
             className="font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
           >
             Sign up

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { error } from '@/backend/lib/api-response';
+
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined
 let _cacheAttempted = false
@@ -18,6 +20,7 @@ async function getCache() {
 
 /**
  * GET /api/currency — Exchange rates (cached proxy to /api/payments/rates)
+ * Returns the upstream response body, wrapped in { data } for consistency.
  */
 async function getHandler(req: NextRequest) {
   const url = new URL(req.url)
@@ -26,7 +29,7 @@ async function getHandler(req: NextRequest) {
   const cacheManager = await getCache()
   if (cacheManager) {
     try {
-      const data = await cacheManager.getOrSet(
+      const upstream = await cacheManager.getOrSet(
         'currency:rates',
         async () => {
           const res = await fetch(forwardUrl.toString(), { headers: req.headers })
@@ -34,7 +37,9 @@ async function getHandler(req: NextRequest) {
         },
         { ttl: 60_000 },
       )
-      return NextResponse.json(data)
+      // The upstream /api/payments/rates returns { data, meta? } already,
+      // so pass through as-is.
+      return NextResponse.json(upstream)
     } catch {
       // Cache lookup failed, fall through to uncached fetch
     }
@@ -44,9 +49,9 @@ async function getHandler(req: NextRequest) {
     const res = await fetch(forwardUrl.toString(), { headers: req.headers })
     const data = await res.json()
     return NextResponse.json(data)
-  } catch (error) {
-    console.error('[currency] Uncached fetch failed:', error)
-    return NextResponse.json({ error: 'Failed to fetch exchange rates' }, { status: 500 })
+  } catch (err) {
+    console.error('[currency] Uncached fetch failed:', err)
+    return error('Failed to fetch exchange rates')
   }
 }
 

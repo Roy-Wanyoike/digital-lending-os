@@ -1,9 +1,41 @@
-import type { NextAuthOptions } from 'next-auth'
+import type { DefaultSession, NextAuthOptions } from 'next-auth'
+import { getServerSession } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
 import { logAudit } from '@/lib/audit-logger'
 import { rateLimit } from '@/backend/middleware/rate-limiter'
+
+// ─── Augment NextAuth session types ───────────────────────────────────
+//
+declare module 'next-auth' {
+  interface Session {
+    user: DefaultSession['user'] & {
+      id: string
+      accountId: string
+      tenantId: string
+      role: string
+      businessId: string | null
+    }
+  }
+  interface User {
+    id: string
+    email: string
+    name: string
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    youngsend?: {
+      accountId: string
+      tenantId: string
+      role: string
+      businessId: string | null
+      iat: number
+    }
+  }
+}
 
 // ─── Runtime validation of critical env vars ───────────────────────
 if (!process.env.NEXTAUTH_SECRET) {
@@ -83,8 +115,9 @@ export const authOptions: NextAuthOptions = {
     // Max 24 hours — short enough to limit window of token theft,
     // long enough to not inconvenience users. Refresh via re-login.
     maxAge: 24 * 60 * 60,
-    // Update session age on each use (sliding expiry not natively supported,
-    // but the short maxAge + re-login requirement provides equivalent security).
+    // updateAge must be <= maxAge; when equal the session is not refreshed
+    // on activity. The short maxAge + re-login requirement provides equivalent
+    // security to sliding expiry.
     updateAge: 24 * 60 * 60,
   },
   pages: {
@@ -113,20 +146,17 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       if (session.user) {
-        const ys = (token as any).youngsend || {}
-        // NextAuth v4 doesn't expose user.id by default — add it from token.sub
-        ;(session.user as any).id = token.sub
-        ;(session.user as any).accountId = ys.accountId
-        ;(session.user as any).tenantId = ys.tenantId
-        ;(session.user as any).role = ys.role
-        ;(session.user as any).businessId = ys.businessId
+        const ys = token.youngsend
+        session.user.id = token.sub!
+        session.user.accountId = ys?.accountId ?? ''
+        session.user.tenantId = ys?.tenantId ?? ''
+        session.user.role = ys?.role ?? ''
+        session.user.businessId = ys?.businessId ?? null
       }
       return session
     },
   },
 }
-
-import { getServerSession } from 'next-auth'
 
 export { getServerSession }
 

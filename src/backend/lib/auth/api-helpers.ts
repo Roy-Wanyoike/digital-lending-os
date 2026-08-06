@@ -23,15 +23,14 @@ export async function getApiUser(req: NextRequest): Promise<ApiUser | null> {
     const session = await getServerSession(authOptions);
     if (!session?.user) return null;
 
-    const user = session.user as any;
-    if (!user?.id) return null;
+    if (!session.user.id) return null;
 
     return {
-      id: user.id,
-      email: user.email || '',
-      role: user.role || 'viewer',
-      tenantId: user.tenantId || '',
-      businessId: user.businessId || '',
+      id: session.user.id,
+      email: session.user.email || '',
+      role: session.user.role || 'viewer',
+      tenantId: session.user.tenantId || '',
+      businessId: session.user.businessId || '',
     };
   } catch (err: any) {
     // Gracefully handle JWT decryption failures (JWEDecryptionFailed, etc.)
@@ -128,7 +127,8 @@ export function errorResponse(message: string, status: number = 500) {
 
 /**
  * Helper to create a standard success response.
+ * Wraps payload in `{ data }` envelope for consistent API shape.
  */
 export function successResponse(data: any, status: number = 200) {
-  return NextResponse.json(data, { status });
+  return NextResponse.json({ data }, { status });
 }

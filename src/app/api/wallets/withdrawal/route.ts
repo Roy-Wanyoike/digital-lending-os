@@ -202,7 +202,9 @@ async function getHandler(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const walletId = searchParams.get('walletId')
     const status = searchParams.get('status') || ''
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
+    const offset = (page - 1) * limit
 
     if (!walletId) {
       return NextResponse.json({ error: 'walletId is required' }, { status: 400 })
@@ -222,13 +224,17 @@ async function getHandler(request: NextRequest) {
     const where: Record<string, unknown> = { walletId }
     if (status) where.status = status
 
-    const withdrawals = await db.withdrawal.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    })
+    const [withdrawals, total] = await Promise.all([
+      db.withdrawal.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.withdrawal.count({ where }),
+    ])
 
-    return NextResponse.json({ data: withdrawals })
+    return NextResponse.json({ data: withdrawals, pagination: { page, limit, offset, total, pages: Math.ceil(total / limit) } })
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
     console.error('Error listing withdrawals:', error)

@@ -84,6 +84,12 @@ export function DigitalTwinTab() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {allTwins.length === 0 && (
+          <div className="col-span-full text-center py-12 text-muted-foreground">
+            <p className="text-sm">No digital twin profiles yet</p>
+            <p className="text-xs mt-1">Profiles are generated when businesses have sufficient activity data</p>
+          </div>
+        )}
         {allTwins.map(twin => (
           <Card key={twin.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedTwin(twin)}>
             <CardContent className="p-4 sm:p-6 text-center">

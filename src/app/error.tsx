@@ -62,7 +62,7 @@ export default function GlobalError({
               <Button variant="outline" className="flex-1" asChild>
                 <Link href="/">
                   <Home className="h-4 w-4 mr-2" />
-                  Go to Dashboard
+                  Go Home
                 </Link>
               </Button>
               <Button variant="outline" className="flex-1" asChild>

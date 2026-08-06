@@ -18,7 +18,6 @@
 //
 
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
 import { ZodError } from 'zod'
 import { AuthError } from '@/lib/auth/api-helpers'
 import { getLogger } from '@/backend/lib/telemetry/logger'

@@ -21,16 +21,15 @@ export async function getCurrentUser() {
     const session = await getServerSession(authOptions)
     if (!session?.user) return null
 
-    const user = session.user as any
-    if (!user?.id) return null
+    if (!session.user.id) return null
 
     return {
-      id: user.id,
+      id: session.user.id,
       email: session.user.email,
       name: session.user.name,
-      role: user.role || 'viewer',
-      tenantId: user.tenantId || '',
-      businessId: user.businessId || '',
+      role: session.user.role || 'viewer',
+      tenantId: session.user.tenantId || '',
+      businessId: session.user.businessId || '',
     }
   } catch (err: any) {
     // Gracefully handle JWT decryption failures

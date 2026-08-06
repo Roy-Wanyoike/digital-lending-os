@@ -2,8 +2,9 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
-import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth } from '@/lib/auth/api-helpers';
 import { logAudit } from '@/lib/audit-logger';
+import { ok, created, badRequest, unauthorized, forbidden, notFound, conflict, withErrorHandler } from '@/backend/lib/api-response';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 
@@ -20,6 +21,7 @@ const registerSchema = z.object({
   (data) => !data.password || (data.ownerName && data.ownerEmail),
   { message: 'ownerName and ownerEmail are required when password is provided', path: ['password'] }
 );
+
 function generateSlug(name: string): string {
   const base = name
     .toLowerCase()
@@ -31,30 +33,13 @@ function generateSlug(name: string): string {
   return `${base}-${suffix}`;
 }
 
-async function getHandler(req: NextRequest) {
-  try {
-    const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+const getHandler = withErrorHandler(async (req: NextRequest) => {
+  const user = await getApiUser(req);
+  if (!user) return unauthorized();
 
-    if (user.role === 'admin') {
-      // Admin can see all tenants
-      const tenants = await db.tenant.findMany({
-        include: {
-          _count: {
-            select: {
-              businesses: true,
-              accounts: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-      return successResponse({ tenants });
-    }
-
-    // Regular users see their own tenant only
-    const tenant = await db.tenant.findUnique({
-      where: { id: user.tenantId },
+  if (user.role === 'admin') {
+    // Admin can see all tenants
+    const tenants = await db.tenant.findMany({
       include: {
         _count: {
           select: {
@@ -63,161 +48,168 @@ async function getHandler(req: NextRequest) {
           },
         },
       },
+      orderBy: { createdAt: 'desc' },
     });
-
-    if (!tenant) return errorResponse('Tenant not found', 404);
-    return successResponse({ tenants: [tenant] });
-  } catch (error: any) {
-    console.error('Tenants GET error:', error);
-    return errorResponse('Failed to fetch tenants', 500);
+    return ok({ tenants });
   }
-}
 
-async function postHandler(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const parsed = registerSchema.safeParse(body);
-    if (!parsed.success) {
-      return errorResponse(parsed.error.issues.map((i) => i.message).join(', '), 400);
-    }
-    const { name, slug, plan, ownerName, ownerEmail, password, referralCode } = body;
-
-    if (!name) return errorResponse('Name is required', 400);
-
-    // --- Registration flow (password provided) ---
-    if (password) {
-      if (!ownerName || !ownerEmail) {
-        return errorResponse('ownerName and ownerEmail are required for registration', 400);
-      }
-
-      const tenantSlug = slug || generateSlug(name);
-
-      // Check slug uniqueness
-      const existingSlug = await db.tenant.findUnique({ where: { slug: tenantSlug } });
-      if (existingSlug) {
-        return errorResponse('Tenant slug already exists', 409);
-      }
-
-      // Check if owner email already has an account
-      const existingAccount = await db.account.findFirst({
-        where: { email: ownerEmail.toLowerCase() },
-      });
-      if (existingAccount) {
-        return errorResponse('An account with this email already exists', 409);
-      }
-
-      // Validate referral code if provided
-      let referrerId: string | null = null;
-      if (referralCode) {
-        const referrer = await db.account.findUnique({
-          where: { referralCode: referralCode.toUpperCase() },
-          select: { id: true, isActive: true },
-        });
-        if (!referrer) return errorResponse('Invalid referral code', 400);
-        if (!referrer.isActive) return errorResponse('Referral code is no longer active', 400);
-        referrerId = referrer.id;
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 12);
-
-      // Create tenant, owner account, and default business in a transaction
-      const result = await db.$transaction(async (tx: any) => {
-        const tenant = await tx.tenant.create({
-          data: {
-            name,
-            slug: tenantSlug,
-            plan: plan || 'starter',
-            ownerEmail: ownerEmail.toLowerCase(),
-            ownerName,
-          },
-        });
-
-        const account = await tx.account.create({
-          data: {
-            email: ownerEmail.toLowerCase(),
-            name: ownerName,
-            passwordHash: hashedPassword,
-            role: 'admin',
-            tenantId: tenant.id,
-            isActive: true,
-            referredBy: referrerId || undefined,
-          },
-        });
-
-        const business = await tx.business.create({
-          data: {
-            name: `${name} - Main`,
-            country: 'US',
-            tenantId: tenant.id,
-          },
-        });
-
-        // Link account to the created business
-        await tx.account.update({
-          where: { id: account.id },
-          data: { businessId: business.id },
-        });
-
-        return { tenant, account, business };
-      });
-
-      // Audit log the registration
-      logAudit('tenant.register', result.account.id, `Tenant "${name}" registered by ${result.account.email}`, {
-        tenantId: result.tenant.id,
-        accountId: result.account.id,
-        tenantSlug: result.tenant.slug,
-        plan: result.tenant.plan,
-      });
-
-      // Return tenant info (don't expose password hash)
-      return successResponse(
-        {
-          tenant: result.tenant,
-          account: { id: result.account.id, email: result.account.email, name: result.account.name },
-          business: result.business,
+  // Regular users see their own tenant only
+  const tenant = await db.tenant.findUnique({
+    where: { id: user.tenantId },
+    include: {
+      _count: {
+        select: {
+          businesses: true,
+          accounts: true,
         },
-        201
-      );
-    }
+      },
+    },
+  });
 
-    // --- Admin-only tenant creation (no password) ---
-    const user = await requireAuth(req);
-    if (user.role !== 'admin') {
-      return errorResponse('Insufficient permissions', 403);
+  if (!tenant) return notFound('Tenant not found');
+  return ok({ tenants: [tenant] });
+});
+
+const postHandler = withErrorHandler(async (req: NextRequest) => {
+  const body = await req.json();
+  const parsed = registerSchema.safeParse(body);
+  if (!parsed.success) {
+    return badRequest('Validation failed', parsed.error.issues.map((i) => ({
+      field: i.path.join('.'),
+      message: i.message,
+    })));
+  }
+
+  const { name, slug, plan, ownerName, ownerEmail, password, referralCode } = parsed.data;
+
+  if (!name) return badRequest('Name is required');
+
+  // --- Registration flow (password provided) ---
+  if (password) {
+    if (!ownerName || !ownerEmail) {
+      return badRequest('ownerName and ownerEmail are required for registration');
     }
 
     const tenantSlug = slug || generateSlug(name);
 
+    // Check slug uniqueness
     const existingSlug = await db.tenant.findUnique({ where: { slug: tenantSlug } });
     if (existingSlug) {
-      return errorResponse('Tenant slug already exists', 409);
+      return conflict('Tenant slug already exists');
     }
 
-    const tenant = await db.tenant.create({
-      data: {
-        name,
-        slug: tenantSlug,
-        plan: plan || 'starter',
-        ownerEmail: user.email,
-        ownerName: user.email, // fallback to email; caller can update later
-      },
+    // Check if owner email already has an account
+    const existingAccount = await db.account.findFirst({
+      where: { email: ownerEmail.toLowerCase() },
+    });
+    if (existingAccount) {
+      return conflict('An account with this email already exists');
+    }
+
+    // Validate referral code if provided
+    let referrerId: string | null = null;
+    if (referralCode) {
+      const referrer = await db.account.findUnique({
+        where: { referralCode: referralCode.toUpperCase() },
+        select: { id: true, isActive: true },
+      });
+      if (!referrer) return badRequest('Invalid referral code');
+      if (!referrer.isActive) return badRequest('Referral code is no longer active');
+      referrerId = referrer.id;
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Create tenant, owner account, and default business in a transaction
+    const result = await db.$transaction(async (tx: any) => {
+      const tenant = await tx.tenant.create({
+        data: {
+          name,
+          slug: tenantSlug,
+          plan: plan || 'starter',
+          ownerEmail: ownerEmail.toLowerCase(),
+          ownerName,
+        },
+      });
+
+      const account = await tx.account.create({
+        data: {
+          email: ownerEmail.toLowerCase(),
+          name: ownerName,
+          passwordHash: hashedPassword,
+          role: 'admin',
+          tenantId: tenant.id,
+          isActive: true,
+          referredBy: referrerId || undefined,
+        },
+      });
+
+      const business = await tx.business.create({
+        data: {
+          name: `${name} - Main`,
+          country: 'US',
+          tenantId: tenant.id,
+        },
+      });
+
+      // Link account to the created business
+      await tx.account.update({
+        where: { id: account.id },
+        data: { businessId: business.id },
+      });
+
+      return { tenant, account, business };
     });
 
-    // Audit log the admin tenant creation
-    logAudit('tenant.create', user.id, `Admin created tenant "${name}"`, {
-      tenantId: tenant.id,
-      tenantSlug: tenant.slug,
-      plan: tenant.plan,
-      createdBy: user.email,
+    // Audit log the registration
+    logAudit('tenant.register', result.account.id, `Tenant "${name}" registered by ${result.account.email}`, {
+      tenantId: result.tenant.id,
+      accountId: result.account.id,
+      tenantSlug: result.tenant.slug,
+      plan: result.tenant.plan,
     });
 
-    return successResponse(tenant, 201);
-  } catch (error: any) {
-    console.error('Tenants POST error:', error);
-    if (error instanceof AuthError) return errorResponse(error.message, error.status);
-    return errorResponse('Failed to create tenant', 500);
+    // Return tenant info (don't expose password hash)
+    return created({
+      tenant: result.tenant,
+      account: { id: result.account.id, email: result.account.email, name: result.account.name },
+      business: result.business,
+    });
   }
-}
+
+  // --- Admin-only tenant creation (no password) ---
+  const user = await requireAuth(req);
+  if (user.role !== 'admin') {
+    return forbidden();
+  }
+
+  const tenantSlug = slug || generateSlug(name);
+
+  const existingSlug = await db.tenant.findUnique({ where: { slug: tenantSlug } });
+  if (existingSlug) {
+    return conflict('Tenant slug already exists');
+  }
+
+  const tenant = await db.tenant.create({
+    data: {
+      name,
+      slug: tenantSlug,
+      plan: plan || 'starter',
+      ownerEmail: user.email,
+      ownerName: user.email, // fallback to email; caller can update later
+    },
+  });
+
+  // Audit log the admin tenant creation
+  logAudit('tenant.create', user.id, `Admin created tenant "${name}"`, {
+    tenantId: tenant.id,
+    tenantSlug: tenant.slug,
+    plan: tenant.plan,
+    createdBy: user.email,
+  });
+
+  return created(tenant);
+});
 
 export const GET = withApiTelemetry(getHandler, '/api/tenants');
 

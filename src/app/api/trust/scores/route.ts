@@ -14,6 +14,8 @@ async function getHandler(request: NextRequest) {
     const user = await getApiUser(request)
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url)
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
     const businessId = searchParams.get('businessId') || ''
     const sortBy = searchParams.get('sortBy') || 'overallScore'
     const sortOrder = searchParams.get('sortOrder') || 'desc'
@@ -30,17 +32,30 @@ async function getHandler(request: NextRequest) {
       orderBy.overallScore = 'desc'
     }
 
-    const scores = await db.trustScore.findMany({
-      where,
-      orderBy,
-      include: {
-        business: {
-          select: { id: true, name: true, country: true, industry: true, status: true },
+    const [scores, total] = await Promise.all([
+      db.trustScore.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy,
+        include: {
+          business: {
+            select: { id: true, name: true, country: true, industry: true, status: true },
+          },
         },
+      }),
+      db.trustScore.count({ where }),
+    ])
+
+    return NextResponse.json({
+      data: scores,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     })
-
-    return NextResponse.json({ data: scores })
   } catch (error) {
     console.error('Error listing trust scores:', error)
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })

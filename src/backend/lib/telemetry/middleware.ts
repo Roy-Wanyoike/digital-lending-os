@@ -15,7 +15,7 @@ const trace = { setSpan: (_ctx: unknown, _span: unknown) => ({}) };
 const context = { active: () => ({}), with: <T,>(_ctx: unknown, fn: () => Promise<T>) => fn() };
 const SpanStatusCode = { OK: 1, ERROR: 2 };
 const SpanKind = { INTERNAL: 0, SERVER: 1, CLIENT: 2, PRODUCER: 3, CONSUMER: 4 };
-import { createHttpSpan, getTracer, YS_ATTRS } from './tracer';
+import { createHttpSpan } from './tracer';
 import { recordRequestDuration, getMetrics } from './metrics';
 import { getLogger } from './logger';
 

@@ -32,6 +32,8 @@ async function getHandler(request: NextRequest) {
     const user = await requireAuth(request)
     if (!['admin', 'auditor'].includes(user.role)) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     const { searchParams } = new URL(request.url)
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
     const isActive = searchParams.get('isActive')
 
     const where: Record<string, unknown> = {}
@@ -46,14 +48,28 @@ async function getHandler(request: NextRequest) {
     const cacheManager = await getCache()
     const fetchRules = () => db.fraudRule.findMany({
       where,
+      skip: (page - 1) * limit,
+      take: limit,
       orderBy: { createdAt: 'desc' },
     })
+    const fetchCount = () => db.fraudRule.count({ where })
 
-    const rules = cacheManager
-      ? await cacheManager.getOrSet(`fraud:rules:${user.tenantId}`, fetchRules, { ttl: 5 * 60_000 })
-      : await fetchRules()
+    const [rules, total] = cacheManager
+      ? await Promise.all([
+          cacheManager.getOrSet(`fraud:rules:${user.tenantId}:page:${page}:limit:${limit}`, fetchRules, { ttl: 5 * 60_000 }),
+          fetchCount(),
+        ])
+      : await Promise.all([fetchRules(), fetchCount()])
 
-    return NextResponse.json({ data: rules })
+    return NextResponse.json({
+      data: rules,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    })
   } catch (error) {
     console.error('Error listing fraud rules:', error)
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })

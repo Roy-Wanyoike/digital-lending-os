@@ -316,11 +316,19 @@ export function useApi<T>(url: string, options: UseApiOptions = {}): UseApiResul
             if (!isStale) { setData(null); setLoading(false) }
             return
           } else if (!Array.isArray(unwrapped) && typeof unwrapped === 'object' && 'error' in unwrapped) {
-            if (!isStale) { setError('Unexpected response format'); setData(null); setLoading(false) }
+            if (!isStale) {
+              const rawErr = (unwrapped as any).error;
+              setError(typeof rawErr === 'string' ? rawErr : (rawErr?.message || 'Unexpected response format'));
+              setData(null); setLoading(false);
+            }
             return
           }
         } else if (typeof responseData === 'object' && 'error' in responseData) {
-          if (!isStale) { setError((responseData as any).error || 'Request failed'); setData(null); setLoading(false) }
+          if (!isStale) {
+            const rawErr = (responseData as any).error;
+            setError(typeof rawErr === 'string' ? rawErr : (rawErr?.message || 'Request failed'));
+            setData(null); setLoading(false);
+          }
           return
         }
 

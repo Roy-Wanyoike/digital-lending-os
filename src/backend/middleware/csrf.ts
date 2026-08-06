@@ -12,6 +12,7 @@
  */
 
 import { NextRequest } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 
 /**
  * Verify CSRF for state-changing requests.
@@ -66,9 +67,17 @@ export function verifyCsrf(req: NextRequest): string | null {
     return null;
   }
 
-  if (submittedToken !== cookieToken) {
-    return 'CSRF token mismatch';
-  }
+  // Timing-safe comparison to prevent timing attacks on CSRF tokens.
+  // Both tokens are hex strings, so we can use Buffer.from directly.
+  try {
+    const a = Buffer.from(submittedToken);
+    const b = Buffer.from(cookieToken);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      return 'CSRF token mismatch';
+    }
+  } catch {
+    return 'CSRF token comparison error';
+ }
 
   return null;
 }

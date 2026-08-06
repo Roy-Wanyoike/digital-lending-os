@@ -21,11 +21,6 @@ import {
   toBusinessDoc,
   toUserDoc,
   toAuditLogDoc,
-  type PaymentSearchDoc,
-  type TransactionSearchDoc,
-  type BusinessSearchDoc,
-  type UserSearchDoc,
-  type AuditLogSearchDoc,
 } from './transformers'
 
 // ── Types ──────────────────────────────────────────────────────────

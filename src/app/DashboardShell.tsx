@@ -148,7 +148,7 @@ export function DashboardShell({ session }: { session: Session }) {
   // Set role from session
   useEffect(() => {
     if (session?.user) {
-      const userRole = (session.user as any).role as Role
+      const userRole = session.user.role as Role
       if (userRole && Object.keys(ROLE_LABELS).includes(userRole)) setCurrentRole(userRole)
     }
   }, [session])
@@ -164,14 +164,14 @@ export function DashboardShell({ session }: { session: Session }) {
   }, [])
 
   const ActiveTabComponent = TAB_COMPONENTS[safeTab]
-  const userName = (session?.user as any)?.name || 'User'
+  const userName = session?.user?.name || 'User'
   const userEmail = session?.user?.email || ''
-  const userInitials = userName.split(' ').map((n: any) => n[0]).join('').toUpperCase().slice(0, 2)
+  const userInitials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
 
   return (
     <TooltipProvider>
       <div className="h-screen overflow-hidden flex bg-background">
-        <aside className="hidden lg:flex w-60 bg-card border-r flex-col flex-shrink-0 overflow-y-auto">
+        <aside aria-label="Sidebar navigation" className="hidden lg:flex w-60 bg-card border-r flex-col flex-shrink-0 overflow-y-auto">
           <SidebarNav visibleTabs={visibleTabs} activeTab={safeTab} onTabChange={handleTabChange} />
         </aside>
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
@@ -184,12 +184,12 @@ export function DashboardShell({ session }: { session: Session }) {
           <header className="flex-shrink-0 z-30 bg-background/80 backdrop-blur-md border-b px-4 sm:px-6 py-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button>
+                  <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open navigation menu"><Menu className="h-5 w-5" /></Button>
                   <h2 className="text-lg font-semibold text-foreground">{activeNav?.label || 'Dashboard'}</h2>
                 </div>
                 <div className="flex items-center gap-3">
-                  {(currentRole === 'admin' || (session?.user as any)?.role === 'admin') && (
-                    <Select value={currentRole} onValueChange={(v) => setCurrentRole(v as Role)}>
+                  {(currentRole === 'admin' || session?.user?.role === 'admin') && (
+                    <Select value={currentRole} onValueChange={(v) => setCurrentRole(v as Role)} aria-label="Switch role view">
                       <SelectTrigger className="w-32 h-8 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>{(Object.keys(ROLE_LABELS) as Role[]).map(r => (<SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>))}</SelectContent>
                     </Select>
@@ -227,7 +227,7 @@ export function DashboardShell({ session }: { session: Session }) {
                 </div>
               </div>
             </header>
-            <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <main id="main-content" className="flex-1 overflow-y-auto p-4 sm:p-6">
               <Suspense fallback={<TabSkeleton />}>
                 {ActiveTabComponent ? (
                   <ErrorBoundary name={activeNav?.label || safeTab}>

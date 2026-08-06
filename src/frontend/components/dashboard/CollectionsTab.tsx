@@ -94,6 +94,9 @@ export function CollectionsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {allCollections.length === 0 && (
+                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No collection records</TableCell></TableRow>
+                )}
                 {allCollections.map(c => (
                   <TableRow key={c.id} className="even:bg-muted/50">
                     <TableCell className="font-mono text-xs">{c.caseRef}</TableCell>

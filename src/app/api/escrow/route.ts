@@ -60,7 +60,7 @@ async function getHandler(req: NextRequest) {
       ? await cacheManager.getOrSet(`escrows:${user.tenantId}`, fetchEscrows, { ttl: 30_000 })
       : await fetchEscrows();
 
-    return NextResponse.json({ escrows });
+    return NextResponse.json({ data: escrows });
   } catch (error) {
     console.error('Escrow GET error:', error);
     return NextResponse.json({ error: 'Failed to fetch escrow transactions' }, { status: 500 });
@@ -125,7 +125,7 @@ async function postHandler(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(escrow, { status: 201 });
+    return NextResponse.json({ data: escrow }, { status: 201 });
   } catch (error) {
     console.error('Escrow POST error:', error);
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });

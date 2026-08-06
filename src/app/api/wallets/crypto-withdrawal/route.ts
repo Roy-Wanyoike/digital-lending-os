@@ -235,7 +235,9 @@ async function getHandler(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const walletId = searchParams.get('walletId')
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
+    const offset = (page - 1) * limit
 
     if (!walletId) {
       return NextResponse.json({ error: 'walletId is required' }, { status: 400 })
@@ -249,13 +251,17 @@ async function getHandler(request: NextRequest) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
 
-    const records = await db.cryptoWithdrawal.findMany({
-      where: { walletId },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    })
+    const [records, total] = await Promise.all([
+      db.cryptoWithdrawal.findMany({
+        where: { walletId },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.cryptoWithdrawal.count({ where: { walletId } }),
+    ])
 
-    return NextResponse.json({ data: records })
+    return NextResponse.json({ data: records, pagination: { page, limit, offset, total, pages: Math.ceil(total / limit) } })
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Error listing crypto withdrawals:', error)

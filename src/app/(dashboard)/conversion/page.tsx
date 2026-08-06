@@ -1,14 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { ArrowLeftRight, RefreshCw, AlertCircle, Info } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { ArrowLeftRight, RefreshCw, Info, Loader2 } from 'lucide-react';
 import { useApi, invalidateCache } from '@/hooks/use-api';
+import { toast } from 'sonner';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { formatCurrency, formatDate, CURRENCY_FLAGS } from '@/backend/lib/dashboard-helpers';
 
 interface Wallet {
   id: string;
   currency: string;
   balance: number;
+  availableBalance?: number;
   label?: string | null;
 }
 
@@ -21,157 +35,308 @@ interface ConversionResult {
   finalAmount: number;
 }
 
+interface ConversionRecord {
+  id: string;
+  conversionRef: string;
+  fromCurrency: string;
+  toCurrency: string;
+  fromAmount: number;
+  toAmount: number;
+  exchangeRate: number;
+  feeAmount: number;
+  netAmount: number;
+  status: string;
+  createdAt: string;
+}
+
 export default function ConversionPage() {
-  const { data: session } = useSession();
   const { data: wallets, loading, error, refetch: refetchWallets } = useApi<Wallet[]>('/api/wallets');
   const [fromWalletId, setFromWalletId] = useState('');
   const [toWalletId, setToWalletId] = useState('');
   const [amount, setAmount] = useState('');
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [quote, setQuote] = useState<ConversionResult | null>(null);
   const [converting, setConverting] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [conversions, setConversions] = useState<ConversionRecord[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const safeWallets = Array.isArray(wallets) ? wallets : [];
+  const fromWallet = safeWallets.find(w => w.id === fromWalletId);
+  const toWallet = safeWallets.find(w => w.id === toWalletId);
 
   async function getQuote() {
-    if (!fromWalletId || !toWalletId || !amount) return;
+    const errors: Record<string, string> = {};
+    if (!fromWalletId) errors.fromWalletId = 'Select a source wallet';
+    if (!toWalletId) errors.toWalletId = 'Select a target wallet';
+    if (!amount || parseFloat(amount) <= 0) errors.amount = 'Enter a valid amount';
+    if (fromWalletId && toWalletId && fromWalletId === toWalletId) errors.toWalletId = 'Must differ from source';
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     try {
       setQuoteLoading(true);
+      setQuote(null);
       const res = await fetch('/api/wallets/convert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fromWalletId, toWalletId, amount: parseFloat(amount) }),
+        body: JSON.stringify({ fromWalletId, toWalletId, fromAmount: parseFloat(amount) }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to get quote'); }
-      const data = await res.json();
-      setQuote(data);
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || 'Failed to get quote');
+      }
+      const json = await res.json();
+      // The convert endpoint returns { data: conversionRecord }
+      const data = json.data || json;
+      setQuote({
+        from: { walletId: fromWalletId, currency: fromWallet!.currency, amount: parseFloat(amount) },
+        to: { walletId: toWalletId, currency: toWallet!.currency, amount: data.netAmount || data.toAmount },
+        rate: data.exchangeRate || 0,
+        fee: data.feeAmount || 0,
+        convertedAmount: data.toAmount || 0,
+        finalAmount: data.netAmount || 0,
+      });
     } catch (err) {
-      setQuote(null);
-      alert(err instanceof Error ? err.message : 'Failed to get quote');
-    } finally { setQuoteLoading(false); }
+      toast.error(err instanceof Error ? err.message : 'Failed to get quote');
+    } finally {
+      setQuoteLoading(false);
+    }
+  }
+
+  function openConfirm() {
+    if (!quote) return;
+    setConfirmOpen(true);
   }
 
   async function executeConversion() {
     if (!fromWalletId || !toWalletId || !amount || !quote) return;
-    if (!confirm(`Convert ${amount} to ${quote.finalAmount.toFixed(2)} ${quote.to.currency}? Fee: ${quote.fee.toFixed(2)}`)) return;
     try {
       setConverting(true);
       const res = await fetch('/api/wallets/convert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fromWalletId, toWalletId, amount: parseFloat(amount), execute: true }),
+        body: JSON.stringify({ fromWalletId, toWalletId, fromAmount: parseFloat(amount) }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Conversion failed'); }
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || 'Conversion failed');
+      }
+      setConfirmOpen(false);
       setQuote(null);
       setAmount('');
-      // Invalidate wallets cache so balances update across all tabs
+      toast.success('Conversion completed successfully!');
       invalidateCache('/api/wallets');
       refetchWallets();
-      alert('Conversion completed successfully!');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Conversion failed');
-    } finally { setConverting(false); }
+      toast.error(err instanceof Error ? err.message : 'Conversion failed');
+    } finally {
+      setConverting(false);
+    }
   }
 
-  const fromWallet = wallets?.find(w => w.id === fromWalletId);
-  const toWallet = wallets?.find(w => w.id === toWalletId);
+  const loadHistory = useCallback(async () => {
+    // Find any wallet to load conversions for
+    if (safeWallets.length === 0) return;
+    setHistoryLoading(true);
+    setHistoryOpen(true);
+    try {
+      // Load conversions across all wallets
+      const results = await Promise.allSettled(
+        safeWallets.slice(0, 5).map(w =>
+          fetch(`/api/wallets/convert?walletId=${w.id}&limit=10`).then(r => r.json())
+        )
+      );
+      const all: ConversionRecord[] = [];
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value?.data) {
+          all.push(...r.value.data);
+        }
+      }
+      all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setConversions(all.slice(0, 50));
+    } catch {
+      toast.error('Failed to load conversion history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [safeWallets]);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Currency Conversion</h1>
-          <p className="text-gray-500 mt-1">Convert between currencies at market rates</p>
+          <h1 className="text-2xl font-bold">Currency Conversion</h1>
+          <p className="text-muted-foreground mt-1">Convert between currencies at market rates</p>
         </div>
-        <button onClick={() => { invalidateCache('/api/wallets'); refetchWallets(); }} className="px-4 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 flex items-center gap-2"><RefreshCw className="h-4 w-4" /> Refresh</button>
+        <div className="flex gap-3">
+          {safeWallets.length > 0 && (
+            <Button variant="outline" size="sm" onClick={loadHistory}>
+              <ArrowLeftRight className="h-4 w-4 mr-1" /> History
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => { invalidateCache('/api/wallets'); refetchWallets(); }}>
+            <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+          </Button>
+        </div>
       </div>
 
       {loading ? (
-        <div className="animate-pulse"><div className="bg-white rounded-xl shadow-sm border p-8 h-64"></div></div>
+        <Card><CardContent className="p-8"><div className="h-64 bg-muted rounded animate-pulse" /></CardContent></Card>
       ) : error ? (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-red-700">{error}</div>
-      ) : (wallets && wallets.length < 2) ? (
-        <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
-          <ArrowLeftRight className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">You need at least 2 wallets with different currencies to convert</p>
-        </div>
+        <Card className="border-destructive"><CardContent className="p-6 text-destructive">{error}</CardContent></Card>
+      ) : safeWallets.length < 2 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <ArrowLeftRight className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
+            <p className="text-muted-foreground">You need at least 2 wallets with different currencies to convert</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Conversion Form */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">Convert Currency</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
-                <select value={fromWalletId} onChange={(e) => { setFromWalletId(e.target.value); setQuote(null); }} className="w-full border rounded-lg px-3 py-2 text-sm">
-                  <option value="">Select source wallet</option>
-                  {wallets?.map(w => (
-                    <option key={w.id} value={w.id}>{w.currency} — {w.balance.toLocaleString()} {w.currency} available</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                <input type="number" value={amount} onChange={(e) => { setAmount(e.target.value); setQuote(null); }} placeholder="Enter amount" className="w-full border rounded-lg px-3 py-2 text-sm" />
-                {fromWallet && (
-                  <p className="text-xs text-gray-500 mt-1">Available: {fromWallet.balance.toLocaleString()} {fromWallet.currency}</p>
-                )}
-              </div>
-              <div className="flex justify-center">
-                <button onClick={() => { setFromWalletId(toWalletId); setToWalletId(fromWalletId); setQuote(null); }} className="p-2 rounded-full border hover:bg-gray-50" title="Swap">
-                  <ArrowLeftRight className="h-5 w-5 text-gray-600" />
-                </button>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
-                <select value={toWalletId} onChange={(e) => { setToWalletId(e.target.value); setQuote(null); }} className="w-full border rounded-lg px-3 py-2 text-sm">
-                  <option value="">Select target wallet</option>
-                  {wallets?.filter(w => w.id !== fromWalletId).map(w => (
-                    <option key={w.id} value={w.id}>{w.currency} — {w.balance.toLocaleString()} {w.currency}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={getQuote} disabled={!fromWalletId || !toWalletId || !amount || quoteLoading} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                  {quoteLoading ? 'Getting Quote...' : 'Get Quote'}
-                </button>
-              </div>
-            </div>
-
-            {/* Quote Display */}
-            {quote && (
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h3 className="font-medium text-blue-900 mb-3">Conversion Quote</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-blue-700">You send:</span><span className="font-medium">{parseFloat(amount).toLocaleString()} {quote.from.currency}</span></div>
-                  <div className="flex justify-between"><span className="text-blue-700">Exchange rate:</span><span className="font-medium">{quote.rate}</span></div>
-                  <div className="flex justify-between"><span className="text-blue-700">Fee (1.5%):</span><span className="font-medium">{quote.fee.toFixed(2)} {quote.to.currency}</span></div>
-                  <div className="flex justify-between border-t border-blue-200 pt-2"><span className="text-blue-900 font-semibold">You receive:</span><span className="font-bold text-blue-900">{quote.finalAmount.toFixed(2)} {quote.to.currency}</span></div>
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-lg font-semibold mb-6">Convert Currency</h2>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>From *</Label>
+                  <Select value={fromWalletId} onValueChange={(v) => { setFromWalletId(v); setQuote(null); setFormErrors({}); }}>
+                    <SelectTrigger><SelectValue placeholder="Select source wallet" /></SelectTrigger>
+                    <SelectContent>
+                      {safeWallets.map(w => (
+                        <SelectItem key={w.id} value={w.id}>{CURRENCY_FLAGS[w.currency] || '💰'} {w.currency} — {formatCurrency(w.balance, w.currency)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formErrors.fromWalletId && <p className="text-xs text-destructive">{formErrors.fromWalletId}</p>}
                 </div>
-                <button onClick={executeConversion} disabled={converting} className="w-full mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
-                  {converting ? 'Converting...' : 'Execute Conversion'}
-                </button>
+                <div className="space-y-2">
+                  <Label>Amount *</Label>
+                  <Input type="number" min="0.01" step="0.01" placeholder="Enter amount" value={amount} onChange={(e) => { setAmount(e.target.value); setQuote(null); }} />
+                  {formErrors.amount && <p className="text-xs text-destructive">{formErrors.amount}</p>}
+                  {fromWallet && (
+                    <p className="text-xs text-muted-foreground">Available: {formatCurrency(fromWallet.balance, fromWallet.currency)}</p>
+                  )}
+                </div>
+                <div className="flex justify-center">
+                  <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { const tmp = fromWalletId; setFromWalletId(toWalletId); setToWalletId(tmp); setQuote(null); }} title="Swap">
+                    <ArrowLeftRight className="h-5 w-5" />
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label>To *</Label>
+                  <Select value={toWalletId} onValueChange={(v) => { setToWalletId(v); setQuote(null); setFormErrors({}); }}>
+                    <SelectTrigger><SelectValue placeholder="Select target wallet" /></SelectTrigger>
+                    <SelectContent>
+                      {safeWallets.filter(w => w.id !== fromWalletId).map(w => (
+                        <SelectItem key={w.id} value={w.id}>{CURRENCY_FLAGS[w.currency] || '💰'} {w.currency} — {formatCurrency(w.balance, w.currency)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formErrors.toWalletId && <p className="text-xs text-destructive">{formErrors.toWalletId}</p>}
+                </div>
+                <Button onClick={getQuote} disabled={quoteLoading} className="w-full">
+                  {quoteLoading ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Getting Quote...</> : 'Get Quote'}
+                </Button>
               </div>
-            )}
 
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg flex items-start gap-2 text-xs text-gray-500">
-              <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <p>Exchange rates are indicative. A 1.5% conversion fee applies to all transactions. Rates update periodically.</p>
-            </div>
-          </div>
+              {quote && (
+                <div className="mt-6 p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+                  <h3 className="font-medium text-emerald-900 dark:text-emerald-200 mb-3">Conversion Quote</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-emerald-700 dark:text-emerald-300">You send:</span><span className="font-medium">{formatCurrency(quote.from.amount, quote.from.currency)}</span></div>
+                    <div className="flex justify-between"><span className="text-emerald-700 dark:text-emerald-300">Exchange rate:</span><span className="font-medium">{quote.rate}</span></div>
+                    <div className="flex justify-between"><span className="text-emerald-700 dark:text-emerald-300">Gross:</span><span className="font-medium">{formatCurrency(quote.convertedAmount, quote.to.currency)}</span></div>
+                    <div className="flex justify-between"><span className="text-emerald-700 dark:text-emerald-300">Fee (0.5%):</span><span className="font-medium text-red-600 dark:text-red-400">{formatCurrency(quote.fee, quote.to.currency)}</span></div>
+                    <div className="flex justify-between border-t border-emerald-200 dark:border-emerald-800 pt-2"><span className="text-emerald-900 dark:text-emerald-100 font-semibold">You receive:</span><span className="font-bold text-emerald-900 dark:text-emerald-100">{formatCurrency(quote.finalAmount, quote.to.currency)}</span></div>
+                  </div>
+                  <Button onClick={openConfirm} className="w-full mt-4">Execute Conversion</Button>
+                </div>
+              )}
+
+              <div className="mt-4 p-3 bg-muted rounded-lg flex items-start gap-2 text-xs text-muted-foreground">
+                <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <p>Exchange rates are indicative. A 0.5% conversion fee applies. Rates update periodically.</p>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Supported Currencies */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Supported Currencies</h2>
-            <div className="grid grid-cols-2 gap-3">
-              {wallets?.map(w => (
-                <div key={w.id} className="p-3 border rounded-lg">
-                  <p className="font-medium text-gray-900">{w.currency}</p>
-                  <p className="text-sm text-gray-500">{w.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-lg font-semibold mb-4">Your Wallets</h2>
+              <div className="grid grid-cols-2 gap-3">
+                {safeWallets.map(w => (
+                  <div key={w.id} className="p-3 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg">{CURRENCY_FLAGS[w.currency] || '💰'}</span>
+                      <span className="font-medium">{w.currency}</span>
+                      {w.label && <Badge variant="outline" className="text-[10px]">{w.label}</Badge>}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{formatCurrency(w.balance, w.currency)}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirm Conversion</DialogTitle>
+            <DialogDescription>This action cannot be undone.</DialogDescription>
+          </DialogHeader>
+          {quote && (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">You send:</span><span className="font-medium">{formatCurrency(quote.from.amount, quote.from.currency)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">You receive:</span><span className="font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(quote.finalAmount, quote.to.currency)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Fee:</span><span>{formatCurrency(quote.fee, quote.to.currency)}</span></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+            <Button onClick={executeConversion} disabled={converting}>{converting ? 'Converting...' : 'Confirm'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* History Dialog */}
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader><DialogTitle>Conversion History</DialogTitle></DialogHeader>
+          <div className="flex-1 overflow-y-auto">
+            {historyLoading ? (
+              <div className="space-y-3 py-4">{[1,2,3].map(i => <div key={i} className="h-4 bg-muted rounded animate-pulse" />)}</div>
+            ) : conversions.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No conversions yet</p>
+            ) : (
+              <Table>
+                <TableHeader><TableRow><TableHead>Reference</TableHead><TableHead>From</TableHead><TableHead className="text-right">Amount</TableHead><TableHead>To</TableHead><TableHead className="text-right">Received</TableHead><TableHead>Rate</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {conversions.map(c => (
+                    <TableRow key={c.id} className="even:bg-muted/30">
+                      <TableCell className="font-mono text-xs">{c.conversionRef?.slice(0, 12) || '—'}</TableCell>
+                      <TableCell>{CURRENCY_FLAGS[c.fromCurrency] || ''} {c.fromCurrency}</TableCell>
+                      <TableCell className="text-right text-red-600 dark:text-red-400">-{formatCurrency(c.fromAmount, c.fromCurrency)}</TableCell>
+                      <TableCell>{CURRENCY_FLAGS[c.toCurrency] || ''} {c.toCurrency}</TableCell>
+                      <TableCell className="text-right text-emerald-600 dark:text-emerald-400">+{formatCurrency(c.netAmount, c.toCurrency)}</TableCell>
+                      <TableCell className="text-xs">{c.exchangeRate}</TableCell>
+                      <TableCell><Badge variant={c.status === 'completed' ? 'default' : 'secondary'}>{c.status}</Badge></TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{formatDate(c.createdAt)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

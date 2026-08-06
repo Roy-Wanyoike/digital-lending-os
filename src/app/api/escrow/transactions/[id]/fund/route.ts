@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getRequestBaseUrl } from "@/lib/utils";
 import { db } from "@/lib/db";
 import { providerRegistry, getProvidersForCurrency, calculateFee, getProviderName, type PaymentProviderCode } from "@/lib/payment";
-import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
+import { requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';

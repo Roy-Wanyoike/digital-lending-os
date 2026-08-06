@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getRequestBaseUrl } from '@/lib/utils'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError, successResponse, errorResponse } from '@/lib/auth/api-helpers'
-import { randomUUID } from 'crypto'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const BONUS_AMOUNT = 100.00

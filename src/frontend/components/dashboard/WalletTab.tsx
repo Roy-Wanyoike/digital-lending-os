@@ -182,8 +182,10 @@ export function WalletTab() {
         const r = await fetch(`/api/wallets/crypto-withdrawal?walletId=${walletId}&limit=50`)
         setCryptoWdrs((await r.json()).data || [])
       }
-    } catch { /* ignore */ }
-  }, [])
+    } catch {
+      showToast('Failed to load history')
+    }
+  }, [showToast])
 
   const allWallets = Array.isArray(wallets) ? wallets : []
   const totalPortfolio = allWallets.reduce((sum, w) => {

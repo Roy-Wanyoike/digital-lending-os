@@ -1,6 +1,6 @@
 'use client'
 
-import { Moon, Sun } from 'lucide-react'
+import { Moon, Sun, Monitor } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore } from 'react'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,25 @@ import { Button } from '@/components/ui/button'
 const emptySubscribe = () => () => {}
 const getClientSnapshot = () => true
 const getServerSnapshot = () => false
+
+const CYCLE: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
+
+type ThemeValue = 'light' | 'dark' | 'system'
+
+function getNext(current: string | undefined): ThemeValue {
+  const idx = CYCLE.indexOf((current as ThemeValue) ?? 'system')
+  return CYCLE[(idx + 1) % CYCLE.length]
+}
+
+function ThemeIcon({ theme }: { theme: string | undefined }) {
+  if (theme === 'system') {
+    return <Monitor className="h-4 w-4" />
+  }
+  if (theme === 'dark') {
+    return <Moon className="h-4 w-4" />
+  }
+  return <Sun className="h-4 w-4" />
+}
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
@@ -25,15 +44,17 @@ export function ThemeToggle() {
     )
   }
 
+  const label = theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System'
+
   return (
     <Button
       variant="ghost"
       size="icon"
       className="h-9 w-9"
-      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      onClick={() => setTheme(getNext(theme))}
+      aria-label={`Current: ${label}. Click to switch theme.`}
     >
-      <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-      <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+      <ThemeIcon theme={theme} />
       <span className="sr-only">Toggle theme</span>
     </Button>
   )

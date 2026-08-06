@@ -20,7 +20,6 @@ import type {
   Consumer as KafkaConsumer,
   ProducerRecord,
   Message,
-  ITopicConfig,
 } from 'kafkajs'
 
 export interface KafkaHealthResult {

@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { logAudit } from '@/lib/audit-logger';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { walletListCache } from '@/backend/lib/response-cache';
+
+const createWalletSchema = z.object({
+  businessId: z.string().min(1, 'businessId is required'),
+  currency: z.string().regex(/^[A-Z]{3}$/, 'currency must be a valid 3-letter ISO 4217 code (e.g. USD, EUR, NGN)'),
+});
 
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined;
@@ -28,6 +34,9 @@ async function getHandler(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const filterBusinessId = searchParams.get('businessId');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
+    const offset = (page - 1) * limit;
 
     // Get all business IDs belonging to this tenant (cached)
     const businessIds = await getTenantBusinessIds(user.tenantId, db);
@@ -78,14 +87,17 @@ async function getHandler(req: NextRequest) {
       take: 100,
     });
 
-    const wallets = cacheManager
-      ? await cacheManager.getOrSet(cacheKey, fetchWallets, { ttl: 60_000 })
-      : await fetchWallets();
+    const fetchWalletsCount = () => db.wallet.count({ where: { businessId: { in: targetBusinessIds } } });
+
+    const [wallets, total] = cacheManager
+      ? await Promise.all([cacheManager.getOrSet(cacheKey, () => fetchWallets(), { ttl: 60_000 }), fetchWalletsCount()])
+      : await Promise.all([fetchWallets(), fetchWalletsCount()]);
 
     // Populate first-level cache
     walletListCache.set(cacheKey, wallets);
 
     const response = successResponse(wallets);
+    response.headers.set('X-Pagination', JSON.stringify({ page, limit, offset, total, pages: Math.ceil(total / limit) }));
     response.headers.set('Cache-Control', 'private, max-age=3, stale-while-revalidate=5');
     return response;
   } catch (error: any) {
@@ -102,15 +114,11 @@ async function postHandler(req: NextRequest) {
     const user = await requireAuth(req);
 
     const body = await req.json();
-    const { currency, businessId } = body;
-
-    if (!currency) return errorResponse('currency is required', 400);
-    if (!businessId) return errorResponse('businessId is required', 400);
-
-    // Validate currency format: 3-letter uppercase code
-    if (!/^[A-Z]{3}$/.test(currency)) {
-      return errorResponse('currency must be a valid 3-letter ISO 4217 code (e.g. USD, EUR, NGN)', 400);
+    const parsed = createWalletSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(parsed.error.issues.map(i => i.message).join(', '), 400);
     }
+    const { currency, businessId } = parsed.data;
 
     // Verify businessId belongs to the user's tenant
     const business = await db.business.findFirst({

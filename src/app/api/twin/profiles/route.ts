@@ -50,7 +50,7 @@ async function getHandler(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json(twins);
+    return NextResponse.json({ data: twins });
   } catch (error) {
     console.error('Error listing digital twins:', error);
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
@@ -124,7 +124,7 @@ async function postHandler(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(twin, { status: 201 });
+    return NextResponse.json({ data: twin }, { status: 201 });
   } catch (error) {
     console.error('Error creating digital twin:', error);
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });

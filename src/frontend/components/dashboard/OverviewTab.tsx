@@ -36,6 +36,9 @@ export function OverviewTab() {
           <Table><TableHeader><TableRow>
             <TableHead>Reference</TableHead><TableHead>Buyer</TableHead><TableHead>Seller</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead>
           </TableRow></TableHeader><TableBody>
+            {(stats.recentTransactions || []).length === 0 && (
+              <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No recent transactions</TableCell></TableRow>
+            )}
             {(stats.recentTransactions || []).map((tx: any) => (
               <TableRow key={tx.txRef}>
                 <TableCell className="font-mono text-xs">{tx.txRef}</TableCell>

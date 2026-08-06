@@ -26,7 +26,7 @@ export default function NotFound() {
             <Button className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white" asChild>
               <Link href="/">
                 <Home className="h-4 w-4 mr-2" />
-                Go to Dashboard
+                Go Home
               </Link>
             </Button>
             <Button variant="outline" asChild>

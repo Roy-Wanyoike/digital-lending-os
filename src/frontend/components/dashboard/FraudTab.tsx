@@ -81,6 +81,9 @@ export function FraudTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {allAlerts.length === 0 && (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No fraud alerts</TableCell></TableRow>
+                )}
                 {allAlerts.map(a => (
                   <TableRow key={a.id} className="even:bg-muted/50">
                     <TableCell className="font-mono text-xs">{a.alertRef}</TableCell>
@@ -127,6 +130,9 @@ export function FraudTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {allRules.length === 0 && (
+                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No fraud rules configured</TableCell></TableRow>
+                  )}
                   {allRules.map(r => (
                     <TableRow key={r.id} className="even:bg-muted/50">
                       <TableCell className="font-medium">{r.name}</TableCell>

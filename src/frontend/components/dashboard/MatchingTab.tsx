@@ -47,6 +47,9 @@ export function MatchingTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {allMatches.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No matching records yet</TableCell></TableRow>
+                )}
                 {allMatches.map(m => (
                   <TableRow key={m.id} className={`even:bg-muted/50 ${m.matchScore > 85 ? 'bg-emerald-50/50 dark:bg-emerald-950/20' : ''}`}>
                     <TableCell className="font-medium max-w-[120px] truncate">{m.seekerName ?? '—'}</TableCell>

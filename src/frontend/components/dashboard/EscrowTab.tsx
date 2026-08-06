@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Shield, Plus, Eye, DollarSign, Play, ChevronRight, AlertTriangle, CheckCircle, Clock, X, ExternalLink, CreditCard } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Shield, Plus, Eye, DollarSign, Play, ChevronRight, AlertTriangle, CheckCircle, Clock, X, CreditCard } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,14 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
+
 import { toast } from 'sonner'
 import { useApi } from '@/hooks/use-api'
 import {
-  formatCurrency, getStatusBadgeVariant, getStatusColor,
+  formatCurrency, formatCurrencyCompact, getStatusBadgeVariant, getStatusColor,
   getRiskBg, getRiskColor, formatDate, ESCROW_STATUSES, PipelineCard,
-  LoadingSkeleton, ErrorState, KPICard, CURRENCY_FLAGS, ScoreBar,
+  LoadingSkeleton, ErrorState, KPICard, ScoreBar,
   type EscrowTransaction, type Business,
 } from '@/lib/dashboard-helpers'
 
@@ -185,7 +184,7 @@ export function EscrowTab() {
     <div className="space-y-6 animate-fade-in">
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Total Volume" value={formatCurrency(totalVolume)} icon={DollarSign} />
+        <KPICard title="Total Volume" value={formatCurrencyCompact(totalVolume)} icon={DollarSign} />
         <KPICard title="Active Escrows" value={activeEscrows.toString()} icon={Shield} />
         <KPICard title="Disputed" value={disputed.toString()} icon={AlertTriangle} />
         <KPICard title="Total Deals" value={allTxns.length.toString()} icon={ChevronRight} />
@@ -231,6 +230,9 @@ export function EscrowTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {filtered.length === 0 && (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No escrow transactions found</TableCell></TableRow>
+                )}
                 {filtered.slice(0, 20).map(txn => {
                   const st = txn.status?.toLowerCase() || ''
                   const canFund = st === 'created'
@@ -289,7 +291,7 @@ export function EscrowTab() {
                   <h3 className="font-semibold">{selectedTxn.txRef}</h3>
                   <p className="text-xs text-muted-foreground">{formatDate(selectedTxn.createdAt)}</p>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => setSelectedId(null)}><X className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" onClick={() => setSelectedId(null)} aria-label="Close details"><X className="h-4 w-4" /></Button>
               </div>
               <div className="p-6 space-y-6">
                 {/* Status & Amount */}
@@ -300,8 +302,8 @@ export function EscrowTab() {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div><p className="text-muted-foreground">Buyer</p><p className="font-medium">{selectedTxn.buyer?.name}</p></div>
                   <div><p className="text-muted-foreground">Seller</p><p className="font-medium">{selectedTxn.seller?.name}</p></div>
-                  <div><p className="text-muted-foreground">Funded</p><p className="font-medium text-blue-600 dark:text-blue-400">{formatCurrency(selectedTxn.fundedAmount, selectedTxn.currency)}</p></div>
-                  <div><p className="text-muted-foreground">Released</p><p className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(selectedTxn.releasedAmount, selectedTxn.currency)}</p></div>
+                  <div><p className="text-muted-foreground">Funded</p><p className="font-medium text-blue-600 dark:text-blue-400">{formatCurrency(selectedTxn.fundedAmount ?? 0, selectedTxn.currency)}</p></div>
+                  <div><p className="text-muted-foreground">Released</p><p className="font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(selectedTxn.releasedAmount ?? 0, selectedTxn.currency)}</p></div>
                 </div>
 
                 {/* Risk Score */}
@@ -356,8 +358,8 @@ export function EscrowTab() {
 
                 {/* Fees */}
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><p className="text-muted-foreground">Fee</p><p>{formatCurrency(selectedTxn.feeAmount, selectedTxn.feeCurrency)}</p></div>
-                  <div><p className="text-muted-foreground">Refunded</p><p>{formatCurrency(selectedTxn.refundedAmount, selectedTxn.currency)}</p></div>
+                  <div><p className="text-muted-foreground">Fee</p><p>{formatCurrency(selectedTxn.feeAmount ?? 0, selectedTxn.feeCurrency || selectedTxn.currency)}</p></div>
+                  <div><p className="text-muted-foreground">Refunded</p><p>{formatCurrency(selectedTxn.refundedAmount ?? 0, selectedTxn.currency)}</p></div>
                 </div>
               </div>
             </div>

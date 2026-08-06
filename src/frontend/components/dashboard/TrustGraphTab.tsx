@@ -54,10 +54,13 @@ export function TrustGraphTab() {
                   <TableHead>Status</TableHead>
                   <TableHead>Trust Score</TableHead>
                   <TableHead>Passport</TableHead>
-                  <TableHead></TableHead>
+                  <TableHead className="sr-only">View</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {filtered.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No businesses found</TableCell></TableRow>
+                )}
                 {filtered.slice(0, 20).map(biz => (
                   <TableRow key={biz.id} className="even:bg-muted/50 cursor-pointer hover:bg-muted" onClick={() => setSelectedBiz(biz)}>
                     <TableCell className="font-medium">{biz.name}</TableCell>

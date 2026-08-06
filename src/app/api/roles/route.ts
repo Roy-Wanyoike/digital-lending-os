@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getApiUser } from '@/lib/auth/api-helpers';
+import { ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+
 const ROLE_DEFINITIONS = [
   { role: 'admin', label: 'Administrator', description: 'Full access to all features, user management, and settings' },
   { role: 'buyer', label: 'Buyer', description: 'Can create escrow transactions, make payments, and view invoices' },
@@ -11,30 +13,25 @@ const ROLE_DEFINITIONS = [
   { role: 'viewer', label: 'Viewer', description: 'Read-only access to dashboards and reports' },
 ];
 
-async function getHandler(req: NextRequest) {
-  try {
-    const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+const getHandler = withErrorHandler(async (req: NextRequest) => {
+  const user = await getApiUser(req);
+  if (!user) return unauthorized();
 
-    // Return role definitions with user counts per role in tenant
-    const roleCounts = await db.account.groupBy({
-      by: ['role'],
-      _count: { id: true },
-      where: { tenantId: user.tenantId },
-    });
+  // Return role definitions with user counts per role in tenant
+  const roleCounts = await db.account.groupBy({
+    by: ['role'],
+    _count: { id: true },
+    where: { tenantId: user.tenantId },
+  });
 
-    const countMap = Object.fromEntries(roleCounts.map((r: any) => [r.role, r._count.id]));
+  const countMap = Object.fromEntries(roleCounts.map((r: any) => [r.role, r._count.id]));
 
-    const roles = ROLE_DEFINITIONS.map(r => ({
-      ...r,
-      userCount: countMap[r.role] || 0,
-    }));
+  const roles = ROLE_DEFINITIONS.map(r => ({
+    ...r,
+    userCount: countMap[r.role] || 0,
+  }));
 
-    return successResponse(roles);
-  } catch (error: any) {
-    console.error('Roles GET error:', error);
-    return errorResponse('Failed to fetch roles', 500);
-  }
-}
+  return ok(roles);
+});
 
 export const GET = withApiTelemetry(getHandler, '/api/roles');

@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
-import { getApiUser, requireAuth, AuthError, errorResponse, successResponse, requireAdmin } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth } from '@/lib/auth/api-helpers';
+import { ok, badRequest, unauthorized, forbidden, notFound, withErrorHandler } from '@/backend/lib/api-response';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 
@@ -12,84 +13,77 @@ const settingsSchema = z.object({
   maxUsers: z.number().int().min(1).optional(),
   features: z.record(z.string(), z.unknown()).optional(),
 });
-async function getHandler(req: NextRequest) {
+
+const getHandler = withErrorHandler(async (req: NextRequest) => {
+  const user = await getApiUser(req);
+  if (!user) return unauthorized();
+
+  const tenant = await db.tenant.findUnique({
+    where: { id: user.tenantId },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      plan: true,
+      status: true,
+      maxBusinesses: true,
+      maxUsers: true,
+      features: true,
+      ownerEmail: true,
+      ownerName: true,
+    },
+  });
+
+  if (!tenant) return notFound('Tenant not found');
+
+  // Parse features JSON
+  let features: Record<string, any> = {};
   try {
-    const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    features = JSON.parse(tenant.features || '{}');
+  } catch {}
 
-    const tenant = await db.tenant.findUnique({
-      where: { id: user.tenantId },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        plan: true,
-        status: true,
-        maxBusinesses: true,
-        maxUsers: true,
-        features: true,
-        ownerEmail: true,
-        ownerName: true,
-      },
-    });
+  return ok({
+    ...tenant,
+    features,
+  });
+});
 
-    if (!tenant) return errorResponse('Tenant not found', 404);
+const patchHandler = withErrorHandler(async (req: NextRequest) => {
+  const user = await requireAuth(req);
+  if (user.role !== 'admin') return forbidden();
 
-    // Parse features JSON
-    let features: Record<string, any> = {};
-    try {
-      features = JSON.parse(tenant.features || '{}');
-    } catch {}
-
-    return successResponse({
-      ...tenant,
-      features,
-    });
-  } catch (error: any) {
-    console.error('Settings GET error:', error);
-    return errorResponse('Failed to fetch settings', 500);
+  const body = await req.json();
+  const parsed = settingsSchema.safeParse(body);
+  if (!parsed.success) {
+    return badRequest('Validation failed', parsed.error.issues.map((i) => ({
+      field: i.path.join('.'),
+      message: i.message,
+    })));
   }
-}
 
-async function patchHandler(req: NextRequest) {
-  try {
-    const user = await requireAuth(req);
-    if (user.role !== 'admin') return errorResponse('Insufficient permissions', 403);
+  const { name, plan, maxBusinesses, maxUsers, features } = parsed.data;
 
-    const body = await req.json();
-    const parsed = settingsSchema.safeParse(body);
-    if (!parsed.success) {
-      return errorResponse(parsed.error.issues.map((i) => i.message).join(', '), 400);
-    }
+  const updateData: any = {};
+  if (name !== undefined) updateData.name = name;
+  if (plan !== undefined) updateData.plan = plan;
+  if (maxBusinesses !== undefined) updateData.maxBusinesses = maxBusinesses;
+  if (maxUsers !== undefined) updateData.maxUsers = maxUsers;
+  if (features !== undefined) updateData.features = JSON.stringify(features);
 
-    const { name, plan, maxBusinesses, maxUsers, features } = parsed.data;
+  const tenant = await db.tenant.update({
+    where: { id: user.tenantId },
+    data: updateData,
+    select: {
+      id: true, name: true, slug: true, plan: true, status: true,
+      maxBusinesses: true, maxUsers: true, features: true,
+    },
+  });
 
-    const updateData: any = {};
-    if (name !== undefined) updateData.name = name;
-    if (plan !== undefined) updateData.plan = plan;
-    if (maxBusinesses !== undefined) updateData.maxBusinesses = maxBusinesses;
-    if (maxUsers !== undefined) updateData.maxUsers = maxUsers;
-    if (features !== undefined) updateData.features = JSON.stringify(features);
-
-    const tenant = await db.tenant.update({
-      where: { id: user.tenantId },
-      data: updateData,
-      select: {
-        id: true, name: true, slug: true, plan: true, status: true,
-        maxBusinesses: true, maxUsers: true, features: true,
-      },
-    });
-
-    return successResponse({
-      ...tenant,
-      features: JSON.parse(tenant.features || '{}'),
-    });
-  } catch (error: any) {
-    console.error('Settings PATCH error:', error);
-    if (error instanceof AuthError) return errorResponse(error.message, error.status);
-    return errorResponse('Failed to update settings', 500);
-  }
-}
+  return ok({
+    ...tenant,
+    features: JSON.parse(tenant.features || '{}'),
+  });
+});
 
 export const GET = withApiTelemetry(getHandler, '/api/settings');
 

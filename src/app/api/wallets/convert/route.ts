@@ -56,21 +56,17 @@ async function postHandler(request: NextRequest) {
     }
 
     // Pre-validate wallet existence, ownership, and active status (outside tx)
-    const fromWallet = await db.wallet.findUnique({ where: { id: data.fromWalletId } })
-    const toWallet = await db.wallet.findUnique({ where: { id: data.toWalletId } })
+    // Single query per wallet via relation navigation to avoid N+1
+    const [fromWallet, toWallet] = await Promise.all([
+      db.wallet.findFirst({ where: { id: data.fromWalletId, business: { tenantId: user.tenantId } } }),
+      db.wallet.findFirst({ where: { id: data.toWalletId, business: { tenantId: user.tenantId } } }),
+    ])
 
     if (!fromWallet || !toWallet) {
       return NextResponse.json({ error: 'One or both wallets not found' }, { status: 404 })
     }
     if (!fromWallet.businessId || !toWallet.businessId) {
       return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
-    }
-
-    // Verify both wallets belong to the same tenant
-    const fromBiz = await db.business.findUnique({ where: { id: fromWallet.businessId }, select: { tenantId: true } })
-    const toBiz = await db.business.findUnique({ where: { id: toWallet.businessId }, select: { tenantId: true } })
-    if (!fromBiz || fromBiz.tenantId !== user.tenantId || !toBiz || toBiz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
 
     if (fromWallet.status !== 'active' || toWallet.status !== 'active') {
@@ -204,7 +200,9 @@ async function getHandler(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     const { searchParams } = new URL(request.url)
     const walletId = searchParams.get('walletId')
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
+    const offset = (page - 1) * limit
 
     if (!walletId) {
       return NextResponse.json({ error: 'walletId is required' }, { status: 400 })
@@ -218,18 +216,24 @@ async function getHandler(request: NextRequest) {
       return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
     }
 
-    const conversions = await db.currencyConversion.findMany({
-      where: {
-        OR: [
-          { fromWalletId: walletId },
-          { toWalletId: walletId },
-        ],
-      },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-    })
+    const where = {
+      OR: [
+        { fromWalletId: walletId },
+        { toWalletId: walletId },
+      ],
+    }
 
-    return NextResponse.json({ data: conversions })
+    const [conversions, total] = await Promise.all([
+      db.currencyConversion.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.currencyConversion.count({ where }),
+    ])
+
+    return NextResponse.json({ data: conversions, pagination: { page, limit, offset, total, pages: Math.ceil(total / limit) } })
   } catch (error) {
     if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error('Error listing conversions:', error)
