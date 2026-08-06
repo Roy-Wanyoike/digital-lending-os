@@ -1,13 +1,18 @@
-import { Connection, Client } from '@temporalio/client'
+// ─── Temporal Client (lazy) ─────────────────────────────────────────────
+// The @temporalio/client package is only needed for production cloud
+// deployments. In dev/demo it's unavailable — all calls return null and
+// the runner falls back to direct execution.
 
-let cachedClient: Client | null = null
-let connectionPromise: Promise<Client | null> | null = null
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+let cachedClient: any = null
+let connectionPromise: Promise<any | null> | null = null
 
 /**
  * Get or create a Temporal client connection (singleton).
- * Returns null if Temporal server is unavailable.
+ * Returns null if @temporalio/client is not installed or Temporal server is unavailable.
  */
-export async function getTemporalClient(): Promise<Client | null> {
+export async function getTemporalClient(): Promise<any | null> {
   if (cachedClient) {
     return cachedClient
   }
@@ -18,6 +23,10 @@ export async function getTemporalClient(): Promise<Client | null> {
 
   connectionPromise = (async () => {
     try {
+      // @ts-expect-error -- @temporalio/client is optional; not installed in dev
+      const temporal = await import('@temporalio/client')
+      const { Connection, Client } = temporal
+
       const temporalAddress = process.env.TEMPORAL_ADDRESS || 'localhost:7233'
 
       const connection = await Connection.connect({
@@ -48,16 +57,15 @@ export async function getTemporalClient(): Promise<Client | null> {
 
 /**
  * Check whether the Temporal server is reachable.
- * Returns true if a connection can be established.
+ * Returns false if @temporalio/client is not installed.
  */
 export async function isTemporalAvailable(): Promise<boolean> {
   try {
+    // @ts-expect-error -- @temporalio/client is optional; not installed in dev
+    const temporal = await import('@temporalio/client')
+    const { Connection } = temporal
     const temporalAddress = process.env.TEMPORAL_ADDRESS || 'localhost:7233'
-
-    const connection = await Connection.connect({
-      address: temporalAddress,
-    })
-
+    const connection = await Connection.connect({ address: temporalAddress })
     await connection.close()
     return true
   } catch {

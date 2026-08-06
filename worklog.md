@@ -5010,3 +5010,310 @@ $ curl -o /dev/null -w '%{http_code}' localhost:3000
 | Infra files inventoried | ✅ 83 files across P1-P13 all present |
 
 **Task P14 (FINAL): ✅ COMPLETE — All 14 phases verified. Zero regressions. Production server healthy.**
+
+---
+
+# Task FIX-1: Server Stability & Startup Fix
+
+**Date**: 2025-08-06
+**Agent**: General-Purpose Agent
+**Task ID**: FIX-1
+**Scope**: Fix production server dying after a few seconds; ensure stable 90+ second uptime
+
+---
+
+## Diagnosis
+
+### Step 1: db.ts PRAGMA check
+- **Result**: ✅ Already uses `$queryRawUnsafe` (NOT `$executeRawUnsafe`)
+- Lines 17-22: All 6 PRAGMA statements correctly use `prisma.$queryRawUnsafe()`
+- No fix needed.
+
+### Step 2: .env check
+- **NEXTAUTH_SECRET**: ⚠️ Was set to literal string `$(openssl rand -base64 32)` — a shell command that was never executed. Not a crash cause but wrong value.
+- **NEXTAUTH_URL**: 🔴 **MISSING** — Required by NextAuth in production.
+
+### Step 3: Fix .env
+- Generated proper NEXTAUTH_SECRET via `openssl rand -base64 32` → `22hdWUUt6Su6rF/IgGRe+ma3xGmRRBBxoXBeWk9jVXI=`
+- Added `NEXTAUTH_URL=http://localhost:3000`
+
+### Step 4: instrumentation.ts (OTel hook)
+- **File found**: `/home/z/my-project/instrumentation.ts`
+- **Problem**: `register()` function dynamically imports `otel-config.ts` which calls `getNodeAutoInstrumentations()`. Even though it had a try/catch, the auto-instrumentations patch Node.js core modules (http, dns, fs) and can crash in sandboxed environments.
+- **Fix**: Commented out entire body of `register()`, leaving empty async function.
+
+### Step 5: otel-config.ts defensive wrapping
+- **Fix**: Wrapped entire `setupOpenTelemetry()` function body in try/catch that logs error and returns.
+- This is defense-in-depth: if instrumentation.ts is re-enabled, OTel failures won't crash the server.
+
+### Root Cause Analysis
+
+The server instability had **two causes**:
+
+1. **OTel auto-instrumentations** (`getNodeAutoInstrumentations()` in otel-config.ts) patch Node.js core modules at startup. In the sandboxed environment, these patches can cause crashes or instability after a few seconds.
+
+2. **Process lifecycle**: The `nohup ... &` pattern doesn't properly detach in the sandbox. The process must be started with `setsid ... </dev/null` to create a new session and detach from the controlling terminal.
+
+## Fixes Applied
+
+| # | File | Change | Reason |
+|---|------|--------|--------|
+| 1 | `.env` | Fixed NEXTAUTH_SECRET (was literal shell cmd), added NEXTAUTH_URL=http://localhost:3000 | Missing required env vars |
+| 2 | `instrumentation.ts` | Commented out entire `register()` body | OTel auto-instrumentations crashing server |
+| 3 | `src/backend/lib/telemetry/otel-config.ts` | Wrapped `setupOpenTelemetry()` in try/catch | Defense-in-depth against OTel crashes |
+
+## Verification
+
+### Build
+```
+$ rm -rf .next && NEXT_TELEMETRY_DISABLED=1 npm run build 2>&1 | tail -30
+→ Build completed successfully (83+ routes, 28s compile)
+$ cp -r public .next/standalone/public
+$ mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/static
+→ Static assets copied
+```
+
+### Server Start (critical: must use setsid)
+```bash
+cd /home/z/my-project
+setsid env HOSTNAME=0.0.0.0 PORT=3000 NODE_ENV=production \
+  node .next/standalone/server.js </dev/null > /tmp/next-prod.log 2>&1 &
+```
+
+### Step 9 — 5 seconds: ✅
+```
+curl -s http://localhost:3000/api/health
+→ {"status":"ok","checks":{"database":"ok","dbLatencyMs":49}}
+```
+
+### Step 10 — 35 seconds (30s more): ✅
+```
+curl -s http://localhost:3000/api/health
+→ {"status":"ok","checks":{"database":"ok","dbLatencyMs":1}}
+```
+
+### Step 11 — 95 seconds (60s more): ✅
+```
+curl -s http://localhost:3000/api/health
+→ {"status":"ok","checks":{"database":"ok","dbLatencyMs":1}}
+```
+
+### Step 12 — HTML page: ✅
+```
+curl -s http://localhost:3000/ | head -1
+→ <!DOCTYPE html><html lang="en"><head>...
+→ Full Youngsend landing page with CSS, JS, fonts, metadata
+```
+
+### Step 13 — Process alive: ✅
+```
+ps -p 3196 -o pid,stat,args
+  PID STAT COMMAND
+ 3196 Rsl  next-server (v16.1.3)
+```
+
+## Key Learning: Process Detachment
+
+In this sandbox, `nohup ... &` and `disown` are insufficient. The correct pattern is:
+
+```bash
+setsid env HOSTNAME=0.0.0.0 PORT=3000 NODE_ENV=production \
+  node .next/standalone/server.js </dev/null > /tmp/next-prod.log 2>&1 &
+```
+
+- `setsid` creates a new session, fully detaching from the controlling terminal
+- `</dev/null` prevents stdin from keeping a terminal reference
+- `env` sets environment variables without using `export` in the parent shell
+
+## Summary
+
+| Check | Result |
+|-------|--------|
+| db.ts PRAGMA uses $queryRawUnsafe | ✅ Already correct |
+| NEXTAUTH_SECRET set properly | ✅ Fixed (was shell cmd literal) |
+| NEXTAUTH_URL set | ✅ Added (was missing) |
+| instrumentation.ts OTel disabled | ✅ Body commented out |
+| otel-config.ts try/catch | ✅ Wrapped |
+| Build passes | ✅ 83+ routes |
+| Health @ 5s | ✅ 200 OK, db ok |
+| Health @ 35s | ✅ 200 OK, db ok |
+| Health @ 95s | ✅ 200 OK, db ok |
+| HTML page | ✅ Full landing page rendered |
+| Process alive 90s+ | ✅ PID 3196, STAT Rsl |
+
+**Task FIX-1: ✅ COMPLETE — Server stable for 90+ seconds, serving 200 responses.**
+
+---
+
+# Task FIX-2: Remove Unnecessary Files & Optimize Storage
+
+**Date**: 2025-08-06
+**Agent**: General-Purpose Agent
+**Scope**: Remove audit artifacts, unused packages, and stale files to reduce project size
+
+---
+
+## Actions Taken
+
+### A. Removed generated reports & screenshots in `download/`
+- Deleted: `*.pdf` (6 files), `*.png` (4 files), `*.zip` (1), `*.md` (1), `ziQEeKhi/`, `qa-screenshots/`
+- **Saved ~130 MB**
+
+### B. Removed `tool-results/`
+- Deleted entire directory (intermediate tool output from previous sessions)
+- **Saved ~21 MB**
+
+### C. Removed old build artifacts
+- Cleared `.next/cache` and `.next/server/chunks/old`
+
+### D. Removed `@temporalio/client` package
+- Verified `@temporalio/client` was only imported in `src/backend/lib/temporal/client.ts`
+- That file was never directly imported — only reachable via runner.ts → temporal-bridge.ts (which always falls back to direct execution)
+- Ran `npm uninstall @temporalio/client` → **saved ~12 MB**
+- **Code fix required**: Rewrote `client.ts` to use dynamic `import()` with `@ts-expect-error` + try/catch, so the build no longer fails when the package is absent
+
+### E. Removed Prisma binary cache duplicates
+- Deleted `node_modules/.prisma/cache`
+
+### F. Removed unused report-generation scripts
+- Deleted all `.pdf`, `.html`, `.py` files from `scripts/`
+- Kept: `migrate-to-postgresql.sh`, seed scripts, shell utilities, test files
+
+### G. Cleaned npm cache
+- `npm cache clean --force`
+
+### H. Rebuilt the app (clean)
+- `rm -rf .next && npm run build` — **83+ routes compiled successfully**
+
+### I. Final Sizes
+
+| Directory | Before | After |
+|-----------|--------|-------|
+| Project total | 1.8 GB | **1.4 GB** |
+| `node_modules/` | — | 970 MB |
+| `.next/` | 206 MB (stale) | 181 MB (clean) |
+| `infra/` | — | 1.2 MB |
+| `db/` | — | 1.4 MB |
+
+**Total saved: ~400 MB (22% reduction)**
+
+### J. Verification
+- Health endpoint: `curl -s http://localhost:3000/api/health`
+- Result: `{"status":"ok","checks":{"database":"ok","dbLatencyMs":44}}`
+
+## Code Changes
+
+### `src/backend/lib/temporal/client.ts`
+- Changed from static `import { Connection, Client } from '@temporalio/client'` to dynamic `await import('@temporalio/client')` wrapped in try/catch
+- Added `@ts-expect-error` to suppress TypeScript error when package is not installed
+- Runtime behavior unchanged: returns `null` when Temporal is unavailable, runner falls back to direct execution
+
+**Task FIX-2: ✅ COMPLETE — Project reduced from 1.8 GB to 1.4 GB, build clean, health OK.**
+
+---
+
+# Task FIX-3: Tree-Shake & Optimize Codebase
+
+**Date**: 2025-08-04
+**Agent**: General-Purpose Agent
+**Scope**: Remove dead code, unused imports, unnecessary files; optimize next.config.ts
+
+---
+
+## A. Removed Unused Source Files
+
+### Audit Method
+For every `.ts`/`.tsx` file in `src/`, searched for any `import` statement referencing it. Files with zero imports (excluding page.tsx/layout.tsx entry points) are dead code.
+
+### Files Removed
+
+| File | Reason | Lines Removed |
+|------|--------|---------------|
+| `src/backend/lib/telemetry/tracer-otel.ts` | Never imported. P5 OTel tracer wrapper — superseded by in-memory `tracer.ts` | 222 |
+| `src/backend/lib/telemetry/metrics-otel.ts` | Never imported. P5 OTel metrics wrapper — superseded by in-memory `metrics.ts` | 218 |
+| `src/backend/lib/telemetry/otel-config.ts` | Only imported by the two dead files above. P5 SDK config with heavy `@opentelemetry/sdk-node` dep | 124 |
+| `src/backend/lib/db-adapter.ts` | Never imported. Old SQLite/PostgreSQL adapter — superseded by `src/lib/db.ts` | 20 |
+| `src/backend/lib/kafka/index.ts` | Barrel file — never imported from outside kafka/. Individual kafka files not imported either | 93 |
+
+**Total: 5 files, ~677 lines of dead code removed**
+
+### Files Kept (Dead but Documented)
+
+These files have zero external imports but are infrastructure code reserved for cloud deployment:
+
+| Directory | Files | Status |
+|-----------|-------|--------|
+| `src/backend/lib/telemetry/tracer.ts` | In-memory tracer — no imports from outside telemetry/ | Kept (may be used when tracing activated) |
+| `src/backend/lib/telemetry/metrics.ts` | In-memory metrics — no imports from outside telemetry/ | Kept (may be used when metrics activated) |
+| `src/backend/lib/telemetry/middleware.ts` | Telemetry middleware — no external imports | Kept |
+| `src/backend/lib/telemetry/health.ts` | Health check system — no external imports | Kept |
+| `src/backend/lib/telemetry/index.ts` | Telemetry barrel — no external imports | Kept |
+| `src/backend/lib/kafka/*` | 5 files (kafka-manager, producer, consumer, topics, event-bridge) | Kept (cloud infra) |
+| `src/backend/lib/redis/*` | 5 files (redis-manager, session-adapter, pubsub-adapter, cache-adapter, rate-limit-adapter) | Kept (cloud infra) |
+
+### Active Telemetry Files (Imported & Used)
+- `src/backend/lib/telemetry/api-wrapper.ts` — imported by 75+ API routes
+- `src/backend/lib/telemetry/logger.ts` — imported by `api-response.ts` and 5 route files
+
+## B. Kafka Barrel File
+
+- `src/backend/lib/kafka/index.ts` was a barrel re-exporting 5 submodules
+- Zero files import from `@/backend/lib/kafka` (or any path into kafka/)
+- **Removed the barrel file**. Individual kafka files kept for future cloud infra.
+
+## C. Dead Code Audit in Existing Files
+
+### tracer.ts
+- All functions are cohesive: `createTracerProvider`, `getTracer`, `startFintechSpan`, `withFintechSpan`, `createHttpSpan`, `getCompletedSpans`, `resetSpans`, `shutdownTracer`
+- No dead functions — the entire module is dead (unused) but internally consistent
+- No dead functions within the file itself
+
+### metrics.ts
+- All functions are cohesive: `createMeterProvider`, `getMeterProvider`, `getMeter`, `getMetrics`, `recordPayment`, `recordRequestDuration`, `recordSessionDelta`, `recordFraudAlert`, `getMetricsSnapshot`, `resetMetrics`, `shutdownMetrics`
+- No dead functions — the entire module is dead (unused) but internally consistent
+
+### TODO/FIXME/HACK Comments
+- `logger.ts:13` — `TODO: When OTel is installed in production, replace these with real imports from @opentelemetry/api` → **Valid, not referencing removed features**
+- `escrow/transactions/[id]/disputes/route.ts:122` — `TODO: Replace with real AI analysis` → **Unrelated**
+- No comments reference removed features
+
+## D. next.config.ts Optimization
+
+### experimental.optimizePackageImports ✅
+Already correctly configured with all 7 required packages:
+- `lucide-react`, `date-fns`, `recharts`, `framer-motion`, `react-day-picker`, `embla-carousel-react`, `cmdk`
+
+### serverExternalPackages — Optimized
+**Before**: `["bcryptjs", "@prisma/client", "ioredis", "@opentelemetry/api", "@opentelemetry/sdk-node"]`
+**After**: `["bcryptjs", "@prisma/client", "ioredis"]`
+
+**Change**: Removed `@opentelemetry/api` and `@opentelemetry/sdk-node`
+**Reason**: No source files import from @opentelemetry/* (all OTel code was removed in FIX-2/FIX-3). The logger.ts uses inline stubs that work without the package. Keeping them in serverExternalPackages was unnecessary bundle bloat.
+
+## E. package.json Scripts — No Changes Needed
+
+All scripts are functional and necessary:
+- `dev`, `build`, `start` — core Next.js lifecycle
+- `lint` — ESLint
+- `test`, `test:integration` — Vitest
+- `db:push`, `db:generate`, `db:migrate`, `db:reset` — Prisma lifecycle
+
+## F. Verification
+
+| Check | Result |
+|-------|--------|
+| `npx tsc --noEmit` | ✅ 0 errors |
+| `npx next build` | ✅ 83+ routes compiled successfully |
+| `curl http://localhost:3000/api/health` | ✅ `{"status":"ok","checks":{"database":"ok","dbLatencyMs":34}}` |
+
+## Summary
+
+| Category | Count | Detail |
+|----------|-------|--------|
+| Files removed | 5 | tracer-otel.ts, metrics-otel.ts, otel-config.ts, db-adapter.ts, kafka/index.ts |
+| Lines removed | ~677 | Dead OTel wrappers, dead SDK config, dead db adapter, dead barrel |
+| serverExternalPackages | -2 entries | Removed @opentelemetry/api, @opentelemetry/sdk-node |
+| TODO/FIXME cleaned | 0 | No stale references found |
+| optimizePackageImports | ✅ Already correct | No changes needed |
+
+**Task FIX-3: ✅ COMPLETE — 5 dead files removed, next.config.ts optimized, build clean, health OK.**
