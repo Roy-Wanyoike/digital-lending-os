@@ -12,29 +12,18 @@ let _pragmaApplied = false
 async function applyPragmas(prisma: any) {
   if (_pragmaApplied) return
   try {
-    // WAL mode: enables concurrent reads while writing. Critical for API servers
-    // where many reads happen during a write operation.
-    await prisma.$executeRawUnsafe('PRAGMA journal_mode = WAL')
-    // NORMAL synchronous is safe with WAL: the WAL file itself provides crash recovery.
-    // Much faster than FULL (which fsyncs on every commit).
-    await prisma.$executeRawUnsafe('PRAGMA synchronous = NORMAL')
-    // 64MB page cache — keeps hot indexes and frequently-accessed rows in memory.
-    // Negative value = kilobytes; -64000 = ~64MB
-    await prisma.$executeRawUnsafe('PRAGMA cache_size = -64000')
-    // Temporary tables (used by GROUP BY, ORDER BY, etc.) live in RAM instead of disk.
-    await prisma.$executeRawUnsafe('PRAGMA temp_store = MEMORY')
-    // Memory-map up to 256MB of the database file for faster reads without going
-    // through the buffer cache syscall overhead.
-    await prisma.$executeRawUnsafe('PRAGMA mmap_size = 268435456')
-    // Use the WAL auto-checkpoint threshold of 1000 pages (default) to avoid
-    // excessive checkpoint I/O during bursty writes.
-    // Lower busy_timeout prevents "database is locked" errors in concurrent access.
-    await prisma.$executeRawUnsafe('PRAGMA busy_timeout = 5000')
+    // Use $queryRaw instead of $executeRawUnsafe — PRAGMAs return results in SQLite,
+    // which causes P2010 errors with $executeRawUnsafe.
+    await prisma.$queryRawUnsafe('PRAGMA journal_mode = WAL')
+    await prisma.$queryRawUnsafe('PRAGMA synchronous = NORMAL')
+    await prisma.$queryRawUnsafe('PRAGMA cache_size = -64000')
+    await prisma.$queryRawUnsafe('PRAGMA temp_store = MEMORY')
+    await prisma.$queryRawUnsafe('PRAGMA mmap_size = 268435456')
+    await prisma.$queryRawUnsafe('PRAGMA busy_timeout = 5000')
     _pragmaApplied = true
-  } catch (err) {
+  } catch (_err) {
     // Pragmas are best-effort — if they fail, the DB still works, just slower.
-    // This can happen if the DB file is read-only or in certain embedded scenarios.
-    console.warn('[db] Failed to apply SQLite PRAGMAs (non-critical):', err)
+    // Silently ignore — no console noise in production.
   }
 }
 
@@ -49,7 +38,7 @@ function getDb() {
     })
     if (process.env.NODE_ENV !== 'production') g.__prisma = _db
     // Apply PRAGMAs asynchronously — non-blocking for first request
-    applyPragmas(_db).catch(() => {})
+    applyPragmas(_db).catch(() => { /* best-effort */ })
   }
   return _db
 }
