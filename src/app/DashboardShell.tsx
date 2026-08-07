@@ -42,7 +42,6 @@ const TrustGraphTab = D(() => import('@/components/dashboard/TrustGraphTab').the
 const EscrowTab = D(() => import('@/components/dashboard/EscrowTab').then(m => ({ default: m.EscrowTab })))
 const PaymentsTab = D(() => import('@/components/dashboard/PaymentsTab').then(m => ({ default: m.PaymentsTab })))
 const PassportTab = D(() => import('@/components/dashboard/PassportTab').then(m => ({ default: m.PassportTab })))
-const DigitalTwinTab = D(() => import('@/components/dashboard/DigitalTwinTab').then(m => ({ default: m.DigitalTwinTab })))
 const PaymentLinksTab = D(() => import('@/components/dashboard/PaymentLinksTab').then(m => ({ default: m.PaymentLinksTab })))
 const WalletTab = D(() => import('@/components/dashboard/WalletTab').then(m => ({ default: m.WalletTab })))
 const FraudTab = D(() => import('@/components/dashboard/FraudTab').then(m => ({ default: m.FraudTab })))
@@ -58,7 +57,6 @@ const TAB_COMPONENTS: Record<string, React.ComponentType> = {
   'escrow': EscrowTab,
   'payments': PaymentsTab,
   'passport': PassportTab,
-  'digital-twin': DigitalTwinTab,
   'payment-links': PaymentLinksTab,
   'wallet': WalletTab,
   'referral': ReferralTab,

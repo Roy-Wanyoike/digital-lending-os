@@ -4,7 +4,7 @@ import React from 'react'
 import { format } from 'date-fns'
 import {
   LayoutDashboard, Network, Shield, ArrowLeftRight, IdCard as PassportIcon,
-  Brain, Link2, Wallet, ShieldAlert, UserCheck, BellRing, Scale,
+  Link2, Wallet, ShieldAlert, UserCheck, BellRing, Scale,
   ArrowUpRight, ArrowDownRight, Gift, AlertTriangle, RotateCcw,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -70,7 +70,6 @@ export interface Business {
   status: string; verifiedAt?: string; createdAt: string; updatedAt: string;
   passport?: { credentialLevel?: string; kycStatus?: string; amlStatus?: string; riskRating?: string } | null
   trustScore?: { overallScore?: number } | null
-  digitalTwin?: { healthScore?: number; growthTrajectory?: string; riskAppetite?: string } | null
 }
 
 // Matches /api/escrow/transactions response
@@ -119,18 +118,6 @@ export interface Verification {
   verifiedBy?: string | null; rejectionReason?: string | null;
   metadata?: string | null; createdAt: string; updatedAt: string;
   business?: { id: string; name: string; country: string; status: string } | null
-}
-
-// Matches /api/twin/profiles response
-export interface TwinProfile {
-  id: string; businessId: string; healthScore: number;
-  cashFlowHealth: number; riskAppetite: string;
-  creditWorthiness: number; liquidityScore: number;
-  growthTrajectory: string; aiModelVersion: string;
-  lastSyncAt?: string | null; createdAt: string; updatedAt: string;
-  business?: { id: string; name: string; country: string; industry: string } | null
-  metrics?: Array<{ period: string; periodDate: string; revenue?: number | null; expenses?: number | null; netIncome?: number | null; transactionCount?: number | null; paymentSuccessRate?: number | null }> | null
-  predictions?: Array<{ predictionType: string; timeframe: string; predictedValue: number; confidence: number }> | null
 }
 
 // Matches /api/payment-links response
@@ -288,34 +275,34 @@ function safeNum(score: unknown): number {
 
 export function getTrustScoreColor(score: number | undefined | null): string {
   const s = safeNum(score)
-  if (s >= 80) return 'text-emerald-600'
-  if (s >= 60) return 'text-amber-600'
-  if (s >= 40) return 'text-orange-600'
-  return 'text-red-600'
+  if (s >= 80) return 'text-emerald-600 dark:text-emerald-400'
+  if (s >= 60) return 'text-amber-600 dark:text-amber-400'
+  if (s >= 40) return 'text-orange-600 dark:text-orange-400'
+  return 'text-red-600 dark:text-red-400'
 }
 
 export function getTrustScoreBg(score: number | undefined | null): string {
   const s = safeNum(score)
-  if (s >= 80) return 'bg-emerald-500'
-  if (s >= 60) return 'bg-amber-500'
-  if (s >= 40) return 'bg-orange-500'
-  return 'bg-red-500'
+  if (s >= 80) return 'bg-emerald-500 dark:bg-emerald-600'
+  if (s >= 60) return 'bg-amber-500 dark:bg-amber-600'
+  if (s >= 40) return 'bg-orange-500 dark:bg-orange-600'
+  return 'bg-red-500 dark:bg-red-600'
 }
 
 export function getRiskColor(score: number | undefined | null): string {
   const s = safeNum(score)
-  if (s >= 80) return 'text-red-600'
-  if (s >= 60) return 'text-orange-600'
-  if (s >= 40) return 'text-amber-600'
-  return 'text-emerald-600'
+  if (s >= 80) return 'text-red-600 dark:text-red-400'
+  if (s >= 60) return 'text-orange-600 dark:text-orange-400'
+  if (s >= 40) return 'text-amber-600 dark:text-amber-400'
+  return 'text-emerald-600 dark:text-emerald-400'
 }
 
 export function getRiskBg(score: number | undefined | null): string {
   const s = safeNum(score)
-  if (s >= 80) return 'bg-red-500'
-  if (s >= 60) return 'bg-orange-500'
-  if (s >= 40) return 'bg-amber-500'
-  return 'bg-emerald-500'
+  if (s >= 80) return 'bg-red-500 dark:bg-red-600'
+  if (s >= 60) return 'bg-orange-500 dark:bg-orange-600'
+  if (s >= 40) return 'bg-amber-500 dark:bg-amber-600'
+  return 'bg-emerald-500 dark:bg-emerald-600'
 }
 
 export function truncate(str: string, len: number): string {
@@ -458,7 +445,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 }
 
 export const ROLE_TABS: Record<Role, string[]> = {
-  admin: ['overview', 'trust-graph', 'escrow', 'payments', 'passport', 'digital-twin', 'payment-links', 'wallet', 'referral', 'fraud', 'matching', 'collections', 'compliance'],
+  admin: ['overview', 'trust-graph', 'escrow', 'payments', 'passport', 'payment-links', 'wallet', 'referral', 'fraud', 'matching', 'collections', 'compliance'],
   buyer: ['overview', 'payments', 'payment-links', 'wallet', 'referral'],
   seller: ['overview', 'trust-graph', 'escrow', 'payment-links', 'wallet', 'referral'],
   auditor: ['overview', 'trust-graph', 'fraud', 'compliance', 'collections'],
@@ -471,7 +458,6 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'escrow', label: 'Escrow', icon: Shield },
   { id: 'payments', label: 'Payments', icon: ArrowLeftRight },
   { id: 'passport', label: 'Passport', icon: PassportIcon },
-  { id: 'digital-twin', label: 'Digital Twin', icon: Brain },
   { id: 'payment-links', label: 'Payment Links', icon: Link2 },
   { id: 'wallet', label: 'Wallet', icon: Wallet },
   { id: 'referral', label: 'Referral', icon: Gift },

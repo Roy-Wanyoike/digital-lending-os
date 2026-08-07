@@ -14,7 +14,6 @@ const TAB_PREFETCH_URLS: Record<string, string[]> = {
   'escrow': ['/api/escrow/transactions?limit=50'],
   'payments': ['/api/payments/intents?limit=15'],
   'passport': ['/api/businesses?limit=50', '/api/passport/verifications?limit=15'],
-  'digital-twin': ['/api/twin/profiles?limit=20'],
   'payment-links': ['/api/payment-links?limit=50'],
   'wallet': ['/api/businesses?limit=50', '/api/wallets/rates'],
   'referral': ['/api/referral'],

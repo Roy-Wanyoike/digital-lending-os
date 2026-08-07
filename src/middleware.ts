@@ -47,8 +47,14 @@ function checkRateLimit(ip: string, max: number = RL_MAX) {
  */
 const FINANCIAL_MUTATION_RE = [
   /^\/api\/wallets\/(deposit|withdrawal|crypto-withdrawal|convert)\/?(\?|$)/i,
-  /^\/api\/escrow\/transactions\/[^/]+\/(release|fund|disputes)\/?(\?|$)/i,
+  /^\/api\/escrow\/transactions\/[^/]+\/(release|fund|disputes|activate)\/?(\?|$)/i,
   /^\/api\/payments\/initialize/i,
+  /^\/api\/escrow\/transactions(\/|\?|$)/i,
+  /^\/api\/withdrawals(\/|\?|$)/i,
+  /^\/api\/deposits(\/|\?|$)/i,
+  /^\/api\/collections(\/|\?|$)/i,
+  /^\/api\/invoices(\/|\?|$)/i,
+  /^\/api\/payment-links\/[^/]+\/pay/i,
 ];
 
 function isFinancialMutation(pathname: string, method: string): boolean {

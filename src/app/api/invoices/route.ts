@@ -108,12 +108,6 @@ async function postHandler(req: NextRequest) {
     })
   } catch (e) { console.error('Event publish failed:', e) }
 
-  // ── Sync to search index ───────────────────────────────
-  try {
-    const { syncToSearch } = await import('@/backend/lib/search-helper')
-    await syncToSearch({ index: 'invoices', id: invoice.id, document: { ...invoice, _tenantId: user.tenantId } })
-  } catch (e) { console.error('Search sync failed:', e) }
-
   // ─── Audit trail ────────────────────────────────
   try {
     const { auditLog } = await import('@/backend/lib/audit-helper')

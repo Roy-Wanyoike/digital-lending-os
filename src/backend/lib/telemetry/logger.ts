@@ -2,26 +2,19 @@
  * Structured JSON Logger for Youngsend Fintech Platform
  *
  * Features:
- * - Automatic trace_id, span_id, trace_flags injection from active OpenTelemetry context
  * - ISO 8601 timestamps
  * - Structured fields: level, message, service, tenant_id, user_id
  * - Child loggers with bound context
  * - Console exporter for development, OTLP log exporter for production
  */
 
-// OTel trace-context stubs — safe no-ops when @opentelemetry/api is not installed.
-// TODO: When OTel is installed in production, replace these with real imports from
-// `@opentelemetry/api`. Avoiding dynamic import here to prevent circular dependency
-// with tracer.ts. The tracer.ts module now provides real in-memory tracing.
+// OTel trace-context stubs — safe no-ops when OTel is disabled.
+// When OTel is re-enabled, replace with real imports from @opentelemetry/api.
 const trace = {
   getSpan: (_ctx: unknown) => null as any,
-  getTracer: () => ({ startSpan: () => ({ end() {}, setAttribute() {}, setStatus() {}, recordException() {}, spanContext: () => null }) }),
 };
-const SpanStatusCode = { OK: 1, ERROR: 2 };
 const context = { active: () => ({}), with: (ctx: unknown, fn: () => unknown) => fn() };
-type Context = Record<string, unknown>;
 const diag = { instance: () => ({ debug: (_msg?: string) => {} }) };
-const DiagLogLevel = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
 
 // ─── Log Levels ────────────────────────────────────────────────────────────
 
