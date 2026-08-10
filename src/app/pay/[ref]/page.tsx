@@ -152,20 +152,21 @@ function PaymentCheckoutInner() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400 dark:text-slate-500" aria-hidden="true" />
+        <span className="sr-only">Loading payment page…</span>
       </div>
     )
   }
 
   if (error && !link) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardContent className="p-8 text-center">
-            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold mb-2">Payment Unavailable</h2>
-            <p className="text-sm text-slate-500">{error}</p>
+            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" aria-hidden="true" />
+            <h1 className="text-lg font-semibold mb-2">Payment Unavailable</h1>
+            <p className="text-sm text-muted-foreground" role="alert">{error}</p>
           </CardContent>
         </Card>
       </div>
@@ -173,29 +174,29 @@ function PaymentCheckoutInner() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-md">
+      <header className="border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-slate-900 flex items-center justify-center">
+            <div className="h-9 w-9 rounded-lg bg-emerald-600 flex items-center justify-center">
               <span className="text-white font-bold text-sm">YS</span>
             </div>
             <div>
-              <h1 className="font-semibold text-sm">Youngsend</h1>
-              <p className="text-xs text-slate-400">Secure Payment</p>
+              <p className="font-semibold text-sm text-foreground">Youngsend</p>
+              <p className="text-xs text-muted-foreground">Secure Payment</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <Shield className="h-4 w-4 text-emerald-500" />
-            <span className="text-xs text-slate-500">Secured by Youngsend Escrow</span>
+            <Shield className="h-4 w-4 text-emerald-500" aria-hidden="true" />
+            <span className="text-xs text-muted-foreground">Secured by Youngsend Escrow</span>
           </div>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main id="main-content" className="max-w-2xl mx-auto px-4 py-8">
         {cancelled && (
-          <div className="mb-6 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-700">
+          <div className="mb-6 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-sm text-amber-700 dark:text-amber-400" role="status">
             Payment was cancelled. You can try again below.
           </div>
         )}
@@ -206,8 +207,8 @@ function PaymentCheckoutInner() {
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h2 className="font-semibold text-lg">{link?.title || 'Payment'}</h2>
-                      {link?.description && <p className="text-sm text-slate-500 mt-1">{link.description}</p>}
+                      <h2 className="font-semibold text-lg text-foreground">{link?.title || 'Payment'}</h2>
+                      {link?.description && <p className="text-sm text-muted-foreground mt-1">{link.description}</p>}
                     </div>
                     {link?.currency && (
                       <span className="text-2xl">{CURRENCY_FLAGS[link.currency] || '\u{1F4B0}'}</span>
@@ -217,10 +218,10 @@ function PaymentCheckoutInner() {
                     <span className="text-3xl font-bold">
                       {link?.currency || 'USD'} {link?.amount === 0 ? '' : link?.amount?.toLocaleString()}
                     </span>
-                    {link?.amount === 0 && <span className="text-slate-400">Open amount</span>}
+                    {link?.amount === 0 && <span className="text-muted-foreground">Open amount</span>}
                   </div>
                   <Separator className="mb-4" />
-                  <div className="grid grid-cols-2 gap-4 text-sm text-slate-500">
+                  <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
                     <div>Ref: <span className="font-mono text-xs">{ref}</span></div>
                     <div>Status: <Badge variant="default">Active</Badge></div>
                   </div>
@@ -240,10 +241,11 @@ function PaymentCheckoutInner() {
                           <button
                             key={p.code}
                             onClick={() => setSelectedProvider(p.code)}
-                            className={`p-3 rounded-lg border-2 text-center transition-all ${selectedProvider === p.code ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:border-slate-300'}`}
+                            className={`p-3 rounded-lg border-2 text-center transition-all ${selectedProvider === p.code ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                            aria-pressed={selectedProvider === p.code}
                           >
                             <p className="text-sm font-medium">{p.name}</p>
-                            <p className="text-xs text-slate-400">{p.feePercent}% fee</p>
+                            <p className="text-xs text-muted-foreground">{p.feePercent}% fee</p>
                           </button>
                         ))}
                       </div>
@@ -251,7 +253,7 @@ function PaymentCheckoutInner() {
                   )}
 
                   {providers.length === 0 && (
-                    <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-400">
                       No payment providers configured. Payment will be recorded in demo mode.
                     </div>
                   )}
@@ -267,7 +269,8 @@ function PaymentCheckoutInner() {
                             <button
                               key={m}
                               onClick={() => setSelectedMethod(m)}
-                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-all ${selectedMethod === m ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 hover:border-slate-300'}`}
+                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm transition-all ${selectedMethod === m ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'}`}
+                              aria-pressed={selectedMethod === m}
                             >
                               <Icon className="h-4 w-4" />
                               <span>{m.replace(/_/g, ' ')}</span>
@@ -305,7 +308,7 @@ function PaymentCheckoutInner() {
 
                   {/* Error */}
                   {error && (
-                    <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600">
+                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-600 dark:text-red-400" role="alert">
                       {error}
                     </div>
                   )}
@@ -320,8 +323,8 @@ function PaymentCheckoutInner() {
                     {paying ? 'Processing...' : `Pay ${link?.currency || 'USD'} ${Number(payAmount).toLocaleString()}`}
                   </Button>
 
-                  <p className="text-xs text-center text-slate-400">
-                    <Shield className="h-3 w-3 inline mr-1" />
+                  <p className="text-xs text-center text-muted-foreground">
+                    <Shield className="h-3 w-3 inline mr-1" aria-hidden="true" />
                     Payments are secured and processed through our trusted providers
                   </p>
                 </CardContent>
@@ -334,7 +337,7 @@ function PaymentCheckoutInner() {
                     <>
                       <CheckCircle className="h-16 w-16 text-emerald-500 mx-auto mb-4" />
                       <h2 className="text-xl font-semibold mb-2">Redirecting to {payResult.providerName}...</h2>
-                      <p className="text-sm text-slate-500 mb-6">You will be redirected to complete your payment securely.</p>
+                      <p className="text-sm text-muted-foreground mb-6">You will be redirected to complete your payment securely.</p>
                       <Button onClick={() => window.location.href = payResult.checkoutUrl!}>
                         <ExternalLink className="h-4 w-4 mr-2" />Continue to Payment
                       </Button>
@@ -343,7 +346,7 @@ function PaymentCheckoutInner() {
                     <>
                       <CheckCircle className="h-16 w-16 text-emerald-500 mx-auto mb-4" />
                       <h2 className="text-xl font-semibold mb-2">Payment Recorded</h2>
-                      <p className="text-sm text-slate-500">Payment has been recorded in demo mode.</p>
+                      <p className="text-sm text-muted-foreground">Payment has been recorded in demo mode.</p>
                     </>
                   ) : null}
                 </CardContent>

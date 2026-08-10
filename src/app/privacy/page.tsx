@@ -10,7 +10,7 @@ export const metadata = {
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main id="main-content" className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <Button variant="ghost" size="sm" asChild className="mb-6">
           <Link href="/"><ArrowLeft className="h-4 w-4 mr-2" /> Back to Home</Link>
         </Button>
@@ -71,7 +71,7 @@ export default function PrivacyPage() {
             </p>
           </section>
         </div>
-      </div>
+      </main>
     </div>
   )
 }

@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, requireRole, AuthError } from '@/lib/auth/api-helpers'
+import { unauthorized, badRequest, forbidden, error as apiErr, created, ok } from '@/backend/lib/api-response'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const createComplianceRuleSchema = z.object({
@@ -16,7 +17,7 @@ const createComplianceRuleSchema = z.object({
 async function getHandler(request: NextRequest) {
   try {
     const user = await requireAuth(request)
-    if (!['admin', 'auditor'].includes(user.role)) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    if (!['admin', 'auditor'].includes(user.role)) return forbidden('Insufficient permissions')
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
@@ -44,19 +45,11 @@ async function getHandler(request: NextRequest) {
       db.complianceRule.count({ where }),
     ])
 
-    return NextResponse.json({
-      data: rules,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    })
+    return ok({ data: rules, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
   } catch (error) {
     console.error('Error listing compliance rules:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to list compliance rules' }, { status: 500 })
+    if (error instanceof AuthError) return unauthorized(error.message)
+    return apiErr('Failed to list compliance rules')
   }
 }
 
@@ -67,10 +60,8 @@ async function postHandler(request: NextRequest) {
     const parsed = createComplianceRuleSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      const messages = parsed.error.issues.map((i) => i.message).join(', ')
+      return badRequest(messages)
     }
 
     const data = parsed.data
@@ -80,11 +71,11 @@ async function postHandler(request: NextRequest) {
     try {
       parsedCondition = JSON.parse(data.condition)
     } catch {
-      return NextResponse.json({ error: 'Condition must be a valid JSON string' }, { status: 400 })
+      return badRequest('Condition must be a valid JSON string')
     }
 
     if (typeof parsedCondition !== 'object' || parsedCondition === null || Array.isArray(parsedCondition)) {
-      return NextResponse.json({ error: 'Condition must be a JSON object' }, { status: 400 })
+      return badRequest('Condition must be a JSON object')
     }
 
     const rule = await db.complianceRule.create({
@@ -100,11 +91,11 @@ async function postHandler(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ data: rule }, { status: 201 })
+    return created(rule)
   } catch (error) {
     console.error('Error creating compliance rule:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to create compliance rule' }, { status: 500 })
+    if (error instanceof AuthError) return unauthorized(error.message)
+    return apiErr('Failed to create compliance rule')
   }
 }
 

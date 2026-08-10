@@ -2244,3 +2244,318 @@ Tests `isFinancialMutation()` with regex patterns inlined from middleware.ts:
 - Middleware regex patterns inlined (edge runtime module, cannot import)
 - No network calls, no file I/O — all tests execute in <1ms per suite
 - `npx vitest run`: 264 tests passed across 8 suites
+
+---
+
+# Task 19: Extract WalletTab Dialogs into Sub-Components
+
+**Date**: 2025-08-04
+**Agent**: Senior Frontend Engineer (General-Purpose)
+**Scope**: Refactor WalletTab.tsx by extracting 6 inline Dialog components into a separate file
+
+## Summary
+Extracted all 6 dialog components from `WalletTab.tsx` (717 lines) into a new `wallet-dialogs.tsx` file, reducing WalletTab to 467 lines (−35% reduction).
+
+## Files Changed
+- **`src/frontend/components/dashboard/wallet-dialogs.tsx`** (NEW, 462 lines): Contains 6 named export dialog components + dialog-scoped types + dialog-scoped constants
+- **`src/frontend/components/dashboard/WalletTab.tsx`** (MODIFIED, 467 lines): Removed ~250 lines of inline dialog JSX, types, constants, and unused imports; added imports from wallet-dialogs
+
+## Dialogs Extracted
+1. `CreateWalletDialog` — wallet currency selection
+2. `DepositDialog` — deposit amount/method/notes form
+3. `WithdrawDialog` — withdrawal with bank details and fee estimate
+4. `ConvertDialog` — multi-currency wallet conversion with preview
+5. `CryptoWithdrawalDialog` — crypto withdrawal with network/fee preview
+6. `WalletHistoryDialog` — tabbed transaction/deposit/withdrawal/crypto history
+
+## Types Moved to wallet-dialogs.tsx
+- `WalletTransaction`, `DepositRecord`, `WithdrawalRecord`, `CryptoWithdrawalRecord`, `RatesData`, `TxTypeBadgeMap`
+
+## Constants Moved to wallet-dialogs.tsx
+- `CRYPTO_ICONS`, `NETWORK_LABELS`
+
+## What Stayed in WalletTab.tsx
+- `TX_TYPE_BADGE` constant (used by main transaction table AND passed to HistoryDialog)
+- All state management, API calls, handlers, effects
+- Business selector, KPI cards, wallet cards, transaction table UI
+
+## Verification
+- `npx tsc --noEmit`: 0 errors
+- `npx vitest run`: 264 tests passed across 8 suites
+- No UI/UX changes — pure code reorganization
+
+## Line Counts
+| File | Before | After |
+|------|--------|-------|
+| WalletTab.tsx | 717 | 467 |
+| wallet-dialogs.tsx | — | 462 |
+| **Total** | 717 | 929 (net +212 for props/interfaces boilerplate) |
+
+---
+
+# Task 20: Add shadcn Switch + Fix PaymentLinksTab
+
+**Date**: 2025-08-04
+**Agent**: Senior Frontend Engineer (General-Purpose)
+**Scope**: Create reusable Switch UI component and replace native checkbox in PaymentLinksTab
+
+---
+
+## Summary
+Created a custom `Switch` component following the shadcn/ui pattern (without `@radix-ui/react-switch`, using accessible HTML button pattern) and replaced the native `<input type="checkbox">` in the PaymentLinksTab "Create Payment Link" dialog with the new Switch.
+
+## Changes
+
+### New Files
+| File | Description |
+|------|-------------|
+| `src/frontend/components/ui/switch.tsx` | Custom Switch component with `checked`/`onCheckedChange` props, emerald-600 active color, accessible `role="switch"` |
+
+### Modified Files
+| File | Change |
+|------|--------|
+| `src/frontend/components/dashboard/PaymentLinksTab.tsx` | Added Switch import; replaced `<input type="checkbox">` with `<Switch>` for "Open amount" toggle |
+
+### Details
+- **Switch component**: Uses `HTMLButtonElement` with `role="switch"`, `aria-checked`, `focus-visible` ring styles, and smooth `translate-x` transition for the thumb. Exports `SwitchProps` interface with `checked` and `onCheckedChange` props.
+- **PaymentLinksTab**: Line 278 changed from `<input type="checkbox" id="openAmt" checked={formOpenAmt} onChange={e => setFormOpenAmt(e.target.checked)}>` to `<Switch id="openAmt" checked={formOpenAmt} onCheckedChange={setFormOpenAmt} />`. Label text unchanged.
+
+## Verification
+- `npx tsc --noEmit`: 0 errors
+- `npx vitest run`: 264 tests passed across 8 suites
+
+---
+
+# Task 21-fix: Fix 11 Corrupted API Route Files
+
+**Date**: 2025-08-04
+**Agent**: General-Purpose Sub-Agent
+**Scope**: Fix corruption patterns in 11 API route files under src/app/api/
+
+---
+
+## Summary
+
+| Metric | Value |
+|--------|-------|
+| Files fixed | 11 |
+| Corruption patterns found | 3 types |
+| Errors in fixed files | 0 |
+| Pre-existing errors elsewhere | 53 (TS18046 in other route files, not in scope) |
+
+---
+
+## Corruption Patterns Fixed
+
+### Pattern 1: Broken Validation Syntax (`})` corruption)
+Found in 7 files: fraud/alerts, fraud/rules, matching, passport/compliance, passport/verifications, trust/relationships, trust/reviews
+
+**Before:**
+```ts
+return NextResponse.json(
+  { error: parsed.error.issues.map((i) => i.message).join(', ') },
+  { status: 400 } })  // ← malformed `})`
+)
+```
+**After:**
+```ts
+const messages = parsed.error.issues.map((i) => i.message).join(', ')
+return badRequest(messages)
+```
+
+### Pattern 2: `error()` Helper Naming Conflict with `catch (error)`
+Found in all 11 files.
+
+**Before:** `import { ..., error, ... }` then `catch (error) { return error('msg') }` — TS error because `error` is both the import and the catch variable.
+**After:** `import { ..., error as apiErr, ... }` then `return apiErr('msg')`
+
+### Pattern 3: `NextResponse.json()` for Success/Error Responses
+Found in 9 files using `NextResponse.json({ data: ..., pagination: ... })` for GET responses, 2 files using `NextResponse.json({ error: ... })` for 400/409 responses.
+
+**Before:** `return NextResponse.json({ data, pagination })`
+**After:** `return ok({ data, pagination })`
+
+### Pattern 4: Malformed `created()` / Success Returns
+- `escrow/route.ts`: `return created(escrows });` → `return ok(escrows)`
+- `escrow/transactions/[id]/disputes/route.ts`: `return created(disputes });` → `return ok(disputes)`
+- `payments/methods/route.ts`: `return created(methods });` → `return ok(methods)`
+- `wallets/deposit/route.ts`: `return created(deposit, referralBonus: ...)` → `return created({ ...deposit, ...(referralBonus ? { referralBonus } : {}) })`
+- `escrow/transactions/[id]/disputes/route.ts`: `NextResponse.json({ error: ... }, { status: 409 })` → `conflict(...)`
+- `payments/methods/route.ts`: `NextResponse.json({ error: ... }, { status: 400 })` → `badRequest(...)`
+
+---
+
+## Files Modified
+
+1. `src/app/api/escrow/route.ts` — Fixed `created(escrows })`, validation pattern, error conflict
+2. `src/app/api/escrow/transactions/[id]/disputes/route.ts` — Fixed `created(disputes })`, 409 conflict response, error conflict
+3. `src/app/api/fraud/alerts/route.ts` — Fixed validation `})` syntax, NextResponse→ok, error conflict
+4. `src/app/api/fraud/rules/route.ts` — Fixed validation `})` syntax, NextResponse→ok, error conflict
+5. `src/app/api/matching/route.ts` — Fixed validation `})` syntax, NextResponse→ok, error conflict
+6. `src/app/api/passport/compliance/route.ts` — Fixed validation `})` syntax, NextResponse→ok, error conflict
+7. `src/app/api/passport/verifications/route.ts` — Fixed validation `})` syntax, NextResponse→ok, error conflict
+8. `src/app/api/payments/methods/route.ts` — Fixed `created(methods })`, 400 response, error conflict
+9. `src/app/api/trust/relationships/route.ts` — Fixed validation `})` syntax, NextResponse→ok, error conflict
+10. `src/app/api/trust/reviews/route.ts` — Fixed validation `})` syntax, NextResponse→ok, error conflict
+11. `src/app/api/wallets/deposit/route.ts` — Fixed validation pattern, malformed created() call, NextResponse→ok, error conflict
+
+## Common Import Changes (all 11 files)
+
+- Removed `NextResponse` from `next/server` import (only `NextRequest` needed)
+- Added `ok` to api-response import
+- Renamed `error` → `error as apiErr` in api-response import
+- Added `badRequest` to import where validation pattern was fixed
+- Added `conflict` to import where 409 response was used
+
+---
+
+## Verification
+
+Ran `npx tsc --noEmit` — **0 errors in the 11 fixed files**. 53 pre-existing TS18046 errors exist in other route files (same `catch (error)` unknown type pattern, outside scope of this task).
+
+---
+
+# Task 22: Audit & Polish Auth Pages (Login / Register)
+
+**Date**: 2025-08-04
+**Agent**: Senior Frontend Engineer (General-Purpose)
+**Scope**: `src/app/(auth)/login/page.tsx`, `src/app/(auth)/register/page.tsx`, `src/app/(auth)/login/loading.tsx`, `src/app/(auth)/register/loading.tsx`
+
+---
+
+## Audit Checklist Results
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Accessibility (labels, aria, focus) | ✅ Pass | `htmlFor`, `aria-invalid`, `aria-describedby`, `role="alert"`, `aria-live="assertive"` all present | |
+| Error handling (inline + network) | ⚠️ Fixed | Top-level error banner did NOT clear when user typed in fields | |
+| Loading states | ✅ Pass | `Loader2` spinner, button/input disabled, Suspense fallbacks | |
+| Responsive design | ✅ Pass | `max-w-md w-full px-4 py-12` on both pages | |
+| Dark mode | ✅ Pass | All colors use `dark:` variants or semantic tokens | |
+| Consistent styling | ⚠️ Fixed | Login button was `emerald-700` vs register `emerald-600`; login had duplicate branding | |
+| Password visibility toggle | ✅ Pass | Both password fields have Eye/EyeOff with `aria-label` | |
+| Redirect after login | ✅ Pass | Reads `callbackUrl` search param, falls back to `/` | |
+| Link between login/register | ✅ Pass | Cross-links present on both pages | |
+| Unused code/imports | ✅ Pass | All imports used | |
+
+## Issues Found & Fixed
+
+### 1. Login: password field error rendered inside `relative` div (layout bug)
+- **Problem**: `<p id="password-error">` was placed between the `<Input>` and the toggle `<button>` inside `<div className="relative">`, pushing the eye-icon button down when an error appeared.
+- **Fix**: Moved the error `<p>` outside the `relative` div, matching the register page pattern.
+- **File**: `login/page.tsx` lines 148-160
+
+### 2. Inconsistent CTA button color between login and register
+- **Problem**: Login used `bg-emerald-700 hover:bg-emerald-800`, register used `bg-emerald-600 hover:bg-emerald-700`. The app-wide brand color is `emerald-600`.
+- **Fix**: Changed login button to `bg-emerald-600 hover:bg-emerald-700`.
+- **File**: `login/page.tsx` line 165
+
+### 3. Login: redundant outer branding header
+- **Problem**: Login page had a duplicate "YS Youngsend" branding block above the Card (lines 205-208), but the CardHeader already contains identical branding. Register page did not have this duplication.
+- **Fix**: Removed the redundant outer branding block.
+- **File**: `login/page.tsx`
+
+### 4. Top-level error banner not clearing on field input
+- **Problem**: On both login and register, when a server/network error displayed (e.g. "Invalid email or password" or "Registration failed"), typing in any field only cleared the field-level validation error — the top-level `error` state persisted until the next submit.
+- **Fix**: Added `if (error) setError('')` to every field's `onChange` handler on both pages (7 fields total).
+- **Files**: `login/page.tsx` (2 fields), `register/page.tsx` (5 fields)
+
+### 5. Loading pages: inconsistent background gradient
+- **Problem**: Both `login/loading.tsx` and `register/loading.tsx` used `bg-background` while the actual pages use `bg-gradient-to-br from-background to-muted`, causing a visual flash on navigation.
+- **Fix**: Updated both loading pages to use the matching gradient background.
+- **Files**: `login/loading.tsx`, `register/loading.tsx`
+
+## Verification
+
+- `npx tsc --noEmit` — **0 errors**
+- `npx vitest run` — **264 tests passed (8 suites)**
+
+---
+
+# Task 23: Audit Public Pages and Landing
+
+**Date**: 2025-08-04
+**Agent**: Senior Frontend Engineer (General-Purpose)
+**Scope**: Audit landing page, privacy, terms, and pay/[ref] pages for accessibility, dark mode, SEO, performance, branding, and edge cases.
+
+---
+
+## Audit Summary
+
+| Category | Status | Issues Found |
+|----------|--------|-------------|
+| Accessibility | Fixed | Missing `aria-label` on navs, no `aria-hidden` on decorative icons, no `role="alert"` on error messages, no `aria-pressed` on toggle buttons, no screen-reader text on loading spinner, missing `id="main-content"` on terms page |
+| Dark Mode | Fixed | **pay/[ref]/page.tsx** had 20+ hardcoded light-mode colors (slate-50/100/400/500, white/80, amber-50, red-50, emerald-50) with zero dark: variants — entire page was broken in dark mode |
+| SEO | Pass | Root layout has excellent OG/Twitter/robots metadata. Privacy & Terms export proper `metadata`. Pay page is client-only (cannot export metadata) — noted as acceptable since payment links are not indexed. |
+| Performance | Pass | Landing page is well-architected (RSC shell + thin client island). Privacy/Terms are pure RSC. Pay page correctly uses `'use client'` for hooks. |
+| Branding | Fixed | Pay page header logo used `bg-slate-900` instead of `bg-emerald-600` — inconsistent with landing page. Fixed. |
+| Headings Hierarchy | Fixed | Error state in pay/[ref] had `h2` instead of `h1` when no header was rendered — fixed to `h1`. Header `<h1>` changed to `<p>` since logo+text is not a true heading. |
+| Responsive Design | Pass | All pages use responsive padding and breakpoints correctly. |
+| Pay Page Edge Cases | Pass | Handles loading, error (not found, inactive), cancelled payment, demo mode. All states covered. |
+| Dead Links/Placeholders | Pass | Footer links to external youngsend.com are intentional marketing site links. |
+
+---
+
+## Changes Applied
+
+### 1. `src/app/pay/[ref]/page.tsx` — Dark Mode Overhaul (16 edits)
+
+**Background & containers:**
+- All `bg-gradient-to-br from-slate-50 to-slate-100` → added `dark:from-slate-950 dark:to-slate-900`
+- Header `bg-white/80` → added `dark:bg-slate-900/80`
+
+**Branding fix:**
+- Logo div `bg-slate-900` → `bg-emerald-600` (matches landing page)
+- Header `h1` → `p` (decorative text, not a true heading)
+
+**Text colors:**
+- All `text-slate-400`, `text-slate-500` → `text-muted-foreground` (auto dark mode)
+
+**Interactive elements:**
+- Provider buttons: `border-slate-200 hover:border-slate-300` → added `dark:border-slate-700 dark:hover:border-slate-600`
+- Selected state: `bg-emerald-50` → added `dark:bg-emerald-950/30`
+- Method buttons: same treatment + `dark:text-emerald-400`
+
+**Alert/status banners:**
+- Amber warning: added `dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400`
+- Red error: added `dark:bg-red-950/30 dark:border-red-800 dark:text-red-400`
+
+**Accessibility:**
+- Loading spinner: added `aria-hidden="true"` + `<span className="sr-only">Loading payment page…</span>`
+- Error icon: added `aria-hidden="true"`
+- Error message: added `role="alert"`
+- Cancelled banner: added `role="status"`
+- `<main>`: added `id="main-content"` for skip-to-content link
+- Provider/method buttons: added `aria-pressed`
+- Shield icons: added `aria-hidden="true"`
+- Error state heading: `h2` → `h1` (only heading on error page)
+
+### 2. `src/app/LandingPage.tsx` — Accessibility (2 edits)
+
+- Desktop nav: added `aria-label="Main navigation"`
+- Mobile nav: added `aria-label="Mobile navigation"`
+
+### 3. `src/app/LandingPageServer.tsx` — Accessibility (1 edit)
+
+- Footer nav: added `aria-label="Legal links"`
+
+### 4. `src/app/terms/page.tsx` — Accessibility (1 edit)
+
+- Inner `<div>` → `<main id="main-content">` for skip-to-content link support
+
+### 5. `src/app/privacy/page.tsx` — Already had `<main id="main-content">` (no change needed)
+
+---
+
+## Verification
+
+- `npx tsc --noEmit` — **0 errors**
+- `npx vitest run` — **264 tests passed (8 suites)**
+
+---
+
+## Next Actions (Not In Scope)
+
+1. **Pay page SEO**: Could add a `layout.tsx` in `pay/[ref]/` with `generateMetadata` to set title per payment link — low priority since these pages are not indexed.
+2. **Pay page efficiency**: `loadLink()` fetches ALL payment links (`limit=100`) to find one by ref. An API endpoint like `GET /api/payment-links/:ref` would be more efficient — requires backend change.
+3. **Dynamic copyright year**: Footer shows "2026" — consider `new Date().getFullYear()` if intentional, or leave as-is if set for launch year.

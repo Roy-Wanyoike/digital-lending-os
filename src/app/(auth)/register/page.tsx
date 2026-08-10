@@ -197,7 +197,7 @@ function RegisterPageInner() {
                 type="text"
                 placeholder="Your company or organization"
                 value={tenantName}
-                onChange={(e) => { setTenantName(e.target.value); if (fieldErrors.tenantName) setFieldErrors(prev => ({ ...prev, tenantName: undefined })) }}
+                onChange={(e) => { setTenantName(e.target.value); if (fieldErrors.tenantName) setFieldErrors(prev => ({ ...prev, tenantName: undefined })); if (error) setError('') }}
                 required
                 disabled={loading}
                 autoComplete="organization"
@@ -215,7 +215,7 @@ function RegisterPageInner() {
                 type="text"
                 placeholder="John Doe"
                 value={ownerName}
-                onChange={(e) => { setOwnerName(e.target.value); if (fieldErrors.ownerName) setFieldErrors(prev => ({ ...prev, ownerName: undefined })) }}
+                onChange={(e) => { setOwnerName(e.target.value); if (fieldErrors.ownerName) setFieldErrors(prev => ({ ...prev, ownerName: undefined })); if (error) setError('') }}
                 required
                 disabled={loading}
                 autoComplete="name"
@@ -233,7 +233,7 @@ function RegisterPageInner() {
                 type="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })) }}
+                onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })); if (error) setError('') }}
                 required
                 disabled={loading}
                 autoComplete="email"
@@ -252,7 +252,7 @@ function RegisterPageInner() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="At least 8 characters, with uppercase, lowercase & digit"
                   value={password}
-                  onChange={(e) => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(prev => ({ ...prev, password: undefined })) }}
+                  onChange={(e) => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(prev => ({ ...prev, password: undefined })); if (error) setError('') }}
                   required
                   minLength={8}
                   disabled={loading}
@@ -282,7 +282,7 @@ function RegisterPageInner() {
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="Repeat your password"
                   value={confirmPassword}
-                  onChange={(e) => { setConfirmPassword(e.target.value); if (fieldErrors.confirmPassword) setFieldErrors(prev => ({ ...prev, confirmPassword: undefined })) }}
+                  onChange={(e) => { setConfirmPassword(e.target.value); if (fieldErrors.confirmPassword) setFieldErrors(prev => ({ ...prev, confirmPassword: undefined })); if (error) setError('') }}
                   required
                   disabled={loading}
                   autoComplete="new-password"

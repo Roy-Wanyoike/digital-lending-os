@@ -108,7 +108,7 @@ function LoginForm() {
               type="email"
               placeholder="you@example.com"
               value={email}
-              onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })) }}
+              onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })); if (error) setError('') }}
               required
               disabled={loading}
               autoComplete="email"
@@ -137,7 +137,7 @@ function LoginForm() {
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Enter your password"
                 value={password}
-                onChange={(e) => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(prev => ({ ...prev, password: undefined })) }}
+                onChange={(e) => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors(prev => ({ ...prev, password: undefined })); if (error) setError('') }}
                 required
                 disabled={loading}
                 autoComplete="current-password"
@@ -145,9 +145,6 @@ function LoginForm() {
                 aria-invalid={!!fieldErrors.password}
                 aria-describedby={fieldErrors.password ? 'password-error' : undefined}
               />
-              {fieldErrors.password && (
-                <p id="password-error" className="text-sm text-red-600 dark:text-red-400 mt-1">{fieldErrors.password}</p>
-              )}
               {/* V3: Password visibility toggle */}
               <button
                 type="button"
@@ -158,11 +155,14 @@ function LoginForm() {
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+            {fieldErrors.password && (
+              <p id="password-error" className="text-sm text-red-600 dark:text-red-400">{fieldErrors.password}</p>
+            )}
           </div>
           {/* H1: Deeper, authoritative CTA */}
           <Button
             type="submit"
-            className="w-full bg-emerald-700 hover:bg-emerald-800 text-white h-11 text-base font-semibold"
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-11 text-base font-semibold"
             disabled={loading || !email || !password}
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -201,11 +201,6 @@ export default function LoginPage() {
       >
         ← Back to home
       </Link>
-      {/* V3: Login page header branding */}
-      <div className="mb-8 flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600 text-white font-bold text-[10px]">YS</div>
-        <span className="text-sm font-semibold text-muted-foreground">Youngsend</span>
-      </div>
       <Suspense fallback={
         <Card className="w-full max-w-md shadow-lg">
           <CardContent className="p-12 text-center">

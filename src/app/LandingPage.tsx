@@ -20,7 +20,7 @@ export function ClientBanner() {
   return (
     <>
       {/* Desktop nav — sign-in buttons */}
-      <nav className="hidden sm:flex items-center gap-4">
+      <nav aria-label="Main navigation" className="hidden sm:flex items-center gap-4">
         <a href="https://youngsend.com" className="text-sm text-muted-foreground hover:text-foreground transition-colors">About</a>
         <a href="https://youngsend.com/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Pricing</a>
         <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => signIn()}>Sign In</Button>
@@ -34,7 +34,7 @@ export function ClientBanner() {
 
       {/* Mobile nav drawer */}
       {mobileNavOpen && (
-        <nav className="sm:hidden border-t bg-card px-4 py-3 space-y-3">
+        <nav aria-label="Mobile navigation" className="sm:hidden border-t bg-card px-4 py-3 space-y-3">
           <a href="https://youngsend.com" className="block text-sm text-muted-foreground hover:text-foreground transition-colors" onClick={() => setMobileNavOpen(false)}>About</a>
           <a href="https://youngsend.com/pricing" className="block text-sm text-muted-foreground hover:text-foreground transition-colors" onClick={() => setMobileNavOpen(false)}>Pricing</a>
           <div className="flex gap-2 pt-1">

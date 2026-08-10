@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireRole, AuthError } from '@/lib/auth/api-helpers'
+import { unauthorized, notFound, badRequest, error as apiErr, created, ok } from '@/backend/lib/api-response'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const createScreeningSchema = z.object({
@@ -40,7 +41,7 @@ function generateMockResult(): { result: string; riskLevel: string; details: str
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized()
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
@@ -63,7 +64,7 @@ async function getHandler(request: NextRequest) {
     if (businessId) {
       // Ensure the requested businessId belongs to the tenant
       if (!tenantBizIds.includes(businessId)) {
-        return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+        return notFound('Business not found')
       }
       where.businessId = businessId
     }
@@ -82,19 +83,11 @@ async function getHandler(request: NextRequest) {
       db.complianceScreening.count({ where }),
     ])
 
-    return NextResponse.json({
-      data: screenings,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    })
+    return ok({ data: screenings, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
   } catch (error) {
     console.error('Error listing compliance screenings:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to list compliance screenings' }, { status: 500 })
+    if (error instanceof AuthError) return unauthorized(error.message)
+    return apiErr('Failed to list compliance screenings')
   }
 }
 
@@ -105,10 +98,8 @@ async function postHandler(request: NextRequest) {
     const parsed = createScreeningSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      const messages = parsed.error.issues.map((i) => i.message).join(', ')
+      return badRequest(messages)
     }
 
     const data = parsed.data
@@ -116,7 +107,7 @@ async function postHandler(request: NextRequest) {
     // Validate businessId belongs to tenant
     const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+      return notFound('Business not found')
     }
 
     const mockResult = generateMockResult()
@@ -135,11 +126,11 @@ async function postHandler(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ data: screening }, { status: 201 })
+    return created(screening)
   } catch (error) {
     console.error('Error creating compliance screening:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to create compliance screening' }, { status: 500 })
+    if (error instanceof AuthError) return unauthorized(error.message)
+    return apiErr('Failed to create compliance screening')
   }
 }
 

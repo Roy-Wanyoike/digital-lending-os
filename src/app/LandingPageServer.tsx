@@ -67,7 +67,7 @@ export function LandingPage() {
               <div className="flex h-6 w-6 items-center justify-center rounded bg-emerald-600 text-white font-bold text-[10px]">YS</div>
               <span className="text-sm font-medium text-foreground">Youngsend</span>
             </div>
-            <nav className="flex items-center gap-6 text-xs text-muted-foreground">
+            <nav aria-label="Legal links" className="flex items-center gap-6 text-xs text-muted-foreground">
               <Link href="/terms" prefetch={false} className="hover:text-foreground transition-colors">Terms of Service</Link>
               <Link href="/privacy" prefetch={false} className="hover:text-foreground transition-colors">Privacy Policy</Link>
               <a href="https://youngsend.com/contact" className="hover:text-foreground transition-colors">Contact</a>

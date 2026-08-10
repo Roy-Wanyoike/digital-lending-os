@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { useApi } from '@/hooks/use-api'
@@ -275,7 +276,7 @@ export function PaymentLinksTab() {
             </div>
             <div className="space-y-2"><Label>Title</Label><Input placeholder="e.g. Q4 Invoice Payment" value={formTitle} onChange={e => setFormTitle(e.target.value)} /></div>
             <div className="flex items-center gap-2">
-              <input type="checkbox" id="openAmt" checked={formOpenAmt} onChange={e => setFormOpenAmt(e.target.checked)} className="rounded" />
+              <Switch id="openAmt" checked={formOpenAmt} onCheckedChange={setFormOpenAmt} />
               <Label htmlFor="openAmt" className="text-sm">Open amount (payer decides)</Label>
             </div>
             {!formOpenAmt && (
