@@ -679,6 +679,7 @@ export function WalletTab() {
                   {txns.map(tx => { const isC = ['credit','transfer_in','refund','deposit'].includes(tx.type); return (
                     <TableRow key={tx.id}><TableCell className="font-mono text-xs">{tx.txRef}</TableCell><TableCell><Badge variant={TX_TYPE_BADGE[tx.type]?.variant || 'secondary'}>{TX_TYPE_BADGE[tx.type]?.label || tx.type}</Badge></TableCell><TableCell className={`text-right ${isC ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{isC ? '+' : '-'}{formatCurrency(tx.amount, tx.currency)}</TableCell><TableCell>{formatCurrency(tx.balanceAfter, tx.currency)}</TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(tx.createdAt)}</TableCell></TableRow>
                   )})}
+                  {txns.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No transactions yet</TableCell></TableRow>}
                 </TableBody></Table>
               </TabsContent>
               <TabsContent value="deposits" className="mt-0">
@@ -686,6 +687,7 @@ export function WalletTab() {
                   {deposits.map(d => (
                     <TableRow key={d.id}><TableCell className="font-mono text-xs">{d.depositRef}</TableCell><TableCell>{d.paymentMethod}{d.provider ? ` (${d.provider})` : ''}</TableCell><TableCell className="text-right text-emerald-600 dark:text-emerald-400">+{formatCurrency(d.amount, d.currency)}</TableCell><TableCell><Badge variant={d.status === 'completed' ? 'default' : 'secondary'}>{d.status}</Badge></TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(d.createdAt)}</TableCell></TableRow>
                   ))}
+                  {deposits.length === 0 && <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No deposits yet</TableCell></TableRow>}
                 </TableBody></Table>
               </TabsContent>
               <TabsContent value="withdrawals" className="mt-0">
@@ -693,6 +695,7 @@ export function WalletTab() {
                   {withdrawals.map(w => (
                     <TableRow key={w.id}><TableCell className="font-mono text-xs">{w.withdrawalRef}</TableCell><TableCell className="text-xs max-w-[150px] truncate">{w.bankName || w.recipientName || w.paymentMethod}</TableCell><TableCell className="text-right text-red-600 dark:text-red-400">-{formatCurrency(w.amount, w.currency)}</TableCell><TableCell className="text-right text-red-400 dark:text-red-300">{formatCurrency(w.feeAmount, w.currency)}</TableCell><TableCell><Badge variant={w.status === 'completed' ? 'default' : 'secondary'}>{w.status}</Badge></TableCell><TableCell className="text-xs text-muted-foreground">{formatDate(w.createdAt)}</TableCell></TableRow>
                   ))}
+                  {withdrawals.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No withdrawals yet</TableCell></TableRow>}
                 </TableBody></Table>
               </TabsContent>
               <TabsContent value="crypto" className="mt-0">
@@ -700,6 +703,7 @@ export function WalletTab() {
                   {cryptoWdrs.map(c => (
                     <TableRow key={c.id}><TableCell className="font-mono text-xs">{c.withdrawalRef}</TableCell><TableCell>{CRYPTO_ICONS[c.cryptoCurrency] || ''} {c.cryptoCurrency}</TableCell><TableCell className="text-right text-red-600 dark:text-red-400">-{formatCurrency(c.amount, c.currency)}</TableCell><TableCell className="text-right">{c.cryptoAmount?.toFixed(6) || '—'}</TableCell><TableCell><Badge variant="outline" className="text-[10px]">{c.network}</Badge></TableCell><TableCell><Badge variant={c.status === 'completed' ? 'default' : 'secondary'}>{c.status}</Badge></TableCell></TableRow>
                   ))}
+                  {cryptoWdrs.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No crypto withdrawals yet</TableCell></TableRow>}
                 </TableBody></Table>
               </TabsContent>
             </div>

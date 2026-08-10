@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { useApi } from '@/hooks/use-api'
 import {
@@ -211,7 +212,21 @@ export function PaymentLinksTab() {
       {/* Detail Dialog */}
       <Dialog open={!!selectedLink || detailLoading} onOpenChange={(open) => { if (!open) setSelectedLink(null) }}>
         <DialogContent className="max-w-lg">
-          {detailLoading && <p className="text-center py-8 text-muted-foreground">Loading...</p>}
+          {detailLoading && (
+              <div className="space-y-4 py-2">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-3 w-32" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1"><Skeleton className="h-3 w-12" /><Skeleton className="h-5 w-20" /></div>
+                  <div className="space-y-1"><Skeleton className="h-3 w-16" /><Skeleton className="h-5 w-20" /></div>
+                  <div className="space-y-1"><Skeleton className="h-3 w-12" /><Skeleton className="h-5 w-16" /></div>
+                  <div className="space-y-1"><Skeleton className="h-3 w-16" /><Skeleton className="h-5 w-20" /></div>
+                </div>
+                <Skeleton className="h-px w-full" />
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            )}
           {selectedLink && (
             <>
               <DialogHeader>

@@ -6,12 +6,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import {
   useApi, getStatusBadgeVariant, getStatusColor, getRiskBg, getRiskColor,
   truncate, FRAUD_SEVERITIES, FRAUD_STATUSES, PipelineCard, LoadingSkeleton, ErrorState, formatDate,
-  type FraudAlert, type FraudRule,
+  type FraudAlert, type FraudRule, type Business,
 } from '@/lib/dashboard-helpers'
 
 export function FraudTab() {
   const { data: alerts, loading: aLoading, error: alertsError, refetch: refetchAlerts } = useApi<FraudAlert[]>('/api/fraud/alerts?limit=20')
   const { data: rules, loading: rLoading, error: rulesError, refetch: refetchRules } = useApi<FraudRule[]>('/api/fraud/rules')
+  const { data: businesses } = useApi<Business[]>('/api/businesses?limit=100')
 
   // Retry both data sources on error
   const handleRetry = () => {
@@ -29,6 +30,7 @@ export function FraudTab() {
 
   const allAlerts = alerts || []
   const allRules = rulesAccessDenied ? [] : (rules || [])
+  const bizMap = new Map(businesses?.map(b => [b.id, b.name]))
 
   const severityCounts = FRAUD_SEVERITIES.map(s => ({
     severity: s,
@@ -97,7 +99,7 @@ export function FraudTab() {
                         <span className={`text-xs font-medium ${getRiskColor(a.score)}`}>{a.score}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-[100px] truncate">{a.businessId ? a.businessId.slice(0, 8) + '...' : '—'}</TableCell>
+                    <TableCell className="max-w-[100px] truncate">{bizMap.get(a.businessId ?? '') || a.businessId?.slice(0, 8) + '...' || '—'}</TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(a.status)} className={getStatusColor(a.status)}>{a.status}</Badge></TableCell>
                     <TableCell className="max-w-[150px] truncate text-xs">{truncate(a.description, 40)}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{formatDate(a.createdAt)}</TableCell>

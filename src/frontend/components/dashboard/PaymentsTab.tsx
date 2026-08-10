@@ -14,13 +14,19 @@ import {
 } from '@/lib/dashboard-helpers'
 
 export function PaymentsTab() {
-  const { data: intents, loading: iLoading, error: intentsError } = useApi<PaymentIntent[]>('/api/payments/intents?limit=15')
-  const { data: rates, loading: rLoading, error: ratesError } = useApi<ExchangeRate[]>('/api/payments/rates')
-  const { data: methods, loading: mLoading, error: methodsError, refetch } = useApi<PaymentMethod[]>('/api/payment-methods/global')
+  const { data: intents, loading: iLoading, error: intentsError, refetch: refetchIntents } = useApi<PaymentIntent[]>('/api/payments/intents?limit=15')
+  const { data: rates, loading: rLoading, error: ratesError, refetch: refetchRates } = useApi<ExchangeRate[]>('/api/payments/rates')
+  const { data: methods, loading: mLoading, error: methodsError, refetch: refetchMethods } = useApi<PaymentMethod[]>('/api/payment-methods/global')
   const [methodFilter, setMethodFilter] = useState('All')
 
+  const handleRetry = () => {
+    refetchIntents()
+    refetchRates()
+    refetchMethods()
+  }
+
   if (iLoading || rLoading || mLoading) return <LoadingSkeleton />
-  if (intentsError || ratesError || methodsError) return <ErrorState message={intentsError || ratesError || methodsError || ''} onRetry={refetch} />
+  if (intentsError || ratesError || methodsError) return <ErrorState message={intentsError || ratesError || methodsError || ''} onRetry={handleRetry} />
 
   const allIntents = intents || []
   const allRates = rates || []

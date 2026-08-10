@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Shield, Plus, Eye, DollarSign, Play, ChevronRight, AlertTriangle, CheckCircle, Clock, X, CreditCard } from 'lucide-react'
+import { Shield, Plus, Eye, DollarSign, Play, ChevronRight, AlertTriangle, CheckCircle, Clock, CreditCard } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Label } from '@/components/ui/label'
 
 import { toast } from 'sonner'
@@ -282,16 +283,15 @@ export function EscrowTab() {
       </Card>
 
       {/* Detail Drawer */}
-      {selectedTxn && (
-          <div className="fixed inset-0 z-50 flex justify-end animate-fade-in">
-            <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedId(null)} />
-            <div className="relative w-full max-w-xl bg-background shadow-xl h-full overflow-y-auto border-l animate-slide-in-right">
-              <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold">{selectedTxn.txRef}</h3>
-                  <p className="text-xs text-muted-foreground">{formatDate(selectedTxn.createdAt)}</p>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => setSelectedId(null)} aria-label="Close details"><X className="h-4 w-4" /></Button>
+      <Sheet open={selectedId !== null} onOpenChange={(open) => { if (!open) setSelectedId(null) }}>
+        <SheetContent side="right" className="w-full max-w-xl overflow-y-auto gap-0 p-0 sm:max-w-xl">
+          {selectedTxn && (
+            <>
+              <div className="sticky top-0 z-10 bg-background border-b px-6 py-4 pr-10">
+                <SheetHeader className="p-0 gap-0">
+                  <SheetTitle>{selectedTxn.txRef}</SheetTitle>
+                  <SheetDescription>{formatDate(selectedTxn.createdAt)}</SheetDescription>
+                </SheetHeader>
               </div>
               <div className="p-6 space-y-6">
                 {/* Status & Amount */}
@@ -362,9 +362,10 @@ export function EscrowTab() {
                   <div><p className="text-muted-foreground">Refunded</p><p>{formatCurrency(selectedTxn.refundedAmount ?? 0, selectedTxn.currency)}</p></div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Fund Dialog */}
       <Dialog open={fundOpen} onOpenChange={setFundOpen}>
