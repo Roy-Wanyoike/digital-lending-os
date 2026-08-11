@@ -86,7 +86,7 @@ function generateIntentRef(): string {
 }
 
 // ── GET: List payment intents ───────────────────────────────
-async function getHandler(request: NextRequest) {
+async function getHandler(request: NextRequest, _ctx?: { params?: Promise<Record<string, string>> }) {
   try {
     const user = await getApiUser(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
@@ -146,7 +146,7 @@ async function getHandler(request: NextRequest) {
 }
 
 // ── POST: Create payment intent (inner handler, wrapped with idempotency) ──
-async function createPaymentIntent(request: NextRequest) {
+async function createPaymentIntent(request: NextRequest, _ctx?: { params?: Promise<Record<string, string>> }) {
   try {
     const user = await requireAuth(request);
 
@@ -282,6 +282,8 @@ async function createPaymentIntent(request: NextRequest) {
 }
 
 // ── Wrap POST with payment idempotency guard ──────────────
-export const POST = withPaymentIdempotency(createPaymentIntent);
+export async function POST(request: NextRequest) {
+  return withPaymentIdempotency(createPaymentIntent)(request);
+}
 
 export const GET = withApiTelemetry(getHandler, '/api/payments/intents');

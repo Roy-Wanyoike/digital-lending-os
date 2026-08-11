@@ -14,7 +14,7 @@ import { NextResponse } from 'next/server'
 
 type RouteHandler = (
   request: NextRequest,
-  ctx?: { params?: Promise<Record<string, string>> },
+  ctx?: { params?: Promise<Record<string, string>> } | undefined,
 ) => Promise<NextResponse>
 
 // ── withPaymentIdempotency ────────────────────────────────────────

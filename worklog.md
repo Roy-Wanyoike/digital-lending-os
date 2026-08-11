@@ -2601,3 +2601,35 @@ Stage Summary:
 - 2 routes migrated to standard envelope: payment-links pay, payments initialize
 - 3 loading.tsx files fixed for dark mode
 - 1 client-side error extraction hardened for envelope format
+
+---
+Task ID: 26
+Agent: Main Agent
+Task: Production build, standalone optimization, and runtime verification
+
+Work Log:
+- Fixed Next.js 16 webpack build type error in payments/intents/route.ts (RouteContext second arg)
+- Fixed withApiTelemetry wrapper: changed from `handler.length >= 2` check to always forwarding context (fixes dynamic route params being undefined)
+- Added images.unoptimized=true to next.config.ts (eliminates sharp dependency at runtime)
+- Expanded serverExternalPackages to include sharp, typescript, all OTel packages, ioredis, redis-parser
+- Created scripts/slim-standalone.sh post-build script that safely removes 53MB of unused packages
+- Verified standalone server starts and all endpoints work:
+  - GET /api/health → 200 OK (2ms DB latency)
+  - GET /api/ready → 200 connected
+  - GET / → 200 (26KB landing page)
+  - GET /login → 200 (17KB login page)
+  - GET /terms → 200 (22KB)
+  - GET /privacy → 200 (22KB)
+  - GET /api/wallets (no auth) → 401 Authentication required
+  - GET /api/payment-links/ref/PL-99999 → 404 Payment link not found
+  - Security headers: X-Frame-Options DENY, X-Content-Type-Options nosniff, Referrer-Policy, HSTS, XSS protection
+
+Stage Summary:
+- Build: webpack (Turbopack doesn't generate standalone properly in N16)
+- Raw standalone: 98MB
+- After slimming: 45MB standalone + 2.7MB static = 48MB deployment bundle
+- Size breakdown: 18MB Next.js framework + 18MB Prisma engine + 10MB app code + 2MB static
+- TypeScript: 0 errors
+- Tests: 264/264 passed (8 suites)
+- All endpoints verified working in production standalone mode
+- Irreducible minimum ~36MB (Next.js 18MB + Prisma 18MB) — cannot reach 40MB total with SQLite Prisma engine

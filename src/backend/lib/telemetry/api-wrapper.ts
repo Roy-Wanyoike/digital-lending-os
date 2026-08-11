@@ -146,10 +146,8 @@ export function withApiTelemetry(
     const method = req.method;
 
     try {
-      // C) Call the handler — forward context only if the handler accepts 2 args
-      const response = handler.length >= 2
-        ? await handler(req, context)
-        : await handler(req);
+      // C) Call the handler — always forward context (it may be undefined for static routes, which is fine)
+      const response = await handler(req, context);
 
       // D) Calculate duration
       const durationMs = performance.now() - startTime;

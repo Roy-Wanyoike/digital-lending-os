@@ -25,15 +25,37 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Keep native/heavy packages external to the server bundle
-  serverExternalPackages: ["bcryptjs", "@prisma/client", "ioredis"],
+  // Keep native/heavy packages external to the server bundle.
+  // sharp: 33MB of native image libs — not needed (no server-side image optimization)
+  // typescript: 8.8MB — only needed at build time, never at runtime
+  // @prisma/client: uses external engine, keep external
+  // ioredis/redis-parser: optional, external
+  // @opentelemetry: telemetry, external
+  serverExternalPackages: [
+    "sharp",
+    "@img/sharp",
+    "@img/sharp-libvips-linux-x64",
+    "@img/sharp-libvips-linuxmusl-x64",
+    "typescript",
+    "bcryptjs",
+    "@prisma/client",
+    "ioredis",
+    "redis-parser",
+    "@opentelemetry/api",
+    "@opentelemetry/sdk-node",
+    "@opentelemetry/auto-instrumentations-node",
+    "@opentelemetry/exporter-trace-otlp-http",
+    "@opentelemetry/resource-detector-aws",
+    "@opentelemetry/resource-detector-azure",
+    "@opentelemetry/resource-detector-gcp",
+    "@opentelemetry/resource-detector-container",
+  ],
 
-  // Image optimization: prefer modern formats, limit generated sizes
-  // NOTE: remotePatterns was previously set to hostname: "**" which allowed
-  // any HTTPS origin — a security risk. Tightened to an explicit allow-list.
-  // If new external image hosts are needed, add them here.
+  // Image optimization: unoptimized mode avoids bundling 33MB sharp native libs.
+  // This is the single biggest bundle size win. AVIF/WebP generation
+  // can be offloaded to a CDN or image proxy in production.
   images: {
-    formats: ["image/avif", "image/webp"],
+    unoptimized: true,
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
     remotePatterns: [
@@ -41,8 +63,6 @@ const nextConfig: NextConfig = {
       // { protocol: "https", hostname: "cdn.youngsend.com" },
       // { protocol: "https", hostname: "youngsend.com" },
     ],
-    // Fallback: unoptimized is false by default, which is correct.
-    // next/image will serve AVIF/WebP with lazy-loading automatically.
     minimumCacheTTL: 60,
   },
 
