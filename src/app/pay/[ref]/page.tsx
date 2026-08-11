@@ -24,7 +24,6 @@ interface PaymentLinkData {
   amount: number
   currency: string
   status: string
-  businessId: string
   maxPayments: number
   paymentCount: number
   totalCollected: number
@@ -96,10 +95,10 @@ function PaymentCheckoutInner() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/payment-links?limit=100`)
+      const res = await fetch('/api/payment-links/ref/' + encodeURIComponent(ref))
       const json = await res.json()
-      const found = (json.data || []).find((l: any) => l.linkRef === ref)
-      if (!found) { setError('Payment link not found'); return }
+      if (!res.ok) { setError(json.error?.message || 'Payment link not found'); return }
+      const found = json.data as PaymentLinkData
       if (found.status !== 'active') { setError(`This payment link is ${found.status}`); return }
       setLink(found)
       if (found.amount > 0) setPayAmount(String(found.amount))
@@ -138,7 +137,7 @@ function PaymentCheckoutInner() {
         body: JSON.stringify(body),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Payment failed')
+      if (!res.ok) throw new Error(json.error?.message || json.error || 'Payment failed')
       const data = json.data
       if (data?.checkoutUrl) {
         setPayResult({ checkoutUrl: data.checkoutUrl, providerName: data.providerName })

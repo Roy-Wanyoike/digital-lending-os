@@ -91,6 +91,7 @@ function isBadBot(ua: string): boolean {
 function isPublicPath(p: string): boolean {
   if (p === '/api/health' || p === '/api/ready') return true;
   if (p.startsWith('/api/auth/')) return true;
+  if (/^\/api\/payment-links\/ref\//.test(p)) return true;
   if (/^\/api\/payment-links\/[^/]+\/pay/.test(p)) return true;
   if (p.startsWith('/api/payments/webhooks/')) return true;
   return false;

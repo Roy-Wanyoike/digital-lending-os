@@ -2559,3 +2559,45 @@ Ran `npx tsc --noEmit` — **0 errors in the 11 fixed files**. 53 pre-existing T
 1. **Pay page SEO**: Could add a `layout.tsx` in `pay/[ref]/` with `generateMetadata` to set title per payment link — low priority since these pages are not indexed.
 2. **Pay page efficiency**: `loadLink()` fetches ALL payment links (`limit=100`) to find one by ref. An API endpoint like `GET /api/payment-links/:ref` would be more efficient — requires backend change.
 3. **Dynamic copyright year**: Footer shows "2026" — consider `new Date().getFullYear()` if intentional, or leave as-is if set for launch year.
+
+---
+## Task ID: 24
+## Agent: Main Agent
+## Task: Add public payment-link ref lookup endpoint + update pay page
+
+## Summary
+Created a new public API endpoint `GET /api/payment-links/ref/[ref]` that performs an O(1) lookup by `linkRef` without requiring authentication. Updated the pay page to use this endpoint instead of fetching all payment links and filtering client-side. Updated middleware to mark the new path as public.
+
+## Files Changed
+- **`src/app/api/payment-links/ref/[ref]/route.ts`** (NEW) — Public GET handler; uses `db.paymentLink.findUnique({ where: { linkRef: ref } })` with a `select` for only public-safe fields (`id`, `linkRef`, `title`, `description`, `amount`, `currency`, `status`, `maxPayments`, `paymentCount`, `totalCollected`). Returns 404 via `notFound()` when not found. No auth required. Wrapped with `withErrorHandler` and `withApiTelemetry`.
+- **`src/middleware.ts`** — Added `if (/^\/api\/payment-links\/ref\//.test(p)) return true;` to `isPublicPath()` before the existing `pay` endpoint check.
+- **`src/app/pay/[ref]/page.tsx`** — Changed `loadLink()` fetch URL from `/api/payment-links?limit=100` to `/api/payment-links/ref/` + encoded ref. Replaced array-find logic with direct `json.data` extraction. Added `if (!res.ok)` guard that reads `json.error?.message`. Removed `businessId` from the `PaymentLinkData` interface since the public endpoint no longer exposes it.
+
+## Verification
+- `npx tsc --noEmit` exited with code 0 — no type errors.
+
+---
+Task ID: 25
+Agent: Main Agent
+Task: Sprint 3 — API envelope consistency, public endpoint, dark mode fixes
+
+Work Log:
+- Created public GET /api/payment-links/ref/[ref] endpoint (O(1) lookup by linkRef, no auth, only 10 public-safe fields)
+- Updated middleware isPublicPath() to allow /api/payment-links/ref/ without auth
+- Updated pay/[ref]/page.tsx to use new endpoint instead of fetching all 100 links
+- Fixed dynamic copyright year in LandingPageServer.tsx (hardcoded 2026 → new Date().getFullYear())
+- Migrated payment-links/[id]/pay/route.ts to standard api-response helpers (validationError/notFound/badRequest/ok/apiErr + withErrorHandler)
+- Migrated payments/initialize/route.ts to standard api-response helpers (validationError/badRequest/ok/apiErr + withErrorHandler)
+- Fixed pay/[ref]/page.tsx error extraction to handle standard envelope (json.error?.message || json.error)
+- Fixed dark mode on withdrawals/loading.tsx and conversion/loading.tsx spinners
+- Fixed dark mode on pay/[ref]/loading.tsx (background + spinner borders)
+- Skipped pay page generateMetadata (payment links are not indexed, low ROI)
+- Note: ~45 routes still use raw NextResponse.json — webhooks (legitimate), dashboard/batch (internal), and others already handled by use-api.ts dual-format parsing
+
+Stage Summary:
+- TypeScript: 0 errors
+- Tests: 264/264 passed (8 suites)
+- New API endpoint: GET /api/payment-links/ref/[ref] (public, O(1))
+- 2 routes migrated to standard envelope: payment-links pay, payments initialize
+- 3 loading.tsx files fixed for dark mode
+- 1 client-side error extraction hardened for envelope format

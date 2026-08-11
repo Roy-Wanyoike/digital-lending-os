@@ -72,7 +72,7 @@ export function LandingPage() {
               <Link href="/privacy" prefetch={false} className="hover:text-foreground transition-colors">Privacy Policy</Link>
               <a href="https://youngsend.com/contact" className="hover:text-foreground transition-colors">Contact</a>
             </nav>
-            <p className="text-xs text-muted-foreground">2026 Youngsend. All rights reserved.</p>
+            <p className="text-xs text-muted-foreground">{new Date().getFullYear()} Youngsend. All rights reserved.</p>
           </div>
         </div>
       </footer>
