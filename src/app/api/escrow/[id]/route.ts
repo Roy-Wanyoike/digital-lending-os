@@ -1,16 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 import { eventBus } from '@/backend/services/event-bus';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, conflict, error, forbidden, notFound, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 async function getHandler(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await getApiUser(req);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (!user) return unauthorized('Authentication required');
     const { id } = await params;
 
     const escrow = await db.escrowTransaction.findFirst({
@@ -27,12 +28,10 @@ async function getHandler(
       },
     });
 
-    if (!escrow) return NextResponse.json({ error: 'Escrow transaction not found' }, { status: 404 });
-    return NextResponse.json({ data: escrow });
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    console.error('Escrow GET by ID error:', error);
-    return NextResponse.json({ error: 'Failed to fetch escrow transaction' }, { status: 500 });
+    if (!escrow) return notFound('Escrow transaction not found');
+    return ok(escrow);
+  } catch (error: any) {console.error('Escrow GET by ID error:', error);
+    return error('Failed to fetch escrow transaction');
   }
 }
 
@@ -60,14 +59,11 @@ async function patchHandler(
       },
     });
 
-    if (!escrow) return NextResponse.json({ error: 'Escrow transaction not found' }, { status: 404 });
+    if (!escrow) return notFound('Escrow transaction not found');
 
     if (action === 'release') {
       if (escrow.status !== 'in_escrow') {
-        return NextResponse.json(
-          { error: `Cannot release escrow with status '${escrow.status}'. Only 'in_escrow' escrows can release funds.` },
-          { status: 409 }
-        );
+        return conflict(`Cannot release escrow with status '${escrow.status}'. Only 'in_escrow' escrows can release funds.`);
       }
       if (user.role !== 'admin') {
         // Verify user's business is the buyer for this escrow
@@ -76,7 +72,7 @@ async function patchHandler(
           select: { id: true },
         });
         if (!userBusiness || escrow.buyerId !== userBusiness.id) {
-          return NextResponse.json({ error: 'Only buyer or admin can release funds' }, { status: 403 });
+          return forbidden('Only buyer or admin can release funds');
         }
       }
       const updated = await db.escrowTransaction.update({
@@ -94,15 +90,12 @@ async function patchHandler(
         console.error('[escrow.updated] emit failed:', err);
       }
 
-      return NextResponse.json({ data: updated });
+      return ok(updated);
     }
 
     if (action === 'dispute') {
       if (!['in_escrow', 'funded'].includes(escrow.status)) {
-        return NextResponse.json(
-          { error: `Cannot dispute escrow with status '${escrow.status}'. Only 'in_escrow' or 'funded' escrows can be disputed.` },
-          { status: 409 }
-        );
+        return conflict(`Cannot dispute escrow with status '${escrow.status}'. Only 'in_escrow' or 'funded' escrows can be disputed.`);
       }
       const updated = await db.escrowTransaction.update({
         where: { id },
@@ -117,17 +110,15 @@ async function patchHandler(
         },
       });
 
-      return NextResponse.json({ data: updated });
+      return ok(updated);
     }
 
-    return NextResponse.json({ error: 'Invalid action. Use "release" or "dispute"' }, { status: 400 });
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    console.error('Escrow PATCH error:', error);
-    return NextResponse.json({ error: 'Failed to update escrow transaction' }, { status: 500 });
+    return badRequest('Invalid action. Use "release" or "dispute"');
+  } catch (error: any) {console.error('Escrow PATCH error:', error);
+    return error('Failed to update escrow transaction');
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/escrow/[id]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/escrow/[id]');
 
-export const PATCH = withApiTelemetry(patchHandler, '/api/escrow/[id]');
+export const PATCH = withApiTelemetry(withErrorHandler(patchHandler), '/api/escrow/[id]');

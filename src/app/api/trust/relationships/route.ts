@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, conflict, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const createRelationshipSchema = z.object({
   fromBusinessId: z.string().min(1, 'fromBusinessId is required'),
   toBusinessId: z.string().min(1, 'toBusinessId is required'),
@@ -15,7 +15,7 @@ const createRelationshipSchema = z.object({
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
@@ -73,8 +73,7 @@ async function getHandler(request: NextRequest) {
       db.businessRelationship.count({ where }),
     ])
 
-    return NextResponse.json({
-      data: relationships,
+    return ok(relationships, {
       pagination: {
         page,
         limit,
@@ -82,10 +81,9 @@ async function getHandler(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     })
-  } catch (error) {
-    console.error('Error listing relationships:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to list relationships' }, { status: 500 })
+  } catch (err: any) {
+    console.error('Error listing relationships:', err)
+    return error('Failed to list relationships')
   }
 }
 
@@ -96,19 +94,13 @@ async function postHandler(request: NextRequest) {
     const parsed = createRelationshipSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const { fromBusinessId, toBusinessId, type } = parsed.data
 
     if (fromBusinessId === toBusinessId) {
-      return NextResponse.json(
-        { error: 'Cannot create a relationship with the same business' },
-        { status: 400 }
-      )
+      return badRequest('Cannot create a relationship with the same business')
     }
 
     // Check both businesses exist and belong to tenant
@@ -118,10 +110,10 @@ async function postHandler(request: NextRequest) {
     ])
 
     if (!fromBusiness || fromBusiness.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'From business not found' }, { status: 404 })
+      return notFound('From business not found')
     }
     if (!toBusiness) {
-      return NextResponse.json({ error: 'To business not found' }, { status: 404 })
+      return notFound('To business not found')
     }
 
     const relationship = await db.businessRelationship.create({
@@ -140,20 +132,15 @@ async function postHandler(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ data: relationship }, { status: 201 })
-  } catch (error: unknown) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-      return NextResponse.json(
-        { error: 'This relationship already exists' },
-        { status: 409 }
-      )
+    return created(relationship)
+  } catch (error: any) {if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
+      return conflict('This relationship already exists')
     }
     console.error('Error creating relationship:', error)
-    return NextResponse.json({ error: 'Failed to create relationship' }, { status: 500 })
+    return error('Failed to create relationship')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/trust/relationships');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/trust/relationships');
 
-export const POST = withApiTelemetry(postHandler, '/api/trust/relationships');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/trust/relationships');

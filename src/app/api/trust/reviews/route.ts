@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const createReviewSchema = z.object({
   fromBusinessId: z.string().min(1, 'fromBusinessId is required'),
   toBusinessId: z.string().min(1, 'toBusinessId is required'),
@@ -19,7 +19,7 @@ const createReviewSchema = z.object({
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
@@ -56,8 +56,7 @@ async function getHandler(request: NextRequest) {
       db.review.count({ where }),
     ])
 
-    return NextResponse.json({
-      data: reviews,
+    return ok(reviews, {
       pagination: {
         page,
         limit,
@@ -65,10 +64,9 @@ async function getHandler(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     })
-  } catch (error) {
-    console.error('Error listing reviews:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to list reviews' }, { status: 500 })
+  } catch (err: any) {
+    console.error('Error listing reviews:', err)
+    return error('Failed to list reviews')
   }
 }
 
@@ -79,19 +77,13 @@ async function postHandler(request: NextRequest) {
     const parsed = createReviewSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const { fromBusinessId, toBusinessId, rating, comment, escrowId, paymentRating, deliveryRating, qualityRating, communicationRating } = parsed.data
 
     if (fromBusinessId === toBusinessId) {
-      return NextResponse.json(
-        { error: 'Cannot review your own business' },
-        { status: 400 }
-      )
+      return badRequest('Cannot review your own business')
     }
 
     // Check both businesses exist and reviewer belongs to tenant
@@ -101,10 +93,10 @@ async function postHandler(request: NextRequest) {
     ])
 
     if (!fromBusiness || fromBusiness.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Reviewer business not found' }, { status: 404 })
+      return notFound('Reviewer business not found')
     }
     if (!toBusiness) {
-      return NextResponse.json({ error: 'Reviewed business not found' }, { status: 404 })
+      return notFound('Reviewed business not found')
     }
 
     // Create the review
@@ -154,14 +146,12 @@ async function postHandler(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ data: review }, { status: 201 })
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error('Error creating review:', error)
-    return NextResponse.json({ error: 'Failed to create review' }, { status: 500 })
+    return created(review)
+  } catch (error: any) {console.error('Error creating review:', error)
+    return error('Failed to create review')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/trust/reviews');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/trust/reviews');
 
-export const POST = withApiTelemetry(postHandler, '/api/trust/reviews');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/trust/reviews');

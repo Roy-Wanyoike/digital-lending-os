@@ -202,9 +202,9 @@ export default function ConversionPage() {
               <h2 className="text-lg font-semibold mb-6">Convert Currency</h2>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>From *</Label>
+                  <Label htmlFor="fromWallet">From *</Label>
                   <Select value={fromWalletId} onValueChange={(v) => { setFromWalletId(v); setQuote(null); setFormErrors({}); }}>
-                    <SelectTrigger><SelectValue placeholder="Select source wallet" /></SelectTrigger>
+                    <SelectTrigger id="fromWallet"><SelectValue placeholder="Select source wallet" /></SelectTrigger>
                     <SelectContent>
                       {safeWallets.map(w => (
                         <SelectItem key={w.id} value={w.id}>{CURRENCY_FLAGS[w.currency] || '💰'} {w.currency} — {formatCurrency(w.balance, w.currency)}</SelectItem>
@@ -214,15 +214,15 @@ export default function ConversionPage() {
                   {formErrors.fromWalletId && <p className="text-xs text-destructive">{formErrors.fromWalletId}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>Amount *</Label>
-                  <Input type="number" min="0.01" step="0.01" placeholder="Enter amount" value={amount} onChange={(e) => { setAmount(e.target.value); setQuote(null); }} />
+                  <Label htmlFor="amount">Amount *</Label>
+                  <Input id="amount" type="number" min="0.01" step="0.01" placeholder="Enter amount" value={amount} onChange={(e) => { setAmount(e.target.value); setQuote(null); }} />
                   {formErrors.amount && <p className="text-xs text-destructive">{formErrors.amount}</p>}
                   {fromWallet && (
                     <p className="text-xs text-muted-foreground">Available: {formatCurrency(fromWallet.balance, fromWallet.currency)}</p>
                   )}
                 </div>
                 <div className="flex justify-center">
-                  <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { const tmp = fromWalletId; setFromWalletId(toWalletId); setToWalletId(tmp); setQuote(null); }} title="Swap">
+                  <Button variant="ghost" size="icon" className="rounded-full" onClick={() => { const tmp = fromWalletId; setFromWalletId(toWalletId); setToWalletId(tmp); setQuote(null); }} aria-label="Swap currencies">
                     <ArrowLeftRight className="h-5 w-5" />
                   </Button>
                 </div>

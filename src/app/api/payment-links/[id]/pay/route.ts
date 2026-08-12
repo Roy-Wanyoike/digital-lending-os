@@ -178,4 +178,4 @@ const postHandler = withErrorHandler(async (
   })
 })
 
-export const POST = withApiTelemetry(postHandler, '/api/payment-links/[id]/pay');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/payment-links/[id]/pay');

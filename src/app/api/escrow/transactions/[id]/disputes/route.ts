@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { conflict, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 // ── Zod Schema ───────────────────────────────────────────────
 const createDisputeSchema = z.object({
   raisedBy: z.enum(["buyer", "seller"] as const, {
@@ -30,7 +31,7 @@ async function getHandler(
 ) {
   try {
     const user = await getApiUser(request);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { id } = await params;
 
     const escrow = await db.escrowTransaction.findFirst({
@@ -45,10 +46,7 @@ async function getHandler(
     });
 
     if (!escrow) {
-      return NextResponse.json(
-        { error: "Escrow transaction not found" },
-        { status: 404 }
-      );
+      return notFound("Escrow transaction not found");
     }
 
     const disputes = await db.dispute.findMany({
@@ -56,14 +54,9 @@ async function getHandler(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ data: disputes });
-  } catch (error) {
-    console.error("Error listing disputes:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to list disputes" },
-      { status: 500 }
-    );
+    return ok(disputes);
+  } catch (err: any) {
+    console.error("Error listing disputes:", err);return error("Failed to list disputes");
   }
 }
 
@@ -79,10 +72,7 @@ async function postHandler(
     const parsed = createDisputeSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.issues },
-        { status: 400 }
-      );
+      return validationError("Validation failed", parsed.error.issues);
     }
 
     const { raisedBy, reason, description } = parsed.data;
@@ -103,20 +93,12 @@ async function postHandler(
     });
 
     if (!escrow) {
-      return NextResponse.json(
-        { error: "Escrow transaction not found" },
-        { status: 404 }
-      );
+      return notFound("Escrow transaction not found");
     }
 
     // Validate escrow is in a disputable state
     if (!['in_escrow', 'funded'].includes(escrow.status)) {
-      return NextResponse.json(
-        {
-          error: `Cannot dispute escrow with status '${escrow.status}'. Only 'in_escrow' or 'funded' escrows can be disputed.`,
-        },
-        { status: 409 }
-      );
+      return conflict(`Cannot dispute escrow with status '${escrow.status}'. Only 'in_escrow' or 'funded' escrows can be disputed.`);
     }
 
     const aiRecommendation = generateAiRecommendation(reason); // TODO: Replace with real AI analysis
@@ -162,17 +144,12 @@ async function postHandler(
       await auditLog({ action: 'escrow.dispute', resource: 'escrow', resourceId: id, userId: user.id, tenantId: user.tenantId, details: { disputeId: dispute.id, raisedBy, reason, escrowStatus: 'disputed' } })
     } catch (e) { console.error('Audit log failed:', e) }
 
-    return NextResponse.json({ data: dispute }, { status: 201 });
-  } catch (error) {
-    console.error("Error creating dispute:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to create dispute" },
-      { status: 500 }
-    );
+    return created(dispute);
+  } catch (err: any) {
+    console.error("Error creating dispute:", err);return error("Failed to create dispute");
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/escrow/transactions/[id]/disputes');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/escrow/transactions/[id]/disputes');
 
-export const POST = withApiTelemetry(postHandler, '/api/escrow/transactions/[id]/disputes');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/escrow/transactions/[id]/disputes');

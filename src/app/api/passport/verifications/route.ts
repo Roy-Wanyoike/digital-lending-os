@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const createVerificationSchema = z.object({
   businessId: z.string().min(1, 'businessId is required'),
   type: z.enum(['identity', 'business_registration', 'tax', 'bank_account', 'address'] as const, {
@@ -18,7 +18,7 @@ const createVerificationSchema = z.object({
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url)
     const businessId = searchParams.get('businessId') || ''
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
@@ -44,8 +44,7 @@ async function getHandler(request: NextRequest) {
       db.verification.count({ where }),
     ])
 
-    return NextResponse.json({
-      data: verifications,
+    return ok(verifications, {
       pagination: {
         page,
         limit,
@@ -53,10 +52,9 @@ async function getHandler(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     })
-  } catch (error) {
-    console.error('Error listing verifications:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to list verifications' }, { status: 500 })
+  } catch (err: any) {
+    console.error('Error listing verifications:', err)
+    return error('Failed to list verifications')
   }
 }
 
@@ -67,10 +65,7 @@ async function postHandler(request: NextRequest) {
     const parsed = createVerificationSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const { businessId, type, method, metadata } = parsed.data
@@ -82,7 +77,7 @@ async function postHandler(request: NextRequest) {
     })
 
     if (!business || business.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+      return notFound('Business not found')
     }
 
     // Update passport status if applicable
@@ -117,14 +112,13 @@ async function postHandler(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ data: verification }, { status: 201 })
-  } catch (error) {
+    return created(verification)
+  } catch (error: any) {
     console.error('Error creating verification:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to create verification' }, { status: 500 })
+    return error('Failed to create verification')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/passport/verifications');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/passport/verifications');
 
-export const POST = withApiTelemetry(postHandler, '/api/passport/verifications');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/passport/verifications');

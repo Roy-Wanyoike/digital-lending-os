@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { eventBus } from "@/backend/services/event-bus";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { conflict, error, notFound, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 // ── GET: Single escrow transaction ───────────────────────────
 async function getHandler(
   request: NextRequest,
@@ -11,7 +12,7 @@ async function getHandler(
 ) {
   try {
     const user = await getApiUser(request);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { id } = await params;
 
     const escrow = await db.escrowTransaction.findFirst({
@@ -33,20 +34,12 @@ async function getHandler(
     });
 
     if (!escrow) {
-      return NextResponse.json(
-        { error: "Escrow transaction not found" },
-        { status: 404 }
-      );
+      return notFound("Escrow transaction not found");
     }
 
-    return NextResponse.json({ data: escrow });
-  } catch (error) {
-    console.error("Error fetching escrow transaction:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to fetch escrow transaction" },
-      { status: 500 }
-    );
+    return ok(escrow);
+  } catch (err: any) {
+    console.error("Error fetching escrow transaction:", err);return error("Failed to fetch escrow transaction");
   }
 }
 
@@ -71,19 +64,11 @@ async function putHandler(
     });
 
     if (!escrow) {
-      return NextResponse.json(
-        { error: "Escrow transaction not found" },
-        { status: 404 }
-      );
+      return notFound("Escrow transaction not found");
     }
 
     if (escrow.status !== "created" && escrow.status !== "funded") {
-      return NextResponse.json(
-        {
-          error: `Cannot cancel escrow with status '${escrow.status}'. Only 'created' or 'funded' escrows can be cancelled.`,
-        },
-        { status: 409 }
-      );
+      return conflict(`Cannot cancel escrow with status '${escrow.status}'. Only 'created' or 'funded' escrows can be cancelled.`);
     }
 
     const updated = await db.escrowTransaction.update({
@@ -119,17 +104,12 @@ async function putHandler(
       console.error('[escrow.updated] emit failed:', err);
     }
 
-    return NextResponse.json({ data: updated });
-  } catch (error) {
-    console.error("Error cancelling escrow transaction:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to cancel escrow transaction" },
-      { status: 500 }
-    );
+    return ok(updated);
+  } catch (err: any) {
+    console.error("Error cancelling escrow transaction:", err);return error("Failed to cancel escrow transaction");
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/escrow/transactions/[id]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/escrow/transactions/[id]');
 
-export const PUT = withApiTelemetry(putHandler, '/api/escrow/transactions/[id]');
+export const PUT = withApiTelemetry(withErrorHandler(putHandler), '/api/escrow/transactions/[id]');

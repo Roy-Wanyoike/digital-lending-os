@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { dashboardStatsCache } from '@/backend/lib/response-cache';
+import { badRequest, error, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined;
@@ -25,7 +26,7 @@ async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
     if (!user || !user.tenantId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      return unauthorized('Authentication required');
     }
 
     const cacheManager = await getCache();
@@ -212,7 +213,7 @@ async function getHandler(request: NextRequest) {
     const memKey = `stats:${user.tenantId}`;
     const memCached = dashboardStatsCache.get(memKey);
     if (memCached) {
-      return NextResponse.json({ data: memCached }, { headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=10' } });
+      return ok(memCached , undefined, { noCache: true })
     }
 
     // Second-level: Redis-backed cache (30s TTL) with singleflight stampede protection
@@ -223,14 +224,9 @@ async function getHandler(request: NextRequest) {
     // Populate first-level cache for subsequent requests within 2s
     dashboardStatsCache.set(memKey, data);
 
-    return NextResponse.json({ data }, { headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=10' } });
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    console.error('Error fetching dashboard stats:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch dashboard stats' },
-      { status: 500 }
-    );
+    return ok(data, undefined, { maxAge: 5, swr: 10 });
+  } catch (err: any) {console.error('Error fetching dashboard stats:', err);
+    return error('Failed to fetch dashboard stats');
   }
 }
 
@@ -239,7 +235,7 @@ async function postHandler(request: NextRequest) {
   try {
     const user = await requireAuth(request);
     if (!user.tenantId) {
-      return NextResponse.json({ error: 'Tenant ID required' }, { status: 400 });
+      return badRequest('Tenant ID required');
     }
 
     // Invalidate both cache layers
@@ -250,16 +246,11 @@ async function postHandler(request: NextRequest) {
       await cacheManager.delete(cacheKey);
     }
 
-    return NextResponse.json({ message: 'Cache invalidated' });
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    console.error('Error invalidating dashboard stats cache:', error);
-    return NextResponse.json(
-      { error: 'Failed to invalidate cache' },
-      { status: 500 }
-    );
+    return ok({ message: 'Cache invalidated' })
+  } catch (error: any) {console.error('Error invalidating dashboard stats cache:', error);
+    return error('Failed to invalidate cache');
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/dashboard/stats');
-export const POST = withApiTelemetry(postHandler, '/api/dashboard/stats');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/dashboard/stats');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/dashboard/stats');

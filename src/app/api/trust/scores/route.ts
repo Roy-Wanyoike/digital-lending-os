@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 
 const recalculateSchema = z.object({
   businessId: z.string().min(1, 'businessId is required'),
@@ -12,7 +12,7 @@ const recalculateSchema = z.object({
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
@@ -47,8 +47,7 @@ async function getHandler(request: NextRequest) {
       db.trustScore.count({ where }),
     ])
 
-    return NextResponse.json({
-      data: scores,
+    return ok(scores, {
       pagination: {
         page,
         limit,
@@ -56,10 +55,9 @@ async function getHandler(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     })
-  } catch (error) {
-    console.error('Error listing trust scores:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to list trust scores' }, { status: 500 })
+  } catch (err: any) {
+    console.error('Error listing trust scores:', err)
+    return error('Failed to list trust scores')
   }
 }
 
@@ -70,10 +68,7 @@ async function postHandler(request: NextRequest) {
     const parsed = recalculateSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const { businessId } = parsed.data
@@ -81,7 +76,7 @@ async function postHandler(request: NextRequest) {
     // Verify business exists and belongs to tenant (single query)
     const business = await db.business.findUnique({ where: { id: businessId } })
     if (!business || business.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+      return notFound('Business not found')
     }
 
     // Find or create the trust score
@@ -206,14 +201,13 @@ async function postHandler(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ data: updated })
-  } catch (error) {
+    return ok(updated)
+  } catch (error: any) {
     console.error('Error recalculating trust score:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to recalculate trust score' }, { status: 500 })
+    return error('Failed to recalculate trust score')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/trust/scores');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/trust/scores');
 
-export const POST = withApiTelemetry(postHandler, '/api/trust/scores');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/trust/scores');

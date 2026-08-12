@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { collectionListCache } from '@/backend/lib/response-cache';
+import { conflict, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 function generateCaseRef(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   let result = 'COL-'
@@ -36,7 +36,7 @@ const createCollectionSchema = z.object({
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
@@ -60,7 +60,7 @@ async function getHandler(request: NextRequest) {
     const collKey = `coll:${user.tenantId}:${page}:${limit}:${businessId || ''}:${debtorId || ''}:${agingBucket || ''}:${priority || ''}:${status || ''}`
     const memCached = collectionListCache.get(collKey)
     if (memCached) {
-      return NextResponse.json(memCached)
+      return ok(memCached.data, memCached.pagination, { noCache: true })
     }
 
     const [cases, total] = await Promise.all([
@@ -108,11 +108,10 @@ async function getHandler(request: NextRequest) {
     // Cache for 3s
     collectionListCache.set(collKey, result)
 
-    return NextResponse.json(result)
-  } catch (error) {
-    console.error('Error listing collection cases:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    return NextResponse.json({ error: 'Failed to list collection cases' }, { status: 500 })
+    return ok(casesWithDebtorName, result.pagination)
+  } catch (err: any) {
+    console.error('Error listing collection cases:', err)
+    return error('Failed to list collection cases')
   }
 }
 
@@ -123,10 +122,7 @@ async function postHandler(request: NextRequest) {
     const parsed = createCollectionSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const data = parsed.data
@@ -134,7 +130,7 @@ async function postHandler(request: NextRequest) {
     // Verify business belongs to tenant
     const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+      return notFound('Business not found')
     }
 
     let caseRef = generateCaseRef()
@@ -161,17 +157,15 @@ async function postHandler(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ data: collectionCase }, { status: 201 })
-  } catch (error: unknown) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-      return NextResponse.json({ error: 'Case reference collision, please retry' }, { status: 409 })
+    return created(collectionCase)
+  } catch (error: any) {if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
+      return conflict('Case reference collision, please retry')
     }
     console.error('Error creating collection case:', error)
-    return NextResponse.json({ error: 'Failed to create collection case' }, { status: 500 })
+    return error('Failed to create collection case')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/collections');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/collections');
 
-export const POST = withApiTelemetry(postHandler, '/api/collections');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/collections');

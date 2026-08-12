@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 // ── Zod Schemas ─────────────────────────────────────────────
 const addMethodSchema = z.object({
   businessId: z.string().min(1, "Business ID is required"),
@@ -25,21 +26,18 @@ const addMethodSchema = z.object({
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url);
     const businessId = searchParams.get("businessId");
 
     if (!businessId) {
-      return NextResponse.json(
-        { error: "Query parameter 'businessId' is required" },
-        { status: 400 }
-      );
+      return badRequest("Query parameter 'businessId' is required");
     }
 
     // Verify business belongs to tenant
     const biz = await db.business.findUnique({ where: { id: businessId }, select: { tenantId: true } });
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+      return notFound("Business not found");
     }
 
     const methods = await db.paymentMethod.findMany({
@@ -47,14 +45,9 @@ async function getHandler(request: NextRequest) {
       orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
     });
 
-    return NextResponse.json({ data: methods });
-  } catch (error) {
-    console.error("Error listing payment methods:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to list payment methods" },
-      { status: 500 }
-    );
+    return ok(methods);
+  } catch (err: any) {
+    console.error("Error listing payment methods:", err);return error("Failed to list payment methods");
   }
 }
 
@@ -66,10 +59,7 @@ async function postHandler(request: NextRequest) {
     const parsed = addMethodSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.issues },
-        { status: 400 }
-      );
+      return validationError("Validation failed", parsed.error.issues);
     }
 
     const data = parsed.data;
@@ -77,7 +67,7 @@ async function postHandler(request: NextRequest) {
     // Verify business belongs to tenant
     const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } });
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+      return notFound("Business not found");
     }
 
     // If this is set as default, unset other defaults
@@ -112,17 +102,12 @@ async function postHandler(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ data: method }, { status: 201 });
-  } catch (error) {
-    console.error("Error adding payment method:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to add payment method" },
-      { status: 500 }
-    );
+    return created(method);
+  } catch (err: any) {
+    console.error("Error adding payment method:", err);return error("Failed to add payment method");
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/payments/methods');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/payments/methods');
 
-export const POST = withApiTelemetry(postHandler, '/api/payments/methods');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/payments/methods');

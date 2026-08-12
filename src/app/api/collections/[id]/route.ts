@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const updateCaseSchema = z.object({
   status: z.enum(['active', 'paused', 'resolved', 'written_off', 'escalated'] as const).optional(),
   priority: z.enum(['low', 'normal', 'high', 'urgent'] as const).optional(),
@@ -30,16 +30,16 @@ async function getHandler(
 ) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { id } = await params
 
     if (!(await verifyTenantAccess(id, user.tenantId)).ok) {
-      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+      return notFound('Collection case not found')
     }
 
     const collectionCase = await db.collectionCase.findUnique({ where: { id } })
     if (!collectionCase) {
-      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+      return notFound('Collection case not found')
     }
 
     const reminders = await db.collectionReminder.findMany({
@@ -47,11 +47,10 @@ async function getHandler(
       orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json({ data: { ...collectionCase, reminders } })
-  } catch (error) {
-    console.error('Error fetching collection case:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to fetch collection case' }, { status: 500 })
+    return ok({ ...collectionCase, reminders })
+  } catch (err: any) {
+    console.error('Error fetching collection case:', err)
+    return error('Failed to fetch collection case')
   }
 }
 
@@ -66,14 +65,11 @@ async function putHandler(
     const parsed = updateCaseSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     if (!(await verifyTenantAccess(id, user.tenantId)).ok) {
-      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+      return notFound('Collection case not found')
     }
 
     const data = parsed.data
@@ -94,14 +90,13 @@ async function putHandler(
       data: updateData,
     })
 
-    return NextResponse.json({ data: collectionCase })
-  } catch (error) {
+    return ok(collectionCase)
+  } catch (error: any) {
     console.error('Error updating collection case:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to update collection case' }, { status: 500 })
+    return error('Failed to update collection case')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/collections/[id]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/collections/[id]');
 
-export const PUT = withApiTelemetry(putHandler, '/api/collections/[id]');
+export const PUT = withApiTelemetry(withErrorHandler(putHandler), '/api/collections/[id]');

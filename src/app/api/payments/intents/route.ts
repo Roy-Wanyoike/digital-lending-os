@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
@@ -6,6 +6,7 @@ import { processPayment } from "@/backend/services/temporal-bridge";
 import { withPaymentIdempotency, recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, conflict, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 // ── Lazy-loaded payment infrastructure (avoids crashes if modules have issues) ──
 let _stateMachine: any = null;
 let _idempotencyGuard: any = null;
@@ -89,7 +90,7 @@ function generateIntentRef(): string {
 async function getHandler(request: NextRequest, _ctx?: { params?: Promise<Record<string, string>> }) {
   try {
     const user = await getApiUser(request);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url);
 
     const status = searchParams.get("status") || undefined;
@@ -126,8 +127,7 @@ async function getHandler(request: NextRequest, _ctx?: { params?: Promise<Record
       db.paymentIntent.count({ where }),
     ]);
 
-    return NextResponse.json({
-      data: intents,
+    return ok(intents, {
       pagination: {
         page,
         limit,
@@ -135,13 +135,8 @@ async function getHandler(request: NextRequest, _ctx?: { params?: Promise<Record
         totalPages: Math.ceil(total / limit),
       },
     });
-  } catch (error) {
-    console.error("Error listing payment intents:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to list payment intents" },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error("Error listing payment intents:", err);return error("Failed to list payment intents");
   }
 }
 
@@ -157,17 +152,11 @@ async function createPaymentIntent(request: NextRequest, _ctx?: { params?: Promi
       const existing = guard.getCachedResponse(idempotencyKey);
       if (existing && existing.status === 'completed') {
         // Return cached response for already-processed request
-        return NextResponse.json(
-          existing.response,
-          { status: existing.responseStatus || 201, headers: existing.responseHeaders || {} },
-        );
+        return created(existing.response.data);
       }
       const acquireResult = guard.acquire(idempotencyKey);
       if (acquireResult.alreadyProcessing) {
-        return NextResponse.json(
-          { error: 'Request already in progress', code: 'IDEMPOTENCY_IN_PROGRESS' },
-          { status: 409 },
-        );
+        return conflict('Request already in progress');
       }
     }
 
@@ -175,10 +164,7 @@ async function createPaymentIntent(request: NextRequest, _ctx?: { params?: Promi
     const parsed = createIntentSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.issues },
-        { status: 400 }
-      );
+      return validationError("Validation failed", parsed.error.issues);
     }
 
     const data = parsed.data;
@@ -189,7 +175,7 @@ async function createPaymentIntent(request: NextRequest, _ctx?: { params?: Promi
       db.business.findUnique({ where: { id: data.toBusinessId }, select: { tenantId: true } }),
     ]);
     if (!fromBiz || fromBiz.tenantId !== user.tenantId || !toBiz || toBiz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: "Business not found" }, { status: 404 });
+      return notFound("Business not found");
     }
 
     const exchangeRate = getMockRate(data.sourceCurrency, data.targetCurrency);
@@ -270,14 +256,9 @@ async function createPaymentIntent(request: NextRequest, _ctx?: { params?: Promi
       })
     } catch (e) { console.error('Event publish failed:', e) }
 
-    return NextResponse.json(responseData, { status: 201 });
-  } catch (error) {
-    console.error("Error creating payment intent:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to create payment intent" },
-      { status: 500 }
-    );
+    return created(intent);
+  } catch (err: any) {
+    console.error("Error creating payment intent:", err);return error("Failed to create payment intent");
   }
 }
 
@@ -286,4 +267,4 @@ export async function POST(request: NextRequest) {
   return withPaymentIdempotency(createPaymentIntent)(request);
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/payments/intents');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/payments/intents');

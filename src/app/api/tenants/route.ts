@@ -211,6 +211,6 @@ const postHandler = withErrorHandler(async (req: NextRequest) => {
   return created(tenant);
 });
 
-export const GET = withApiTelemetry(getHandler, '/api/tenants');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/tenants');
 
-export const POST = withApiTelemetry(postHandler, '/api/tenants');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/tenants');

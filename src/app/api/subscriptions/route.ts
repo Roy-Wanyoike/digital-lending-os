@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError, } from '@/lib/auth/api-helpers';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, created, error, forbidden, notFound, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    if (!user) return unauthorized('Authentication required');
 
     const url = new URL(req.url);
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
@@ -43,7 +44,7 @@ async function getHandler(req: NextRequest) {
     });
     const bizMap = Object.fromEntries(businesses.map((b: any) => [b.id, b.name]));
 
-    return NextResponse.json({
+    return ok({
       data: subscriptions.map((s: any) => ({
         ...s,
         business: { id: s.businessId, name: bizMap[s.businessId] || 'Unknown' },
@@ -55,29 +56,29 @@ async function getHandler(req: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     });
-  } catch (error: any) {
-    console.error('Subscriptions GET error:', error);
-    return errorResponse('Failed to fetch subscriptions', 500);
+  } catch (err: any) {
+    console.error('Subscriptions GET error:', err);
+    return error('Failed to fetch subscriptions');
   }
 }
 
 async function postHandler(req: NextRequest) {
   try {
     const user = await requireAuth(req);
-    if (user.role !== 'admin') return errorResponse('Insufficient permissions', 403);
+    if (user.role !== 'admin') return forbidden('Insufficient permissions');
 
     const body = await req.json();
     const { businessId, planName, amount, currency, interval, trialDays } = body;
 
     if (!businessId || !planName || !amount) {
-      return errorResponse('businessId, planName, and amount are required', 400);
+      return badRequest('businessId, planName, and amount are required');
     }
 
     // Verify business belongs to tenant
     const business = await db.business.findFirst({
       where: { id: businessId, tenantId: user.tenantId },
     });
-    if (!business) return errorResponse('Business not found', 404);
+    if (!business) return notFound('Business not found');
 
     const now = new Date();
     const periodEnd = new Date(now);
@@ -112,14 +113,12 @@ async function postHandler(req: NextRequest) {
       data: subData,
     });
 
-    return successResponse(subscription, 201);
-  } catch (error: any) {
-    console.error('Subscriptions POST error:', error);
-    if (error instanceof AuthError) return errorResponse(error.message, error.status);
-    return errorResponse('Failed to create subscription', 500);
+    return created(subscription);
+  } catch (err: any) {
+    console.error('Subscriptions POST error:', err);return error('Failed to create subscription');
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/subscriptions');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/subscriptions');
 
-export const POST = withApiTelemetry(postHandler, '/api/subscriptions');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/subscriptions');

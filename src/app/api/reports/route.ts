@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getApiUser, } from '@/lib/auth/api-helpers';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, error, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 /** Allowed report types to prevent arbitrary switch-case fallthrough. */
 const VALID_REPORT_TYPES = ['transactions', 'invoices', 'wallets', 'escrow', 'collections', 'summary'] as const;
 
@@ -25,7 +26,7 @@ function parseDateParam(value: string | null): Date | null {
 async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    if (!user) return unauthorized('Authentication required');
 
     const url = new URL(req.url);
     const rawType = url.searchParams.get('type') || 'summary';
@@ -38,7 +39,7 @@ async function getHandler(req: NextRequest) {
 
     // Validate date range: endDate must be >= startDate
     if (startDate && endDate && endDate < startDate) {
-      return errorResponse('endDate must be on or after startDate', 400);
+      return badRequest('endDate must be on or after startDate');
     }
 
     const dateFilter: Record<string, Date> = {};
@@ -54,7 +55,7 @@ async function getHandler(req: NextRequest) {
 
     if (businessIds.length === 0) {
       // No businesses in this tenant — return empty report
-      return successResponse({ type, data: [], total: 0, generatedAt: new Date() });
+      return ok({ type, data: [], total: 0, generatedAt: new Date() });
     }
 
     switch (type) {
@@ -71,7 +72,7 @@ async function getHandler(req: NextRequest) {
             where: { createdAt: dateFilter, intent: { fromBusinessId: { in: businessIds } } },
           }),
         ]);
-        return successResponse({ type, data: transactions, total, generatedAt: new Date() });
+        return ok({ type, data: transactions, total, generatedAt: new Date() });
       }
 
       case 'invoices': {
@@ -90,7 +91,7 @@ async function getHandler(req: NextRequest) {
             where: { senderId: { in: businessIds }, createdAt: dateFilter },
           }),
         ]);
-        return successResponse({ type, data: invoices, total, generatedAt: new Date() });
+        return ok({ type, data: invoices, total, generatedAt: new Date() });
       }
 
       case 'wallets': {
@@ -100,7 +101,7 @@ async function getHandler(req: NextRequest) {
           include: { business: { select: { id: true, name: true } } },
           orderBy: { currency: 'asc' },
         });
-        return successResponse({ type, data: wallets, total: wallets.length, generatedAt: new Date() });
+        return ok({ type, data: wallets, total: wallets.length, generatedAt: new Date() });
       }
 
       case 'escrow': {
@@ -119,7 +120,7 @@ async function getHandler(req: NextRequest) {
             where: { buyerId: { in: businessIds }, createdAt: dateFilter },
           }),
         ]);
-        return successResponse({ type, data: escrows, total, generatedAt: new Date() });
+        return ok({ type, data: escrows, total, generatedAt: new Date() });
       }
 
       case 'collections': {
@@ -137,7 +138,7 @@ async function getHandler(req: NextRequest) {
             where: { businessId: { in: businessIds }, createdAt: dateFilter },
           }),
         ]);
-        return successResponse({ type, data: collections, total, generatedAt: new Date() });
+        return ok({ type, data: collections, total, generatedAt: new Date() });
       }
 
       default: {
@@ -167,7 +168,7 @@ async function getHandler(req: NextRequest) {
           }),
         ]);
 
-        return successResponse({
+        return ok({
           type: 'summary',
           data: {
             escrow: { totalVolume: escrowStats._sum.amount || 0, count: escrowStats._count },
@@ -182,8 +183,8 @@ async function getHandler(req: NextRequest) {
     }
   } catch (error: any) {
     console.error('Reports GET error:', error);
-    return errorResponse('Failed to generate report', 500);
+    return error('Failed to generate report');
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/reports');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/reports');

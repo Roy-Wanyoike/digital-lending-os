@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, successResponse, errorResponse } from '@/lib/auth/api-helpers';
+import { getApiUser,  } from '@/lib/auth/api-helpers';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { error, notFound, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
-    if (!user) return errorResponse('Authentication required', 401);
+    if (!user) return unauthorized('Authentication required');
 
     const { searchParams } = new URL(request.url);
 
@@ -40,12 +41,12 @@ async function getHandler(request: NextRequest) {
       try {
         await escrowCheck;
       } catch {
-        return errorResponse('Escrow not found', 404);
+        return notFound('Escrow not found');
       }
     }
 
     if (businessIds.length === 0) {
-      return successResponse({ data: [], total: 0 });
+      return ok({ data: [], total: 0 });
     }
 
     // Build tenant-scoped where: only audit logs for escrows involving this user's businesses
@@ -82,11 +83,11 @@ async function getHandler(request: NextRequest) {
       db.escrowAuditLog.count({ where }),
     ]);
 
-    return successResponse({ data: logs, total });
-  } catch (error) {
+    return ok({ data: logs, total });
+  } catch (error: any) {
     console.error('Error fetching audit logs:', error);
-    return errorResponse('Failed to fetch audit logs', 500);
+    return error('Failed to fetch audit logs');
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/audit-log');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/audit-log');

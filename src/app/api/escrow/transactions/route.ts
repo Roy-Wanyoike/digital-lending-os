@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
@@ -6,6 +6,7 @@ import { eventBus } from "@/backend/services/event-bus";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { escrowListCache } from '@/backend/lib/response-cache';
+import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 // ── Zod Schemas ──────────────────────────────────────────────
 const milestoneSchema = z.object({
   title: z.string().min(1, "Milestone title is required"),
@@ -45,7 +46,7 @@ function computeRiskScore(): { score: number; level: string } {
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url);
 
     const page = Math.max(1, Number(searchParams.get("page")) || 1);
@@ -70,7 +71,7 @@ async function getHandler(request: NextRequest) {
     const escrowKey = `escrow:${user.tenantId}:${page}:${limit}:${buyerId || ''}:${sellerId || ''}:${status || ''}:${currency || ''}`;
     const memCached = escrowListCache.get(escrowKey);
     if (memCached) {
-      return NextResponse.json(memCached);
+      return ok({ transactions: memCached.data, pagination: memCached.pagination }, undefined, { noCache: true });
     }
 
     const [transactions, total] = await Promise.all([
@@ -111,27 +112,19 @@ async function getHandler(request: NextRequest) {
       db.escrowTransaction.count({ where }),
     ]);
 
-    const result = {
-      data: transactions,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+    const pagination = {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
     };
 
     // Cache for 3s — avoids DB on rapid page flips
-    escrowListCache.set(escrowKey, result);
+    escrowListCache.set(escrowKey, { data: transactions, pagination });
 
-    return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    console.error("Error listing escrow transactions:", error);
-    return NextResponse.json(
-      { error: "Failed to list escrow transactions" },
-      { status: 500 }
-    );
+    return ok(transactions, pagination);
+  } catch (err: any) {console.error("Error listing escrow transactions:", err);
+    return error("Failed to list escrow transactions");
   }
 }
 
@@ -143,10 +136,7 @@ async function postHandler(request: NextRequest) {
     const parsed = createEscrowSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.issues },
-        { status: 400 }
-      );
+      return validationError("Validation failed", parsed.error.issues);
     }
 
     const data = parsed.data;
@@ -157,10 +147,10 @@ async function postHandler(request: NextRequest) {
       db.business.findUnique({ where: { id: data.sellerId }, select: { id: true, tenantId: true } }),
     ]);
     if (!buyerBiz || buyerBiz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Buyer business not found' }, { status: 404 });
+      return notFound('Buyer business not found');
     }
     if (!sellerBiz || sellerBiz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Seller business not found' }, { status: 404 });
+      return notFound('Seller business not found');
     }
 
     const { score, level } = computeRiskScore();
@@ -179,14 +169,7 @@ async function postHandler(request: NextRequest) {
     // Validate milestone amounts sum to transaction amount
     const milestoneSum = milestonesInput.reduce((sum, m) => sum + m.amount, 0);
     if (Math.abs(milestoneSum - data.amount) > 0.01) {
-      return NextResponse.json(
-        {
-          error: "Sum of milestone amounts must equal transaction amount",
-          milestoneSum,
-          transactionAmount: data.amount,
-        },
-        { status: 400 }
-      );
+      return badRequest("Sum of milestone amounts must equal transaction amount");
     }
 
     const escrow = await db.escrowTransaction.create({
@@ -257,17 +240,12 @@ async function postHandler(request: NextRequest) {
       await auditLog({ action: 'escrow.create', resource: 'escrow', resourceId: escrow.id, userId: user.id, tenantId: user.tenantId, details: { amount: escrow.amount, currency: escrow.currency, txRef: escrow.txRef, buyerId: escrow.buyerId, sellerId: escrow.sellerId, riskScore: escrow.aiRiskScore, riskLevel: escrow.aiRiskLevel } })
     } catch (e) { console.error('Audit log failed:', e) }
 
-    return NextResponse.json({ data: escrow }, { status: 201 });
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    console.error("Error creating escrow transaction:", error);
-    return NextResponse.json(
-      { error: "Failed to create escrow transaction" },
-      { status: 500 }
-    );
+    return created(escrow);
+  } catch (err: any) {console.error("Error creating escrow transaction:", err);
+    return error("Failed to create escrow transaction");
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/escrow/transactions');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/escrow/transactions');
 
-export const POST = withApiTelemetry(postHandler, '/api/escrow/transactions');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/escrow/transactions');

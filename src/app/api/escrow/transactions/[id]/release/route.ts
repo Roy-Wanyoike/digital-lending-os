@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { requireAuth, AuthError } from "@/lib/auth/api-helpers";
@@ -7,6 +7,7 @@ import { processEscrow } from "@/backend/services/temporal-bridge";
 import { recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, conflict, error, forbidden, notFound, ok, validationError, withErrorHandler } from '@/backend/lib/api-response';
 // ── Zod Schema ───────────────────────────────────────────────
 const releaseSchema = z.object({
   milestoneId: z.string().min(1, "Milestone ID is required"),
@@ -24,10 +25,7 @@ async function postHandler(
     const parsed = releaseSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.issues },
-        { status: 400 }
-      );
+      return validationError("Validation failed", parsed.error.issues);
     }
 
     const { milestoneId } = parsed.data;
@@ -176,31 +174,25 @@ async function postHandler(
       await auditLog({ action: 'escrow.release', resource: 'escrow', resourceId: id, userId: user.id, tenantId: user.tenantId, details: { milestoneId, milestoneTitle, amount: milestoneAmount, disbursementId, newStatus: escrowResult.status } })
     } catch (e) { console.error('Audit log failed:', e) }
 
-    return NextResponse.json({ data: escrowResult });
-  } catch (error) {
-    console.error("Error releasing escrow funds:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-
-    // Map thrown errors from inside the transaction to proper HTTP status codes
-    const msg = error instanceof Error ? error.message : '';
+    return ok(escrowResult);
+  } catch (err: any) {
+    console.error("Error releasing escrow funds:", err);// Map thrown errors from inside the transaction to proper HTTP status codes
+    const msg = err instanceof Error ? err.message : '';
     if (msg === 'Escrow transaction not found') {
-      return NextResponse.json({ error: msg }, { status: 404 });
+      return notFound(msg);
     }
     if (msg.startsWith('Cannot release')) {
-      return NextResponse.json({ error: msg }, { status: 409 });
+      return conflict(msg);
     }
     if (msg.startsWith('Only the buyer')) {
-      return NextResponse.json({ error: msg }, { status: 403 });
+      return forbidden(msg);
     }
     if (msg.includes('Milestone')) {
-      return NextResponse.json({ error: msg }, { status: 409 });
+      return conflict(msg);
     }
 
-    return NextResponse.json(
-      { error: "Failed to release escrow funds" },
-      { status: 500 }
-    );
+    return error("Failed to release escrow funds");
   }
 }
 
-export const POST = withApiTelemetry(postHandler, '/api/escrow/transactions/[id]/release');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/escrow/transactions/[id]/release');

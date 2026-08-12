@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 import { processWithdrawal } from '@/backend/services/temporal-bridge'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const withdrawalSchema = z.object({
   walletId: z.string().min(1, 'Wallet ID is required'),
   amount: z.number().positive('Amount must be greater than 0').max(10000000, 'Amount exceeds maximum limit of 10,000,000'),
@@ -27,30 +27,27 @@ async function postHandler(request: NextRequest) {
     const parsed = withdrawalSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const data = parsed.data
 
     const wallet = await db.wallet.findUnique({ where: { id: data.walletId } })
     if (!wallet) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
     if (!wallet.businessId) {
-      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+      return badRequest('Wallet has no business association')
     }
     const biz = await db.business.findUnique({
       where: { id: wallet.businessId },
       select: { tenantId: true },
     })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
     if (wallet.status !== 'active') {
-      return NextResponse.json({ error: 'Wallet is not active' }, { status: 400 })
+      return badRequest('Wallet is not active')
     }
 
     // Calculate fee first to check total debit against available balance
@@ -61,7 +58,7 @@ async function postHandler(request: NextRequest) {
 
     // Early rejection check (optimization; real check happens inside transaction)
     if (wallet.availableBalance < totalDebit) {
-      return NextResponse.json({ error: `Insufficient available balance. Required: ${data.amount} + ${feeAmount.toFixed(2)} fee = ${totalDebit.toFixed(2)}, Available: ${wallet.availableBalance.toFixed(2)}` }, { status: 400 })
+      return badRequest(`Insufficient available balance. Required: ${data.amount} + ${feeAmount.toFixed(2)} fee = ${totalDebit.toFixed(2)}, Available: ${wallet.availableBalance.toFixed(2)}`)
     }
 
     const withdrawalRef = `WDR-${randomUUID().slice(0, 8).toUpperCase()}`
@@ -181,15 +178,13 @@ async function postHandler(request: NextRequest) {
       await auditLog({ action: 'withdrawal.create', resource: 'withdrawal', resourceId: withdrawal.id, userId: user.id, tenantId: user.tenantId, details: { amount: withdrawal.amount, currency: withdrawal.currency, paymentMethod: withdrawal.paymentMethod, feeAmount: withdrawal.feeAmount, status: withdrawal.status } })
     } catch (e) { console.error('Audit log failed:', e) }
 
-    return NextResponse.json({ data: withdrawal }, { status: 201 })
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    const msg = error instanceof Error ? error.message : ''
+    return created(withdrawal)
+  } catch (err: any) {const msg = err instanceof Error ? err.message : ''
     if (msg.includes('Insufficient') || msg.includes('Wallet not found')) {
-      return NextResponse.json({ error: msg }, { status: 400 })
+      return badRequest(msg)
     }
-    console.error('Error creating withdrawal:', error)
-    return NextResponse.json({ error: 'Failed to create withdrawal' }, { status: 500 })
+    console.error('Error creating withdrawal:', err)
+    return error('Failed to create withdrawal')
   }
 }
 
@@ -197,7 +192,7 @@ async function postHandler(request: NextRequest) {
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
 
     const { searchParams } = new URL(request.url)
     const walletId = searchParams.get('walletId')
@@ -207,18 +202,18 @@ async function getHandler(request: NextRequest) {
     const offset = (page - 1) * limit
 
     if (!walletId) {
-      return NextResponse.json({ error: 'walletId is required' }, { status: 400 })
+      return badRequest('walletId is required')
     }
 
     const wallet = await db.wallet.findUnique({ where: { id: walletId } })
-    if (!wallet) return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
-    if (!wallet.businessId) return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+    if (!wallet) return notFound('Wallet not found')
+    if (!wallet.businessId) return badRequest('Wallet has no business association')
     const biz = await db.business.findUnique({
       where: { id: wallet.businessId },
       select: { tenantId: true },
     })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
 
     const where: Record<string, unknown> = { walletId }
@@ -234,14 +229,12 @@ async function getHandler(request: NextRequest) {
       db.withdrawal.count({ where }),
     ])
 
-    return NextResponse.json({ data: withdrawals, pagination: { page, limit, offset, total, pages: Math.ceil(total / limit) } })
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    console.error('Error listing withdrawals:', error)
-    return NextResponse.json({ error: 'Failed to list withdrawals' }, { status: 500 })
+    return ok(withdrawals, { page, limit, offset, total, pages: Math.ceil(total / limit) })
+  } catch (err: any) {console.error('Error listing withdrawals:', err)
+    return error('Failed to list withdrawals')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/wallets/withdrawal');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/wallets/withdrawal');
 
-export const POST = withApiTelemetry(postHandler, '/api/wallets/withdrawal');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/wallets/withdrawal');

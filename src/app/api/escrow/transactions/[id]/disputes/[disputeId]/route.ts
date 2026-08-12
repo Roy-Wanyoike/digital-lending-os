@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { requireAuth, AuthError } from "@/lib/auth/api-helpers";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { conflict, error, forbidden, notFound, ok, validationError, withErrorHandler } from '@/backend/lib/api-response';
 // ── Zod Schema ───────────────────────────────────────────────
 const resolveDisputeSchema = z.object({
   resolution: z.string().min(1, "Resolution is required"),
@@ -24,10 +25,7 @@ async function putHandler(
     const parsed = resolveDisputeSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.issues },
-        { status: 400 }
-      );
+      return validationError("Validation failed", parsed.error.issues);
     }
 
     const { resolution, status: disputeStatus } = parsed.data;
@@ -44,10 +42,7 @@ async function putHandler(
     });
 
     if (!escrow) {
-      return NextResponse.json(
-        { error: "Escrow transaction not found" },
-        { status: 404 }
-      );
+      return notFound("Escrow transaction not found");
     }
 
     // Verify dispute exists and belongs to this escrow
@@ -56,25 +51,16 @@ async function putHandler(
     });
 
     if (!dispute || dispute.escrowId !== id) {
-      return NextResponse.json(
-        { error: "Dispute not found for this escrow" },
-        { status: 404 }
-      );
+      return notFound("Dispute not found for this escrow");
     }
 
     if (dispute.status === "resolved" || dispute.status === "escalated") {
-      return NextResponse.json(
-        { error: `Dispute is already '${dispute.status}'` },
-        { status: 409 }
-      );
+      return conflict(`Dispute is already '${dispute.status}'`);
     }
 
     // Only admins can resolve disputes
     if (user.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Only admins can resolve disputes' },
-        { status: 403 }
-      );
+      return forbidden('Only admins can resolve disputes');
     }
 
     // Determine new escrow status based on resolution
@@ -130,15 +116,10 @@ async function putHandler(
       return resolvedDispute;
     });
 
-    return NextResponse.json({ data: updated });
-  } catch (error) {
-    console.error("Error resolving dispute:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to resolve dispute" },
-      { status: 500 }
-    );
+    return ok(updated);
+  } catch (err: any) {
+    console.error("Error resolving dispute:", err);return error("Failed to resolve dispute");
   }
 }
 
-export const PUT = withApiTelemetry(putHandler, '/api/escrow/transactions/[id]/disputes/[disputeId]');
+export const PUT = withApiTelemetry(withErrorHandler(putHandler), '/api/escrow/transactions/[id]/disputes/[disputeId]');

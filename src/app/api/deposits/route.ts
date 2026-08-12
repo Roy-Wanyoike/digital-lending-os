@@ -47,7 +47,7 @@ const getDepositsHandler = withErrorHandler(async (request: NextRequest) => {
   return ok(deposits, { page: pagination.page, limit: pagination.limit, total, pages: Math.ceil(total / pagination.limit) });
 });
 
-export const GET = withApiTelemetry(getDepositsHandler, '/api/deposits');
+export const GET = withApiTelemetry(withErrorHandler(getDepositsHandler), '/api/deposits');
 
 // POST /api/deposits — Create a new deposit
 export const POST = withErrorHandler(async (request: NextRequest) => {

@@ -8,13 +8,13 @@
 // Response shape (after envelope unwrap by useApi):
 //   { stats: DashboardStats, businesses: Business[] }
 
-import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { NextRequest } from 'next/server';import { db } from '@/lib/db'
 import { getApiUser } from '@/lib/auth/api-helpers'
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper'
 import { dashboardStatsCache } from '@/backend/lib/response-cache'
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache'
 import { AuthError } from '@/lib/auth/api-helpers'
+import { error, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 
 // Lazy-load cache manager
 let _cacheManager: any = undefined
@@ -37,7 +37,7 @@ async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
     if (!user || !user.tenantId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+      return unauthorized('Authentication required')
     }
 
     const cacheManager = await getCache()
@@ -136,14 +136,10 @@ async function getHandler(request: NextRequest) {
 
     // ─── Run both fetches in parallel ─────────────────────────────
     // (cache hits return instantly, DB queries run in parallel)
-    return NextResponse.json({ data: { stats, businesses } }, {
-      headers: { 'Cache-Control': 'private, max-age=5, stale-while-revalidate=10' },
-    })
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    console.error('Error fetching batch dashboard data:', error)
-    return NextResponse.json({ error: 'Failed to fetch dashboard data' }, { status: 500 })
+    return ok({ stats, businesses }, undefined, { maxAge: 5, swr: 10 })
+  } catch (err: any) {console.error('Error fetching batch dashboard data:', err)
+    return error('Failed to fetch dashboard data')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/dashboard/batch')
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/dashboard/batch')

@@ -66,7 +66,7 @@ const getWithdrawalsHandler = withErrorHandler(async (request: NextRequest) => {
   return ok(withdrawals, { page, limit, total, pages: Math.ceil(total / limit) });
 });
 
-export const GET = withApiTelemetry(getWithdrawalsHandler, '/api/withdrawals');
+export const GET = withApiTelemetry(withErrorHandler(getWithdrawalsHandler), '/api/withdrawals');
 
 // POST /api/withdrawals — Create a new withdrawal
 export const POST = withErrorHandler(async (request: NextRequest) => {

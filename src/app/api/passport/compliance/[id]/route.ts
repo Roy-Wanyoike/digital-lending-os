@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { error, notFound, ok, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const updateComplianceSchema = z.object({
   status: z.enum(['pending', 'approved', 'rejected', 'expired'] as const, {
     message: 'Status must be one of: pending, approved, rejected, expired',
@@ -21,10 +21,7 @@ async function putHandler(
     const parsed = updateComplianceSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const { status } = parsed.data
@@ -35,10 +32,10 @@ async function putHandler(
     })
 
     if (!document) {
-      return NextResponse.json({ error: 'Compliance document not found' }, { status: 404 })
+      return notFound('Compliance document not found')
     }
     if (document.passport?.business?.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Compliance document not found' }, { status: 404 })
+      return notFound('Compliance document not found')
     }
 
     const updated = await db.complianceDocument.update({
@@ -46,12 +43,11 @@ async function putHandler(
       data: { status },
     })
 
-    return NextResponse.json({ data: updated })
-  } catch (error) {
+    return ok(updated)
+  } catch (error: any) {
     console.error('Error updating compliance document:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to update compliance document' }, { status: 500 })
+    return error('Failed to update compliance document')
   }
 }
 
-export const PUT = withApiTelemetry(putHandler, '/api/passport/compliance/[id]');
+export const PUT = withApiTelemetry(withErrorHandler(putHandler), '/api/passport/compliance/[id]');

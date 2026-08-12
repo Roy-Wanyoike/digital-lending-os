@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { getApiUser, requireAuth } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { ok, created, badRequest, unauthorized, notFound, withErrorHandler } from '@/backend/lib/api-response';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
@@ -9,29 +10,33 @@ const getHandler = withErrorHandler(async (req: NextRequest) => {
   const user = await getApiUser(req);
   if (!user) return unauthorized();
 
-  const businesses = await db.business.findMany({
-    where: { tenantId: user.tenantId },
-    select: { id: true },
-  });
-  const businessIds = businesses.map((b: any) => b.id);
+  const { searchParams } = new URL(req.url);
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
+
+  const businessIds = await getTenantBusinessIds(user.tenantId, db);
 
   if (businessIds.length === 0) {
-    return ok([]);
+    return ok({ data: [], pagination: { page, limit, total: 0, pages: 0 } });
   }
 
-  const paymentLinks = await db.paymentLink.findMany({
-    where: { businessId: { in: businessIds } },
-    orderBy: { createdAt: 'desc' },
-  });
+  const [paymentLinks, total] = await Promise.all([
+    db.paymentLink.findMany({
+      where: { businessId: { in: businessIds } },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    db.paymentLink.count({ where: { businessId: { in: businessIds } } }),
+  ]);
 
-  // Map DB fields to expected frontend fields
   const linksWithExtras = paymentLinks.map((link: any) => ({
     ...link,
     _paymentCount: link.paymentCount,
     totalCollected: link.totalCollected,
   }));
 
-  return ok(linksWithExtras);
+  return ok(linksWithExtras, { page, limit, total, pages: Math.ceil(total / limit) });
 });
 
 function generateLinkRef(): string {
@@ -83,6 +88,6 @@ const postHandler = withErrorHandler(async (req: NextRequest) => {
   return created(paymentLink);
 });
 
-export const GET = withApiTelemetry(getHandler, '/api/payment-links');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/payment-links');
 
-export const POST = withApiTelemetry(postHandler, '/api/payment-links');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/payment-links');

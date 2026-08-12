@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const cryptoWithdrawalSchema = z.object({
   walletId: z.string().min(1, 'Wallet ID is required'),
   amount: z.number().positive('Amount must be greater than 0'),
@@ -60,10 +60,7 @@ async function postHandler(request: NextRequest) {
     const parsed = cryptoWithdrawalSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const data = parsed.data
@@ -71,46 +68,43 @@ async function postHandler(request: NextRequest) {
     // Validate network for crypto
     const validNetworks = CRYPTO_NETWORKS[data.cryptoCurrency]
     if (!validNetworks.includes(data.network)) {
-      return NextResponse.json(
-        { error: `Invalid network ${data.network} for ${data.cryptoCurrency}. Valid: ${validNetworks.join(', ')}` },
-        { status: 400 }
-      )
+      return badRequest(`Invalid network ${data.network} for ${data.cryptoCurrency}. Valid: ${validNetworks.join(', ')}`)
     }
 
     // Basic wallet address validation per network
     const addr = data.walletAddress.trim()
     if (data.network === 'bitcoin' && !addr.startsWith('1') && !addr.startsWith('3') && !addr.startsWith('bc1')) {
-      return NextResponse.json({ error: 'Invalid Bitcoin address format' }, { status: 400 })
+      return badRequest('Invalid Bitcoin address format')
     }
     if (data.network === 'erc20' && (!addr.startsWith('0x') || addr.length !== 42)) {
-      return NextResponse.json({ error: 'Invalid ERC20 address — must be 0x-prefixed and 42 characters' }, { status: 400 })
+      return badRequest('Invalid ERC20 address — must be 0x-prefixed and 42 characters')
     }
     if (data.network === 'solana' && (addr.length < 32 || addr.length > 44)) {
-      return NextResponse.json({ error: 'Invalid Solana address length (32-44 chars)' }, { status: 400 })
+      return badRequest('Invalid Solana address length (32-44 chars)')
     }
     if (data.network === 'trc20' && !addr.startsWith('T')) {
-      return NextResponse.json({ error: 'Invalid TRC-20 address — must start with T' }, { status: 400 })
+      return badRequest('Invalid TRC-20 address — must start with T')
     }
     if (data.network === 'bsc' && (!addr.startsWith('0x') || addr.length !== 42)) {
-      return NextResponse.json({ error: 'Invalid BSC (BEP-20) address — must be 0x-prefixed and 42 characters' }, { status: 400 })
+      return badRequest('Invalid BSC (BEP-20) address — must be 0x-prefixed and 42 characters')
     }
     if (data.network === 'bep2' && !/^bnb[a-zA-Z0-9]{38}$/.test(addr)) {
-      return NextResponse.json({ error: 'Invalid BEP-2 address — must start with bnb and be 42 characters' }, { status: 400 })
+      return badRequest('Invalid BEP-2 address — must start with bnb and be 42 characters')
     }
 
     const wallet = await db.wallet.findUnique({ where: { id: data.walletId } })
     if (!wallet) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
     if (!wallet.businessId) {
-      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+      return badRequest('Wallet has no business association')
     }
     const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
     if (wallet.status !== 'active') {
-      return NextResponse.json({ error: 'Wallet is not active' }, { status: 400 })
+      return badRequest('Wallet is not active')
     }
 
     // Calculate fees first to check total debit against available balance
@@ -119,7 +113,7 @@ async function postHandler(request: NextRequest) {
 
     // Early rejection check (optimization; real check happens inside transaction)
     if (wallet.availableBalance < totalDebit) {
-      return NextResponse.json({ error: `Insufficient available balance. Required: ${data.amount} + ${processingFee.toFixed(2)} fee = ${totalDebit.toFixed(2)}, Available: ${wallet.availableBalance.toFixed(2)}` }, { status: 400 })
+      return badRequest(`Insufficient available balance. Required: ${data.amount} + ${processingFee.toFixed(2)} fee = ${totalDebit.toFixed(2)}, Available: ${wallet.availableBalance.toFixed(2)}`)
     }
 
     // Calculate crypto amount
@@ -215,15 +209,13 @@ async function postHandler(request: NextRequest) {
       return cw
     })
 
-    return NextResponse.json({ data: cryptoWdr }, { status: 201 })
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to create crypto withdrawal'
+    return created(cryptoWdr)
+  } catch (err: any) {
+    const message = err instanceof Error ? err.message : 'Failed to create crypto withdrawal'
     if (message.includes('Insufficient') || message.includes('not found') || message.includes('not active') || message.includes('Invalid') || message.includes('business')) {
-      return NextResponse.json({ error: message }, { status: 400 })
-    }
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error('Error creating crypto withdrawal:', error)
-    return NextResponse.json({ error: 'Failed to create crypto withdrawal' }, { status: 500 })
+      return badRequest(message)
+    }console.error('Error creating crypto withdrawal:', err)
+    return error('Failed to create crypto withdrawal')
   }
 }
 
@@ -231,7 +223,7 @@ async function postHandler(request: NextRequest) {
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
 
     const { searchParams } = new URL(request.url)
     const walletId = searchParams.get('walletId')
@@ -240,15 +232,15 @@ async function getHandler(request: NextRequest) {
     const offset = (page - 1) * limit
 
     if (!walletId) {
-      return NextResponse.json({ error: 'walletId is required' }, { status: 400 })
+      return badRequest('walletId is required')
     }
 
     const wallet = await db.wallet.findUnique({ where: { id: walletId } })
-    if (!wallet) return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
-    if (!wallet.businessId) return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+    if (!wallet) return notFound('Wallet not found')
+    if (!wallet.businessId) return badRequest('Wallet has no business association')
     const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
 
     const [records, total] = await Promise.all([
@@ -261,14 +253,12 @@ async function getHandler(request: NextRequest) {
       db.cryptoWithdrawal.count({ where: { walletId } }),
     ])
 
-    return NextResponse.json({ data: records, pagination: { page, limit, offset, total, pages: Math.ceil(total / limit) } })
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error('Error listing crypto withdrawals:', error)
-    return NextResponse.json({ error: 'Failed to list crypto withdrawals' }, { status: 500 })
+    return ok(records, { page, limit, offset, total, pages: Math.ceil(total / limit) })
+  } catch (err: any) {console.error('Error listing crypto withdrawals:', err)
+    return error('Failed to list crypto withdrawals')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/wallets/crypto-withdrawal');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/wallets/crypto-withdrawal');
 
-export const POST = withApiTelemetry(postHandler, '/api/wallets/crypto-withdrawal');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/wallets/crypto-withdrawal');

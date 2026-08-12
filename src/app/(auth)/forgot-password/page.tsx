@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { KeyRound } from 'lucide-react'
 
@@ -24,7 +24,7 @@ export default function ForgotPasswordPage() {
             <span className="text-2xl font-bold text-foreground">Youngsend</span>
           </div>
           <div>
-            <CardTitle className="text-xl">Reset Password</CardTitle>
+            <h1 className="text-xl font-semibold leading-none">Reset Password</h1>
             <CardDescription className="mt-1">
               We&apos;ll help you get back into your account
             </CardDescription>

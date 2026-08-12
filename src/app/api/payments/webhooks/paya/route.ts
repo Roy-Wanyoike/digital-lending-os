@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { providerRegistry, emitPaymentCompleted, emitPaymentFailed, processWebhookEvent } from '@/lib/payment'
 import { db } from '@/lib/db'
+import { badRequest, error, ok } from '@/backend/lib/api-response'
 
 // ─── Paya Webhook ───────────────────────────────────────
 // Paya delivers deposit/withdrawal lifecycle events as POST JSON.
@@ -19,13 +20,11 @@ export async function POST(request: NextRequest) {
 
     const provider = providerRegistry.getProvider('paya')
     if (!provider) {
-      return NextResponse.json({ error: 'Paya provider not configured' }, { status: 500 })
-    }
+      return error('Paya provider not configured')}
 
     // Demo mode (no secret + test mode) → validateWebhookSignature returns true
     if (!provider.validateWebhookSignature(body, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
-    }
+      return badRequest('Invalid signature')}
 
     const payload = JSON.parse(body) as {
       event?: string
@@ -74,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     if (!providerPaymentId) {
       // Nothing we can correlate on — acknowledge to avoid retries
-      return NextResponse.json({ received: true, ignored: true, reason: 'no_reference' })
+      return ok({ received: true, ignored: true, reason: 'no_reference' })
     }
 
     // Wrap fetch (for idempotency + stale-read protection) and all mutations in a transaction
@@ -260,9 +259,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ received: true })
-  } catch (error) {
-    console.error('[Paya Webhook] Error:', error)
-    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
+    return ok({ received: true })
+  } catch (err: any) {
+    console.error('[Paya Webhook] Error:', err)
+    return error('Webhook processing failed')
   }
 }

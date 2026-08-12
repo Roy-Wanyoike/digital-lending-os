@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
 import { db, ensurePragmas } from '@/lib/db';
+import { withErrorHandler, ok, error } from '@/backend/lib/api-response';
 
-export async function GET() {
+export const GET = withErrorHandler(async () => {
   try {
     // Ensure PRAGMAs are applied on warm start
     await ensurePragmas();
@@ -11,28 +11,20 @@ export async function GET() {
     const result = await db.$queryRaw<Array<{ v: number }>>`SELECT 1 as v`;
     const dbLatencyMs = Date.now() - start;
 
-    return NextResponse.json({
-      status: 'ok',
-      checks: {
-        database: 'ok',
-        dbLatencyMs,
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[health] Database check failed:', message);
-    return NextResponse.json(
+    return ok(
       {
-        status: 'degraded',
+        status: 'ok',
         checks: {
-          database: 'error',
-          dbLatencyMs: null,
+          database: 'ok',
+          dbLatencyMs,
         },
-        error: message,
         timestamp: new Date().toISOString(),
       },
-      { status: 503 },
+      undefined,
     );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[health] Database check failed:', message);
+    return error('Service degraded', 503, 'SERVICE_DEGRADED');
   }
-}
+});

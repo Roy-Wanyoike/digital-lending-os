@@ -52,7 +52,7 @@ const getBusinessesHandler = withErrorHandler(async (req: NextRequest) => {
   return ok(businesses);
 });
 
-export const GET = withApiTelemetry(getBusinessesHandler, '/api/businesses');
+export const GET = withApiTelemetry(withErrorHandler(getBusinessesHandler), '/api/businesses');
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const user = await requireAuth(req);

@@ -417,12 +417,16 @@ export function sanitizeObject<T extends Record<string, unknown>>(obj: T): {
 // ── Timing-Safe Comparison ──────────────────────────────────────────
 
 function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
+  const crypto = require('crypto') as typeof import('crypto')
   const bufA = Buffer.from(a, 'utf8')
   const bufB = Buffer.from(b, 'utf8')
-  if (bufA.length !== bufB.length) return false
-
-  // Use Node's timingSafeEqual
-  const crypto = require('crypto') as typeof import('crypto')
-  return crypto.timingSafeEqual(bufA, bufB)
+  if (bufA.length === bufB.length) {
+    return crypto.timingSafeEqual(bufA, bufB)
+  }
+  // Different lengths: hash both to fixed-length SHA-256 digests before
+  // comparing. This prevents a timing side-channel that would otherwise
+  // leak length information (early return on length mismatch).
+  const digestA = crypto.createHash('sha256').update(bufA).digest()
+  const digestB = crypto.createHash('sha256').update(bufB).digest()
+  return crypto.timingSafeEqual(digestA, digestB)
 }

@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
+import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 
 const createEscrowSchema = z.object({
   amount: z.coerce.number().positive('Amount must be a positive number'),
@@ -29,41 +31,50 @@ async function getCache() {
 async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (!user) return unauthorized('Authentication required');
 
-    const businesses = await db.business.findMany({
-      where: { tenantId: user.tenantId },
-      select: { id: true },
-    });
-    const businessIds = businesses.map((b: any) => b.id);
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
+
+    const businessIds = await getTenantBusinessIds(user.tenantId, db);
 
     if (businessIds.length === 0) {
-      return NextResponse.json({ escrows: [] });
+      return ok([]);
     }
+
+    const where = {
+      OR: [
+        { buyerId: { in: businessIds } },
+        { sellerId: { in: businessIds } },
+      ],
+    };
 
     const cacheManager = await getCache();
     const fetchEscrows = () => db.escrowTransaction.findMany({
-      where: {
-        OR: [
-          { buyerId: { in: businessIds } },
-          { sellerId: { in: businessIds } },
-        ],
-      },
+      where,
       include: {
         buyer: { select: { id: true, name: true } },
         seller: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
-    const escrows = cacheManager
-      ? await cacheManager.getOrSet(`escrows:${user.tenantId}`, fetchEscrows, { ttl: 30_000 })
-      : await fetchEscrows();
+    const fetchCount = () => db.escrowTransaction.count({ where });
 
-    return NextResponse.json({ data: escrows });
-  } catch (error) {
+    const [escrows, total] = cacheManager
+      ? await Promise.all([
+          cacheManager.getOrSet(`escrows:${user.tenantId}:page:${page}:limit:${limit}`, fetchEscrows, { ttl: 30_000 }),
+          fetchCount(),
+        ])
+      : await Promise.all([fetchEscrows(), fetchCount()]);
+
+    return ok(escrows, { page, limit, total, pages: Math.ceil(total / limit) });
+  } catch (error: any) {
     console.error('Escrow GET error:', error);
-    return NextResponse.json({ error: 'Failed to fetch escrow transactions' }, { status: 500 });
+    return error('Failed to fetch escrow transactions');
   }
 }
 
@@ -81,10 +92,7 @@ async function postHandler(req: NextRequest) {
     const body = await req.json();
     const parsed = createEscrowSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      );
+      return validationError(parsed.error.issues.map(i => i.message).join(', '));
     }
 
     const { amount, currency, description, sellerId } = parsed.data;
@@ -95,7 +103,7 @@ async function postHandler(req: NextRequest) {
       select: { id: true },
     });
     if (!buyerBusiness) {
-      return NextResponse.json({ error: 'No business found for this user' }, { status: 400 });
+      return badRequest('No business found for this user');
     }
 
     // Validate seller exists and belongs to the same tenant
@@ -104,7 +112,7 @@ async function postHandler(req: NextRequest) {
       select: { id: true },
     });
     if (!seller) {
-      return NextResponse.json({ error: 'Seller business not found' }, { status: 404 });
+      return notFound('Seller business not found');
     }
 
     const txRef = generateTxRef();
@@ -125,14 +133,12 @@ async function postHandler(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ data: escrow }, { status: 201 });
-  } catch (error) {
-    console.error('Escrow POST error:', error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json({ error: 'Failed to create escrow transaction' }, { status: 500 });
+    return created(escrow);
+  } catch (error: any) {
+    console.error('Escrow POST error:', error);return error('Failed to create escrow transaction');
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/escrow');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/escrow');
 
-export const POST = withApiTelemetry(postHandler, '/api/escrow');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/escrow');

@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, requireRole, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { conflict, error, notFound, ok, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const updateAlertSchema = z.object({
   status: z.enum(['investigating', 'confirmed_fraud', 'false_positive', 'escalated', 'resolved'] as const),
   resolvedBy: z.string().optional(),
@@ -33,27 +33,26 @@ async function getHandler(
     const alert = await db.fraudAlert.findUnique({ where: { id } })
 
     if (!alert) {
-      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+      return notFound('Fraud alert not found')
     }
 
     // Verify tenant access via businessId
     if (!alert.businessId) {
       // Orphaned alert — deny access to all tenants
-      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+      return notFound('Fraud alert not found')
     }
     const biz = await db.business.findUnique({
       where: { id: alert.businessId },
       select: { tenantId: true },
     })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+      return notFound('Fraud alert not found')
     }
 
-    return NextResponse.json({ data: alert })
-  } catch (error) {
+    return ok(alert)
+  } catch (error: any) {
     console.error('Error fetching fraud alert:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to fetch fraud alert' }, { status: 500 })
+    return error('Failed to fetch fraud alert')
   }
 }
 
@@ -68,27 +67,24 @@ async function putHandler(
     const parsed = updateAlertSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const existing = await db.fraudAlert.findUnique({ where: { id } })
     if (!existing) {
-      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+      return notFound('Fraud alert not found')
     }
 
     // Verify tenant access via businessId
     if (!existing.businessId) {
-      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+      return notFound('Fraud alert not found')
     }
     const biz = await db.business.findUnique({
       where: { id: existing.businessId },
       select: { tenantId: true },
     })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Fraud alert not found' }, { status: 404 })
+      return notFound('Fraud alert not found')
     }
 
     const data = parsed.data
@@ -96,10 +92,7 @@ async function putHandler(
     // Validate status transition
     const allowed = VALID_TRANSITIONS[existing.status] || []
     if (!allowed.includes(data.status)) {
-      return NextResponse.json(
-        { error: `Invalid transition from '${existing.status}' to '${data.status}'. Allowed: ${allowed.join(', ') || 'none (terminal state)'}` },
-        { status: 409 }
-      )
+      return conflict(`Invalid transition from '${existing.status}' to '${data.status}'. Allowed: ${allowed.join(', ') || 'none (terminal state)'}`)
     }
 
     const isResolved = data.status === 'resolved' || data.status === 'confirmed_fraud' || data.status === 'false_positive'
@@ -114,14 +107,13 @@ async function putHandler(
       },
     })
 
-    return NextResponse.json({ data: alert })
-  } catch (error) {
+    return ok(alert)
+  } catch (error: any) {
     console.error('Error updating fraud alert:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to update fraud alert' }, { status: 500 })
+    return error('Failed to update fraud alert')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/fraud/alerts/[id]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/fraud/alerts/[id]');
 
-export const PUT = withApiTelemetry(putHandler, '/api/fraud/alerts/[id]');
+export const PUT = withApiTelemetry(withErrorHandler(putHandler), '/api/fraud/alerts/[id]');

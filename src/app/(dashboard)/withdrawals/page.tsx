@@ -130,9 +130,9 @@ export default function WithdrawalsPage() {
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Wallet *</Label>
+                <Label htmlFor="walletId">Wallet *</Label>
                 <Select value={form.walletId} onValueChange={(v) => setForm({ ...form, walletId: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select wallet" /></SelectTrigger>
+                  <SelectTrigger id="walletId"><SelectValue placeholder="Select wallet" /></SelectTrigger>
                   <SelectContent>
                     {walletOptions.map(w => (
                       <SelectItem key={w.id} value={w.id}>{CURRENCY_FLAGS[w.currency] || '💰'} {w.currency} — {formatCurrency(w.balance, w.currency)}</SelectItem>
@@ -142,8 +142,8 @@ export default function WithdrawalsPage() {
                 {formErrors.walletId && <p className="text-xs text-destructive">{formErrors.walletId}</p>}
               </div>
               <div className="space-y-2">
-                <Label>Amount *</Label>
-                <Input type="number" min="0.01" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+                <Label htmlFor="wdAmount">Amount *</Label>
+                <Input id="wdAmount" type="number" min="0.01" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
                 {formErrors.amount && <p className="text-xs text-destructive">{formErrors.amount}</p>}
               </div>
               <div className="space-y-2">

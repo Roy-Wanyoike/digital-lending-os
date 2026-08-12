@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getRequestBaseUrl } from "@/lib/utils";
 import { db } from "@/lib/db";
@@ -7,6 +7,7 @@ import { requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, conflict, created, error, notFound, ok, withErrorHandler } from '@/backend/lib/api-response';
 // ── Zod Schema ───────────────────────────────────────────────
 const fundSchema = z.object({
   provider: z.enum(["stripe", "paystack", "intasend", "flutterwave"]).optional(),
@@ -28,10 +29,7 @@ async function postHandler(
     const parsed = fundSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(", ") },
-        { status: 400 }
-      );
+      return badRequest(parsed.error.issues.map((i) => i.message).join(", "));
     }
 
     const data = parsed.data;
@@ -51,19 +49,11 @@ async function postHandler(
     });
 
     if (!escrow) {
-      return NextResponse.json(
-        { error: "Escrow transaction not found" },
-        { status: 404 }
-      );
+      return notFound("Escrow transaction not found");
     }
 
     if (escrow.status !== "created") {
-      return NextResponse.json(
-        {
-          error: `Cannot fund escrow with status '${escrow.status}'. Only 'created' escrows can be funded.`,
-        },
-        { status: 409 }
-      );
+      return conflict(`Cannot fund escrow with status '${escrow.status}'. Only 'created' escrows can be funded.`);
     }
 
     // ─── Provider Selection ────────────────────────────────────
@@ -81,18 +71,12 @@ async function postHandler(
     }
 
     if (!providerCode) {
-      return NextResponse.json(
-        { error: `No active payment provider available for ${escrow.currency}. Configure provider keys in .env` },
-        { status: 400 }
-      );
+      return badRequest(`No active payment provider available for ${escrow.currency}. Configure provider keys in .env`);
     }
 
     const provider = providerRegistry.getProvider(providerCode);
     if (!provider) {
-      return NextResponse.json(
-        { error: `Payment provider '${providerCode}' is not configured or active` },
-        { status: 400 }
-      );
+      return badRequest(`Payment provider '${providerCode}' is not configured or active`);
     }
 
     // ─── Fee Calculation ───────────────────────────────────────
@@ -146,10 +130,7 @@ async function postHandler(
         where: { id: paymentIntent.id },
         data: { status: "failed" },
       });
-      return NextResponse.json(
-        { error: `Failed to initialize payment with ${getProviderName(providerCode)}` },
-        { status: 502 }
-      );
+      return error(`Failed to initialize payment with ${getProviderName(providerCode)}`, 502, 'BAD_GATEWAY');
     }
 
     // ─── Create PaymentTransaction record ─────────────────────
@@ -191,27 +172,20 @@ async function postHandler(
     void recordPaymentTransition(paymentIntent.id, 'CREATED', 'PENDING_PROVIDER', user.email || user.id || 'authenticated');
 
     // ─── Return checkout info ─────────────────────────────────
-    return NextResponse.json({
-      data: {
-        escrowId: id,
-        escrowRef: escrow.txRef,
-        paymentIntentId: paymentIntent.id,
-        paymentTransactionId: paymentTx.id,
-        provider: providerCode,
-        providerName: getProviderName(providerCode),
-        checkoutUrl: initResult.checkoutUrl || initResult.authorizationUrl,
-        fee: feeBreakdown,
-        status: "awaiting_payment",
-      },
+    return created({
+      escrowId: id,
+      escrowRef: escrow.txRef,
+      paymentIntentId: paymentIntent.id,
+      paymentTransactionId: paymentTx.id,
+      provider: providerCode,
+      providerName: getProviderName(providerCode),
+      checkoutUrl: initResult.checkoutUrl || initResult.authorizationUrl,
+      fee: feeBreakdown,
+      status: "awaiting_payment",
     });
-  } catch (error) {
-    console.error("Error funding escrow transaction:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to initiate escrow funding" },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error("Error funding escrow transaction:", err);return error("Failed to initiate escrow funding");
   }
 }
 
-export const POST = withApiTelemetry(postHandler, '/api/escrow/transactions/[id]/fund');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/escrow/transactions/[id]/fund');

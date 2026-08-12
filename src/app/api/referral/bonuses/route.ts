@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
-import { getApiUser, AuthError, successResponse, errorResponse } from '@/lib/auth/api-helpers'
+import { NextRequest } from 'next/server';import { db } from '@/lib/db'
+import { getApiUser, AuthError,  } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { error, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 // GET /api/referral/bonuses — List referral bonuses for the current user
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return errorResponse('Authentication required', 401)
+    if (!user) return unauthorized('Authentication required')
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') || ''
@@ -55,7 +55,7 @@ async function getHandler(request: NextRequest) {
       refereeName: accountMap.get(b.refereeId)?.name || 'Unknown',
     }))
 
-    return successResponse({
+    return ok({
       data: enriched,
       pagination: {
         page,
@@ -64,13 +64,12 @@ async function getHandler(request: NextRequest) {
         pages: Math.ceil(total / limit),
       },
     })
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof AuthError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    }
+      }
     console.error('Referral bonuses GET error:', error)
-    return errorResponse('Failed to fetch referral bonuses', 500)
+    return error('Failed to fetch referral bonuses')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/referral/bonuses');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/referral/bonuses');

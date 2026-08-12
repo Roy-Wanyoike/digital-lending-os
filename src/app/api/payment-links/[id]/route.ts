@@ -82,8 +82,8 @@ const deleteHandler = withErrorHandler(async (
   return noContent();
 });
 
-export const GET = withApiTelemetry(getHandler, '/api/payment-links/[id]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/payment-links/[id]');
 
-export const DELETE = withApiTelemetry(deleteHandler, '/api/payment-links/[id]');
+export const DELETE = withApiTelemetry(withErrorHandler(deleteHandler), '/api/payment-links/[id]');
 
-export const PATCH = withApiTelemetry(patchHandler, '/api/payment-links/[id]');
+export const PATCH = withApiTelemetry(withErrorHandler(patchHandler), '/api/payment-links/[id]');

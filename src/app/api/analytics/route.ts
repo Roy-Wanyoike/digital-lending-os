@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getApiUser, } from '@/lib/auth/api-helpers';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { analyticsCache } from '@/backend/lib/response-cache';
+import { error, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    if (!user) return unauthorized('Authentication required');
 
     const url = new URL(req.url);
     const period = url.searchParams.get('period') || '30d';
@@ -27,7 +28,7 @@ async function getHandler(req: NextRequest) {
     const analyticsKey = `analytics:${user.tenantId}:${period}`;
     const memCached = analyticsCache.get(analyticsKey);
     if (memCached) {
-      return successResponse(memCached);
+      return ok(memCached);
     }
 
     const [paymentVolume, completedTxCount, activeEscrows, completedEscrows, invoiceStats, walletStats, collectionStats, fraudCount, screeningCount, linkStats, overdueInvoices] = await Promise.all([
@@ -110,11 +111,11 @@ async function getHandler(req: NextRequest) {
     // Cache the result for subsequent requests within 5s
     analyticsCache.set(analyticsKey, result);
 
-    return successResponse(result);
+    return ok(result);
   } catch (error: any) {
     console.error('Analytics GET error:', error);
-    return errorResponse('Failed to fetch analytics', 500);
+    return error('Failed to fetch analytics');
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/analytics');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/analytics');

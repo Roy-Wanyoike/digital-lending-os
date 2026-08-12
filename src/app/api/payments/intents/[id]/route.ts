@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
 import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { getPaymentStateMachine as getSM, recordPaymentTransition } from '@/backend/lib/payment/route-helpers';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, conflict, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 
 // ── DB ↔ State Machine status mapping ─────────────────────────────
 function dbStatusToStateMachineState(dbStatus: string | null): string {
@@ -50,7 +51,7 @@ async function getHandler(
 ) {
   try {
     const user = await getApiUser(request);
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { id } = await params;
     const bizIds = await getTenantBusinessIds(user.tenantId);
 
@@ -70,20 +71,12 @@ async function getHandler(
     });
 
     if (!intent) {
-      return NextResponse.json(
-        { error: "Payment intent not found" },
-        { status: 404 }
-      );
+      return notFound("Payment intent not found");
     }
 
-    return NextResponse.json({ data: intent });
-  } catch (error) {
-    console.error("Error fetching payment intent:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to fetch payment intent" },
-      { status: 500 }
-    );
+    return ok(intent);
+  } catch (err: any) {
+    console.error("Error fetching payment intent:", err);return error("Failed to fetch payment intent");
   }
 }
 
@@ -99,10 +92,7 @@ async function putHandler(
     const parsed = updateIntentSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.issues },
-        { status: 400 }
-      );
+      return validationError("Validation failed", parsed.error.issues);
     }
 
     const bizIds = await getTenantBusinessIds(user.tenantId);
@@ -117,10 +107,7 @@ async function putHandler(
     });
 
     if (!existing) {
-      return NextResponse.json(
-        { error: "Payment intent not found" },
-        { status: 404 }
-      );
+      return notFound("Payment intent not found");
     }
 
     // ── State machine validation ──────────────────────────────────
@@ -154,15 +141,7 @@ async function putHandler(
 
         if (currentSmState && !sm.canTransition(currentSmState, targetState)) {
           const legalTargets = sm.getLegalTransitions(currentSmState).map((t: any) => t.to)
-          return NextResponse.json(
-            {
-              error: `Illegal state transition: ${currentSmState} → ${targetState}`,
-              code: 'INVALID_STATE_TRANSITION',
-              currentState: currentSmState,
-              legalTransitions: legalTargets,
-            },
-            { status: 409 },
-          )
+          return conflict(`Illegal state transition: ${currentSmState} → ${targetState}`);
         }
 
         const transitionResult = await sm.transition(id, targetState, {
@@ -175,10 +154,7 @@ async function putHandler(
         void recordPaymentTransition(id, transitionResult.previousState, transitionResult.newState, actor)
       } catch (err) {
         if (err instanceof Error && err.message.includes('Illegal transition')) {
-          return NextResponse.json(
-            { error: err.message, code: 'INVALID_STATE_TRANSITION' },
-            { status: 409 },
-          )
+          return conflict(err.message);
         }
         // State machine errors are non-fatal — fall back to direct DB update
         console.warn('[Payments/Intents/[id]] State machine error (non-fatal):', err)
@@ -198,17 +174,12 @@ async function putHandler(
       data: updateData,
     });
 
-    return NextResponse.json({ data: updated });
-  } catch (error) {
-    console.error("Error updating payment intent:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to update payment intent" },
-      { status: 500 }
-    );
+    return ok(updated);
+  } catch (err: any) {
+    console.error("Error updating payment intent:", err);return error("Failed to update payment intent");
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/payments/intents/[id]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/payments/intents/[id]');
 
-export const PUT = withApiTelemetry(putHandler, '/api/payments/intents/[id]');
+export const PUT = withApiTelemetry(withErrorHandler(putHandler), '/api/payments/intents/[id]');

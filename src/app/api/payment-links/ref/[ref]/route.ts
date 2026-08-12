@@ -34,4 +34,4 @@ const getHandler = withErrorHandler(async (
   return ok(link);
 });
 
-export const GET = withApiTelemetry(getHandler, '/api/payment-links/ref/[ref]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/payment-links/ref/[ref]');

@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { providerRegistry, type PaymentProviderCode } from '@/lib/payment'
 import { requireAuth, AuthError } from '@/lib/auth/api-helpers'
 import { getPaymentStateMachine as getSM, recordPaymentTransition } from '@/backend/lib/payment/route-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, error, notFound, ok, withErrorHandler } from '@/backend/lib/api-response';
 
 // ── DB ↔ State Machine status mapping ─────────────────────────────
 function dbStatusToStateMachineState(dbStatus: string | null): string {
@@ -40,20 +40,14 @@ async function postHandler(request: NextRequest) {
     const parsed = verifySchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map(i => i.message).join(', ') },
-        { status: 400 }
-      )
+      return badRequest(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const { providerPaymentId, provider, paymentIntentId } = parsed.data
 
     const providerInstance = providerRegistry.getProvider(provider as PaymentProviderCode)
     if (!providerInstance) {
-      return NextResponse.json(
-        { error: `Provider '${provider}' is not available` },
-        { status: 400 }
-      )
+      return badRequest(`Provider '${provider}' is not available`)
     }
 
     // If paymentIntentId provided, verify tenant owns it
@@ -73,7 +67,7 @@ async function postHandler(request: NextRequest) {
         },
       })
       if (!intent) {
-        return NextResponse.json({ error: 'Payment intent not found' }, { status: 404 })
+        return notFound('Payment intent not found')
       }
     }
 
@@ -190,25 +184,19 @@ async function postHandler(request: NextRequest) {
       await handleSuccessfulPayment(paymentIntentId, result)
     }
 
-    return NextResponse.json({
-      data: {
-        success: result.success,
-        status: result.status,
-        provider,
-        providerPaymentId,
-        amount: result.amount,
-        currency: result.currency,
-        fee: result.fee,
-        paidAt: result.paidAt,
-      },
+    return ok({
+      success: result.success,
+      status: result.status,
+      provider,
+      providerPaymentId,
+      amount: result.amount,
+      currency: result.currency,
+      fee: result.fee,
+      paidAt: result.paidAt,
     })
-  } catch (error) {
-    console.error('[Payments] Verify error:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json(
-      { error: 'Failed to verify payment' },
-      { status: 500 }
-    )
+  } catch (err: any) {
+    console.error('[Payments] Verify error:', err)
+    return error('Failed to verify payment')
   }
 }
 
@@ -271,9 +259,9 @@ async function handleSuccessfulPayment(paymentIntentId: string, result: any) {
         }
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Payments] Post-payment processing error:', error)
   }
 }
 
-export const POST = withApiTelemetry(postHandler, '/api/payments/verify');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/payments/verify');

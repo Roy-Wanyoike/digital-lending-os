@@ -18,7 +18,7 @@ export function OverviewTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Verified Commerce Volume</h1>
+        <h3 className="text-2xl font-bold text-foreground">Verified Commerce Volume</h3>
         <p className="text-muted-foreground text-sm">Total value of verified transactions</p>
       </div>
       <div className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(stats.totalEscrowVolume)}</div>

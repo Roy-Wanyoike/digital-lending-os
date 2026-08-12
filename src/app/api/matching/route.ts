@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { conflict, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const MATCH_REASONS = [
   'Industry complementarity',
   'Geographic proximity',
@@ -34,7 +34,7 @@ const createMatchSchema = z.object({
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
@@ -91,8 +91,7 @@ async function getHandler(request: NextRequest) {
       candidateName: bizNameMap.get(match.candidateId) ?? null,
     }))
 
-    return NextResponse.json({
-      data: matchesWithNames,
+    return ok(matchesWithNames, {
       pagination: {
         page,
         limit,
@@ -100,10 +99,9 @@ async function getHandler(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     })
-  } catch (error) {
-    console.error('Error listing business matches:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    return NextResponse.json({ error: 'Failed to list business matches' }, { status: 500 })
+  } catch (err: any) {
+    console.error('Error listing business matches:', err)
+    return error('Failed to list business matches')
   }
 }
 
@@ -114,10 +112,7 @@ async function postHandler(request: NextRequest) {
     const parsed = createMatchSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const data = parsed.data
@@ -125,7 +120,7 @@ async function postHandler(request: NextRequest) {
     // Verify seeker belongs to tenant
     const seeker = await db.business.findUnique({ where: { id: data.seekerId }, select: { tenantId: true } })
     if (!seeker || seeker.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Seeker business not found' }, { status: 404 })
+      return notFound('Seeker business not found')
     }
 
     // If candidateId is provided, create a single match
@@ -139,7 +134,7 @@ async function postHandler(request: NextRequest) {
           reasons: JSON.stringify(randomReasons()),
         },
       })
-      return NextResponse.json({ data: match }, { status: 201 })
+      return created(match)
     }
 
     // Auto-generate matches: find businesses in complementary industries/countries within same tenant
@@ -169,17 +164,15 @@ async function postHandler(request: NextRequest) {
       )
     )
 
-    return NextResponse.json({ data: matches }, { status: 201 })
-  } catch (error: unknown) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
-      return NextResponse.json({ error: 'This match already exists' }, { status: 409 })
+    return created(matches)
+  } catch (error: any) {if (error && typeof error === 'object' && 'code' in error && (error as { code: string }).code === 'P2002') {
+      return conflict('This match already exists')
     }
     console.error('Error creating match:', error)
-    return NextResponse.json({ error: 'Failed to create match' }, { status: 500 })
+    return error('Failed to create match')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/matching');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/matching');
 
-export const POST = withApiTelemetry(postHandler, '/api/matching');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/matching');

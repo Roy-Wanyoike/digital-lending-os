@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { getApiUser, requireAuth, AuthError, errorResponse, successResponse } from '@/lib/auth/api-helpers';
+import { getApiUser, requireAuth, AuthError, } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { logAudit } from '@/lib/audit-logger';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { walletListCache } from '@/backend/lib/response-cache';
+import { badRequest, conflict, created, error, forbidden, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 
 const createWalletSchema = z.object({
   businessId: z.string().min(1, 'businessId is required'),
@@ -30,7 +31,7 @@ async function getCache() {
 async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    if (!user) return unauthorized('Authentication required');
 
     const { searchParams } = new URL(req.url);
     const filterBusinessId = searchParams.get('businessId');
@@ -42,14 +43,14 @@ async function getHandler(req: NextRequest) {
     const businessIds = await getTenantBusinessIds(user.tenantId, db);
 
     if (businessIds.length === 0) {
-      return successResponse([]);
+      return ok([]);
     }
 
     // If a specific businessId is requested, verify it belongs to this tenant
     let targetBusinessIds = businessIds;
     if (filterBusinessId) {
       if (!businessIds.includes(filterBusinessId)) {
-        return successResponse([]);
+        return ok([]);
       }
       targetBusinessIds = [filterBusinessId];
     }
@@ -61,9 +62,7 @@ async function getHandler(req: NextRequest) {
     // First-level: synchronous in-memory cache (5s TTL)
     const memCached = walletListCache.get(cacheKey);
     if (memCached) {
-      const response = successResponse(memCached);
-      response.headers.set('Cache-Control', 'private, max-age=3, stale-while-revalidate=5');
-      return response;
+      return ok(memCached, undefined, { maxAge: 3, swr: 5 });
     }
 
     const cacheManager = await getCache();
@@ -96,18 +95,15 @@ async function getHandler(req: NextRequest) {
     // Populate first-level cache
     walletListCache.set(cacheKey, wallets);
 
-    const response = successResponse(wallets);
-    response.headers.set('X-Pagination', JSON.stringify({ page, limit, offset, total, pages: Math.ceil(total / limit) }));
-    response.headers.set('Cache-Control', 'private, max-age=3, stale-while-revalidate=5');
-    return response;
-  } catch (error: any) {
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
-    console.error('Wallets GET error:', error);
-    return errorResponse('Failed to fetch wallets', 500);
+    return ok(wallets, { page, limit, offset, total, pages: Math.ceil(total / limit) }, { maxAge: 3, swr: 5 });
+  } catch (err: any) {
+    if (err.message === 'Authentication required') return unauthorized(err.message);
+    console.error('Wallets GET error:', err);
+    return error('Failed to fetch wallets');
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/wallets');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/wallets');
 
 async function postHandler(req: NextRequest) {
   try {
@@ -116,7 +112,7 @@ async function postHandler(req: NextRequest) {
     const body = await req.json();
     const parsed = createWalletSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse(parsed.error.issues.map(i => i.message).join(', '), 400);
+      return badRequest(parsed.error.issues.map(i => i.message).join(', '));
     }
     const { currency, businessId } = parsed.data;
 
@@ -126,7 +122,7 @@ async function postHandler(req: NextRequest) {
       select: { id: true, tenantId: true },
     });
 
-    if (!business) return errorResponse('Business not found or not in your tenant', 403);
+    if (!business) return forbidden('Business not found or not in your tenant');
 
     // Check if wallet already exists for this business + currency
     const existing = await db.wallet.findFirst({
@@ -134,7 +130,7 @@ async function postHandler(req: NextRequest) {
       select: { id: true },
     });
 
-    if (existing) return errorResponse('Wallet already exists for this currency', 409);
+    if (existing) return conflict('Wallet already exists for this currency');
 
     const wallet = await db.wallet.create({
       data: {
@@ -155,13 +151,11 @@ async function postHandler(req: NextRequest) {
       tenantId: user.tenantId,
     });
 
-    return successResponse(wallet, 201);
-  } catch (error: any) {
-    if (error instanceof AuthError) return errorResponse(error.message, error.status);
-    if (error.message === 'Authentication required') return errorResponse(error.message, 401);
+    return created(wallet);
+  } catch (error: any) {if (error.message === 'Authentication required') return unauthorized(error.message);
     console.error('Wallets POST error:', error);
-    return errorResponse('Failed to create wallet', 500);
+    return error('Failed to create wallet');
   }
 }
 
-export const POST = withApiTelemetry(postHandler, '/api/wallets');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/wallets');

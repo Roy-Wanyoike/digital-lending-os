@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, requireRole, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 function generateAlertRef(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   let result = 'FRD-'
@@ -29,7 +29,7 @@ const createAlertSchema = z.object({
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
@@ -63,8 +63,7 @@ async function getHandler(request: NextRequest) {
       db.fraudAlert.count({ where }),
     ])
 
-    return NextResponse.json({
-      data: alerts,
+    return ok(alerts, {
       pagination: {
         page,
         limit,
@@ -72,10 +71,9 @@ async function getHandler(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     })
-  } catch (error) {
-    console.error('Error listing fraud alerts:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to list fraud alerts' }, { status: 500 })
+  } catch (err: any) {
+    console.error('Error listing fraud alerts:', err)
+    return error('Failed to list fraud alerts')
   }
 }
 
@@ -86,10 +84,7 @@ async function postHandler(request: NextRequest) {
     const parsed = createAlertSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const data = parsed.data
@@ -97,7 +92,7 @@ async function postHandler(request: NextRequest) {
     // Validate businessId belongs to tenant
     const biz = await db.business.findUnique({ where: { id: data.businessId }, select: { tenantId: true } })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+      return notFound('Business not found')
     }
 
     let alertRef = generateAlertRef()
@@ -109,7 +104,7 @@ async function postHandler(request: NextRequest) {
       retries++
     }
     if (exists) {
-      return NextResponse.json({ error: 'Failed to generate unique alert reference' }, { status: 500 })
+      return error('Failed to generate unique alert reference')
     }
 
     const alert = await db.fraudAlert.create({
@@ -126,14 +121,13 @@ async function postHandler(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ data: alert }, { status: 201 })
-  } catch (error) {
+    return created(alert)
+  } catch (error: any) {
     console.error('Error creating fraud alert:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to create fraud alert' }, { status: 500 })
+    return error('Failed to create fraud alert')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/fraud/alerts');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/fraud/alerts');
 
-export const POST = withApiTelemetry(postHandler, '/api/fraud/alerts');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/fraud/alerts');

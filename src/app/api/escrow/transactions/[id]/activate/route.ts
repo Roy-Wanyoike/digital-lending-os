@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { eventBus } from "@/backend/services/event-bus";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { conflict, error, notFound, ok, withErrorHandler } from '@/backend/lib/api-response';
 // ── POST: Activate escrow (move to in_escrow) ───────────────
 async function postHandler(
   request: NextRequest,
@@ -24,19 +25,11 @@ async function postHandler(
     });
 
     if (!escrow) {
-      return NextResponse.json(
-        { error: "Escrow transaction not found" },
-        { status: 404 }
-      );
+      return notFound("Escrow transaction not found");
     }
 
     if (escrow.status !== "funded") {
-      return NextResponse.json(
-        {
-          error: `Cannot activate escrow with status '${escrow.status}'. Only 'funded' escrows can be activated.`,
-        },
-        { status: 409 }
-      );
+      return conflict(`Cannot activate escrow with status '${escrow.status}'. Only 'funded' escrows can be activated.`);
     }
 
     const updated = await db.escrowTransaction.update({
@@ -73,15 +66,10 @@ async function postHandler(
       console.error('[escrow.updated] emit failed:', err);
     }
 
-    return NextResponse.json({ data: updated });
-  } catch (error) {
-    console.error("Error activating escrow transaction:", error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: "Failed to activate escrow transaction" },
-      { status: 500 }
-    );
+    return ok(updated);
+  } catch (err: any) {
+    console.error("Error activating escrow transaction:", err);return error("Failed to activate escrow transaction");
   }
 }
 
-export const POST = withApiTelemetry(postHandler, '/api/escrow/transactions/[id]/activate');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/escrow/transactions/[id]/activate');

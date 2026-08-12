@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, requireRole, AuthError } from '@/lib/auth/api-helpers'
-import { unauthorized, badRequest, forbidden, error as apiErr, created, ok } from '@/backend/lib/api-response'
+import { unauthorized, badRequest, forbidden, error as apiErr, created, ok, withErrorHandler } from '@/backend/lib/api-response'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const createComplianceRuleSchema = z.object({
@@ -46,7 +46,7 @@ async function getHandler(request: NextRequest) {
     ])
 
     return ok({ data: rules, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error listing compliance rules:', error)
     if (error instanceof AuthError) return unauthorized(error.message)
     return apiErr('Failed to list compliance rules')
@@ -92,13 +92,13 @@ async function postHandler(request: NextRequest) {
     })
 
     return created(rule)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating compliance rule:', error)
     if (error instanceof AuthError) return unauthorized(error.message)
     return apiErr('Failed to create compliance rule')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/compliance/rules');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/compliance/rules');
 
-export const POST = withApiTelemetry(postHandler, '/api/compliance/rules');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/compliance/rules');

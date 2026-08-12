@@ -2658,3 +2658,150 @@ Stage Summary:
 - 8 critical blocking issues identified (Float money, balance immutability, in-memory state, no notifications, mock AI, no RLS, no integration tests)
 - 8-page PDF report generated at /home/z/my-project/download/Youngsend_Production_Gate_Report.pdf
 - All changes: 0 TS errors, 319/319 tests passing, clean production build
+
+---
+Task ID: 6
+Agent: Financial Core Agent
+Task: Harden financial core with comprehensive ledger, idempotency, and state machine tests
+
+Work Log:
+- Read and analyzed all financial core source files: ledger.ts, types.ts, idempotency.ts, state-machine.ts, webhook-state-sync.ts, route-helpers.ts, payment providers
+- Created `__tests__/unit/ledger-reconciliation.test.ts` (23 tests) covering: double-entry balance invariant, reversal correctness, multi-leg correlated entries, balance from scratch, concurrent reads, currency isolation, reversal edge cases (already-reversed, non-existent), pagination, sequential balance accumulation
+- Created `__tests__/unit/payment-idempotency.test.ts` (37 tests) covering: acquire/complete/release cycle, duplicate key caching, concurrent 409 handling, expired entry re-acquisition, failed entry short TTL, key validation (format, length, special chars), withIdempotentOperation helper, cleanup interval purging, withIdempotency middleware (400 missing header, cached replay, 409 in-progress, 400 invalid key, error propagation)
+- Created `__tests__/unit/payment-state-machine-hardened.test.ts` (86 tests) covering: all 11 legal transitions with description verification, 26 invalid transitions, transition idempotency (same key, different keys, default key), guard validation, state history tracking (order, unique IDs, idempotency key, no duplicate history), concurrent transitions, complex flows (happy path, failure, retry, refund, dispute merchant wins, dispute customer wins), edge cases (initialize duplicate, stats, DOT graph, clear, getLegalTransitions, getTransitionDescription)
+- Created `__tests__/integration/financial-flow.test.ts` (9 tests) covering: complete payment flow with state machine + idempotency + ledger, idempotent replay, escrow fund/release flow, withdrawal flow, failed payment (no ledger entries), failed payment retry, refund flow with reversal entries, cumulative double-entry invariant, mixed success/failure invariant
+- Built shared mock for `@/lib/db` (Prisma) with monotonically incrementing `createdAt` to ensure deterministic sort ordering
+- Fixed test expectations to match actual reversal behavior: reversals mark originals as 'reversed' and create new posted entries from the current running balance
+- Fixed idempotency key validation test: static helper keys contain `:` which is intentionally not allowed by `validateKey()` (that method is for user-supplied headers only)
+- Fixed state machine tests: added `walkToState()` helper to properly set up initial state before testing transitions; used unique idempotency keys for invalid transition tests to avoid cache hits
+- All 474 tests passing (was 319), 0 TypeScript errors
+
+Stage Summary:
+- 4 new test files created with 155 new test cases
+- Total test count: 474 (was 319)
+- Test files: 13 (was 9)
+- 0 TypeScript errors, all 474 tests passing in ~5.1s
+- Financial core is now comprehensively tested: ledger (23 tests), idempotency (37 tests), state machine hardened (86 tests), integration flows (9 tests)
+
+---
+Task ID: 5e
+Agent: API Standardization Agent
+Task: Migrate all raw NextResponse.json routes to standard api-response helpers
+
+Work Log:
+- Ran `rg 'NextResponse.json' src/app/api/ -l` — found 38 files with raw NextResponse.json calls
+- Categorized: 7 files with NO api-response import (full migration needed), 31 partial (already import some helpers but still had NextResponse.json)
+- Migrated all 38 API routes from raw NextResponse.json() to standard helpers (ok, created, badRequest, notFound, unauthorized, forbidden, conflict, validationError, error)
+- Fixed pre-existing bugs: `successResponse`/`errorResponse` ghost functions in referral, reports, wallets, transactions routes
+- Fixed missing `withErrorHandler` imports in compliance/rules, compliance/screenings
+- Added `ok` to imports in wallets/convert, wallets/crypto-withdrawal, wallets/withdrawal GET handlers
+- Renamed catch variables from `error` to `err` where they shadowed the imported `error()` function
+- Removed all `NextResponse` and `NextRequest` (where unused) imports
+- Webhook routes (flutterwave, stripe, intasend, paya, paystack): replaced `NextResponse.json({ received: true })` with `ok({ received: true })`, added proper imports
+- Health/ready routes: wrapped with `withErrorHandler`, replaced NextResponse.json with `ok()`/`error()`
+- Pagination responses: migrated from `{ data: items, pagination }` to `ok(items, pagination)` using the `meta` parameter
+- Cache-Control headers: migrated from manual headers to `ok()` cacheOpts parameter (e.g., `{ maxAge: 5, swr: 10 }`)
+- Proxy route (currency): handled double-wrapping by extracting `upstream.data` before passing to `ok()`
+- Collections/escrow memory caches: updated cache reads to use `ok()` with `{ noCache: true }` to avoid adding Cache-Control to cached responses
+
+Stage Summary:
+- 38 routes migrated, 0 remaining with NextResponse.json in src/app/api/
+- 0 NextResponse imports remaining in src/app/api/
+- Pre-existing bugs fixed: 4 files with ghost `successResponse`/`errorResponse` functions, 2 files with missing `withErrorHandler`
+- `npx tsc --noEmit`: 0 errors
+- `npm test`: 474/474 tests passing
+- All API routes now use standard envelope: `{ data, meta? }` for success, `{ error: { message, code, details? } }` for errors
+
+---
+Task ID: 8
+Agent: Performance Optimization Agent
+Task: Performance optimization — N+1 queries, pagination, bundle size
+
+Work Log:
+- Read all 79 API route files under src/app/api/ to audit for N+1 query patterns
+- Confirmed zero N+1 patterns: all routes use Prisma include/select, batched lookups, or Promise.all for parallel queries
+- Identified 3 unbounded list endpoints missing pagination: /api/accounts, /api/payment-links, /api/escrow
+- Added pagination (page/limit/total/pages) to /api/accounts GET handler
+- Added pagination (page/limit) and Promise.all count query to /api/payment-links GET handler
+- Added pagination (page/limit) and count query to /api/escrow GET handler, also migrated to cached getTenantBusinessIds
+- Migrated /api/payment-links from inline db.business.findMany to cached getTenantBusinessIds
+- Verified next.config.ts already has optimizePackageImports (lucide-react, date-fns, recharts, framer-motion), serverExternalPackages (sharp, typescript, bcryptjs, @prisma/client, ioredis, redis-parser, @opentelemetry), and unoptimized images
+- Ran production build — largest server JS chunk is 776KB (root-of-the-server), Zod properly tree-shaken into 232KB separate chunk, client chunks max 272KB
+- Created __tests__/unit/performance.test.ts with 20 tests across 5 categories
+- Fixed syntax issues with regex escaping in test file
+- All 672 tests passing (652 existing + 20 new), 0 TypeScript errors
+
+Stage Summary:
+- N+1 queries: 0 found (codebase already well-structured with include/select and Promise.all)
+- Pagination added: 3 routes fixed (accounts, payment-links, escrow)
+- Bundle size: Already optimized via next.config.ts; no changes needed
+- Performance tests: 20 new tests covering pagination enforcement, column restriction, cache headers, ETag determinism, and LRU memory cleanup
+- Test count: 672 passing, 0 TypeScript errors
+---
+Task ID: 9
+Agent: Testing Expansion Agent
+Task: Expand test coverage with integration, middleware, and component tests
+
+Work Log:
+- Read and analyzed 6 critical route handlers: /api/health, /api/ready, /api/currency, /api/payment-methods/global, /api/roles, /api/compliance/rules
+- Read src/middleware.ts to understand rate limiting, bot protection, auth guard, CORS, security headers, and financial mutation detection
+- Read src/frontend/lib/formatters.ts to catalog all formatter functions and constants
+- Read src/backend/lib/auth/api-helpers.ts, api-response.ts, csrf.ts, and telemetry/api-wrapper.ts for mock setup
+- Created __tests__/integration/api-routes.test.ts (28 tests): Tests route handlers directly with mocked db, auth, and telemetry. Covers health/ready success and error paths, currency fetch fallback, payment-methods auth/country/type filtering, roles with user counts, compliance rules CRUD with pagination/filtering/validation/authorization, and API response envelope consistency.
+- Created __tests__/unit/middleware.test.ts (60 tests): Tests edge middleware directly. Covers public path identification (health, ready, auth/*, webhooks, payment-links/ref), rate limiter (allow under limit, headers, 429 on exceed, financial mutation 10-req limit, per-IP isolation), bot protection (curl/wget/python-requests/sqlmap/nikto/nmap/empty UA, public path exemption, x-bot-blocked header), security headers (XSS, CSP, request-id, response-time, CORS methods/headers, OPTIONS preflight), financial mutation detection (10 endpoint patterns, POST-only trigger), auth guard (401 for unprotected, Bearer token, session cookies, __Secure- cookies, non-API skip), and CORS (origin reflection, localhost/127.0.0.1/preview-proxy allowlist, disallowed origin rejection, null origin handling).
+- Created __tests__/unit/components.test.ts (96 tests): Tests all formatter pure functions. Covers formatCurrency (multi-currency, zero, negative, NaN, Infinity, edge cases), formatCurrencyCompact (compact notation, JPY zero-decimal), abbreviateNumber (M/K/flat), formatDate (ISO, invalid, edge months), getCountryFlag (name/currency code lookup, 21 country names, 20 currency codes, fallback emoji), getStatusBadgeVariant (default/destructive/outline mapping, case-insensitive, null handling), getStatusColor (green/red/blue/amber/slate status groups, dark mode, border classes, normalization), getTrustScoreColor/getTrustScoreBg (4-tier color thresholds, null/NaN/undefined), getRiskColor/getRiskBg (inverse of trust), truncate (boundary cases, null input), constants completeness (CURRENCY_FLAGS, CHART_COLORS, ESCROW_STATUSES, FRAUD_SEVERITIES, ROLE_LABELS/TABS, etc.), and cross-function consistency.
+- Fixed 3 test issues during development: abbreviateNumber(NaN) returns '0' not '$0', getCountryFlag fallback is 🌐 not 🌍, getStatusColor 'potential_match' is a dead code path (underscore normalization)
+- Discovered documentation of a dead code path in getStatusColor: 'potential_match' in the blue status array can never match because the function normalizes by removing underscores
+
+Stage Summary:
+- 184 new tests across 3 new test files (28 integration + 60 middleware + 96 components)
+- Total test count: 856 passing (was 672) — 27.4% increase
+- Test files: 21 (was 18) — 3 new
+- 0 TypeScript errors (npx tsc --noEmit clean)
+- All 856 tests pass in ~6.75s
+
+---
+Task ID: 10
+Agent: Infrastructure Agent
+Task: CI/CD, health checks, validation scripts
+
+Work Log:
+- Rewrote .github/workflows/ci.yml: triggers on push to main + PRs, concurrency groups, parallel lint/typecheck/test jobs gated before build, node_modules caching via actions/cache, prisma generate step, standalone bundle size check (<200MB) in build job
+- Enhanced /api/health: kept DB connectivity check via SELECT 1, retained Cache-Control + ETag headers, retained ISO timestamp, uses standard ok()/error() helpers
+- Enhanced /api/ready: added multi-check readiness (database connectivity, schema verification via sqlite_master, NEXTAUTH_SECRET config check), added ISO timestamp, uses noCache for readiness probes, returns 503 NOT_READY if any check fails
+- Updated integration test for /api/ready to match new response shape (checks object instead of flat db field, mock NEXTAUTH_SECRET, assert timestamp)
+- Created scripts/validate-env.js: parses .env.example, identifies required vs optional vars, checks environment, reports missing critical vars (DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL), exits code 1 on critical missing
+- Created scripts/db-migrate.sh: 3-step script (prisma generate, auto-detect SQLite/Postgres and run db push or migrate deploy, verify schema via table listing)
+- Created scripts/pre-launch-check.sh: 6-step checklist (TypeScript check, test suite, production build, hardcoded secret scan via rg, standalone bundle size <200MB, env var validation), exits 1 if any fail
+
+Stage Summary:
+- CI pipeline hardened with parallel jobs, node_modules caching, prisma generate, bundle size gate
+- Health endpoint: DB connectivity + latency + timestamp, proper caching headers
+- Ready endpoint: 3-part readiness check (DB, schema, auth config) + timestamp
+- 3 new infrastructure scripts: validate-env.js, db-migrate.sh, pre-launch-check.sh
+- 856 tests passing, 0 TypeScript errors
+- All changes backward-compatible with existing test suite
+
+---
+Task ID: 11
+Agent: UX/Accessibility Agent
+Task: WCAG 2.2 AA accessibility audit and mobile responsiveness
+
+Work Log:
+- Created 43 accessibility tests in `__tests__/unit/accessibility.test.ts` covering: image alt text, form label associations, interactive element accessible names, tabIndex violations, link href presence, autofocus absence, Button type safety, Dialog/Sheet Radix accessibility, heading hierarchy (h1 on every page, no skipping levels), color contrast verification (WCAG AA 4.5:1 ratio math for all status colors in light/dark modes), lang attribute, skip-to-content link, ARIA error attributes, nav aria-labels, main-content landmarks
+- Created 19 responsive tests in `__tests__/unit/responsive.test.ts` covering: responsive grid usage, table overflow-x-auto wrappers, responsive typography, no large hardcoded widths, 320px viewport compatibility, dashboard responsive padding
+- Fixed heading hierarchy: replaced CardTitle (<div>) with <h1> on forgot-password, not-found, and error pages
+- Fixed heading hierarchy: changed OverviewTab <h1> to <h3> (correct nesting after DashboardShell's h2)
+- Added sr-only <h1> on pay checkout page for screen reader users
+- Added aria-hidden="true" to decorative SVG on not-found page
+- Added htmlFor/id label associations on pay page (payerName, payerEmail), conversion page (fromWallet, amount), deposits page (walletId, depAmount), withdrawals page (walletId, wdAmount)
+- Replaced `title="Swap"` with `aria-label="Swap currencies"` on conversion page swap button
+- Removed unused CardTitle imports from not-found and forgot-password pages
+- Fixed regex flag syntax error in autofocus test
+- Verified all status colors (emerald-700, red-700, blue-700, amber-700, slate-600 for light; emerald-400, red-400, blue-400, amber-400, slate-400 for dark) meet WCAG AA 4.5:1 contrast ratio
+
+Stage Summary:
+- 62 new tests created (43 a11y + 19 responsive), all passing
+- 918 total tests passing (856 existing + 62 new), 0 TypeScript errors
+- 7 source files modified: not-found.tsx, forgot-password/page.tsx, error.tsx, OverviewTab.tsx, pay/[ref]/page.tsx, conversion/page.tsx, deposits/page.tsx, withdrawals/page.tsx
+- Key findings: no <img> tags without alt (none exist), no positive tabIndex, no autofocus, Radix Dialog/Sheet/Select all handle focus trapping + aria-modal automatically, root layout has lang="en" + skip-to-content, table component has overflow-x-auto, all nav regions have aria-label

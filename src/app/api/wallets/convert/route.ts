@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const convertSchema = z.object({
   fromWalletId: z.string().min(1),
   toWalletId: z.string().min(1),
@@ -43,16 +43,13 @@ async function postHandler(request: NextRequest) {
     const parsed = convertSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const data = parsed.data
 
     if (data.fromWalletId === data.toWalletId) {
-      return NextResponse.json({ error: 'Source and destination wallets must be different' }, { status: 400 })
+      return badRequest('Source and destination wallets must be different')
     }
 
     // Pre-validate wallet existence, ownership, and active status (outside tx)
@@ -63,14 +60,14 @@ async function postHandler(request: NextRequest) {
     ])
 
     if (!fromWallet || !toWallet) {
-      return NextResponse.json({ error: 'One or both wallets not found' }, { status: 404 })
+      return notFound('One or both wallets not found')
     }
     if (!fromWallet.businessId || !toWallet.businessId) {
-      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+      return badRequest('Wallet has no business association')
     }
 
     if (fromWallet.status !== 'active' || toWallet.status !== 'active') {
-      return NextResponse.json({ error: 'Both wallets must be active' }, { status: 400 })
+      return badRequest('Both wallets must be active')
     }
 
     const exchangeRate = getRate(fromWallet.currency, toWallet.currency)
@@ -181,15 +178,13 @@ async function postHandler(request: NextRequest) {
       return conv
     })
 
-    return NextResponse.json({ data: conversion }, { status: 201 })
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to convert'
+    return created(conversion)
+  } catch (err: any) {
+    const message = err instanceof Error ? err.message : 'Failed to convert'
     if (message.includes('rate') || message.includes('Insufficient') || message.includes('different') || message.includes('active')) {
-      return NextResponse.json({ error: message }, { status: 400 })
-    }
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error('Error converting currency:', error)
-    return NextResponse.json({ error: 'Failed to convert currency' }, { status: 500 })
+      return badRequest(message)
+    }console.error('Error converting currency:', err)
+    return error('Failed to convert currency')
   }
 }
 
@@ -197,7 +192,7 @@ async function postHandler(request: NextRequest) {
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url)
     const walletId = searchParams.get('walletId')
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
@@ -205,15 +200,15 @@ async function getHandler(request: NextRequest) {
     const offset = (page - 1) * limit
 
     if (!walletId) {
-      return NextResponse.json({ error: 'walletId is required' }, { status: 400 })
+      return badRequest('walletId is required')
     }
 
     const wallet = await db.wallet.findUnique({ where: { id: walletId } })
-    if (!wallet) return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
-    if (!wallet.businessId) return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+    if (!wallet) return notFound('Wallet not found')
+    if (!wallet.businessId) return badRequest('Wallet has no business association')
     const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
 
     const where = {
@@ -233,14 +228,12 @@ async function getHandler(request: NextRequest) {
       db.currencyConversion.count({ where }),
     ])
 
-    return NextResponse.json({ data: conversions, pagination: { page, limit, offset, total, pages: Math.ceil(total / limit) } })
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error('Error listing conversions:', error)
-    return NextResponse.json({ error: 'Failed to list conversions' }, { status: 500 })
+    return ok(conversions, { page, limit, offset, total, pages: Math.ceil(total / limit) })
+  } catch (err: any) {console.error('Error listing conversions:', err)
+    return error('Failed to list conversions')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/wallets/convert');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/wallets/convert');
 
-export const POST = withApiTelemetry(postHandler, '/api/wallets/convert');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/wallets/convert');

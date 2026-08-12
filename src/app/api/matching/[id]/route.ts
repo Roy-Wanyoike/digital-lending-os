@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { error, notFound, ok, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const updateMatchSchema = z.object({
   status: z.enum(['contacted', 'interested', 'declined', 'engaged'] as const),
   seekerResponse: z.string().optional(),
@@ -21,15 +21,12 @@ async function putHandler(
     const parsed = updateMatchSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const existing = await db.businessMatch.findUnique({ where: { id } })
     if (!existing) {
-      return NextResponse.json({ error: 'Match not found' }, { status: 404 })
+      return notFound('Match not found')
     }
 
     // Verify tenant access: check if seeker or candidate business belongs to tenant
@@ -40,7 +37,7 @@ async function putHandler(
     const seekerOk = seekerBiz?.tenantId === user.tenantId
     const candidateOk = candidateBiz?.tenantId === user.tenantId
     if (!seekerOk && !candidateOk) {
-      return NextResponse.json({ error: 'Match not found' }, { status: 404 })
+      return notFound('Match not found')
     }
 
     const data = parsed.data
@@ -53,12 +50,11 @@ async function putHandler(
       },
     })
 
-    return NextResponse.json({ data: match })
-  } catch (error) {
+    return ok(match)
+  } catch (error: any) {
     console.error('Error updating match:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to update match' }, { status: 500 })
+    return error('Failed to update match')
   }
 }
 
-export const PUT = withApiTelemetry(putHandler, '/api/matching/[id]');
+export const PUT = withApiTelemetry(withErrorHandler(putHandler), '/api/matching/[id]');

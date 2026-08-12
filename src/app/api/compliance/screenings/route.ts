@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireRole, AuthError } from '@/lib/auth/api-helpers'
-import { unauthorized, notFound, badRequest, error as apiErr, created, ok } from '@/backend/lib/api-response'
+import { unauthorized, notFound, badRequest, error as apiErr, created, ok, withErrorHandler } from '@/backend/lib/api-response'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 const createScreeningSchema = z.object({
@@ -84,7 +84,7 @@ async function getHandler(request: NextRequest) {
     ])
 
     return ok({ data: screenings, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error listing compliance screenings:', error)
     if (error instanceof AuthError) return unauthorized(error.message)
     return apiErr('Failed to list compliance screenings')
@@ -127,13 +127,13 @@ async function postHandler(request: NextRequest) {
     })
 
     return created(screening)
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating compliance screening:', error)
     if (error instanceof AuthError) return unauthorized(error.message)
     return apiErr('Failed to create compliance screening')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/compliance/screenings');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/compliance/screenings');
 
-export const POST = withApiTelemetry(postHandler, '/api/compliance/screenings');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/compliance/screenings');

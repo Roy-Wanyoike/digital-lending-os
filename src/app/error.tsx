@@ -4,13 +4,7 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, RotateCcw, Home, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card'
 
 export default function GlobalError({
   error,
@@ -31,9 +25,9 @@ export default function GlobalError({
             <AlertTriangle className="h-7 w-7 text-destructive dark:text-red-400" />
           </div>
           <div>
-            <CardTitle className="text-xl text-foreground">
+            <h1 className="text-xl font-semibold leading-none text-foreground">
               Something went wrong
-            </CardTitle>
+            </h1>
             <CardDescription className="mt-1 text-muted-foreground">
               An unexpected error occurred. Please try again or contact support.
             </CardDescription>

@@ -109,8 +109,8 @@ const deleteHandler = withErrorHandler(async (
   return ok(deletedUser)
 })
 
-export const GET = withApiTelemetry(getHandler, '/api/users/[id]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/users/[id]');
 
-export const PUT = withApiTelemetry(putHandler, '/api/users/[id]');
+export const PUT = withApiTelemetry(withErrorHandler(putHandler), '/api/users/[id]');
 
-export const DELETE = withApiTelemetry(deleteHandler, '/api/users/[id]');
+export const DELETE = withApiTelemetry(withErrorHandler(deleteHandler), '/api/users/[id]');

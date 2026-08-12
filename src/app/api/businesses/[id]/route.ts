@@ -155,8 +155,8 @@ const deleteHandler = withErrorHandler(async (
   return ok(business)
 })
 
-export const GET = withApiTelemetry(getHandler, '/api/businesses/[id]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/businesses/[id]');
 
-export const PUT = withApiTelemetry(putHandler, '/api/businesses/[id]');
+export const PUT = withApiTelemetry(withErrorHandler(putHandler), '/api/businesses/[id]');
 
-export const DELETE = withApiTelemetry(deleteHandler, '/api/businesses/[id]');
+export const DELETE = withApiTelemetry(withErrorHandler(deleteHandler), '/api/businesses/[id]');

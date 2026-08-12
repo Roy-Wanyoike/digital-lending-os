@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, requireRole, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, created, error, forbidden, ok, validationError, withErrorHandler } from '@/backend/lib/api-response';
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined
 let _cacheAttempted = false
@@ -30,7 +30,7 @@ const createFraudRuleSchema = z.object({
 async function getHandler(request: NextRequest) {
   try {
     const user = await requireAuth(request)
-    if (!['admin', 'auditor'].includes(user.role)) return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    if (!['admin', 'auditor'].includes(user.role)) return forbidden('Insufficient permissions')
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
@@ -61,8 +61,7 @@ async function getHandler(request: NextRequest) {
         ])
       : await Promise.all([fetchRules(), fetchCount()])
 
-    return NextResponse.json({
-      data: rules,
+    return ok(rules, {
       pagination: {
         page,
         limit,
@@ -70,10 +69,9 @@ async function getHandler(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     })
-  } catch (error) {
-    console.error('Error listing fraud rules:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to list fraud rules' }, { status: 500 })
+  } catch (err: any) {
+    console.error('Error listing fraud rules:', err)
+    return error('Failed to list fraud rules')
   }
 }
 
@@ -84,10 +82,7 @@ async function postHandler(request: NextRequest) {
     const parsed = createFraudRuleSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const data = parsed.data
@@ -97,12 +92,12 @@ async function postHandler(request: NextRequest) {
     try {
       parsedCondition = JSON.parse(data.condition)
     } catch {
-      return NextResponse.json({ error: 'Condition must be a valid JSON string' }, { status: 400 })
+      return badRequest('Condition must be a valid JSON string')
     }
 
     // Basic structural validation on the parsed condition
     if (typeof parsedCondition !== 'object' || parsedCondition === null || Array.isArray(parsedCondition)) {
-      return NextResponse.json({ error: 'Condition must be a JSON object' }, { status: 400 })
+      return badRequest('Condition must be a JSON object')
     }
 
     // NOTE: FraudRule has no tenantId column. This is a known limitation — see ADR-008.
@@ -117,14 +112,13 @@ async function postHandler(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ data: rule }, { status: 201 })
-  } catch (error) {
+    return created(rule)
+  } catch (error: any) {
     console.error('Error creating fraud rule:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to create fraud rule' }, { status: 500 })
+    return error('Failed to create fraud rule')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/fraud/rules');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/fraud/rules');
 
-export const POST = withApiTelemetry(postHandler, '/api/fraud/rules');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/fraud/rules');

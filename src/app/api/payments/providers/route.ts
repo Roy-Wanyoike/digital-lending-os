@@ -81,4 +81,4 @@ const getHandler = withErrorHandler(async (request: NextRequest) => {
   })
 })
 
-export const GET = withApiTelemetry(getHandler, '/api/payments/providers');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/payments/providers');

@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 import { eventBus } from '@/backend/services/event-bus'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const REFERRAL_BONUS_AMOUNT = 100.00
 const REFERRAL_BONUS_CURRENCY = 'USD'
 
@@ -30,10 +30,7 @@ async function postHandler(request: NextRequest) {
     const parsed = depositSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const data = parsed.data
@@ -41,20 +38,20 @@ async function postHandler(request: NextRequest) {
     // Verify wallet belongs to tenant
     const wallet = await db.wallet.findUnique({ where: { id: data.walletId } })
     if (!wallet) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
     if (!wallet.businessId) {
-      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+      return badRequest('Wallet has no business association')
     }
     const biz = await db.business.findUnique({
       where: { id: wallet.businessId },
       select: { tenantId: true },
     })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
     if (wallet.status !== 'active') {
-      return NextResponse.json({ error: 'Wallet is not active' }, { status: 400 })
+      return badRequest('Wallet is not active')
     }
 
     const depositRef = `DEP-${randomUUID().slice(0, 8).toUpperCase()}`
@@ -240,18 +237,16 @@ async function postHandler(request: NextRequest) {
       await auditLog({ action: 'deposit.create', resource: 'deposit', resourceId: deposit.id, userId: user.id, tenantId: user.tenantId, details: { amount: deposit.amount, currency: deposit.currency, paymentMethod: deposit.paymentMethod, status: deposit.status } })
     } catch (e) { console.error('Audit log failed:', e) }
 
-    return NextResponse.json({
-      data: deposit,
+    return created({
+      deposit,
       referralBonus: referralBonusCredited ? {
         amount: REFERRAL_BONUS_AMOUNT,
         currency: REFERRAL_BONUS_CURRENCY,
         message: `$${REFERRAL_BONUS_AMOUNT} referral bonus credited to your referrer's wallet!`,
       } : undefined,
-    }, { status: 201 })
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    console.error('Error creating deposit:', error)
-    return NextResponse.json({ error: 'Failed to create deposit' }, { status: 500 })
+    })
+  } catch (err: any) {console.error('Error creating deposit:', err)
+    return error('Failed to create deposit')
   }
 }
 
@@ -259,7 +254,7 @@ async function postHandler(request: NextRequest) {
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url)
     const walletId = searchParams.get('walletId')
     const status = searchParams.get('status') || ''
@@ -268,19 +263,19 @@ async function getHandler(request: NextRequest) {
     const offset = (page - 1) * limit
 
     if (!walletId) {
-      return NextResponse.json({ error: 'walletId is required' }, { status: 400 })
+      return badRequest('walletId is required')
     }
 
     // Verify tenant access
     const wallet = await db.wallet.findUnique({ where: { id: walletId } })
-    if (!wallet) return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
-    if (!wallet.businessId) return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+    if (!wallet) return notFound('Wallet not found')
+    if (!wallet.businessId) return badRequest('Wallet has no business association')
     const biz = await db.business.findUnique({
       where: { id: wallet.businessId },
       select: { tenantId: true },
     })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
 
     const where: Record<string, unknown> = { walletId }
@@ -296,14 +291,12 @@ async function getHandler(request: NextRequest) {
       db.deposit.count({ where }),
     ])
 
-    return NextResponse.json({ data: deposits, pagination: { page, limit, offset, total, pages: Math.ceil(total / limit) } })
-  } catch (error) {
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    console.error('Error listing deposits:', error)
-    return NextResponse.json({ error: 'Failed to list deposits' }, { status: 500 })
+    return ok(deposits, { page, limit, offset, total, pages: Math.ceil(total / limit) })
+  } catch (error: any) {console.error('Error listing deposits:', error)
+    return error('Failed to list deposits')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/wallets/deposit');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/wallets/deposit');
 
-export const POST = withApiTelemetry(postHandler, '/api/wallets/deposit');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/wallets/deposit');

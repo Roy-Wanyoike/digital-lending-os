@@ -127,7 +127,7 @@ export async function GET(request: Request) {
         'X-Accel-Buffering': 'no',
       },
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('[realtime] SSE connection setup failed:', error)
     return errorResponse('Failed to establish SSE connection', 500)
   }

@@ -34,4 +34,4 @@ const getHandler = withErrorHandler(async (req: NextRequest) => {
   return ok(roles);
 });
 
-export const GET = withApiTelemetry(getHandler, '/api/roles');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/roles');

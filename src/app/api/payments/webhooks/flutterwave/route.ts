@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { providerRegistry, emitPaymentCompleted, processWebhookEvent } from '@/lib/payment'
 import { db } from '@/lib/db'
+import { badRequest, error, ok } from '@/backend/lib/api-response'
 
 // ─── Flutterwave Webhook ─────────────────────────────────
 export async function POST(request: NextRequest) {
@@ -10,12 +11,10 @@ export async function POST(request: NextRequest) {
 
     const provider = providerRegistry.getProvider('flutterwave')
     if (!provider) {
-      return NextResponse.json({ error: 'Flutterwave provider not configured' }, { status: 500 })
-    }
+      return error('Flutterwave provider not configured')}
 
     if (!provider.validateWebhookSignature(body, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
-    }
+      return badRequest('Invalid signature')}
 
     const payload = JSON.parse(body)
 
@@ -169,9 +168,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ received: true })
-  } catch (error) {
-    console.error('[Flutterwave Webhook] Error:', error)
-    return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 })
+    return ok({ received: true })
+  } catch (err: any) {
+    console.error('[Flutterwave Webhook] Error:', err)
+    return error('Webhook processing failed')
   }
 }

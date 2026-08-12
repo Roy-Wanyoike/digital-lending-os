@@ -61,4 +61,4 @@ const getHandler = withErrorHandler(async (request: NextRequest) => {
   return ok(filtered)
 });
 
-export const GET = withApiTelemetry(getHandler, '/api/payment-methods/global');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/payment-methods/global');

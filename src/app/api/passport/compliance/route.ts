@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const createComplianceDocSchema = z.object({
   passportId: z.string().min(1, 'passportId is required'),
   docType: z.string().min(1, 'docType is required'),
@@ -15,7 +15,7 @@ const createComplianceDocSchema = z.object({
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { searchParams } = new URL(request.url)
     const passportId = searchParams.get('passportId') || ''
     const docType = searchParams.get('docType') || ''
@@ -47,8 +47,7 @@ async function getHandler(request: NextRequest) {
       db.complianceDocument.count({ where }),
     ])
 
-    return NextResponse.json({
-      data: documents,
+    return ok(documents, {
       pagination: {
         page,
         limit,
@@ -56,10 +55,9 @@ async function getHandler(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
     })
-  } catch (error) {
-    console.error('Error listing compliance documents:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to list compliance documents' }, { status: 500 })
+  } catch (err: any) {
+    console.error('Error listing compliance documents:', err)
+    return error('Failed to list compliance documents')
   }
 }
 
@@ -70,10 +68,7 @@ async function postHandler(request: NextRequest) {
     const parsed = createComplianceDocSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const { passportId, docType, docName, docUrl, expiresAt } = parsed.data
@@ -85,7 +80,7 @@ async function postHandler(request: NextRequest) {
     })
 
     if (!passport || passport.business.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Commerce passport not found' }, { status: 404 })
+      return notFound('Commerce passport not found')
     }
 
     const document = await db.complianceDocument.create({
@@ -99,14 +94,13 @@ async function postHandler(request: NextRequest) {
       },
     })
 
-    return NextResponse.json({ data: document }, { status: 201 })
-  } catch (error) {
+    return created(document)
+  } catch (error: any) {
     console.error('Error creating compliance document:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to create compliance document' }, { status: 500 })
+    return error('Failed to create compliance document')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/passport/compliance');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/passport/compliance');
 
-export const POST = withApiTelemetry(postHandler, '/api/passport/compliance');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/passport/compliance');

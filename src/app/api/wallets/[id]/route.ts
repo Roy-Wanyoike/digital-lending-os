@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, error, forbidden, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const updateWalletSchema = z.object({
   status: z.enum(['active', 'frozen', 'closed']),
 })
@@ -14,21 +14,21 @@ async function getHandler(
 ) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { id } = await params
     const wallet = await db.wallet.findUnique({
       where: { id },
     })
 
     if (!wallet) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
     if (!wallet.businessId) {
-      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+      return badRequest('Wallet has no business association')
     }
     const biz = await db.business.findUnique({ where: { id: wallet.businessId }, select: { tenantId: true } })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
 
     const transactions = await db.walletTransaction.findMany({
@@ -37,11 +37,10 @@ async function getHandler(
       take: 20,
     })
 
-    return NextResponse.json({ data: { ...wallet, transactions } })
-  } catch (error) {
-    console.error('Error fetching wallet:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to fetch wallet' }, { status: 500 })
+    return ok({ ...wallet, transactions })
+  } catch (err: any) {
+    console.error('Error fetching wallet:', err)
+    return error('Failed to fetch wallet')
   }
 }
 
@@ -51,28 +50,25 @@ async function putHandler(
 ) {
   try {
     const user = await requireAuth(request)
-    if (user.role !== 'admin') return NextResponse.json({ error: 'Only admins can update wallet status' }, { status: 403 })
+    if (user.role !== 'admin') return forbidden('Only admins can update wallet status')
     const { id } = await params
     const body = await request.json()
     const parsed = updateWalletSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const existing = await db.wallet.findUnique({ where: { id } })
     if (!existing) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
     if (!existing.businessId) {
-      return NextResponse.json({ error: 'Wallet has no business association' }, { status: 400 })
+      return badRequest('Wallet has no business association')
     }
     const biz = await db.business.findUnique({ where: { id: existing.businessId }, select: { tenantId: true } })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
 
     const wallet = await db.wallet.update({
@@ -80,14 +76,13 @@ async function putHandler(
       data: { status: parsed.data.status },
     })
 
-    return NextResponse.json({ data: wallet })
-  } catch (error) {
+    return ok(wallet)
+  } catch (error: any) {
     console.error('Error updating wallet:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to update wallet' }, { status: 500 })
+    return error('Failed to update wallet')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/wallets/[id]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/wallets/[id]');
 
-export const PUT = withApiTelemetry(putHandler, '/api/wallets/[id]');
+export const PUT = withApiTelemetry(withErrorHandler(putHandler), '/api/wallets/[id]');

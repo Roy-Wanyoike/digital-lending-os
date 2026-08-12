@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { ArrowLeft, Home, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card'
 
 export default function NotFound() {
   return (
@@ -11,10 +11,10 @@ export default function NotFound() {
       <Card className="w-full max-w-md shadow-lg border-border">
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15 dark:bg-amber-500/20">
-            <svg className="h-7 w-7 text-amber-500 dark:text-amber-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+            <svg className="h-7 w-7 text-amber-500 dark:text-amber-400" aria-hidden="true" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
           </div>
           <div>
-            <CardTitle className="text-xl text-foreground">We couldn&apos;t find that page</CardTitle>
+            <h1 className="text-xl font-semibold leading-none text-foreground">We couldn&apos;t find that page</h1>
             <CardDescription className="mt-1 text-muted-foreground">
               The link may be broken, or the page may have moved. Your account and data are safe.
             </CardDescription>

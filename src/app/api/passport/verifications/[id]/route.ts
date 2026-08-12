@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const updateVerificationSchema = z.object({
   status: z.enum(['pending', 'in_progress', 'approved', 'rejected', 'expired'] as const, {
     message: 'Status must be one of: pending, in_progress, approved, rejected, expired',
@@ -18,7 +18,7 @@ async function getHandler(
 ) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { id } = await params
     const verification = await db.verification.findUnique({
       where: { id },
@@ -30,17 +30,16 @@ async function getHandler(
     })
 
     if (!verification) {
-      return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
+      return notFound('Verification not found')
     }
     if (verification.business.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
+      return notFound('Verification not found')
     }
 
-    return NextResponse.json({ data: verification })
-  } catch (error) {
+    return ok(verification)
+  } catch (error: any) {
     console.error('Error fetching verification:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to fetch verification' }, { status: 500 })
+    return error('Failed to fetch verification')
   }
 }
 
@@ -55,10 +54,7 @@ async function putHandler(
     const parsed = updateVerificationSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const { status, verifiedBy, rejectionReason } = parsed.data
@@ -73,18 +69,15 @@ async function putHandler(
     })
 
     if (!verification) {
-      return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
+      return notFound('Verification not found')
     }
     if (verification.business.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Verification not found' }, { status: 404 })
+      return notFound('Verification not found')
     }
 
     // If rejected, require a reason
     if (status === 'rejected' && !rejectionReason) {
-      return NextResponse.json(
-        { error: 'Rejection reason is required when rejecting a verification' },
-        { status: 400 }
-      )
+      return badRequest('Rejection reason is required when rejecting a verification')
     }
 
     const updateData: Record<string, unknown> = {
@@ -188,14 +181,13 @@ async function putHandler(
       }
     }
 
-    return NextResponse.json({ data: updated })
-  } catch (error) {
+    return ok(updated)
+  } catch (error: any) {
     console.error('Error updating verification:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to update verification' }, { status: 500 })
+    return error('Failed to update verification')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/passport/verifications/[id]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/passport/verifications/[id]');
 
-export const PUT = withApiTelemetry(putHandler, '/api/passport/verifications/[id]');
+export const PUT = withApiTelemetry(withErrorHandler(putHandler), '/api/passport/verifications/[id]');

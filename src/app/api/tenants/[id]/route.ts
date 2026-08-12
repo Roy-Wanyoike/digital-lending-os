@@ -90,6 +90,6 @@ const patchHandler = withErrorHandler(async (
   return ok(tenant);
 });
 
-export const GET = withApiTelemetry(getHandler, '/api/tenants/[id]');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/tenants/[id]');
 
-export const PATCH = withApiTelemetry(patchHandler, '/api/tenants/[id]');
+export const PATCH = withApiTelemetry(withErrorHandler(patchHandler), '/api/tenants/[id]');

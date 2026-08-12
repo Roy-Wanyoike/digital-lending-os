@@ -201,6 +201,7 @@ function PaymentCheckoutInner() {
         )}
 
         <TransitionWrapper show={!payResult}>
+              <h1 className="sr-only">Payment — {link?.title || 'Checkout'}</h1>
               {/* Payment Details Card */}
               <Card className="mb-6">
                 <CardContent className="p-6">
@@ -284,11 +285,11 @@ function PaymentCheckoutInner() {
 
                   {/* Payer Info */}
                   <div className="space-y-4">
-                    <div className="space-y-2"><Label>Full Name *</Label>
-                      <Input placeholder="John Doe" value={payerName} onChange={e => setPayerName(e.target.value)} />
+                    <div className="space-y-2"><Label htmlFor="payerName">Full Name *</Label>
+                      <Input id="payerName" placeholder="John Doe" value={payerName} onChange={e => setPayerName(e.target.value)} />
                     </div>
-                    <div className="space-y-2"><Label>Email *</Label>
-                      <Input type="email" placeholder="john@example.com" value={payerEmail} onChange={e => setPayerEmail(e.target.value)} />
+                    <div className="space-y-2"><Label htmlFor="payerEmail">Email *</Label>
+                      <Input id="payerEmail" type="email" placeholder="john@example.com" value={payerEmail} onChange={e => setPayerEmail(e.target.value)} />
                     </div>
                     <div className="space-y-2"><Label>Country</Label>
                       <Select value={payerCountry} onValueChange={setPayerCountry}>

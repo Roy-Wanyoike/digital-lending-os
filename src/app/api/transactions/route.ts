@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, successResponse, errorResponse } from '@/lib/auth/api-helpers';
+import { getApiUser,  } from '@/lib/auth/api-helpers';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { transactionListCache } from '@/backend/lib/response-cache';
+import { error, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 
 interface TransactionItem {
   id: string;
@@ -24,7 +25,7 @@ const MERGE_DEFAULT_LIMIT = 20;
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request);
-    if (!user) return errorResponse('Authentication required', 401);
+    if (!user) return unauthorized('Authentication required');
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || '';
@@ -37,14 +38,14 @@ async function getHandler(request: NextRequest) {
     // Fast in-memory cache (3s TTL) — avoids DB round-trips on rapid page flips
     const memCached = transactionListCache.get(txCacheKey);
     if (memCached) {
-      return successResponse(memCached);
+      return ok(memCached);
     }
 
     // Fetch business IDs belonging to the tenant (cached)
     const tenantBusinessIds = await getTenantBusinessIds(user.tenantId, db);
 
     if (tenantBusinessIds.length === 0) {
-      return successResponse({ data: [], total: 0 });
+      return ok({ data: [], total: 0 });
     }
 
     // --- Wallet transactions only ---
@@ -91,7 +92,7 @@ async function getHandler(request: NextRequest) {
 
       const result = { data: mapped, total };
       transactionListCache.set(txCacheKey, result);
-      return successResponse(result);
+      return ok(result);
     }
 
     // --- Payment transactions only ---
@@ -140,7 +141,7 @@ async function getHandler(request: NextRequest) {
 
       const result = { data: mapped, total };
       transactionListCache.set(txCacheKey, result);
-      return successResponse(result);
+      return ok(result);
     }
 
     // --- Default: merge both types, sorted by date ---
@@ -220,17 +221,17 @@ async function getHandler(request: NextRequest) {
     const total = walletCount + paymentCount;
     const result = { data: paginated, total };
     transactionListCache.set(txCacheKey, result);
-    return successResponse(result);
-  } catch (error: unknown) {
-    console.error('Transactions GET error:', error);
+    return ok(result);
+  } catch (err: any) {
+    console.error('Transactions GET error:', err);
     // Do not leak internal error details to the client
-    const isAuthError = error && typeof error === 'object' && 'statusCode' in error;
+    const isAuthError = err && typeof err === 'object' && 'statusCode' in err;
     if (isAuthError) {
-      const authErr = error as { statusCode: number; message: string };
-      return errorResponse(authErr.message, authErr.statusCode);
+      const authErr = err as { statusCode: number; message: string };
+      return error(authErr.message, authErr.statusCode);
     }
-    return errorResponse('Failed to fetch transactions', 500);
+    return error('Failed to fetch transactions');
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/transactions');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/transactions');

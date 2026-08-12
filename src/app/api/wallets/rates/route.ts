@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getApiUser } from '@/lib/auth/api-helpers'
+import { NextRequest } from 'next/server';import { getApiUser } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined
 let _cacheAttempted = false
@@ -51,7 +51,7 @@ const CRYPTO_NETWORKS: Record<string, string[]> = {
 
 async function getHandler(req: NextRequest) {
   const user = await getApiUser(req)
-  if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  if (!user) return unauthorized('Authentication required')
 
   const cacheManager = await getCache()
   const fetchRates = () => ({
@@ -71,7 +71,7 @@ async function getHandler(req: NextRequest) {
     ? await cacheManager.getOrSet('exchange-rates:all', fetchRates, { ttl: 300_000 })
     : fetchRates()
 
-  return NextResponse.json({ data })
+  return ok(data)
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/wallets/rates');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/wallets/rates');

@@ -1,7 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
-
-import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
-import { error } from '@/backend/lib/api-response';
+import { NextRequest } from 'next/server';import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { error, ok, withErrorHandler } from '@/backend/lib/api-response';
 
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
 let _cacheManager: any = undefined
@@ -38,8 +36,8 @@ async function getHandler(req: NextRequest) {
         { ttl: 60_000 },
       )
       // The upstream /api/payments/rates returns { data, meta? } already,
-      // so pass through as-is.
-      return NextResponse.json(upstream)
+      // so extract data to avoid double-wrapping with ok().
+      return ok(upstream.data)
     } catch {
       // Cache lookup failed, fall through to uncached fetch
     }
@@ -48,11 +46,11 @@ async function getHandler(req: NextRequest) {
   try {
     const res = await fetch(forwardUrl.toString(), { headers: req.headers })
     const data = await res.json()
-    return NextResponse.json(data)
+    return ok(data.data)
   } catch (err) {
     console.error('[currency] Uncached fetch failed:', err)
     return error('Failed to fetch exchange rates')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/currency');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/currency');

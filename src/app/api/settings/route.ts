@@ -85,6 +85,6 @@ const patchHandler = withErrorHandler(async (req: NextRequest) => {
   });
 });
 
-export const GET = withApiTelemetry(getHandler, '/api/settings');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/settings');
 
-export const PATCH = withApiTelemetry(patchHandler, '/api/settings');
+export const PATCH = withApiTelemetry(withErrorHandler(patchHandler), '/api/settings');

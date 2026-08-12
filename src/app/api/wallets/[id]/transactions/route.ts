@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { randomUUID } from 'crypto'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 
 /** Cache-Control header for wallet transaction lists (5s stale-while-revalidate). */
 const CACHE_CONTROL = 'private, max-age=2, stale-while-revalidate=5';
@@ -22,7 +22,7 @@ async function getHandler(
 ) {
   try {
     const user = await getApiUser(request)
-    if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    if (!user) return unauthorized('Authentication required')
     const { id } = await params
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') || ''
@@ -35,7 +35,7 @@ async function getHandler(
       where: { id, business: { tenantId: user.tenantId } },
     })
     if (!wallet) {
-      return NextResponse.json({ error: 'Wallet not found' }, { status: 404 })
+      return notFound('Wallet not found')
     }
 
     const where: Record<string, unknown> = { walletId: id }
@@ -52,11 +52,10 @@ async function getHandler(
       db.walletTransaction.count({ where }),
     ])
 
-    return NextResponse.json({ data: transactions, pagination: { limit, offset, total, hasMore: offset + limit < total } }, { headers: { 'Cache-Control': CACHE_CONTROL } })
-  } catch (error) {
-    console.error('Error listing wallet transactions:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to list wallet transactions' }, { status: 500 })
+    return ok({ transactions, pagination: { limit, offset, total, hasMore: offset + limit < total } }, undefined, { maxAge: 2, swr: 5 })
+  } catch (err: any) {
+    console.error('Error listing wallet transactions:', err)
+    return error('Failed to list wallet transactions')
   }
 }
 
@@ -71,10 +70,7 @@ async function postHandler(
     const parsed = createTransactionSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const data = parsed.data
@@ -130,21 +126,19 @@ async function postHandler(
       return newTx
     })
 
-    return NextResponse.json({ data: transaction }, { status: 201 })
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to create wallet transaction'
+    return created(transaction)
+  } catch (err: any) {
+    const message = err instanceof Error ? err.message : 'Failed to create wallet transaction'
     if (message === 'Wallet not found') {
-      return NextResponse.json({ error: message }, { status: 404 })
+      return notFound(message)
     }
     if (message === 'Wallet is not active' || message === 'Insufficient wallet balance') {
-      return NextResponse.json({ error: message }, { status: 400 })
-    }
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    console.error('Error creating wallet transaction:', error)
-    return NextResponse.json({ error: 'Failed to create wallet transaction' }, { status: 500 })
+      return badRequest(message)
+    }console.error('Error creating wallet transaction:', err)
+    return error('Failed to create wallet transaction')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/wallets/[id]/transactions');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/wallets/[id]/transactions');
 
-export const POST = withApiTelemetry(postHandler, '/api/wallets/[id]/transactions');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/wallets/[id]/transactions');

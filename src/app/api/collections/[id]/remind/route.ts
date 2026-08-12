@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { created, error, notFound, validationError, withErrorHandler } from '@/backend/lib/api-response';
 const REMIND_INTERVAL_DAYS: Record<string, number> = {
   friendly: 7,
   firm: 3,
@@ -27,17 +27,14 @@ async function postHandler(
     const parsed = remindSchema.safeParse(body)
 
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues.map((i) => i.message).join(', ') },
-        { status: 400 }
-      )
+      return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
     const data = parsed.data
 
     const collectionCase = await db.collectionCase.findUnique({ where: { id } })
     if (!collectionCase) {
-      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+      return notFound('Collection case not found')
     }
 
     // Verify tenant access
@@ -46,7 +43,7 @@ async function postHandler(
       select: { tenantId: true },
     })
     if (!biz || biz.tenantId !== user.tenantId) {
-      return NextResponse.json({ error: 'Collection case not found' }, { status: 404 })
+      return notFound('Collection case not found')
     }
 
     const now = new Date()
@@ -79,12 +76,11 @@ async function postHandler(
       return newReminder
     })
 
-    return NextResponse.json({ data: reminder }, { status: 201 })
-  } catch (error) {
+    return created(reminder)
+  } catch (error: any) {
     console.error('Error sending collection reminder:', error)
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status })
-    return NextResponse.json({ error: 'Failed to send collection reminder' }, { status: 500 })
+    return error('Failed to send collection reminder')
   }
 }
 
-export const POST = withApiTelemetry(postHandler, '/api/collections/[id]/remind');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/collections/[id]/remind');

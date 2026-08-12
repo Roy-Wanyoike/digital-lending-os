@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getRequestBaseUrl } from '@/lib/utils'
+import { NextRequest } from 'next/server';import { getRequestBaseUrl } from '@/lib/utils'
 import { db } from '@/lib/db'
-import { getApiUser, requireAuth, AuthError, successResponse, errorResponse } from '@/lib/auth/api-helpers'
+import { getApiUser, requireAuth, AuthError,  } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { badRequest, error, notFound, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 const BONUS_AMOUNT = 100.00
 const BONUS_CURRENCY = 'USD'
 
@@ -22,7 +22,7 @@ function generateReferralCode(): string {
 async function getHandler(request: NextRequest) {
   try {
     const user = await getApiUser(request)
-    if (!user) return errorResponse('Authentication required', 401)
+    if (!user) return unauthorized('Authentication required')
 
     // Get the account
     const account = await db.account.findUnique({
@@ -36,7 +36,7 @@ async function getHandler(request: NextRequest) {
       },
     })
 
-    if (!account) return errorResponse('Account not found', 404)
+    if (!account) return notFound('Account not found')
 
     // Ensure the account has a referral code
     let referralCode = account.referralCode
@@ -102,7 +102,7 @@ async function getHandler(request: NextRequest) {
     const baseUrl = getRequestBaseUrl(request, process.env.NEXT_PUBLIC_APP_URL || '')
     const referralLink = `${baseUrl}/register?ref=${referralCode}`
 
-    return successResponse({
+    return ok({
       referralCode,
       referralLink,
       bonusAmount: BONUS_AMOUNT,
@@ -116,12 +116,11 @@ async function getHandler(request: NextRequest) {
       recentBonuses: bonuses,
       referrerInfo,
     })
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof AuthError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    }
+      }
     console.error('Referral GET error:', error)
-    return errorResponse('Failed to fetch referral info', 500)
+    return error('Failed to fetch referral info')
   }
 }
 
@@ -136,7 +135,7 @@ async function postHandler(request: NextRequest) {
     const { referralCode } = body
 
     if (!referralCode) {
-      return errorResponse('Referral code is required', 400)
+      return badRequest('Referral code is required')
     }
 
     const referrer = await db.account.findUnique({
@@ -150,14 +149,14 @@ async function postHandler(request: NextRequest) {
     })
 
     if (!referrer) {
-      return errorResponse('Invalid referral code', 404)
+      return notFound('Invalid referral code')
     }
 
     if (!referrer.isActive) {
-      return errorResponse('This referral code is no longer active', 410)
+    return error('This referral code is no longer active', 410, 'GONE')
     }
 
-    return successResponse({
+    return ok({
       valid: true,
       referrer: {
         id: referrer.id,
@@ -169,15 +168,14 @@ async function postHandler(request: NextRequest) {
         condition: 'You will receive $100 credited to your wallet when you make your first deposit.',
       },
     })
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof AuthError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode })
-    }
+      }
     console.error('Referral POST error:', error)
-    return errorResponse('Failed to validate referral code', 500)
+    return error('Failed to validate referral code')
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/referral');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/referral');
 
-export const POST = withApiTelemetry(postHandler, '/api/referral');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/referral');

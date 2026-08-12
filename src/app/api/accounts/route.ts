@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { getApiUser, successResponse, errorResponse } from '@/lib/auth/api-helpers';
+import { getApiUser,  } from '@/lib/auth/api-helpers';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { error, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
 /**
  * GET /api/accounts
  *
@@ -30,7 +31,7 @@ const SAFE_SELECT = {
 async function getHandler(req: NextRequest) {
   try {
     const user = await getApiUser(req);
-    if (!user) return errorResponse('Authentication required', 401);
+    if (!user) return unauthorized('Authentication required');
 
     // Build the base where clause depending on role
     const baseWhere: any =
@@ -57,21 +58,28 @@ async function getHandler(req: NextRequest) {
       ];
     }
 
+    // Pagination parameters
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
+    const offset = (page - 1) * limit;
+
     // Execute a single query with count via Prisma
     const [accounts, total] = await db.$transaction([
       db.account.findMany({
         where,
         select: SAFE_SELECT,
         orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
       }),
       db.account.count({ where }),
     ]);
 
-    return successResponse({ data: accounts, total });
+    return ok({ data: accounts, total, pagination: { page, limit, offset, total, pages: Math.ceil(total / limit) } });
   } catch (error: any) {
     console.error('Accounts GET error:', error);
-    return errorResponse('Failed to fetch accounts', 500);
+    return error('Failed to fetch accounts');
   }
 }
 
-export const GET = withApiTelemetry(getHandler, '/api/accounts');
+export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/accounts');
