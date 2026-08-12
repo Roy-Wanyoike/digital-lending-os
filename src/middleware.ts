@@ -110,14 +110,13 @@ export function middleware(request: NextRequest) {
   // next.config.ts headers() — avoid duplicating them here.
   const res = NextResponse.next();
   res.headers.set('x-xss-protection', '1; mode=block');
-  // CSP NOTE (security tradeoff): 'unsafe-eval' is required by recharts library.
-  // 'unsafe-inline' in style-src is required by Next.js and Tailwind CSS runtime.
-  // TODO(W5a): Migrate to nonce-based CSP once recharts is replaced or patched.
+  // CSP NOTE: 'unsafe-inline' in script-src and style-src is required by Next.js
+  // and Tailwind CSS runtime. TODO(W5a): Migrate to nonce-based CSP.
   // Current CSP provides defense-in-depth despite these allowances:
-  //   - object-src, base-uri are implicitly blocked
-  //   - form-action is implicitly restricted to 'self'
+  //   - object-src, base-uri are blocked ('none' / 'self')
+  //   - form-action is restricted to 'self'
   //   - connect-src is locked to known payment provider domains
-  res.headers.set('content-security-policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.stripe.com https://api.paystack.co https://api.flutterwave.io https://api.intasend.com; frame-src https://js.stripe.com https://checkout.paystack.com https://checkout.flutterwave.com; object-src 'none'; base-uri 'self'; form-action 'self';");
+  res.headers.set('content-security-policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.stripe.com https://api.paystack.co https://api.flutterwave.io https://api.intasend.com; frame-src https://js.stripe.com https://checkout.paystack.com https://checkout.flutterwave.com; object-src 'none'; base-uri 'self'; form-action 'self';");
   res.headers.set('x-request-id', `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
   // --- CORS headers (all responses) ---

@@ -19,9 +19,6 @@ const nextConfig: NextConfig = {
       'date-fns',
       'recharts',
       'framer-motion',
-      'react-day-picker',
-      'embla-carousel-react',
-      'cmdk',
     ],
   },
 
@@ -42,13 +39,6 @@ const nextConfig: NextConfig = {
     "ioredis",
     "redis-parser",
     "@opentelemetry/api",
-    "@opentelemetry/sdk-node",
-    "@opentelemetry/auto-instrumentations-node",
-    "@opentelemetry/exporter-trace-otlp-http",
-    "@opentelemetry/resource-detector-aws",
-    "@opentelemetry/resource-detector-azure",
-    "@opentelemetry/resource-detector-gcp",
-    "@opentelemetry/resource-detector-container",
   ],
 
   // Image optimization: unoptimized mode avoids bundling 33MB sharp native libs.

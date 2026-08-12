@@ -127,7 +127,7 @@ model Account {
 
   tenant               Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   referralCode         String? @unique
-  referredBy           String?
+  referredBy           String? // Intentionally a loose reference (not FK) to avoid cascade issues with self-referencing
   notificationsEnabled Boolean @default(true)
   twoFactorEnabled     Boolean @default(false)
 
@@ -320,6 +320,7 @@ model ReputationEvent {
   sourceId     String? // ID of related entity (escrow_id, review_id, etc.)
   metadata     String? // JSON string
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
 
   trustScore TrustScore @relation(fields: [trustScoreId], references: [id], onDelete: Cascade)
 
@@ -383,8 +384,8 @@ model EscrowTransaction {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
 
-  buyer          Business          @relation("Buyer", fields: [buyerId], references: [id])
-  seller         Business          @relation("Seller", fields: [sellerId], references: [id])
+  buyer          Business          @relation("Buyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  seller         Business          @relation("Seller", fields: [sellerId], references: [id], onDelete: Restrict)
   milestones     EscrowMilestone[]
   disbursements  Disbursement[]
   disputes       Dispute[]
@@ -420,6 +421,7 @@ model EscrowMilestone {
 
   escrow EscrowTransaction @relation(fields: [escrowId], references: [id], onDelete: Cascade)
 
+  @@unique([escrowId, sequence])
   @@index([escrowId])
   @@index([status])
 }
@@ -697,8 +699,8 @@ model Invoice {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  sender         Business @relation("InvoiceSender", fields: [senderId], references: [id])
-  receiver       Business @relation("InvoiceReceiver", fields: [receiverId], references: [id])
+  sender         Business @relation("InvoiceSender", fields: [senderId], references: [id], onDelete: Restrict)
+  receiver       Business @relation("InvoiceReceiver", fields: [receiverId], references: [id], onDelete: Restrict)
   subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
   subscriptionId String?
 
@@ -842,7 +844,7 @@ model Wallet {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  business          Business             @relation(fields: [businessId], references: [id])
+  business          Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
   transactions      WalletTransaction[]
   deposits          Deposit[]
   withdrawals       Withdrawal[]
@@ -887,6 +889,35 @@ model WalletTransaction {
   @@index([walletId, type])
   @@index([walletId, status])
   @@index([referenceType, referenceId])
+}
+
+// ── Immutable Double-Entry Ledger ──────────────────────────────
+
+model LedgerEntry {
+  id            String    @id @default(cuid())
+  entryRef      String    @unique
+  correlationId String    // groups related entries (e.g. a payment + fee)
+  causationId   String?   // what caused this entry (e.g. the payment intent ID)
+  accountType   String    // wallet, escrow_hold, escrow_liability, platform_revenue, platform_fee, settlement
+  accountId     String    // the wallet/business ID this entry belongs to
+  entryType     String    // debit, credit
+  amount        Float
+  currency      String
+  balanceAfter  Float     // running balance for this account+currency
+  description   String?
+  metadata      String?
+  status        String    @default("posted") // pending, posted, reversed
+  reversalOfId  String?
+  createdAt     DateTime  @default(now())
+
+  reversalOf  LedgerEntry?  @relation("Reversal", fields: [reversalOfId], references: [id])
+  reversals   LedgerEntry[] @relation("Reversal")
+
+  @@index([correlationId])
+  @@index([accountType, accountId])
+  @@index([causationId])
+  @@index([accountType, accountId, currency, createdAt])
+  @@index([status])
 }
 
 // ── Deposit Model ─────────────────────────────────────────────
@@ -1153,6 +1184,7 @@ model CollectionReminder {
   response    String?
   respondedAt DateTime?
   createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
 
   case CollectionCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
 

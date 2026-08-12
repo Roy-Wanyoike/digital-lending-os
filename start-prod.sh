@@ -15,8 +15,8 @@ if [ -f .env ]; then
   set +a
 fi
 
-# Ensure NEXTAUTH_SECRET is always set (required in production)
-export NEXTAUTH_SECRET="${NEXTAUTH_SECRET:-youngsend-super-secret-key-change-in-production-2026}"
+# NEXTAUTH_SECRET must be set externally (env file, CI/CD, orchestrator). App will fail if unset — this is intentional for production.
+export NEXTAUTH_SECRET="${NEXTAUTH_SECRET}"
 export NEXTAUTH_URL="${NEXTAUTH_URL:-http://localhost:3000}"
 export DATABASE_URL="${DATABASE_URL:-file:/home/z/my-project/db/custom.db}"
 export HOSTNAME="0.0.0.0"

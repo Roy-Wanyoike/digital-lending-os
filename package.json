@@ -15,10 +15,7 @@
     "db:reset": "prisma migrate reset"
   },
   "dependencies": {
-    "@opensearch-project/opensearch": "^3.6.0",
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/sdk-metrics": "^2.10.0",
-    "@opentelemetry/sdk-node": "^0.221.0",
     "@prisma/client": "^6.11.1",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -46,9 +43,7 @@
     "next-auth": "^4.24.11",
     "next-themes": "^0.4.6",
     "react": "^19.0.0",
-    "react-day-picker": "^9.8.0",
     "react-dom": "^19.0.0",
-    "react-hook-form": "^7.60.0",
     "recharts": "^2.15.4",
     "sonner": "^2.0.6",
     "stripe": "^22.3.2",
@@ -58,6 +53,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^3.0.0",
+    "@types/node": "^26.2.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.0.4",
