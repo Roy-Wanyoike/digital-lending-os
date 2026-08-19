@@ -1,34 +1,16 @@
 // Lazy Prisma client singleton — zero top-level imports from @prisma/client
 // This prevents Turbopack from triggering native engine load during compilation.
 //
-// SQLite connection notes:
-//   - No connection pooling or keep-alive needed (file-based storage)
-//   - Singleton pattern ensures exactly one connection per process
+// PostgreSQL connection notes:
+//   - Prisma manages its own connection pool (built-in pooler)
+//   - Singleton pattern ensures one client per process
 //   - log: [] disables query logging in production (reduces I/O)
 
 let _db: any = undefined
-let _pragmaApplied = false
-
-async function applyPragmas(prisma: any) {
-  if (_pragmaApplied) return
-  try {
-    // Use $queryRaw instead of $executeRawUnsafe — PRAGMAs return results in SQLite,
-    // which causes P2010 errors with $executeRawUnsafe.
-    await prisma.$queryRawUnsafe('PRAGMA journal_mode = WAL')
-    await prisma.$queryRawUnsafe('PRAGMA synchronous = NORMAL')
-    await prisma.$queryRawUnsafe('PRAGMA cache_size = -64000')
-    await prisma.$queryRawUnsafe('PRAGMA temp_store = MEMORY')
-    await prisma.$queryRawUnsafe('PRAGMA mmap_size = 268435456')
-    await prisma.$queryRawUnsafe('PRAGMA busy_timeout = 5000')
-    _pragmaApplied = true
-  } catch (_err) {
-    // Pragmas are best-effort — if they fail, the DB still works, just slower.
-    // Silently ignore — no console noise in production.
-  }
-}
 
 function getDb() {
   if (!_db) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { PrismaClient } = require('@prisma/client')
     const g = globalThis as Record<string, any>
     _db = g.__prisma ?? new PrismaClient({
@@ -37,16 +19,14 @@ function getDb() {
       datasourceUrl: process.env.DATABASE_URL,
     })
     if (process.env.NODE_ENV !== 'production') g.__prisma = _db
-    // Apply PRAGMAs asynchronously — non-blocking for first request
-    applyPragmas(_db).catch(() => { /* best-effort */ })
   }
   return _db
 }
 
-// Ensure pragmas are applied before first real query in serverless/warm starts.
-// This is idempotent — subsequent calls return immediately.
+// No-op for backward compatibility (was used for SQLite PRAGMAs).
+// Kept as an export so existing callers and tests don't break.
 export async function ensurePragmas() {
-  if (_db) await applyPragmas(_db)
+  // PostgreSQL doesn't need PRAGMA-style initialization
 }
 
 // Untyped proxy — all PrismaClient methods available, fully lazy

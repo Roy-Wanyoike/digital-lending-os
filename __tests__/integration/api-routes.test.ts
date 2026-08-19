@@ -92,7 +92,7 @@ vi.mock('@/backend/lib/cache/cache-manager', () => {
 
 // ── Imports (after mocks) ────────────────────────────────────────────────
 
-import { db, ensurePragmas } from '@/lib/db'
+import { db } from '@/lib/db'
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -139,7 +139,6 @@ describe('GET /api/health', () => {
 
   it('returns 200 with ok status and database check', async () => {
     ;(db as any).$queryRaw = vi.fn().mockResolvedValue([{ v: 1 }])
-    ;(ensurePragmas as any).mockResolvedValue(undefined)
 
     const res = await GET()
     expect(res.status).toBe(200)
@@ -153,7 +152,6 @@ describe('GET /api/health', () => {
 
   it('returns 503 SERVICE_DEGRADED when database query fails', async () => {
     ;(db as any).$queryRaw = vi.fn().mockRejectedValue(new Error('DB connection lost'))
-    ;(ensurePragmas as any).mockResolvedValue(undefined)
 
     const res = await GET()
     expect(res.status).toBe(503)
@@ -165,7 +163,6 @@ describe('GET /api/health', () => {
 
   it('includes Cache-Control and ETag headers', async () => {
     ;(db as any).$queryRaw = vi.fn().mockResolvedValue([{ v: 1 }])
-    ;(ensurePragmas as any).mockResolvedValue(undefined)
 
     const res = await GET()
     expect(res.headers.get('cache-control')).toContain('private')
@@ -189,8 +186,7 @@ describe('GET /api/ready', () => {
   it('returns 200 with ready: true and db: connected', async () => {
     ;(db as any).$queryRaw = vi.fn()
       .mockResolvedValueOnce(undefined) // SELECT 1
-      .mockResolvedValueOnce([]) // sqlite_master check
-    ;(ensurePragmas as any).mockResolvedValue(undefined)
+      .mockResolvedValueOnce([]) // information_schema check
     process.env.NEXTAUTH_SECRET = 'test-secret-for-ci'
 
     const res = await GET()
@@ -209,7 +205,6 @@ describe('GET /api/ready', () => {
 
   it('returns 503 when database fails', async () => {
     ;(db as any).$queryRaw = vi.fn().mockRejectedValue(new Error('DB down'))
-    ;(ensurePragmas as any).mockResolvedValue(undefined)
 
     const res = await GET()
     expect(res.status).toBe(503)
@@ -613,7 +608,6 @@ describe('API Response Envelope Consistency', () => {
   it('success responses use { data } envelope', async () => {
     vi.clearAllMocks()
     ;(db as any).$queryRaw = vi.fn().mockResolvedValue([{ v: 1 }])
-    ;(ensurePragmas as any).mockResolvedValue(undefined)
 
     const { GET } = await import('@/app/api/health/route')
     const res = await GET()
@@ -625,7 +619,6 @@ describe('API Response Envelope Consistency', () => {
   it('error responses use { error: { message, code } } envelope', async () => {
     vi.clearAllMocks()
     ;(db as any).$queryRaw = vi.fn().mockRejectedValue(new Error('fail'))
-    ;(ensurePragmas as any).mockResolvedValue(undefined)
 
     const { GET } = await import('@/app/api/health/route')
     const res = await GET()

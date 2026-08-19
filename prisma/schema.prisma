@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -732,6 +732,8 @@ model User {
 
   tenant   Tenant?   @relation(fields: [tenantId], references: [id])
   business Business? @relation(fields: [businessId], references: [id])
+
+  @@map("users")
 
   @@index([role])
   @@index([businessId])

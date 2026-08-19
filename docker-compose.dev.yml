@@ -10,12 +10,16 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     env_file:
       - .env
+    environment:
+      - DATABASE_URL=postgresql://youngsend:youngsend@postgres:5432/youngsend
+      - DIRECT_URL=postgresql://youngsend:youngsend@postgres:5432/youngsend
     volumes:
       # Hot-reload: mount source so file-watcher picks up changes
       - ./src:/app/src
       - ./public:/app/public
       - ./prisma:/app/prisma
-      # Persist SQLite database
-      - ./db:/app/db

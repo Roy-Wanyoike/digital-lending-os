@@ -41,7 +41,7 @@ const envSchema = z.object({
     .default('development'),
 
   // ── Database ──────────────────────────────────────────────
-  // SQLite uses `file:` URLs; Postgres/MySQL use standard URLs.
+  // PostgreSQL / Supabase connection strings.
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
 
   // ── Auth (NextAuth.js v4) ─────────────────────────────────

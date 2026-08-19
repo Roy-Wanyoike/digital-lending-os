@@ -69,7 +69,12 @@ const TAB_COMPONENTS: Record<string, React.ComponentType> = {
 // ─── Shell component ─────────────────────────────────────────────
 export function DashboardShell({ session }: { session: Session }) {
   const [activeTab, setActiveTab] = useState('overview')
-  const [currentRole, setCurrentRole] = useState<Role>('admin')
+  const [currentRole, setCurrentRole] = useState<Role>(
+    (() => {
+      const role = session?.user?.role as Role | undefined
+      return role && Object.keys(ROLE_LABELS).includes(role) ? role : 'admin'
+    })()
+  )
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { isConnected: sseConnected, subscribe, unsubscribe } = useRealtime({
     enabled: true,
@@ -143,17 +148,8 @@ export function DashboardShell({ session }: { session: Session }) {
     }
   }, [sseConnected, subscribe, unsubscribe])
 
-  // Set role from session
-  useEffect(() => {
-    if (session?.user) {
-      const userRole = session.user.role as Role
-      if (userRole && Object.keys(ROLE_LABELS).includes(userRole)) setCurrentRole(userRole)
-    }
-  }, [session])
-
   const visibleTabs = ROLE_TABS[currentRole] || []
   const safeTab = visibleTabs.includes(activeTab) ? activeTab : (visibleTabs[0] || 'overview')
-  useEffect(() => { if (safeTab !== activeTab) setActiveTab(safeTab) }, [safeTab, activeTab, currentRole])
   const activeNav = NAV_ITEMS.find(n => n.id === safeTab)
 
   const handleTabChange = useCallback((tabId: string) => {

@@ -3,7 +3,6 @@
 // deployments. In dev/demo it's unavailable — all calls return null and
 // the runner falls back to direct execution.
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 let cachedClient: any = null
 let connectionPromise: Promise<any | null> | null = null

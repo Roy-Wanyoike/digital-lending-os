@@ -1,20 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 export default function DashboardGuard({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [redirecting, setRedirecting] = useState(false);
+  const redirectingRef = useRef(false);
 
   useEffect(() => {
-    if (status === 'unauthenticated' && !redirecting) {
-      setRedirecting(true);
+    if (status === 'unauthenticated' && !redirectingRef.current) {
+      redirectingRef.current = true;
       router.replace('/login');
     }
-  }, [status, router, redirecting]);
+  }, [status, router]);
 
   // Loading — show spinner (covers initial session fetch)
   if (status === 'loading') {

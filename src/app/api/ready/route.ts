@@ -1,4 +1,4 @@
-import { db, ensurePragmas } from '@/lib/db';
+import { db } from '@/lib/db';
 import { withErrorHandler, ok, error } from '@/backend/lib/api-response';
 
 export const GET = withErrorHandler(async () => {
@@ -6,9 +6,6 @@ export const GET = withErrorHandler(async () => {
   const checks: Record<string, string> = {};
 
   try {
-    // Ensure PRAGMAs are applied on warm start
-    await ensurePragmas();
-
     // ── Database connectivity ─────────────────────────────────────
     const dbStart = Date.now();
     await db.$queryRaw`SELECT 1`;
@@ -18,8 +15,8 @@ export const GET = withErrorHandler(async () => {
     // ── Schema verification — confirm core tables exist ────────────
     try {
       await db.$queryRaw`
-        SELECT name FROM sqlite_master
-        WHERE type='table' AND name IN ('User', 'Account', 'Session', 'Wallet', 'Transaction')
+        SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
       `;
       checks.schema = 'ok';
     } catch {

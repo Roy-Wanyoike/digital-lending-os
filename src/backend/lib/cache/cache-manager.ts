@@ -412,7 +412,7 @@ export function createCacheManager(config?: CacheManagerConfig): CacheManager {
 // ioredis). The real singleton is created only on first property access,
 // exactly like the Prisma lazy-proxy pattern in db.ts.
 let _lazyInstance: CacheManager | null = null
-export default new Proxy({} as CacheManager, {
+const _lazyDefaultExport: CacheManager = new Proxy({} as CacheManager, {
   get(_, prop) {
     if (!_lazyInstance) _lazyInstance = getCacheManager()
     return (_lazyInstance as any)[prop]
@@ -422,4 +422,6 @@ export default new Proxy({} as CacheManager, {
     return prop in (_lazyInstance as any)
   },
 })
+
+export default _lazyDefaultExport
 

@@ -239,6 +239,7 @@ export function sha256(input: string): string {
  * Compute HMAC-SHA256 for webhook signature verification.
  */
 export function hmacSha256(key: string | Buffer, data: string): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const crypto = require('crypto') as typeof import('crypto')
   return crypto.createHmac('sha256', key).update(data, 'utf8').digest('hex')
 }

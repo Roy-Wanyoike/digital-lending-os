@@ -1,18 +1,78 @@
-# Dependencies
+# === Dependencies ===
 node_modules/
 
-# Next.js
+# === Next.js Build Output ===
 .next/
+out/
 
-# Environment variables
+# === Environment Variables (NEVER commit secrets) ===
 .env
 .env.local
+.env.production
+.env.staging
+.env.test
+.env.*.local
 
-# Database
+# === Database Files ===
 db/*.db
+db/*.db-shm
+db/*.db-wal
 *.db-journal
+*.db
+prisma/*.db
 
-# Generated / runtime
+# === Generated / Runtime ===
 download/
 agent-ctx/
 tool-results/
+.zscripts/
+
+# === TypeScript Build Info ===
+*.tsbuildinfo
+next-env.d.ts
+
+# === Logs ===
+*.log
+logs/
+pm-debug.log*
+npm-debug.log
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# === Coverage / Test Artifacts ===
+coverage/
+.nyc_output/
+
+# === IDE / Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS Files ===
+.DS_Store
+.DS_Store?
+Thumbs.db
+
+# === Backup / Temp Files ===
+*.bak
+*.tmp
+*.temp
+test.txt
+
+# === Production Artifacts (generated at build time) ===
+*.zip
+youngsend-*.tar.gz
+
+# === Mini-services (built separately) ===
+mini-services/
+
+# === Vercel / Platform ===
+.vercel/
+.turbo/
+
+# === Misc ===
+.tenv/
+*.pid

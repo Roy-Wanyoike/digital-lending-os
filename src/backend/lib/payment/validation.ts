@@ -417,6 +417,7 @@ export function sanitizeObject<T extends Record<string, unknown>>(obj: T): {
 // ── Timing-Safe Comparison ──────────────────────────────────────────
 
 function timingSafeEqual(a: string, b: string): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const crypto = require('crypto') as typeof import('crypto')
   const bufA = Buffer.from(a, 'utf8')
   const bufB = Buffer.from(b, 'utf8')

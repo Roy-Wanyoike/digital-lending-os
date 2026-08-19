@@ -347,6 +347,7 @@ class RedisCacheClient implements CacheClient {
     let RedisCtor: any;
     let ClusterCtor: any;
     try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const ioredis = require('ioredis');
       RedisCtor = ioredis.default ?? ioredis;
       ClusterCtor = ioredis.Cluster;

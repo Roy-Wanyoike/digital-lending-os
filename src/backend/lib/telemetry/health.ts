@@ -6,16 +6,18 @@
  * - Readiness: "Can I serve traffic?" — all critical dependencies reachable
  * - Startup: "Am I initialized?" — initial setup complete
  *
- * Deep health checks for: Redis, PostgreSQL, Kafka, OpenSearch
+ * Deep health checks for: Cache (Redis/in-memory fallback), PostgreSQL
+ * Skipped (removed): Kafka, OpenSearch
  *
  * Exports a Next.js API route handler for GET /api/health.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getCacheClient } from '@/backend/lib/cache/client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
+export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'unknown' | 'skipped';
 
 export interface HealthCheckResult {
   status: HealthStatus;
@@ -56,91 +58,44 @@ export type HealthCheckFn = () => Promise<HealthCheckResult>;
 const startTime = Date.now();
 
 /**
- * Check Redis connectivity.
+ * Check cache layer health via the cache abstraction.
+ * Delegates to the cache client which handles Redis vs in-memory fallback.
  */
-async function checkRedis(): Promise<HealthCheckResult> {
+async function checkCache(): Promise<HealthCheckResult> {
   const start = performance.now();
 
   try {
-    // Try ioredis or basic redis ping
-    const redisUrl = process.env.REDIS_URL || process.env.KV_URL;
+    const cacheClient = getCacheClient();
+    const result = await cacheClient.healthCheck();
+    const responseTimeMs = performance.now() - start;
 
-    if (!redisUrl) {
-      return {
-        status: 'unhealthy',
-        responseTimeMs: performance.now() - start,
-        message: 'Redis URL not configured',
-        lastChecked: new Date().toISOString(),
-      };
-    }
+    // Map cache client HealthCheckResult to telemetry HealthCheckResult
+    const status: HealthStatus =
+      result.status === 'healthy'
+        ? 'healthy'
+        : result.status === 'degraded'
+          ? 'degraded'
+          : 'unhealthy';
 
-    // Dynamic import to avoid hard dependency
-    let client: { ping: () => Promise<string>; quit: () => Promise<unknown> } | null = null;
+    const details: Record<string, unknown> = {};
+    if (result.memoryUsage) details.memoryUsage = result.memoryUsage;
+    if (result.connectedClients !== undefined) details.connectedClients = result.connectedClients;
 
-    try {
-      // Try ioredis
-      const { default: Redis } = await import('ioredis');
-      client = new Redis(redisUrl, {
-        connectTimeout: 3000,
-        lazyConnect: true,
-        retryStrategy: () => null, // No retries for health check
-      });
-      await (client as unknown as { connect: () => Promise<void> }).connect();
-      if (!client) throw new Error('Redis client is null after connect');
-      const result = await client.ping();
-      await client.quit();
-
-      if (result === 'PONG') {
-        return {
-          status: 'healthy',
-          responseTimeMs: performance.now() - start,
-          message: 'Redis PONG received',
-          lastChecked: new Date().toISOString(),
-        };
-      }
-
-      return {
-        status: 'unhealthy',
-        responseTimeMs: performance.now() - start,
-        message: `Unexpected Redis response: ${result}`,
-        lastChecked: new Date().toISOString(),
-      };
-    } catch {
-      // Try native fetch as fallback for Upstash/Vercel KV
-      try {
-        const response = await fetch(redisUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(['PING']),
-          signal: AbortSignal.timeout(3000),
-        });
-        const data = await response.json();
-
-        if (response.ok) {
-          return {
-            status: 'healthy',
-            responseTimeMs: performance.now() - start,
-            message: `Redis responded: ${JSON.stringify(data)}`,
-            lastChecked: new Date().toISOString(),
-          };
-        }
-      } catch {
-        // Fall through to unhealthy
-      }
-
-      return {
-        status: 'unhealthy',
-        responseTimeMs: performance.now() - start,
-        message: 'Redis connection failed',
-        lastChecked: new Date().toISOString(),
-        error: 'Unable to connect to Redis',
-      };
-    }
+    return {
+      status,
+      responseTimeMs,
+      message: result.error
+               ? `Cache degraded: ${result.error}`
+        : `Cache ${status} (${result.latencyMs}ms)`,
+      lastChecked: new Date().toISOString(),
+      details,
+      error: result.error,
+    };
   } catch (err) {
     return {
       status: 'unhealthy',
       responseTimeMs: performance.now() - start,
-      message: 'Redis health check error',
+      message: 'Cache health check error',
       lastChecked: new Date().toISOString(),
       error: err instanceof Error ? err.message : String(err),
     };
@@ -217,129 +172,27 @@ async function checkPostgreSQL(): Promise<HealthCheckResult> {
 }
 
 /**
- * Check Kafka connectivity.
+ * Kafka — skipped. The Kafka module has been removed from the codebase.
  */
-async function checkKafka(): Promise<HealthCheckResult> {
-  const start = performance.now();
-
-  try {
-    const kafkaBrokers = process.env.KAFKA_BROKERS;
-
-    if (!kafkaBrokers) {
-      return {
-        status: 'healthy',
-        responseTimeMs: performance.now() - start,
-        message: 'Kafka not configured (optional component)',
-        lastChecked: new Date().toISOString(),
-      };
-    }
-
-    // Parse broker list and attempt connection
-    const brokers = kafkaBrokers.split(',').map((b) => b.trim());
-
-    for (const broker of brokers) {
-      try {
-        // Try TCP connection via fetch
-        await fetch(broker, {
-          method: 'GET',
-          signal: AbortSignal.timeout(2000),
-        }).catch(() => null);
-      } catch {
-        // Continue checking
-      }
-    }
-
-    return {
-      status: 'degraded',
-      responseTimeMs: performance.now() - start,
-      message: 'Kafka broker reachability uncertain (no Kafka client)',
-      lastChecked: new Date().toISOString(),
-      details: { brokers },
-    };
-  } catch (err) {
-    return {
-      status: 'unhealthy',
-      responseTimeMs: performance.now() - start,
-      message: 'Kafka health check error',
-      lastChecked: new Date().toISOString(),
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
+function checkKafkaSkipped(): HealthCheckResult {
+  return {
+    status: 'skipped',
+    responseTimeMs: 0,
+    message: 'Kafka module removed — not checked',
+    lastChecked: new Date().toISOString(),
+  };
 }
 
 /**
- * Check OpenSearch connectivity.
+ * OpenSearch — skipped. The OpenSearch module has been removed from the codebase.
  */
-async function checkOpenSearch(): Promise<HealthCheckResult> {
-  const start = performance.now();
-
-  try {
-    const openSearchUrl = process.env.OPENSEARCH_URL || process.env.ELASTICSEARCH_URL;
-
-    if (!openSearchUrl) {
-      return {
-        status: 'healthy',
-        responseTimeMs: performance.now() - start,
-        message: 'OpenSearch not configured (optional component)',
-        lastChecked: new Date().toISOString(),
-      };
-    }
-
-    const response = await fetch(`${openSearchUrl}/_cluster/health`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        ...(process.env.OPENSEARCH_USERNAME
-          ? {
-              Authorization:
-                'Basic ' +
-                Buffer.from(
-                  `${process.env.OPENSEARCH_USERNAME}:${process.env.OPENSEARCH_PASSWORD || ''}`
-                ).toString('base64'),
-            }
-          : {}),
-      },
-      signal: AbortSignal.timeout(5000),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const clusterStatus = data.status as string;
-      const status: HealthStatus =
-        clusterStatus === 'green'
-          ? 'healthy'
-          : clusterStatus === 'yellow'
-          ? 'degraded'
-          : 'unhealthy';
-
-      return {
-        status,
-        responseTimeMs: performance.now() - start,
-        message: `OpenSearch cluster status: ${clusterStatus}`,
-        lastChecked: new Date().toISOString(),
-        details: {
-          cluster_name: data.cluster_name,
-          number_of_nodes: data.number_of_nodes,
-          active_primary_shards: data.active_primary_shards,
-        },
-      };
-    }
-
-    return {
-      status: 'unhealthy',
-      responseTimeMs: performance.now() - start,
-      message: `OpenSearch returned HTTP ${response.status}`,
-      lastChecked: new Date().toISOString(),
-    };
-  } catch (err) {
-    return {
-      status: 'unhealthy',
-      responseTimeMs: performance.now() - start,
-      message: 'OpenSearch unreachable',
-      lastChecked: new Date().toISOString(),
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
+function checkOpenSearchSkipped(): HealthCheckResult {
+  return {
+    status: 'skipped',
+    responseTimeMs: 0,
+    message: 'OpenSearch module removed — not checked',
+    lastChecked: new Date().toISOString(),
+  };
 }
 
 // ─── Health Check Orchestrator ──────────────────────────────────────────────
@@ -347,8 +200,9 @@ async function checkOpenSearch(): Promise<HealthCheckResult> {
 const STATUS_PRIORITY: Record<HealthStatus, number> = {
   healthy: 0,
   degraded: 1,
-  unknown: 2,
-  unhealthy: 3,
+  skipped: 2,
+  unknown: 3,
+  unhealthy: 4,
 };
 
 let startupComplete = false;
@@ -392,10 +246,10 @@ export async function performHealthChecks(): Promise<HealthReport> {
 
   // ── Component Checks ────────────────────────────────────────────────
   const componentCheckers: Array<{ name: string; check: HealthCheckFn; critical: boolean }> = [
-    { name: 'redis', check: checkRedis, critical: true },
+    { name: 'cache', check: checkCache, critical: true },
     { name: 'postgresql', check: checkPostgreSQL, critical: true },
-    { name: 'kafka', check: checkKafka, critical: false },
-    { name: 'opensearch', check: checkOpenSearch, critical: false },
+    { name: 'kafka', check: () => Promise.resolve(checkKafkaSkipped()), critical: false },
+    { name: 'opensearch', check: () => Promise.resolve(checkOpenSearchSkipped()), critical: false },
   ];
 
   const components: ComponentHealth[] = await Promise.all(
@@ -431,12 +285,14 @@ export async function performHealthChecks(): Promise<HealthReport> {
     responseTimeMs: 0,
     message: worstCriticalStatus === 'healthy'
       ? 'All critical dependencies are healthy'
-      : `${criticalComponents.filter((c) => c.status !== 'healthy').map((c) => c.name).join(', ')} not healthy`,
+      : `${criticalComponents.filter((c) => c.status !== 'healthy' && c.status !== 'skipped').map((c) => c.name).join(', ')} not healthy`,
     lastChecked: now.toISOString(),
   };
 
-  // ── Overall Status ──────────────────────────────────────────────────
-  const worstStatus = [liveness, readiness, startup, ...components].reduce(
+  // ── Overall Status (skipped components excluded from worst-status calc) ──
+  const activeStatuses = [liveness, readiness, startup, ...components]
+    .filter((c) => c.status !== 'skipped');
+  const worstStatus = activeStatuses.reduce(
     (worst, c) =>
       STATUS_PRIORITY[c.status] > STATUS_PRIORITY[worst] ? c.status : worst,
     'healthy' as HealthStatus
