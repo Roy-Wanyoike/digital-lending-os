@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
+<style>
+  @page { size: 794px 1123px; margin: 0; }
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 794px; height: 1123px; margin: 0; padding: 0; background: #f3f2f1; font-family: 'Inter', sans-serif; }
+
+  .cover-page {
+    position: relative;
+    width: 794px;
+    height: 1123px;
+    background: #f3f2f1;
+    border: none;
+    outline: none;
+    box-shadow: none;
+  }
+
+  /* Layer 1 - Background Grid */
+  .cover-bg-layer {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    z-index: 1;
+  }
+  .bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(81,74,51,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(81,74,51,0.04) 1px, transparent 1px);
+    background-size: 50px 50px;
+  }
+
+  /* Layer 2 - Structure */
+  .cover-structure-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+  }
+  .anchor-line {
+    position: absolute;
+    left: 95px;
+    top: 112px;
+    width: 6px;
+    height: 899px;
+    background: #514a33;
+    border-radius: 3px;
+  }
+  .top-accent-line {
+    position: absolute;
+    left: 95px;
+    top: 100px;
+    width: 120px;
+    height: 2px;
+    background: #8b7227;
+  }
+
+  /* Layer 3 - Content */
+  .cover-content-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+  }
+  .kicker {
+    position: absolute;
+    left: 145px;
+    top: 168px;
+    font-family: 'Inter', sans-serif;
+    font-size: 11pt;
+    font-weight: 600;
+    letter-spacing: 4pt;
+    text-transform: uppercase;
+    color: #514a33;
+    opacity: 0.6;
+    max-width: 580px;
+  }
+  .hero-title {
+    position: absolute;
+    left: 145px;
+    top: 337px;
+    font-family: 'Playfair Display', serif;
+    font-size: 62pt;
+    font-weight: 900;
+    line-height: 1.1;
+    color: #191816;
+    max-width: 560px;
+    letter-spacing: -1pt;
+  }
+  .hero-title .accent {
+    color: #8b7227;
+  }
+  .summary {
+    position: absolute;
+    left: 145px;
+    top: 530px;
+    font-family: 'Inter', sans-serif;
+    font-size: 15pt;
+    font-weight: 400;
+    line-height: 1.7;
+    color: #191816;
+    opacity: 0.8;
+    max-width: 470px;
+  }
+  .meta-block {
+    position: absolute;
+    left: 150px;
+    top: 780px;
+    font-family: 'Inter', sans-serif;
+  }
+  .meta-label {
+    font-size: 9pt;
+    font-weight: 500;
+    letter-spacing: 3pt;
+    text-transform: uppercase;
+    color: #807d76;
+    margin-bottom: 8px;
+  }
+  .meta-value {
+    font-size: 13pt;
+    font-weight: 400;
+    color: #191816;
+    opacity: 0.7;
+    margin-bottom: 20px;
+  }
+  .footer-text {
+    position: absolute;
+    left: 145px;
+    bottom: 80px;
+    font-family: 'Inter', sans-serif;
+    font-size: 9pt;
+    font-weight: 400;
+    letter-spacing: 2pt;
+    text-transform: uppercase;
+    color: #807d76;
+    opacity: 0.5;
+  }
+  .right-accent {
+    position: absolute;
+    right: 60px;
+    top: 300px;
+    width: 180px;
+    height: 180px;
+    border: 1.5px solid rgba(139,114,39,0.15);
+    border-radius: 50%;
+  }
+  .right-accent-2 {
+    position: absolute;
+    right: 100px;
+    top: 340px;
+    width: 100px;
+    height: 100px;
+    border: 1px solid rgba(139,114,39,0.1);
+    border-radius: 50%;
+  }
+</style>
+</head>
+<body>
+<div class="cover-page">
+  <div class="cover-bg-layer">
+    <div class="bg-grid"></div>
+  </div>
+  <div class="cover-structure-layer">
+    <div class="anchor-line"></div>
+    <div class="top-accent-line"></div>
+    <div class="right-accent"></div>
+    <div class="right-accent-2"></div>
+  </div>
+  <div class="cover-content-layer">
+    <div class="kicker">Product Vision and Technical White Paper</div>
+    <div class="hero-title">Youngsend</div>
+    <div class="summary">The Financial Operating System and Trust Network for Global Commerce. A comprehensive platform uniting identity, payments, escrow, AI-driven trust, and intelligent financial management into one seamless infrastructure.</div>
+    <div class="meta-block">
+      <div class="meta-label">Tagline</div>
+      <div class="meta-value">Building the Trust Layer for Global Commerce</div>
+      <div class="meta-label">Document Type</div>
+      <div class="meta-value">Platform Vision and Architecture Specification</div>
+      <div class="meta-label">Date</div>
+      <div class="meta-value">July 2026</div>
+    </div>
+    <div class="footer-text">Confidential</div>
+  </div>
+</div>
+</body>
+</html>
