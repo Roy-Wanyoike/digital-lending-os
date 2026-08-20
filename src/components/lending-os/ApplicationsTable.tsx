@@ -202,21 +202,21 @@ export function ApplicationsTable({ refreshTrigger }: ApplicationsTableProps) {
     switch (status) {
       case 'pending_review':
       case 'DRAFT':
-        return <Badge className="bg-amber-100 text-amber-800 border-0">Pending Review</Badge>
+        return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400 border-0">Pending Review</Badge>
       case 'under_review':
       case 'UNDER_REVIEW':
       case 'SUBMITTED':
-        return <Badge className="bg-blue-100 text-blue-800 border-0">Under Review</Badge>
+        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400 border-0">Under Review</Badge>
       case 'approved':
       case 'APPROVED':
-        return <Badge className="bg-emerald-100 text-emerald-800 border-0">Approved</Badge>
+        return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 border-0">Approved</Badge>
       case 'rejected':
       case 'REJECTED':
-        return <Badge className="bg-red-100 text-red-800 border-0">Rejected</Badge>
+        return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400 border-0">Rejected</Badge>
       case 'kyc_pending':
-        return <Badge className="bg-slate-100 text-slate-700 border-0">KYC Pending</Badge>
+        return <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300 border-0">KYC Pending</Badge>
       default:
-        return <Badge variant="secondary">{status}</Badge>
+        return <Badge variant="secondary" className="dark:bg-slate-700 dark:text-slate-300">{status}</Badge>
     }
   }
 
@@ -387,7 +387,7 @@ export function ApplicationsTable({ refreshTrigger }: ApplicationsTableProps) {
 
   return (
     <>
-      <Card>
+      <Card className="dark:bg-slate-800/50 dark:border-slate-700">
         <CardHeader>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
@@ -411,12 +411,12 @@ export function ApplicationsTable({ refreshTrigger }: ApplicationsTableProps) {
                   placeholder="Search applications..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 w-full sm:w-48"
+                  className="pl-10 w-full sm:w-48 dark:bg-slate-800 dark:border-slate-600"
                 />
               </div>
               
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-40">
+                <SelectTrigger className="w-full sm:w-40 dark:bg-slate-800 dark:border-slate-600">
                   <Filter className="w-4 h-4 mr-2" />
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>

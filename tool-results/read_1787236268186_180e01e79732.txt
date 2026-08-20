@@ -1,0 +1,1041 @@
+     1→import { PrismaClient } from '@prisma/client'
+     2→import { faker } from '@faker-js/faker'
+     3→
+     4→const prisma = new PrismaClient()
+     5→
+     6→// Sample tenant data representing different DCP types
+     7→const tenants = [
+     8→  // Original 5 tenants
+     9→  {
+    10→    name: 'Abepot Credit',
+    11→    slug: 'abepot',
+    12→    companyName: 'Abepot Credit Limited',
+    13→    licenseNumber: 'DCP-2024-0142',
+    14→    phone: '+254700123456',
+    15→    email: 'admin@abepot.co.ke',
+    16→    physicalAddress: 'Moi Avenue, Nairobi',
+    17→    website: null,
+    18→    status: 'ACTIVE' as const,
+    19→    plan: 'STARTER' as const,
+    20→    licenseDate: new Date('2024-03-15'),
+    21→    monthlyFee: 5000,
+    22→    transactionRate: 1.5
+    23→  },
+    24→  {
+    25→    name: 'Fabilo Credit',
+    26→    slug: 'fabilo',
+    27→    companyName: 'Fabilo Financial Services Ltd',
+    28→    licenseNumber: 'DCP-2023-0089',
+    29→    phone: '+254711234567',
+    30→    email: 'info@fabilo.com',
+    31→    physicalAddress: 'Eldoret Town, Uasin Gishu',
+    32→    website: 'https://www.fabilo.com',
+    33→    status: 'ACTIVE' as const,
+    34→    plan: 'PROFESSIONAL' as const,
+    35→    licenseDate: new Date('2023-11-20'),
+    36→    monthlyFee: 15000,
+    37→    transactionRate: 1.0
+    38→  },
+    39→  {
+    40→    name: 'Signature Capital',
+    41→    slug: 'signaturecapital',
+    42→    companyName: 'Signature Capital Kenya Ltd',
+    43→    licenseNumber: 'DCP-2021-0001',
+    44→    phone: '+254722345678',
+    45→    email: 'operations@signaturecapital.co.ke',
+    46→    physicalAddress: 'Westlands, Nairobi',
+    47→    website: 'https://www.signaturecapital.co.ke',
+    48→    status: 'ACTIVE' as const,
+    49→    plan: 'ENTERPRISE' as const,
+    50→    licenseDate: new Date('2021-06-10'),
+    51→    monthlyFee: 50000,
+    52→    transactionRate: 0.5
+    53→  },
+    54→  {
+    55→    name: 'Karibu Credit',
+    56→    slug: 'karibucredit',
+    57→    companyName: 'Karibu Credit Solutions Ltd',
+    58→    licenseNumber: 'DCP-2026-0025',
+    59→    phone: '+254733456789',
+    60→    email: 'hello@karibucredit.co.ke',
+    61→    physicalAddress: 'Kisumu City, Kisumu County',
+    62→    website: 'https://www.karibucredit.co.ke',
+    63→    status: 'TRIAL' as const,
+    64→    plan: 'STARTER' as const,
+    65→    licenseDate: null,
+    66→    monthlyFee: 0,
+    67→    transactionRate: 1.5
+    68→  },
+    69→  {
+    70→    name: 'ED Partners Africa',
+    71→    slug: 'edpartners',
+    72→    companyName: 'ED Partners Africa Limited',
+    73→    licenseNumber: 'DCP-2022-0056',
+    74→    phone: '+254744567890',
+    75→    email: 'contact@edpartners.africa',
+    76→    physicalAddress: 'Ngong Road, Nairobi',
+    77→    website: 'https://www.edpartners.africa',
+    78→    status: 'ACTIVE' as const,
+    79→    plan: 'ENTERPRISE' as const,
+    80→    licenseDate: new Date('2022-02-28'),
+    81→    monthlyFee: 50000,
+    82→    transactionRate: 0.5
+    83→  },
+    84→
+    85→  // ===== NEW TIER 4 PROSPECTS (20 additional tenants) =====
+    86→
+    87→  // STARTER Plan Tenants
+    88→  {
+    89→    name: 'Amaze Credit Limited',
+    90→    slug: 'amaze',
+    91→    companyName: 'Amaze Credit Limited',
+    92→    licenseNumber: 'DCP-2025-0089',
+    93→    phone: '+254701234567',
+    94→    email: 'info@amaze.co.ke',
+    95→    physicalAddress: 'Mombasa Road, Nairobi',
+    96→    website: null,
+    97→    status: 'ACTIVE' as const,
+    98→    plan: 'STARTER' as const,
+    99→    licenseDate: new Date('2025-01-20'),
+   100→    monthlyFee: 5000,
+   101→    transactionRate: 1.5
+   102→  },
+   103→  {
+   104→    name: 'Baecot Credit Ltd',
+   105→    slug: 'baecot',
+   106→    companyName: 'Baecot Credit Limited',
+   107→    licenseNumber: 'DCP-2025-0102',
+   108→    phone: '+254712345678',
+   109→    email: 'admin@baecot.co.ke',
+   110→    physicalAddress: 'Nakuru Town, Nakuru County',
+   111→    website: null,
+   112→    status: 'ACTIVE' as const,
+   113→    plan: 'STARTER' as const,
+   114→    licenseDate: new Date('2025-03-10'),
+   115→    monthlyFee: 5000,
+   116→    transactionRate: 1.5
+   117→  },
+   118→  {
+   119→    name: 'Bluewave Cash Limited',
+   120→    slug: 'bluewave',
+   121→    companyName: 'Bluewave Cash Limited',
+   122→    licenseNumber: 'DCP-2024-0188',
+   123→    phone: '+254723456789',
+   124→    email: 'hello@bluewave.co.ke',
+   125→    physicalAddress: 'Kisumu City, Kisumu County',
+   126→    website: null,
+   127→    status: 'ACTIVE' as const,
+   128→    plan: 'STARTER' as const,
+   129→    licenseDate: new Date('2024-08-05'),
+   130→    monthlyFee: 5000,
+   131→    transactionRate: 1.5
+   132→  },
+   133→  {
+   134→    name: 'Dahawi Credit Limited',
+   135→    slug: 'dahawi',
+   136→    companyName: 'Dahawi Credit Limited',
+   137→    licenseNumber: 'DCP-2025-0115',
+   138→    phone: '+254734567890',
+   139→    email: 'contact@dahawi.co.ke',
+   140→    physicalAddress: 'Eldoret Town, Uasin Gishu',
+   141→    website: null,
+   142→    status: 'ACTIVE' as const,
+   143→    plan: 'STARTER' as const,
+   144→    licenseDate: new Date('2025-04-12'),
+   145→    monthlyFee: 5000,
+   146→    transactionRate: 1.5
+   147→  },
+   148→  {
+   149→    name: 'Eversure Credit Limited',
+   150→    slug: 'eversure',
+   151→    companyName: 'Eversure Credit Limited',
+   152→    licenseNumber: 'DCP-2024-0199',
+   153→    phone: '+254745678901',
+   154→    email: 'support@eversure.co.ke',
+   155→    physicalAddress: 'Nyeri Town, Nyeri County',
+   156→    website: null,
+   157→    status: 'ACTIVE' as const,
+   158→    plan: 'STARTER' as const,
+   159→    licenseDate: new Date('2024-09-18'),
+   160→    monthlyFee: 5000,
+   161→    transactionRate: 1.5
+   162→  },
+   163→  {
+   164→    name: 'Finseil Limited',
+   165→    slug: 'finseil',
+   166→    companyName: 'Finseil Limited',
+   167→    licenseNumber: 'DCP-2025-0133',
+   168→    phone: '+254756789012',
+   169→    email: 'info@finseil.co.ke',
+   170→    physicalAddress: 'Machakos Town, Machakos County',
+   171→    website: null,
+   172→    status: 'ACTIVE' as const,
+   173→    plan: 'STARTER' as const,
+   174→    licenseDate: new Date('2025-05-22'),
+   175→    monthlyFee: 5000,
+   176→    transactionRate: 1.5
+   177→  },
+   178→  {
+   179→    name: 'Iboda Credit',
+   180→    slug: 'iboda',
+   181→    companyName: 'Iboda Credit Limited',
+   182→    licenseNumber: 'DCP-2024-0211',
+   183→    phone: '+254767890123',
+   184→    email: 'admin@iboda.co.ke',
+   185→    physicalAddress: 'Thika Town, Kiambu County',
+   186→    website: null,
+   187→    status: 'ACTIVE' as const,
+   188→    plan: 'STARTER' as const,
+   189→    licenseDate: new Date('2024-10-30'),
+   190→    monthlyFee: 5000,
+   191→    transactionRate: 1.5
+   192→  },
+   193→  {
+   194→    name: 'Maison Capital',
+   195→    slug: 'maison',
+   196→    companyName: 'Maison Capital Limited',
+   197→    licenseNumber: 'DCP-2025-0144',
+   198→    phone: '+254778901234',
+   199→    email: 'hello@maison.co.ke',
+   200→    physicalAddress: 'Malindi, Kilifi County',
+   201→    website: null,
+   202→    status: 'ACTIVE' as const,
+   203→    plan: 'STARTER' as const,
+   204→    licenseDate: new Date('2025-06-15'),
+   205→    monthlyFee: 5000,
+   206→    transactionRate: 1.5
+   207→  },
+   208→  {
+   209→    name: 'Malicash Investment',
+   210→    slug: 'malicash',
+   211→    companyName: 'Malicash Investment Limited',
+   212→    licenseNumber: 'DCP-2024-0225',
+   213→    phone: '+254789012345',
+   214→    email: 'info@malicash.co.ke',
+   215→    physicalAddress: 'Naivasha, Nakuru County',
+   216→    website: null,
+   217→    status: 'ACTIVE' as const,
+   218→    plan: 'STARTER' as const,
+   219→    licenseDate: new Date('2024-11-08'),
+   220→    monthlyFee: 5000,
+   221→    transactionRate: 1.5
+   222→  },
+   223→  {
+   224→    name: 'Mimi Credit Limited',
+   225→    slug: 'mimicredit',
+   226→    companyName: 'Mimi Credit Limited',
+   227→    licenseNumber: 'DCP-2025-0167',
+   228→    phone: '+254790123456',
+   229→    email: 'support@mimicredit.co.ke',
+   230→    physicalAddress: 'Meru Town, Meru County',
+   231→    website: null,
+   232→    status: 'ACTIVE' as const,
+   233→    plan: 'STARTER' as const,
+   234→    licenseDate: new Date('2025-07-01'),
+   235→    monthlyFee: 5000,
+   236→    transactionRate: 1.5
+   237→  },
+   238→  {
+   239→    name: 'NJB Limited',
+   240→    slug: 'njb',
+   241→    companyName: 'NJB Limited',
+   242→    licenseNumber: 'DCP-2024-0244',
+   243→    phone: '+254702345678',
+   244→    email: 'admin@njb.co.ke',
+   245→    physicalAddress: 'Garissa Town, Garissa County',
+   246→    website: null,
+   247→    status: 'ACTIVE' as const,
+   248→    plan: 'STARTER' as const,
+   249→    licenseDate: new Date('2024-12-14'),
+   250→    monthlyFee: 5000,
+   251→    transactionRate: 1.5
+   252→  },
+   253→
+   254→  // TRIAL Plan Tenants
+   255→  {
+   256→    name: 'Becalob Credit Limited',
+   257→    slug: 'becalob',
+   258→    companyName: 'Becalob Credit Limited',
+   259→    licenseNumber: 'DCP-2026-0045',
+   260→    phone: '+254713456789',
+   261→    email: 'info@becalob.co.ke',
+   262→    physicalAddress: 'Kitale, Trans Nzoia County',
+   263→    website: null,
+   264→    status: 'TRIAL' as const,
+   265→    plan: 'STARTER' as const,
+   266→    licenseDate: null,
+   267→    monthlyFee: 0,
+   268→    transactionRate: 1.5
+   269→  },
+   270→  {
+   271→    name: 'Equal Reach Limited',
+   272→    slug: 'equalreach',
+   273→    companyName: 'Equal Reach Limited',
+   274→    licenseNumber: 'DCP-2026-0056',
+   275→    phone: '+254724567890',
+   276→    email: 'hello@equalreach.co.ke',
+   277→    physicalAddress: 'Kakamega Town, Kakamega County',
+   278→    website: null,
+   279→    status: 'TRIAL' as const,
+   280→    plan: 'STARTER' as const,
+   281→    licenseDate: null,
+   282→    monthlyFee: 0,
+   283→    transactionRate: 1.5
+   284→  },
+   285→  {
+   286→    name: 'Kechita Credit',
+   287→    slug: 'kechita',
+   288→    companyName: 'Kechita Credit Limited',
+   289→    licenseNumber: 'DCP-2026-0078',
+   290→    phone: '+254735678901',
+   291→    email: 'contact@kechita.co.ke',
+   292→    physicalAddress: 'Nanyuki, Laikipia County',
+   293→    website: null,
+   294→    status: 'TRIAL' as const,
+   295→    plan: 'STARTER' as const,
+   296→    licenseDate: null,
+   297→    monthlyFee: 0,
+   298→    transactionRate: 1.5
+   299→  },
+   300→  {
+   301→    name: 'Mkulimapay Credit',
+   302→    slug: 'mkulimapay',
+   303→    companyName: 'Mkulimapay Credit Limited',
+   304→    licenseNumber: 'DCP-2026-0089',
+   305→    phone: '+254746789012',
+   306→    email: 'admin@mkulimapay.co.ke',
+   307→    physicalAddress: 'Embu Town, Embu County',
+   308→    website: null,
+   309→    status: 'TRIAL' as const,
+   310→    plan: 'STARTER' as const,
+   311→    licenseDate: null,
+   312→    monthlyFee: 0,
+   313→    transactionRate: 1.5
+   314→  },
+   315→
+   316→  // PROFESSIONAL Plan Tenants
+   317→  {
+   318→    name: 'Centenary Micro Enterprise Services',
+   319→    slug: 'centenary',
+   320→    companyName: 'Centenary Micro Enterprise Services Limited',
+   321→    licenseNumber: 'DCP-2023-0134',
+   322→    phone: '+254757890123',
+   323→    email: 'info@centenary.co.ke',
+   324→    physicalAddress: 'Wundanyi, Taita Taveta County',
+   325→    website: null,
+   326→    status: 'ACTIVE' as const,
+   327→    plan: 'PROFESSIONAL' as const,
+   328→    licenseDate: new Date('2023-06-25'),
+   329→    monthlyFee: 15000,
+   330→    transactionRate: 1.0
+   331→  },
+   332→  {
+   333→    name: 'Hawkins Capital',
+   334→    slug: 'hawkins',
+   335→    companyName: 'Hawkins Capital Limited',
+   336→    licenseNumber: 'DCP-2023-0156',
+   337→    phone: '+254768901234',
+   338→    email: 'operations@hawkins.co.ke',
+   339→    physicalAddress: 'Nyahururu, Nyandarua County',
+   340→    website: null,
+   341→    status: 'ACTIVE' as const,
+   342→    plan: 'PROFESSIONAL' as const,
+   343→    licenseDate: new Date('2023-08-14'),
+   344→    monthlyFee: 15000,
+   345→    transactionRate: 1.0
+   346→  },
+   347→  {
+   348→    name: 'Lucason Capital',
+   349→    slug: 'lucason',
+   350→    companyName: 'Lucason Capital Limited',
+   351→    licenseNumber: 'DCP-2022-0178',
+   352→    phone: '+254779012345',
+   353→    email: 'support@lucason.co.ke',
+   354→    physicalAddress: 'Voi Town, Taita Taveta County',
+   355→    website: null,
+   356→    status: 'ACTIVE' as const,
+   357→    plan: 'PROFESSIONAL' as const,
+   358→    licenseDate: new Date('2022-10-05'),
+   359→    monthlyFee: 15000,
+   360→    transactionRate: 1.0
+   361→  },
+   362→  {
+   363→    name: 'Milhan Access Capital',
+   364→    slug: 'milhan',
+   365→    companyName: 'Milhan Access Capital Limited',
+   366→    licenseNumber: 'DCP-2023-0190',
+   367→    phone: '+254780123456',
+   368→    email: 'hello@milhan.co.ke',
+   369→    physicalAddress: 'Bungoma Town, Bungoma County',
+   370→    website: null,
+   371→    status: 'ACTIVE' as const,
+   372→    plan: 'PROFESSIONAL' as const,
+   373→    licenseDate: new Date('2023-04-18'),
+   374→    monthlyFee: 15000,
+   375→    transactionRate: 1.0
+   376→  },
+   377→  {
+   378→    name: 'Novatok Credit',
+   379→    slug: 'novatok',
+   380→    companyName: 'Novatok Credit Limited',
+   381→    licenseNumber: 'DCP-2022-0212',
+   382→    phone: '+254791234567',
+   383→    email: 'info@novatok.co.ke',
+   384→    physicalAddress: 'Marsabit Town, Marsabit County',
+   385→    website: null,
+   386→    status: 'ACTIVE' as const,
+   387→    plan: 'PROFESSIONAL' as const,
+   388→    licenseDate: new Date('2022-07-22'),
+   389→    monthlyFee: 15000,
+   390→    transactionRate: 1.0
+   391→  }
+   392→]
+   393→
+   394→// Tenant configuration for data generation based on tier
+   395→const tenantConfig = {
+   396→  STARTER: { customerRange: [5, 10], applicationRange: [5, 10], userCount: 4 },
+   397→  TRIAL: { customerRange: [5, 8], applicationRange: [3, 7], userCount: 3 },
+   398→  PROFESSIONAL: { customerRange: [10, 15], applicationRange: [8, 15], userCount: 6 },
+   399→  ENTERPRISE: { customerRange: [15, 22], applicationRange: [12, 20], userCount: 8 }
+   400→}
+   401→
+   402→// Sample user roles for each tenant based on plan
+   403→function getUserRoles(plan: string) {
+   404→  switch (plan) {
+   405→    case 'TRIAL':
+   406→      return [
+   407→        { role: 'TENANT_ADMIN', count: 1 },
+   408→        { role: 'STAFF', count: 2 }
+   409→      ]
+   410→    case 'STARTER':
+   411→      return [
+   412→        { role: 'TENANT_ADMIN', count: 1 },
+   413→        { role: 'MANAGER', count: 1 },
+   414→        { role: 'STAFF', count: 2 },
+   415→        { role: 'AGENT', count: 1 }
+   416→      ]
+   417→    case 'PROFESSIONAL':
+   418→      return [
+   419→        { role: 'TENANT_ADMIN', count: 1 },
+   420→        { role: 'MANAGER', count: 2 },
+   421→        { role: 'STAFF', count: 3 },
+   422→        { role: 'AGENT', count: 2 }
+   423→      ]
+   424→    case 'ENTERPRISE':
+   425→      return [
+   426→        { role: 'TENANT_ADMIN', count: 1 },
+   427→        { role: 'MANAGER', count: 3 },
+   428→        { role: 'STAFF', count: 4 },
+   429→        { role: 'AGENT', count: 3 }
+   430→      ]
+   431→    default:
+   432→      return [
+   433→        { role: 'TENANT_ADMIN', count: 1 },
+   434→        { role: 'STAFF', count: 2 }
+   435→      ]
+   436→  }
+   437→}
+   438→
+   439→// Loan product templates - varies by plan
+   440→function generateProducts(tenantId: string, plan: string) {
+   441→  const suffix = tenantId.slice(-6).toUpperCase()
+   442→  
+   443→  const baseProducts = [
+   444→    {
+   445→      tenantId,
+   446→      name: 'Personal Loan',
+   447→      description: 'Flexible personal loan for various needs including emergency expenses, school fees, and personal projects.',
+   448→      productCode: `PL-${suffix}-001`,
+   449→      category: 'PERSONAL_LOAN',
+   450→      minAmount: 5000,
+   451→      maxAmount: plan === 'ENTERPRISE' ? 300000 : plan === 'PROFESSIONAL' ? 200000 : 100000,
+   452→      defaultAmount: 50000,
+   453→      interestType: 'FLAT_RATE' as const,
+   454→      interestRate: plan === 'ENTERPRISE' ? 12 : plan === 'PROFESSIONAL' ? 14 : 16,
+   455→      processingFee: plan === 'ENTERPRISE' ? 200 : 300,
+   456→      processingFeeType: 'FIXED' as const,
+   457→      insuranceFee: 1,
+   458→      insuranceFeeType: 'PERCENTAGE' as const,
+   459→      minTermDays: 30,
+   460→      maxTermDays: 180,
+   461→      defaultTermDays: 90,
+   462→      repaymentFrequency: 'MONTHLY' as const,
+   463→      gracePeriodDays: 5,
+   464→      isActive: true
+   465→    },
+   466→    {
+   467→      tenantId,
+   468→      name: 'Business Loan',
+   469→      description: 'Working capital and business expansion loans for SMEs and entrepreneurs.',
+   470→      productCode: `BL-${suffix}-001`,
+   471→      category: 'BUSINESS_LOAN',
+   472→      minAmount: 10000,
+   473→      maxAmount: plan === 'ENTERPRISE' ? 800000 : plan === 'PROFESSIONAL' ? 500000 : 200000,
+   474→      defaultAmount: 100000,
+   475→      interestType: 'FLAT_RATE' as const,
+   476→      interestRate: plan === 'ENTERPRISE' ? 10 : plan === 'PROFESSIONAL' ? 12 : 15,
+   477→      processingFee: plan === 'ENTERPRISE' ? 300 : 500,
+   478→      processingFeeType: 'FIXED' as const,
+   479→      insuranceFee: 0.5,
+   480→      insuranceFeeType: 'PERCENTAGE' as const,
+   481→      minTermDays: 60,
+   482→      maxTermDays: 365,
+   483→      defaultTermDays: 180,
+   484→      repaymentFrequency: 'MONTHLY' as const,
+   485→      gracePeriodDays: 15,
+   486→      isActive: true
+   487→    }
+   488→  ]
+   489→
+   490→  // Add unique third product based on plan type
+   491→  if (plan === 'TRIAL') {
+   492→    baseProducts.push({
+   493→      tenantId,
+   494→      name: 'Quick Cash',
+   495→      description: 'Fast emergency cash for immediate needs.',
+   496→      productCode: `QC-${suffix}-001`,
+   497→      category: 'SALARY_ADVANCE',
+   498→      minAmount: 500,
+   499→      maxAmount: 10000,
+   500→      defaultAmount: 3000,
+   501→      interestType: 'FLAT_RATE' as const,
+   502→      interestRate: 20,
+   503→      processingFee: 50,
+   504→      processingFeeType: 'FIXED' as const,
+   505→      insuranceFee: 0,
+   506→      insuranceFeeType: 'PERCENTAGE' as const,
+   507→      minTermDays: 7,
+   508→      maxTermDays: 14,
+   509→      defaultTermDays: 7,
+   510→      repaymentFrequency: 'BULLET' as const,
+   511→      gracePeriodDays: 0,
+   512→      isActive: true
+   513→    })
+   514→  } else if (plan === 'STARTER') {
+   515→    baseProducts.push({
+   516→      tenantId,
+   517→      name: 'Salary Advance',
+   518→      description: 'Short-term advance against your salary with quick disbursement.',
+   519→      productCode: `SA-${suffix}-001`,
+   520→      category: 'SALARY_ADVANCE',
+   521→      minAmount: 1000,
+   522→      maxAmount: 30000,
+   523→      defaultAmount: 10000,
+   524→      interestType: 'FLAT_RATE' as const,
+   525→      interestRate: 18,
+   526→      processingFee: 100,
+   527→      processingFeeType: 'FIXED' as const,
+   528→      insuranceFee: 0,
+   529→      insuranceFeeType: 'PERCENTAGE' as const,
+   530→      minTermDays: 7,
+   531→      maxTermDays: 30,
+   532→      defaultTermDays: 30,
+   533→      repaymentFrequency: 'BULLET' as const,
+   534→      gracePeriodDays: 0,
+   535→      isActive: true
+   536→    })
+   537→  } else if (plan === 'PROFESSIONAL') {
+   538→    baseProducts.push({
+   539→      tenantId,
+   540→      name: 'Asset Finance',
+   541→      description: 'Finance for purchase of assets including equipment, vehicles, and machinery.',
+   542→      productCode: `AF-${suffix}-001`,
+   543→      category: 'ASSET_FINANCE',
+   544→      minAmount: 50000,
+   545→      maxAmount: 1000000,
+   546→      defaultAmount: 250000,
+   547→      interestType: 'REDUCING_BALANCE' as const,
+   548→      interestRate: 11,
+   549→      processingFee: 1000,
+   550→      processingFeeType: 'FIXED' as const,
+   551→      insuranceFee: 0.5,
+   552→      insuranceFeeType: 'PERCENTAGE' as const,
+   553→      minTermDays: 180,
+   554→      maxTermDays: 1095,
+   555→      defaultTermDays: 730,
+   556→      repaymentFrequency: 'MONTHLY' as const,
+   557→      gracePeriodDays: 30,
+   558→      isActive: true
+   559→    })
+   560→  } else if (plan === 'ENTERPRISE') {
+   561→    baseProducts.push({
+   562→      tenantId,
+   563→      name: 'Premium Business Loan',
+   564→      description: 'Premium business financing for established companies with competitive rates.',
+   565→      productCode: `PB-${suffix}-001`,
+   566→      category: 'BUSINESS_LOAN',
+   567→      minAmount: 100000,
+   568→      maxAmount: 2000000,
+   569→      defaultAmount: 500000,
+   570→      interestType: 'REDUCING_BALANCE' as const,
+   571→      interestRate: 9,
+   572→      processingFee: 0,
+   573→      processingFeeType: 'FIXED' as const,
+   574→      insuranceFee: 0.25,
+   575→      insuranceFeeType: 'PERCENTAGE' as const,
+   576→      minTermDays: 365,
+   577→      maxTermDays: 1825,
+   578→      defaultTermDays: 1095,
+   579→      repaymentFrequency: 'MONTHLY' as const,
+   580→      gracePeriodDays: 45,
+   581→      isActive: true
+   582→    })
+   583→  }
+   584→
+   585→  return baseProducts
+   586→}
+   587→
+   588→// Generate random Kenyan names
+   589→function generateKenyanName() {
+   590→  const firstNames = ['John', 'Mary', 'Peter', 'Grace', 'James', 'Faith', 'Daniel', 'Sarah', 'Michael', 'Esther', 
+   591→                       'Joseph', 'Ruth', 'David', 'Naomi', 'Samuel', 'Hannah', 'Benjamin', 'Rebecca', 'Andrew', 'Rachel',
+   592→                       'Anthony', 'Joyce', 'Patrick', 'Dorothy', 'Charles', 'Catherine', 'Thomas', 'Elizabeth', 'Robert', 'Ann',
+   593→                       'Francis', 'Jane', 'Vincent', 'Martha', 'Martin', 'Phyllis', 'George', 'Lucy', 'Henry', 'Susan']
+   594→  const lastNames = ['Kamau', 'Wanjiku', 'Ochieng', 'Atieno', 'Mwangi', 'Nyokabi', 'Kipchoge', 'Muthoni', 
+   595→                      'Odhiambo', 'Akinyi', 'Mutua', 'Wambui', 'Korir', 'Chebet', 'Maina', 'Njeri', 
+   596→                      'Njoroge', 'Waithera', 'Kimani', 'Ndirangu', 'Otieno', 'Moraa', 'Kiptoo', 'Jepchirchir',
+   597→                      'Mutiso', 'Mwikali', 'Kirubi', 'Nyambura', 'Too', 'Yego', 'Cherono', 'Langat',
+   598→                      'Omondi', 'Auma', 'Kariuki', 'Wairimu', 'Rotich', 'Jepkemoi', 'Gikonyo', 'Muthoni']
+   599→  
+   600→  return {
+   601→    firstName: firstNames[Math.floor(Math.random() * firstNames.length)],
+   602→    lastName: lastNames[Math.floor(Math.random() * lastNames.length)]
+   603→  }
+   604→}
+   605→
+   606→// Generate Kenyan phone number
+   607→function generateKenyanPhone(): string {
+   608→  const prefixes = ['712', '722', '733', '744', '755', '766', '777', '788', '791', '702', '710', '720', '734', '745', '756', '767', '778', '789', '790', '701']
+   609→  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)]
+   610→  const suffix = Math.floor(Math.random() * 900000 + 100000)
+   611→  return `254${prefix}${suffix}`
+   612→}
+   613→
+   614→// Generate customers for a tenant
+   615→async function generateCustomers(tenantId: string, count: number) {
+   616→  const customers = []
+   617→  
+   618→  for (let i = 0; i < count; i++) {
+   619→    const name = generateKenyanName()
+   620→    const employmentStatuses = ['EMPLOYED', 'SELF_EMPLOYED', 'BUSINESS_OWNER', 'CONTRACTOR'] as const
+   621→    const counties = ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Thika', 'Kiambu', 'Machakos', 'Kajiado', 'Uasin Gishu', 'Nyeri', 'Meru', 'Kakamega', 'Bungoma']
+   622→    
+   623→    customers.push({
+   624→      tenantId,
+   625→      firstName: name.firstName,
+   626→      lastName: name.lastName,
+   627→      email: `${name.firstName.toLowerCase()}.${name.lastName.toLowerCase()}${Math.floor(Math.random() * 100)}@gmail.com`,
+   628→      phone: `0${generateKenyanPhone().slice(-9)}`,
+   629→      alternativePhone: Math.random() > 0.5 ? `0${generateKenyanPhone().slice(-9)}` : null,
+   630→      dateOfBirth: new Date(Date.now() - (Math.random() * 35 + 22) * 365.25 * 24 * 60 * 60 * 1000),
+   631→      gender: Math.random() > 0.5 ? ('MALE' as const) : ('FEMALE' as const),
+   632→      nationalId: String(Math.floor(Math.random() * 90000000) + 10000000),
+   633→      kraPin: Math.random() > 0.3 ? `A${Math.random().toString(36).substring(2, 8).toUpperCase()}Z` : null,
+   634→      employmentStatus: employmentStatuses[Math.floor(Math.random() * employmentStatuses.length)],
+   635→      employerName: Math.random() > 0.3 ? `${name.lastName} ${['Enterprises', 'Services', 'Ltd', 'Group', 'Solutions'][Math.floor(Math.random() * 5)]}` : null,
+   636→      incomeAmount: Math.floor(Math.random() * 180000) + 15000,
+   637→      incomeFrequency: 'MONTHLY' as const,
+   638→      businessName: Math.random() > 0.6 ? `${name.firstName}'s Shop` : null,
+   639→      county: counties[Math.floor(Math.random() * counties.length)],
+   640→      city: 'Nairobi',
+   641→      bankName: Math.random() > 0.4 ? ['Equity Bank', 'KCB', 'Cooperative Bank', 'NCBA', 'Stanbic', 'Absa', 'Family Bank', 'Diamond Trust'][Math.floor(Math.random() * 8)] : null,
+   642→      bankAccount: Math.random() > 0.4 ? String(Math.floor(Math.random() * 9000000000) + 1000000000) : null,
+   643→      mpesaPhone: `0${generateKenyanPhone().slice(-9)}`,
+   644→      creditScore: Math.floor(Math.random() * 550) + 300, // 300-850 range
+   645→      crbStatus: Math.random() > 0.85 ? ('LISTED' as const) : ('CLEAN' as const),
+   646→      status: Math.random() > 0.95 ? ('BLACKLISTED' as const) : ('ACTIVE' as const),
+   647→      riskLevel: Math.random() > 0.7 ? ('HIGH' as const) : Math.random() > 0.4 ? ('MEDIUM' as const) : ('LOW' as const),
+   648→      source: ['WALK_IN', 'MOBILE_APP', 'WEB_PORTAL', 'REFERRAL'][Math.floor(Math.random() * 4)] as const
+   649→    })
+   650→  }
+   651→
+   652→  return await prisma.customer.createMany({
+   653→    data: customers
+   654→  })
+   655→}
+   656→
+   657→// Generate loan applications
+   658→async function generateApplications(tenantId: string, customerIds: string[], productIds: string[], count: number) {
+   659→  const statuses = ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'CONDITIONALLY_APPROVED', 'REJECTED', 'DISBURSED', 'CANCELLED'] as const
+   660→  const purposes = ['Emergency expense', 'School fees payment', 'Business working capital', 'Home renovation', 
+   661→                    'Medical bills', 'Vehicle purchase', 'Inventory purchase', 'Rent payment', 'Travel expenses', 'Wedding costs',
+   662→                    'Farm inputs', 'Electronics purchase', 'Land purchase', 'Building construction']
+   663→
+   664→  const applications = []
+   665→
+   666→  for (let i = 0; i < count; i++) {
+   667→    const customerId = customerIds[Math.floor(Math.random() * customerIds.length)]
+   668→    const productId = productIds[Math.floor(Math.random() * productIds.length)]
+   669→    const status = statuses[Math.floor(Math.random() * statuses.length)]
+   670→    
+   671→    // Get product to determine amount range
+   672→    const product = await prisma.loanProduct.findUnique({ where: { id: productId } })
+   673→    if (!product) continue
+   674→
+   675→    const amount = Math.floor(Math.random() * (product.maxAmount - product.minAmount)) + product.minAmount
+   676→    
+   677→    applications.push({
+   678→      tenantId,
+   679→      customerId,
+   680→      productId,
+   681→      requestedAmount: amount,
+   682→      approvedAmount: status === 'APPROVED' || status === 'DISBURSED' || status === 'CONDITIONALLY_APPROVED' 
+   683→        ? Math.floor(amount * (0.7 + Math.random() * 0.3)) 
+   684→        : null,
+   685→      termDays: [30, 60, 90, 120, 180][Math.floor(Math.random() * 5)],
+   686→      purpose: purposes[Math.floor(Math.random() * purposes.length)],
+   687→      status,
+   688→      submittedAt: status !== 'DRAFT' ? new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000) : null,
+   689→      reviewedAt: ['APPROVED', 'REJECTED', 'CONDITIONALLY_APPROVED', 'DISBURSED'].includes(status) 
+   690→        ? new Date(Date.now() - Math.random() * 20 * 24 * 60 * 60 * 1000) 
+   691→        : null,
+   692→      approvedAt: ['APPROVED', 'DISBURSED'].includes(status) 
+   693→        ? new Date(Date.now() - Math.random() * 15 * 24 * 60 * 60 * 1000) 
+   694→        : null,
+   695→      rejectedAt: status === 'REJECTED' 
+   696→        ? new Date(Date.now() - Math.random() * 15 * 24 * 60 * 60 * 1000) 
+   697→        : null,
+   698→      disbursedAt: status === 'DISBURSED' 
+   699→        ? new Date(Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000) 
+   700→        : null,
+   701→      creditScore: Math.floor(Math.random() * 550) + 300,
+   702→      riskRating: Math.random() > 0.7 ? 'VERY_HIGH' : Math.random() > 0.5 ? 'HIGH' : Math.random() > 0.3 ? 'MEDIUM' : 'LOW'
+   703→    })
+   704→  }
+   705→
+   706→  return await prisma.loanApplication.createMany({
+   707→    data: applications
+   708→  })
+   709→}
+   710→
+   711→// Generate active loans from approved/disbursed applications
+   712→async function generateLoans(tenantId: string, customerIds: string[], productIds: string[]) {
+   713→  // Get disbursed applications that don't have loans yet
+   714→  const disbursedApps = await prisma.loanApplication.findMany({
+   715→    where: {
+   716→      tenantId,
+   717→      status: 'DISBURSED',
+   718→      loan: null
+   719→    },
+   720→    take: 50
+   721→  })
+   722→
+   723→  const loanStatuses = ['ACTIVE', 'IN_ARREARS', 'DEFAULTED', 'FULLY_PAID', 'PENDING_DISBURSEMENT'] as const
+   724→  const arrearsStatuses = ['CURRENT', 'DAYS_1_7', 'DAYS_8_30', 'DAYS_31_60', 'DAYS_61_90', 'DAYS_91_PLUS'] as const
+   725→
+   726→  const loans = []
+   727→  
+   728→  // Get global loan count for unique numbering
+   729→  let globalLoanCount = await prisma.loan.count()
+   730→
+   731→  for (const app of disbursedApps) {
+   732→    const status = loanStatuses[Math.floor(Math.random() * loanStatuses.length)]
+   733→    const principal = app.approvedAmount || app.requestedAmount
+   734→    const months = Math.ceil(app.termDays / 30)
+   735→    const totalInterest = principal * 0.15 * months
+   736→    const totalRepayable = principal + totalInterest
+   737→
+   738→    const daysInArrears = status === 'ACTIVE' ? 0 : Math.floor(Math.random() * 90)
+   739→
+   740→    globalLoanCount++
+   741→    
+   742→    loans.push({
+   743→      tenantId,
+   744→      customerId: app.customerId,
+   745→      applicationId: app.id,
+   746→      productId: app.productId,
+   747→      loanNumber: `LN-${new Date().getFullYear()}-${String(globalLoanCount).padStart(6, '0')}`,
+   748→      principal,
+   749→      approvedAmount: principal,
+   750→      interestRate: 15,
+   751→      interestType: 'FLAT_RATE' as const,
+   752→      processingFee: 300,
+   753→      insuranceFee: principal * 0.01,
+   754→      otherFees: 0,
+   755→      totalInterest,
+   756→      totalFees: 330,
+   757→      totalRepayable,
+   758→      termDays: app.termDays,
+   759→      disbursementDate: app.disbursedAt || new Date(),
+   760→      maturityDate: new Date((app.disbursedAt || new Date()).getTime() + app.termDays * 24 * 60 * 60 * 1000),
+   761→      repaidPrincipal: status === 'FULLY_PAID' ? principal : status === 'ACTIVE' ? Math.floor(principal * Math.random() * 0.5) : 0,
+   762→      repaidInterest: status === 'FULLY_PAID' ? totalInterest : status === 'ACTIVE' ? Math.floor(totalInterest * Math.random() * 0.5) : 0,
+   763→      repaidFees: status === 'FULLY_PAID' ? 330 : 0,
+   764→      totalRepaid: status === 'FULLY_PAID' ? totalRepayable : 0,
+   765→      outstandingBalance: status === 'FULLY_PAID' ? 0 : totalRepayable - (status === 'ACTIVE' ? Math.floor(totalRepayable * Math.random() * 0.5) : 0),
+   766→      nextPaymentDue: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+   767→      daysInArrears,
+   768→      status,
+   769→      arrearsStatus: daysInArrears <= 0 ? 'CURRENT' : 
+   770→                     daysInArrears <= 7 ? 'DAYS_1_7' :
+   771→                     daysInArrears <= 30 ? 'DAYS_8_30' :
+   772→                     daysInArrears <= 60 ? 'DAYS_31_60' :
+   773→                     daysInArrears <= 90 ? 'DAYS_61_90' : 'DAYS_91_PLUS',
+   774→      disbursementMethod: 'MPESA' as const,
+   775→      disbursementReference: `MPESA${Math.random().toString(36).substring(2, 11).toUpperCase()}`,
+   776→      disbursementAccount: `0${generateKenyanPhone().slice(-9)}`,
+   777→      repaymentSchedule: JSON.stringify(generateSchedule(principal, 15, app.termDays))
+   778→    })
+   779→  }
+   780→
+   781→  if (loans.length > 0) {
+   782→    return await prisma.loan.createMany({
+   783→      data: loans
+   784→    })
+   785→  }
+   786→
+   787→  return { count: 0 }
+   788→}
+   789→
+   790→// Generate repayment schedule
+   791→function generateSchedule(principal: number, rate: number, days: number): Array<object> {
+   792→  const schedule = []
+   793→  const installments = Math.max(1, Math.ceil(days / 30))
+   794→  const perInstallment = principal / installments
+   795→  const interestPerInstallment = (principal * rate / 100) / installments
+   796→
+   797→  for (let i = 1; i <= installments; i++) {
+   798→    schedule.push({
+   799→      installmentNo: i,
+   800→      dueDate: new Date(Date.now() + i * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+   801→      principal: Math.round(perInstallment),
+   802→      interest: Math.round(interestPerInstallment),
+   803→      fees: i === 1 ? 110 : 0,
+   804→      total: Math.round(perInstallment + interestPerInstallment + (i === 1 ? 110 : 0)),
+   805→      status: i === 1 ? 'PENDING' : 'SCHEDULED'
+   806→    })
+   807→  }
+   808→
+   809→  return schedule
+   810→}
+   811→
+   812→// Generate repayments
+   813→async function generateRepayments(tenantId: string) {
+   814→  const activeLoans = await prisma.loan.findMany({
+   815→    where: {
+   816→      tenantId,
+   817→      status: { in: ['ACTIVE', 'FULLY_PAID'] },
+   818→      repaidPrincipal: { gt: 0 }
+   819→    },
+   820→    take: 100
+   821→  })
+   822→
+   823→  const repayments = []
+   824→
+   825→  for (const loan of activeLoans) {
+   826→    const numPayments = Math.floor(Math.random() * 3) + 1
+   827→    const remainingToPay = loan.totalRepaid
+   828→
+   829→    for (let i = 0; i < numPayments && remainingToPay > 0; i++) {
+   830→      const amount = Math.min(
+   831→        Math.round(remainingToPay / (numPayments - i)),
+   832→        remainingToPay
+   833→      )
+   834→
+   835→      repayments.push({
+   836→        tenantId,
+   837→        loanId: loan.id,
+   838→        customerId: loan.customerId,
+   839→        amount,
+   840→        principalPortion: Math.round(amount * 0.85),
+   841→        interestPortion: Math.round(amount * 0.13),
+   842→        feePortion: Math.round(amount * 0.02),
+   843→        paymentMethod: 'MPESA' as const,
+   844→        referenceNumber: `MPESA${Math.random().toString(36).substring(2, 11).toUpperCase()}`,
+   845→        paidBy: null,
+   846→        paymentDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
+   847→        dueDate: new Date(Date.now() - Math.random() * 35 * 24 * 60 * 60 * 1000),
+   848→        status: 'COMPLETED' as const
+   849→      })
+   850→    }
+   851→  }
+   852→
+   853→  if (repayments.length > 0) {
+   854→    return await prisma.repayment.createMany({
+   855→      data: repayments
+   856→    })
+   857→  }
+   858→
+   859→  return { count: 0 }
+   860→}
+   861→
+   862→// Main seed function
+   863→async function main() {
+   864→  console.log('🌱 Starting Digital Lending OS database seeding...')
+   865→  console.log(`   Total tenants to create: ${tenants.length}\n`)
+   866→
+   867→  try {
+   868→    // Clean existing data (optional - comment out to preserve data)
+   869→    console.log('🗑️  Cleaning existing data...')
+   870→    await prisma.repayment.deleteMany()
+   871→    await prisma.transaction.deleteMany()
+   872→    await prisma.loan.deleteMany()
+   873→    await prisma.loanApplication.deleteMany()
+   874→    await prisma.kycDocument.deleteMany()
+   875→    await prisma.notification.deleteMany()
+   876→    await prisma.loanProduct.deleteMany()
+   877→    await prisma.customer.deleteMany()
+   878→    await prisma.user.deleteMany()
+   879→    await prisma.auditLog.deleteMany()
+   880→    await prisma.tenant.deleteMany()
+   881→    console.log('✅ Cleaned existing data\n')
+   882→
+   883→    // Create tenants
+   884→    console.log('🏢 Creating tenants...')
+   885→    const createdTenants = []
+   886→    for (const tenant of tenants) {
+   887→      const created = await prisma.tenant.create({ data: tenant })
+   888→      createdTenants.push(created)
+   889→      console.log(`   ✓ Created: ${created.name} (${created.slug}) - ${tenant.plan} plan`)
+   890→    }
+   891→    console.log(`\n✅ Created ${createdTenants.length} tenants\n`)
+   892→
+   893→    // Create users for each tenant
+   894→    console.log('👥 Creating users...')
+   895→    let totalUsers = 0
+   896→    for (const tenant of createdTenants) {
+   897→      const roles = getUserRoles(tenant.plan)
+   898→      for (const userRole of roles) {
+   899→        for (let i = 0; i < userRole.count; i++) {
+   900→          const name = generateKenyanName()
+   901→          await prisma.user.create({
+   902→            data: {
+   903→              tenantId: tenant.id,
+   904→              email: `${name.firstName.toLowerCase()}.${userRole.role.toLowerCase()}${i}@${tenant.slug}.co.ke`,
+   905→              passwordHash: '$2b$10$placeholder_hash_for_demo',
+   906→              name: `${name.firstName} ${name.lastName}`,
+   907→              role: userRole.role,
+   908→              phone: `0${generateKenyanPhone().slice(-9)}`,
+   909→              isActive: true
+   910→            }
+   911→          })
+   912→          totalUsers++
+   913→        }
+   914→      }
+   915→      console.log(`   ✓ Created users for ${tenant.name}`)
+   916→    }
+   917→    console.log(`   ✓ Total: ${totalUsers} users across all tenants\n`)
+   918→
+   919→    // Create products for each tenant
+   920→    console.log('📦 Creating loan products...')
+   921→    let totalProducts = 0
+   922→    for (const tenant of createdTenants) {
+   923→      const products = generateProducts(tenant.id, tenant.plan)
+   924→      for (const product of products) {
+   925→        await prisma.loanProduct.create({ data: product })
+   926→        totalProducts++
+   927→      }
+   928→      console.log(`   ✓ Created ${products.length} products for ${tenant.name}`)
+   929→    }
+   930→    console.log(`\n✅ Created ${totalProducts} products\n`)
+   931→
+   932→    // Create customers for each tenant
+   933→    console.log('👤 Creating customers...')
+   934→    let totalCustomers = 0
+   935→    for (const tenant of createdTenants) {
+   936→      const config = tenantConfig[tenant.plan]
+   937→      const customerCount = Math.floor(Math.random() * (config.customerRange[1] - config.customerRange[0])) + config.customerRange[0]
+   938→      await generateCustomers(tenant.id, customerCount)
+   939→      totalCustomers += customerCount
+   940→      console.log(`   ✓ Created ~${customerCount} customers for ${tenant.name}`)
+   941→    }
+   942→    console.log(`\n✅ Created approximately ${totalCustomers} customers\n`)
+   943→
+   944→    // Create loan applications
+   945→    console.log('📝 Creating loan applications...')
+   946→    let totalApplications = 0
+   947→    for (const tenant of createdTenants) {
+   948→      const customers = await prisma.customer.findMany({
+   949→        where: { tenantId: tenant.id },
+   950→        select: { id: true }
+   951→      })
+   952→      const products = await prisma.loanProduct.findMany({
+   953→        where: { tenantId: tenant.id },
+   954→        select: { id: true }
+   955→      })
+   956→
+   957→      const config = tenantConfig[tenant.plan]
+   958→      const appCount = Math.floor(Math.random() * (config.applicationRange[1] - config.applicationRange[0])) + config.applicationRange[0]
+   959→      await generateApplications(
+   960→        tenant.id,
+   961→        customers.map(c => c.id),
+   962→        products.map(p => p.id),
+   963→        appCount
+   964→      )
+   965→      totalApplications += appCount
+   966→      console.log(`   ✓ Created ~${appCount} applications for ${tenant.name}`)
+   967→    }
+   968→    console.log(`\n✅ Created approximately ${totalApplications} applications\n`)
+   969→
+   970→    // Create loans
+   971→    console.log('💰 Creating loans...')
+   972→    for (const tenant of createdTenants) {
+   973→      const customers = await prisma.customer.findMany({
+   974→        where: { tenantId: tenant.id },
+   975→        select: { id: true }
+   976→      })
+   977→      const products = await prisma.loanProduct.findMany({
+   978→        where: { tenantId: tenant.id },
+   979→        select: { id: true }
+   980→      })
+   981→
+   982→      const result = await generateLoans(tenant.id, customers.map(c => c.id), products.map(p => p.id))
+   983→      console.log(`   ✓ Created ${result.count} loans for ${tenant.name}`)
+   984→    }
+   985→    console.log('\n✅ Loans created\n')
+   986→
+   987→    // Create repayments
+   988→    console.log('💳 Creating repayments...')
+   989→    for (const tenant of createdTenants) {
+   990→      const result = await generateRepayments(tenant.id)
+   991→      console.log(`   ✓ Created ${result.count} repayments for ${tenant.name}`)
+   992→    }
+   993→    console.log('\n✅ Repayments created\n')
+   994→
+   995→    // Print summary
+   996→    console.log('=' .repeat(60))
+   997→    console.log('🎉 SEEDING COMPLETE!')
+   998→    console.log('=' .repeat(60))
+   999→    console.log('\nSummary:')
+  1000→    console.log(`   • Tenants: ${createdTenants.length}`)
+  1001→    console.log(`   • Users: ${totalUsers}`)
+  1002→    console.log(`   • Products: ${totalProducts}`)
+  1003→    console.log(`   • Customers: ~${totalCustomers}`)
+  1004→    console.log(`   • Applications: ~${totalApplications}`)
+  1005→
+  1006→    const finalLoanCount = await prisma.loan.count()
+  1007→    const finalRepaymentCount = await prisma.repayment.count()
+  1008→    console.log(`   • Loans: ${finalLoanCount}`)
+  1009→    console.log(`   • Repayments: ${finalRepaymentCount}`)
+  1010→
+  1011→    // Count by plan
+  1012→    console.log('\n--- Tenant Breakdown by Plan ---')
+  1013→    const planCounts = await prisma.tenant.groupBy({
+  1014→      by: ['plan'],
+  1015→      _count: true
+  1016→    })
+  1017→    for (const pc of planCounts) {
+  1018→      console.log(`   • ${pc.plan}: ${pc._count} tenants`)
+  1019→    }
+  1020→
+  1021→    console.log('\n✨ Database is now ready for use!')
+  1022→    console.log('\n📊 Platform Statistics:')
+  1023→    console.log(`   • Licensed DCPs in Kenya: 252 (aspirational target)`)
+  1024→    console.log(`   • Current platform tenants: ${createdTenants.length}`)
+  1025→    console.log(`   • Market coverage: ${(createdTenants.length / 252 * 100).toFixed(1)}%\n`)
+  1026→
+  1027→  } catch (error) {
+  1028→    console.error('❌ Error during seeding:', error)
+  1029→    throw error
+  1030→  }
+  1031→}
+  1032→
+  1033→main()
+  1034→  .catch((e) => {
+  1035→    console.error(e)
+  1036→    process.exit(1)
+  1037→  })
+  1038→  .finally(async () => {
+  1039→    await prisma.$disconnect()
+  1040→  })
+  1041→

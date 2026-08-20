@@ -19,6 +19,7 @@ import { CustomerPortal } from '@/components/lending-os/CustomerPortal'
 import { LenderDashboard } from '@/components/lending-os/LenderDashboard'
 import { SuperAdminView } from '@/components/lending-os/SuperAdminView'
 import { ArchitectureDiagram } from '@/components/lending-os/ArchitectureDiagram'
+import { ThemeToggle } from '@/components/lending-os/ThemeToggle'
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('customer')
@@ -41,6 +42,7 @@ export default function Home() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <ThemeToggle />
               <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
                 v2.0.0
               </Badge>

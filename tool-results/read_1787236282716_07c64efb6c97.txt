@@ -1,0 +1,686 @@
+     1→'use client'
+     2→
+     3→import { useState } from 'react'
+     4→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     5→import { Button } from '@/components/ui/button'
+     6→import { Input } from '@/components/ui/input'
+     7→import { Label } from '@/components/ui/label'
+     8→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+     9→import { Textarea } from '@/components/ui/textarea'
+    10→import { Badge } from '@/components/ui/badge'
+    11→import { toast } from 'sonner'
+    12→import { 
+    13→  User, 
+    14→  Building, 
+    15→  Phone, 
+    16→  Mail, 
+    17→  FileText,
+    18→  CheckCircle2,
+    19→  ArrowRight,
+    20→  ArrowLeft,
+    21→  Loader2,
+    22→  AlertCircle
+    23→} from 'lucide-react'
+    24→
+    25→interface FormData {
+    26→  // Personal Information
+    27→  firstName: string
+    28→  lastName: string
+    29→  email: string
+    30→  phone: string
+    31→  dateOfBirth: string
+    32→  nationalId: string
+    33→  
+    34→  // Employment
+    35→  employmentStatus: string
+    36→  employerName: string
+    37→  monthlyIncome: string
+    38→  employmentDuration: string
+    39→  
+    40→  // Loan Details
+    41→  loanAmount: string
+    42→  loanPurpose: string
+    43→  repaymentPeriod: string
+    44→  
+    45→  // Banking
+    46→  bankName: string
+    47→  mpesaPhone: string
+    48→}
+    49→
+    50→interface ValidationErrors {
+    51→  [key: string]: string
+    52→}
+    53→
+    54→interface ApplicationFormProps {
+    55→  prefillData?: {
+    56→    amount?: number
+    57→    termDays?: number
+    58→    productType?: string
+    59→  }
+    60→  onSuccess?: () => void
+    61→}
+    62→
+    63→export function ApplicationForm({ prefillData, onSuccess }: ApplicationFormProps) {
+    64→  const [currentStep, setCurrentStep] = useState(1)
+    65→  const [isSubmitting, setIsSubmitting] = useState(false)
+    66→  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({})
+    67→  const [formData, setFormData] = useState<FormData>({
+    68→    firstName: '',
+    69→    lastName: '',
+    70→    email: '',
+    71→    phone: '',
+    72→    dateOfBirth: '',
+    73→    nationalId: '',
+    74→    employmentStatus: '',
+    75→    employerName: '',
+    76→    monthlyIncome: '',
+    77→    employmentDuration: '',
+    78→    loanAmount: prefillData?.amount?.toString() || '',
+    79→    loanPurpose: '',
+    80→    repaymentPeriod: prefillData?.termDays?.toString() || '90',
+    81→    bankName: '',
+    82→    mpesaPhone: ''
+    83→  })
+    84→
+    85→  const updateField = (field: keyof FormData, value: string) => {
+    86→    setFormData(prev => ({ ...prev, [field]: value }))
+    87→    // Clear validation error when user starts typing
+    88→    if (validationErrors[field]) {
+    89→      setValidationErrors(prev => ({ ...prev, [field]: '' }))
+    90→    }
+    91→  }
+    92→
+    93→  const validateStep = (step: number): boolean => {
+    94→    const errors: ValidationErrors = {}
+    95→
+    96→    if (step === 1) {
+    97→      if (!formData.firstName.trim()) errors.firstName = 'First name is required'
+    98→      else if (formData.firstName.trim().length < 2) errors.firstName = 'First name must be at least 2 characters'
+    99→      
+   100→      if (!formData.lastName.trim()) errors.lastName = 'Last name is required'
+   101→      else if (formData.lastName.trim().length < 2) errors.lastName = 'Last name must be at least 2 characters'
+   102→      
+   103→      if (!formData.phone.trim()) errors.phone = 'Phone number is required'
+   104→      else if (!/^(\+254|0)?[7]\d{8}$/.test(formData.phone.replace(/\s/g, ''))) {
+   105→        errors.phone = 'Please enter a valid Kenyan phone number (e.g., 0712345678)'
+   106→      }
+   107→      
+   108→      if (!formData.nationalId.trim()) errors.nationalId = 'National ID is required'
+   109→      else if (!/^\d{5,8}$/.test(formData.nationalId.trim())) {
+   110→        errors.nationalId = 'Please enter a valid ID number (5-8 digits)'
+   111→      }
+   112→      
+   113→      if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+   114→        errors.email = 'Please enter a valid email address'
+   115→      }
+   116→    }
+   117→
+   118→    if (step === 2) {
+   119→      if (!formData.employmentStatus) errors.employmentStatus = 'Please select employment status'
+   120→      
+   121→      if (!formData.monthlyIncome.trim()) errors.monthlyIncome = 'Monthly income is required'
+   122→      else if (isNaN(Number(formData.monthlyIncome)) || Number(formData.monthlyIncome) <= 0) {
+   123→        errors.monthlyIncome = 'Please enter a valid income amount'
+   124→      }
+   125→    }
+   126→
+   127→    if (step === 3) {
+   128→      if (!formData.loanAmount.trim()) errors.loanAmount = 'Loan amount is required'
+   129→      else if (isNaN(Number(formData.loanAmount)) || Number(formData.loanAmount) < 5000) {
+   130→        errors.loanAmount = 'Minimum loan amount is KSh 5,000'
+   131→      }
+   132→      else if (Number(formData.loanAmount) > 500000) {
+   133→        errors.loanAmount = 'Maximum loan amount is KSh 500,000'
+   134→      }
+   135→      
+   136→      if (!formData.loanPurpose.trim()) errors.loanPurpose = 'Please describe the purpose of the loan'
+   137→      else if (formData.loanPurpose.trim().length < 10) {
+   138→        errors.loanPurpose = 'Please provide more details (at least 10 characters)'
+   139→      }
+   140→    }
+   141→
+   142→    setValidationErrors(errors)
+   143→    return Object.keys(errors).length === 0
+   144→  }
+   145→
+   146→  const canProceed = () => {
+   147→    return validateStep(currentStep)
+   148→  }
+   149→
+   150→  const handleNext = () => {
+   151→    if (canProceed()) {
+   152→      setCurrentStep(prev => Math.min(4, prev + 1))
+   153→      toast.success(`Step ${currentStep + 1}`, {
+   154→        description: `Moving to ${getStepTitle(currentStep + 1)}`
+   155→      })
+   156→    } else {
+   157→      toast.error('Validation Error', {
+   158→        description: 'Please fill in all required fields correctly'
+   159→      })
+   160→    }
+   161→  }
+   162→
+   163→  const getStepTitle = (step: number): string => {
+   164→    const titles = ['', 'Personal Info', 'Employment', 'Loan Details', 'Review & Submit']
+   165→    return titles[step] || ''
+   166→  }
+   167→
+   168→  const handleSubmit = async () => {
+   169→    // Validate all steps before submission
+   170→    let isValid = true
+   171→    for (let i = 1; i <= 3; i++) {
+   172→      if (!validateStep(i)) {
+   173→        isValid = false
+   174→      }
+   175→    }
+   176→    
+   177→    if (!isValid) {
+   178→      setCurrentStep(1)
+   179→      toast.error('Validation Failed', {
+   180→        description: 'Please correct the errors in your application'
+   181→      })
+   182→      return
+   183→    }
+   184→
+   185→    setIsSubmitting(true)
+   186→
+   187→    try {
+   188→      // Create application via API
+   189→      const response = await fetch('/api/applications', {
+   190→        method: 'POST',
+   191→        headers: {
+   192→          'Content-Type': 'application/json',
+   193→        },
+   194→        body: JSON.stringify({
+   195→          tenantId: 'default-tenant', // Using default tenant for demo
+   196→          customerId: 'new-customer', // Will be created or matched
+   197→          productId: getProductIdFromType(prefillData?.productType || 'personal'),
+   198→          requestedAmount: formData.loanAmount,
+   199→          termDays: formData.repaymentPeriod,
+   200→          purpose: formData.loanPurpose,
+   201→          customerData: {
+   202→            firstName: formData.firstName,
+   203→            lastName: formData.lastName,
+   204→            email: formData.email,
+   205→            phone: formData.phone,
+   206→            nationalId: formData.nationalId,
+   207→            dateOfBirth: formData.dateOfBirth,
+   208→            employmentStatus: formData.employmentStatus,
+   209→            employerName: formData.employerName,
+   210→            monthlyIncome: formData.monthlyIncome,
+   211→            employmentDuration: formData.employmentDuration,
+   212→            bankName: formData.bankName,
+   213→            mpesaPhone: formData.mpesaPhone
+   214→          }
+   215→        }),
+   216→      })
+   217→
+   218→      const result = await response.json()
+   219→
+   220→      if (response.ok && result.success) {
+   221→        toast.success('Application Submitted Successfully!', {
+   222→          description: `Your application ${result.data?.id || 'has been'} submitted. Reference: APP-${Date.now().toString(36).toUpperCase()}`,
+   223→          duration: 5000
+   224→        })
+   225→        
+   226→        // Call success callback to switch tabs
+   227→        if (onSuccess) {
+   228→          setTimeout(() => onSuccess(), 1500)
+   229→        }
+   230→        
+   231→        // Reset form
+   232→        resetForm()
+   233→      } else {
+   234→        throw new Error(result.error || 'Failed to submit application')
+   235→      }
+   236→    } catch (error) {
+   237→      console.error('Submission error:', error)
+   238→      toast.error('Submission Failed', {
+   239→        description: error instanceof Error ? error.message : 'An unexpected error occurred. Please try again.',
+   240→        duration: 6000
+   241→      })
+   242→    } finally {
+   243→      setIsSubmitting(false)
+   244→    }
+   245→  }
+   246→
+   247→  const resetForm = () => {
+   248→    setFormData({
+   249→      firstName: '',
+   250→      lastName: '',
+   251→      email: '',
+   252→      phone: '',
+   253→      dateOfBirth: '',
+   254→      nationalId: '',
+   255→      employmentStatus: '',
+   256→      employerName: '',
+   257→      monthlyIncome: '',
+   258→      employmentDuration: '',
+   259→      loanAmount: '',
+   260→      loanPurpose: '',
+   261→      repaymentPeriod: '90',
+   262→      bankName: '',
+   263→      mpesaPhone: ''
+   264→    })
+   265→    setCurrentStep(1)
+   266→    setValidationErrors({})
+   267→  }
+   268→
+   269→  const getProductIdFromType = (type: string): string => {
+   270→    const productMap: Record<string, string> = {
+   271→      personal: 'personal-loan-product',
+   272→      business: 'business-loan-product',
+   273→      salary: 'salary-advance-product',
+   274→      emergency: 'emergency-loan-product'
+   275→    }
+   276→    return productMap[type] || 'personal-loan-product'
+   277→  }
+   278→
+   279→  const steps = [
+   280→    { id: 1, title: 'Personal Info', icon: User },
+   281→    { id: 2, title: 'Employment', icon: Building },
+   282→    { id: 3, title: 'Loan Details', icon: FileText },
+   283→    { id: 4, title: 'Review & Submit', icon: CheckCircle2 }
+   284→  ]
+   285→
+   286→  return (
+   287→    <div className="max-w-4xl mx-auto">
+   288→      {/* Progress Steps */}
+   289→      <Card className="mb-6">
+   290→        <CardContent className="p-6">
+   291→          <div className="flex items-center justify-between">
+   292→            {steps.map((step, index) => (
+   293→              <div key={step.id} className="flex items-center">
+   294→                <div className={`flex items-center gap-2 ${currentStep >= step.id ? 'text-emerald-600' : 'text-slate-400'}`}>
+   295→                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+   296→                    currentStep > step.id 
+   297→                      ? 'bg-emerald-600 text-white' 
+   298→                      : currentStep === step.id 
+   299→                        ? 'bg-emerald-100 text-emerald-600 border-2 border-emerald-600' 
+   300→                        : 'bg-slate-100 text-slate-400'
+   301→                  }`}>
+   302→                    {currentStep > step.id ? (
+   303→                      <CheckCircle2 className="w-5 h-5" />
+   304→                    ) : (
+   305→                      <step.icon className="w-5 h-5" />
+   306→                    )}
+   307→                  </div>
+   308→                  <span className="hidden sm:block font-medium text-sm">{step.title}</span>
+   309→                </div>
+   310→                {index < steps.length - 1 && (
+   311→                  <div className={`w-12 md:w-24 h-0.5 mx-2 ${
+   312→                    currentStep > step.id ? 'bg-emerald-600' : 'bg-slate-200'
+   313→                  }`} />
+   314→                )}
+   315→              </div>
+   316→            ))}
+   317→          </div>
+   318→        </CardContent>
+   319→      </Card>
+   320→
+   321→      {/* Form Content */}
+   322→      <Card>
+   323→        <CardHeader>
+   324→          <CardTitle>{steps[currentStep - 1].title}</CardTitle>
+   325→          <CardDescription>
+   326→            Step {currentStep} of {steps.length}
+   327→          </CardDescription>
+   328→        </CardHeader>
+   329→        <CardContent>
+   330→          {/* Step 1: Personal Information */}
+   331→          {currentStep === 1 && (
+   332→            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+   333→              <div className="space-y-2">
+   334→                <Label htmlFor="firstName">First Name *</Label>
+   335→                <Input
+   336→                  id="firstName"
+   337→                  placeholder="Enter your first name"
+   338→                  value={formData.firstName}
+   339→                  onChange={(e) => updateField('firstName', e.target.value)}
+   340→                  className={validationErrors.firstName ? 'border-red-500 focus-visible:ring-red-500' : ''}
+   341→                />
+   342→                {validationErrors.firstName && (
+   343→                  <p className="text-sm text-red-500 flex items-center gap-1">
+   344→                    <AlertCircle className="w-3 h-3" />
+   345→                    {validationErrors.firstName}
+   346→                  </p>
+   347→                )}
+   348→              </div>
+   349→              <div className="space-y-2">
+   350→                <Label htmlFor="lastName">Last Name *</Label>
+   351→                <Input
+   352→                  id="lastName"
+   353→                  placeholder="Enter your last name"
+   354→                  value={formData.lastName}
+   355→                  onChange={(e) => updateField('lastName', e.target.value)}
+   356→                  className={validationErrors.lastName ? 'border-red-500 focus-visible:ring-red-500' : ''}
+   357→                />
+   358→                {validationErrors.lastName && (
+   359→                  <p className="text-sm text-red-500 flex items-center gap-1">
+   360→                    <AlertCircle className="w-3 h-3" />
+   361→                    {validationErrors.lastName}
+   362→                  </p>
+   363→                )}
+   364→              </div>
+   365→              <div className="space-y-2">
+   366→                <Label htmlFor="email">Email Address</Label>
+   367→                <Input
+   368→                  id="email"
+   369→                  type="email"
+   370→                  placeholder="your@email.com"
+   371→                  value={formData.email}
+   372→                  onChange={(e) => updateField('email', e.target.value)}
+   373→                  className={validationErrors.email ? 'border-red-500 focus-visible:ring-red-500' : ''}
+   374→                />
+   375→                {validationErrors.email && (
+   376→                  <p className="text-sm text-red-500 flex items-center gap-1">
+   377→                    <AlertCircle className="w-3 h-3" />
+   378→                    {validationErrors.email}
+   379→                  </p>
+   380→                )}
+   381→              </div>
+   382→              <div className="space-y-2">
+   383→                <Label htmlFor="phone">Phone Number (M-Pesa) *</Label>
+   384→                <Input
+   385→                  id="phone"
+   386→                  placeholder="07XX XXX XXX"
+   387→                  value={formData.phone}
+   388→                  onChange={(e) => updateField('phone', e.target.value)}
+   389→                  className={validationErrors.phone ? 'border-red-500 focus-visible:ring-red-500' : ''}
+   390→                />
+   391→                {validationErrors.phone && (
+   392→                  <p className="text-sm text-red-500 flex items-center gap-1">
+   393→                    <AlertCircle className="w-3 h-3" />
+   394→                    {validationErrors.phone}
+   395→                  </p>
+   396→                )}
+   397→              </div>
+   398→              <div className="space-y-2">
+   399→                <Label htmlFor="dateOfBirth">Date of Birth</Label>
+   400→                <Input
+   401→                  id="dateOfBirth"
+   402→                  type="date"
+   403→                  value={formData.dateOfBirth}
+   404→                  onChange={(e) => updateField('dateOfBirth', e.target.value)}
+   405→                />
+   406→              </div>
+   407→              <div className="space-y-2">
+   408→                <Label htmlFor="nationalId">National ID Number *</Label>
+   409→                <Input
+   410→                  id="nationalId"
+   411→                  placeholder="12345678"
+   412→                  value={formData.nationalId}
+   413→                  onChange={(e) => updateField('nationalId', e.target.value)}
+   414→                  className={validationErrors.nationalId ? 'border-red-500 focus-visible:ring-red-500' : ''}
+   415→                />
+   416→                {validationErrors.nationalId && (
+   417→                  <p className="text-sm text-red-500 flex items-center gap-1">
+   418→                    <AlertCircle className="w-3 h-3" />
+   419→                    {validationErrors.nationalId}
+   420→                  </p>
+   421→                )}
+   422→              </div>
+   423→            </div>
+   424→          )}
+   425→
+   426→          {/* Step 2: Employment */}
+   427→          {currentStep === 2 && (
+   428→            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+   429→              <div className="space-y-2">
+   430→                <Label>Employment Status *</Label>
+   431→                <Select value={formData.employmentStatus} onValueChange={(v) => updateField('employmentStatus', v)}>
+   432→                  <SelectTrigger className={validationErrors.employmentStatus ? 'border-red-500 focus-visible:ring-red-500' : ''}>
+   433→                    <SelectValue placeholder="Select status" />
+   434→                  </SelectTrigger>
+   435→                  <SelectContent>
+   436→                    <SelectItem value="employed">Employed</SelectItem>
+   437→                    <SelectItem value="self_employed">Self-Employed</SelectItem>
+   438→                    <SelectItem value="business_owner">Business Owner</SelectItem>
+   439→                    <SelectItem value="contractor">Contractor</SelectItem>
+   440→                  </SelectContent>
+   441→                </Select>
+   442→                {validationErrors.employmentStatus && (
+   443→                  <p className="text-sm text-red-500 flex items-center gap-1">
+   444→                    <AlertCircle className="w-3 h-3" />
+   445→                    {validationErrors.employmentStatus}
+   446→                  </p>
+   447→                )}
+   448→              </div>
+   449→              <div className="space-y-2">
+   450→                <Label htmlFor="employerName">Employer / Business Name</Label>
+   451→                <Input
+   452→                  id="employerName"
+   453→                  placeholder="Company or business name"
+   454→                  value={formData.employerName}
+   455→                  onChange={(e) => updateField('employerName', e.target.value)}
+   456→                />
+   457→              </div>
+   458→              <div className="space-y-2">
+   459→                <Label htmlFor="monthlyIncome">Monthly Income (KSh) *</Label>
+   460→                <Input
+   461→                  id="monthlyIncome"
+   462→                  type="number"
+   463→                  placeholder="50000"
+   464→                  value={formData.monthlyIncome}
+   465→                  onChange={(e) => updateField('monthlyIncome', e.target.value)}
+   466→                  className={validationErrors.monthlyIncome ? 'border-red-500 focus-visible:ring-red-500' : ''}
+   467→                />
+   468→                {validationErrors.monthlyIncome && (
+   469→                  <p className="text-sm text-red-500 flex items-center gap-1">
+   470→                    <AlertCircle className="w-3 h-3" />
+   471→                    {validationErrors.monthlyIncome}
+   472→                  </p>
+   473→                )}
+   474→              </div>
+   475→              <div className="space-y-2">
+   476→                <Label>Employment Duration</Label>
+   477→                <Select value={formData.employmentDuration} onValueChange={(v) => updateField('employmentDuration', v)}>
+   478→                  <SelectTrigger>
+   479→                    <SelectValue placeholder="Select duration" />
+   480→                  </SelectTrigger>
+   481→                  <SelectContent>
+   482→                    <SelectItem value="less_than_6_months">&lt; 6 months</SelectItem>
+   483→                    <SelectItem value="6_to_12_months">6 - 12 months</SelectItem>
+   484→                    <SelectItem value="1_to_3_years">1 - 3 years</SelectItem>
+   485→                    <SelectItem value="over_3_years">&gt; 3 years</SelectItem>
+   486→                  </SelectContent>
+   487→                </Select>
+   488→              </div>
+   489→            </div>
+   490→          )}
+   491→
+   492→          {/* Step 3: Loan Details */}
+   493→          {currentStep === 3 && (
+   494→            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+   495→              <div className="space-y-2">
+   496→                <Label htmlFor="loanAmount">Loan Amount Requested (KSh) *</Label>
+   497→                <Input
+   498→                  id="loanAmount"
+   499→                  type="number"
+   500→                  placeholder="50000"
+   501→                  value={formData.loanAmount}
+   502→                  onChange={(e) => updateField('loanAmount', e.target.value)}
+   503→                  className={validationErrors.loanAmount ? 'border-red-500 focus-visible:ring-red-500' : ''}
+   504→                />
+   505→                {validationErrors.loanAmount && (
+   506→                  <p className="text-sm text-red-500 flex items-center gap-1">
+   507→                    <AlertCircle className="w-3 h-3" />
+   508→                    {validationErrors.loanAmount}
+   509→                  </p>
+   510→                )}
+   511→              </div>
+   512→              <div className="space-y-2">
+   513→                <Label>Repayment Period *</Label>
+   514→                <Select value={formData.repaymentPeriod} onValueChange={(v) => updateField('repaymentPeriod', v)}>
+   515→                  <SelectTrigger>
+   516→                    <SelectValue placeholder="Select period" />
+   517→                  </SelectTrigger>
+   518→                  <SelectContent>
+   519→                    <SelectItem value="30">30 days (1 month)</SelectItem>
+   520→                    <SelectItem value="60">60 days (2 months)</SelectItem>
+   521→                    <SelectItem value="90">90 days (3 months)</SelectItem>
+   522→                    <SelectItem value="180">180 days (6 months)</SelectItem>
+   523→                    <SelectItem value="365">365 days (12 months)</SelectItem>
+   524→                  </SelectContent>
+   525→                </Select>
+   526→              </div>
+   527→              <div className="space-y-2 md:col-span-2">
+   528→                <Label htmlFor="loanPurpose">Loan Purpose *</Label>
+   529→                <Textarea
+   530→                  id="loanPurpose"
+   531→                  placeholder="Describe how you intend to use this loan..."
+   532→                  rows={3}
+   533→                  value={formData.loanPurpose}
+   534→                  onChange={(e) => updateField('loanPurpose', e.target.value)}
+   535→                  className={validationErrors.loanPurpose ? 'border-red-500 focus-visible:ring-red-500' : ''}
+   536→                />
+   537→                {validationErrors.loanPurpose && (
+   538→                  <p className="text-sm text-red-500 flex items-center gap-1">
+   539→                    <AlertCircle className="w-3 h-3" />
+   540→                    {validationErrors.loanPurpose}
+   541→                  </p>
+   542→                )}
+   543→              </div>
+   544→              <div className="space-y-2">
+   545→                <Label htmlFor="bankName">Bank Name (Optional)</Label>
+   546→                <Input
+   547→                  id="bankName"
+   548→                  placeholder="Your bank name"
+   549→                  value={formData.bankName}
+   550→                  onChange={(e) => updateField('bankName', e.target.value)}
+   551→                />
+   552→              </div>
+   553→              <div className="space-y-2">
+   554→                <Label htmlFor="mpesaPhone">M-Pesa Disbursement Phone</Label>
+   555→                <Input
+   556→                  id="mpesaPhone"
+   557→                  placeholder="07XX XXX XXX"
+   558→                  value={formData.mpesaPhone}
+   559→                  onChange={(e) => updateField('mpesaPhone', e.target.value)}
+   560→                />
+   561→              </div>
+   562→            </div>
+   563→          )}
+   564→
+   565→          {/* Step 4: Review & Submit */}
+   566→          {currentStep === 4 && (
+   567→            <div className="space-y-6">
+   568→              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+   569→                <h4 className="font-semibold text-emerald-800 mb-2">Application Summary</h4>
+   570→                <p className="text-sm text-emerald-700">
+   571→                  Please review all information before submitting. By submitting, you agree to our terms and conditions.
+   572→                </p>
+   573→              </div>
+   574→
+   575→              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+   576→                <Card>
+   577→                  <CardHeader className="pb-3">
+   578→                    <CardTitle className="text-base flex items-center gap-2">
+   579→                      <User className="w-4 h-4 text-emerald-600" />
+   580→                      Personal Information
+   581→                    </CardTitle>
+   582→                  </CardHeader>
+   583→                  <CardContent className="space-y-2 text-sm">
+   584→                    <div className="flex justify-between"><span className="text-slate-500">Name:</span><span className="font-medium">{formData.firstName} {formData.lastName}</span></div>
+   585→                    <div className="flex justify-between"><span className="text-slate-500">Phone:</span><span className="font-medium">{formData.phone || '-'}</span></div>
+   586→                    <div className="flex justify-between"><span className="text-slate-500">Email:</span><span>{formData.email || 'N/A'}</span></div>
+   587→                    <div className="flex justify-between"><span className="text-slate-500">ID Number:</span><span>{formData.nationalId || '-'}</span></div>
+   588→                  </CardContent>
+   589→                </Card>
+   590→
+   591→                <Card>
+   592→                  <CardHeader className="pb-3">
+   593→                    <CardTitle className="text-base flex items-center gap-2">
+   594→                      <Building className="w-4 h-4 text-emerald-600" />
+   595→                      Employment Details
+   596→                    </CardTitle>
+   597→                  </CardHeader>
+   598→                  <CardContent className="space-y-2 text-sm">
+   599→                    <div className="flex justify-between"><span className="text-slate-500">Status:</span><span className="capitalize font-medium">{formData.employmentStatus.replace('_', ' ') || '-'}</span></div>
+   600→                    <div className="flex justify-between"><span className="text-slate-500">Employer:</span><span>{formData.employerName || 'N/A'}</span></div>
+   601→                    <div className="flex justify-between"><span className="text-slate-500">Income:</span><span className="font-medium">KSh {Number(formData.monthlyIncome).toLocaleString() || '-'}</span></div>
+   602→                  </CardContent>
+   603→                </Card>
+   604→
+   605→                <Card className="md:col-span-2 bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200">
+   606→                  <CardHeader className="pb-3">
+   607→                    <CardTitle className="text-base flex items-center gap-2 text-emerald-800">
+   608→                      <FileText className="w-4 h-4" />
+   609→                      Loan Request Summary
+   610→                    </CardTitle>
+   611→                  </CardHeader>
+   612→                  <CardContent className="space-y-2 text-sm">
+   613→                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+   614→                      <div>
+   615→                        <p className="text-slate-500">Amount</p>
+   616→                        <p className="font-bold text-lg text-emerald-700">KSh {Number(formData.loanAmount).toLocaleString()}</p>
+   617→                      </div>
+   618→                      <div>
+   619→                        <p className="text-slate-500">Term</p>
+   620→                        <p className="font-bold text-lg text-emerald-700">{formData.repaymentPeriod} days</p>
+   621→                      </div>
+   622→                      <div>
+   623→                        <p className="text-slate-500">Interest Rate</p>
+   624→                        <p className="font-bold text-lg text-emerald-700">15%/month</p>
+   625→                      </div>
+   626→                      <div>
+   627→                        <p className="text-slate-500">Est. Monthly</p>
+   628→                        <p className="font-bold text-lg text-emerald-700">KSh {(Number(formData.loanAmount) * 1.15 / (parseInt(formData.repaymentPeriod) / 30)).toLocaleString()}</p>
+   629→                      </div>
+   630→                    </div>
+   631→                    <div className="mt-4 pt-4 border-t border-emerald-200">
+   632→                      <p className="text-slate-500 mb-1">Purpose:</p>
+   633→                      <p className="text-slate-800">{formData.loanPurpose}</p>
+   634→                    </div>
+   635→                  </CardContent>
+   636→                </Card>
+   637→              </div>
+   638→            </div>
+   639→          )}
+   640→
+   641→          {/* Navigation Buttons */}
+   642→          <div className="flex justify-between mt-8 pt-6 border-t">
+   643→            <Button
+   644→              variant="outline"
+   645→              onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
+   646→              disabled={currentStep === 1 || isSubmitting}
+   647→            >
+   648→              <ArrowLeft className="w-4 h-4 mr-2" />
+   649→              Previous
+   650→            </Button>
+   651→            
+   652→            {currentStep < 4 ? (
+   653→              <Button
+   654→                onClick={handleNext}
+   655→                disabled={isSubmitting}
+   656→                className="bg-emerald-600 hover:bg-emerald-700"
+   657→              >
+   658→                Next Step
+   659→                <ArrowRight className="w-4 h-4 ml-2" />
+   660→              </Button>
+   661→            ) : (
+   662→              <Button
+   663→                onClick={handleSubmit}
+   664→                disabled={isSubmitting}
+   665→                className="bg-emerald-600 hover:bg-emerald-700 px-8"
+   666→              >
+   667→                {isSubmitting ? (
+   668→                  <>
+   669→                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+   670→                    Submitting...
+   671→                  </>
+   672→                ) : (
+   673→                  <>
+   674→                    <CheckCircle2 className="w-4 h-4 mr-2" />
+   675→                    Submit Application
+   676→                  </>
+   677→                )}
+   678→              </Button>
+   679→            )}
+   680→          </div>
+   681→        </CardContent>
+   682→      </Card>
+   683→    </div>
+   684→  )
+   685→}
+   686→

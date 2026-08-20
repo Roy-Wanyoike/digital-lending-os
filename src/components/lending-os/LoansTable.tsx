@@ -3,6 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
 import { 
   Table,
   TableBody,
@@ -11,12 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { 
+import { exportLoans } from '@/lib/export'
+import {
   CreditCard,
   Eye,
   MoreVertical,
   Phone,
-  AlertCircle
+  AlertCircle,
+  Download
 } from 'lucide-react'
 
 interface Loan {
@@ -33,7 +36,11 @@ interface Loan {
   daysInArrears?: number
 }
 
-export function LoansTable() {
+interface LoansTableProps {
+  onViewLoan?: (loan: Loan) => void
+}
+
+export function LoansTable({ onViewLoan }: LoansTableProps) {
   const loans: Loan[] = [
     {
       id: '1',
@@ -144,8 +151,26 @@ export function LoansTable() {
   const totalOutstanding = loans.reduce((sum, loan) => sum + loan.outstandingBalance, 0)
   const arrearsCount = loans.filter(l => l.status === 'in_arrears').length
 
+  // Handle export
+  const handleExport = () => {
+    // Transform data for export
+    const exportData = loans.map(loan => ({
+      ...loan,
+      customerPhone: loan.phone.replace(/\s/g, ''),
+      amountOutstanding: loan.outstandingBalance,
+      rate: loan.interestRate,
+      disbursedOn: loan.disbursementDate,
+      dueNext: loan.nextPaymentDue,
+      currentStatus: loan.status,
+      overdueDays: loan.daysInArrears || 0
+    }))
+    
+    exportLoans(exportData, `loans-${new Date().toISOString().split('T')[0]}`)
+    toast.success('Loans data exported successfully!')
+  }
+
   return (
-    <Card>
+    <Card className="dark:bg-slate-800/50 dark:border-slate-700">
       <CardHeader>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
@@ -162,8 +187,16 @@ export function LoansTable() {
           </div>
           
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-            <Button variant="outline" size="sm">Export CSV</Button>
-            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleExport}
+              className="dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/20">
               + New Loan
             </Button>
           </div>
@@ -172,97 +205,106 @@ export function LoansTable() {
       <CardContent>
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-slate-50 rounded-lg p-3">
-            <p className="text-xs text-slate-500">Total Outstanding</p>
-            <p className="text-lg font-bold text-slate-900">{formatCurrency(totalOutstanding)}</p>
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Total Outstanding</p>
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{formatCurrency(totalOutstanding)}</p>
           </div>
-          <div className="bg-slate-50 rounded-lg p-3">
-            <p className="text-xs text-slate-500">Active Loans</p>
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
+            <p className="text-xs text-slate-500 dark:text-slate-400">Active Loans</p>
             <p className="text-lg font-bold text-emerald-700">{loans.filter(l => l.status === 'active').length}</p>
           </div>
-          <div className="bg-red-50 rounded-lg p-3">
-            <p className="text-xs text-red-600">In Arrears</p>
+          <div className="bg-red-50 dark:bg-red-950/30 rounded-lg p-3">
+            <p className="text-xs text-red-600 dark:text-red-400">In Arrears</p>
             <p className="text-lg font-bold text-red-700">{arrearsCount}</p>
           </div>
-          <div className="bg-blue-50 rounded-lg p-3">
-            <p className="text-xs text-blue-600">Fully Paid (MTD)</p>
+          <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3">
+            <p className="text-xs text-blue-600 dark:text-blue-400">Fully Paid (MTD)</p>
             <p className="text-lg font-bold text-blue-700">{loans.filter(l => l.status === 'fully_paid').length}</p>
           </div>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Loan #</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Principal</TableHead>
-              <TableHead className="text-right">Outstanding</TableHead>
-              <TableHead>Rate</TableHead>
-              <TableHead>Disbursed</TableHead>
-              <TableHead>Next Payment</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loans.map((loan) => (
-              <TableRow 
-                key={loan.id}
-                className={loan.status === 'in_arrears' ? 'bg-red-50/30' : ''}
-              >
-                <TableCell className="font-mono text-sm font-medium">{loan.loanNumber}</TableCell>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{loan.customerName}</p>
-                    <p className="text-xs text-slate-500 font-mono">{loan.phone}</p>
-                  </div>
-                </TableCell>
-                <TableCell>{formatCurrency(loan.principal)}</TableCell>
-                <TableCell className={`text-right font-semibold ${
-                  loan.outstandingBalance > 0 ? 'text-slate-900' : 'text-emerald-600'
-                }`}>
-                  {formatCurrency(loan.outstandingBalance)}
-                </TableCell>
-                <TableCell>{loan.interestRate}%</TableCell>
-                <TableCell className="text-sm text-slate-500">
-                  {formatDate(loan.disbursementDate)}
-                </TableCell>
-                <TableCell className={`text-sm ${
-                  loan.nextPaymentDue !== '-' && new Date(loan.nextPaymentDue) < new Date('2026-01-25')
-                    ? 'text-red-600 font-medium'
-                    : 'text-slate-600'
-                }`}>
-                  {formatDate(loan.nextPaymentDue)}
-                </TableCell>
-                <TableCell>{getStatusBadge(loan.status, loan.daysInArrears)}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="sm" title="View details">
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    {(loan.status === 'in_arrears') && (
-                      <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700" title="Contact customer">
-                        <Phone className="w-4 h-4" />
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="sm" title="More options">
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </TableCell>
+        <div className="overflow-x-auto -mx-6 px-6">
+          <Table>
+            <TableHeader>
+              <TableRow className="dark:border-slate-700 hover:dark:bg-slate-800/80">
+                <TableHead>Loan #</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Principal</TableHead>
+                <TableHead className="text-right">Outstanding</TableHead>
+                <TableHead>Rate</TableHead>
+                <TableHead>Disbursed</TableHead>
+                <TableHead>Next Payment</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {loans.map((loan) => (
+                <TableRow 
+                  key={loan.id}
+                  className={`${loan.status === 'in_arrears' ? 'bg-red-50/30 dark:bg-red-950/10' : ''} dark:border-slate-700 hover:dark:bg-slate-800/50 cursor-pointer`}
+                  onClick={() => onViewLoan?.(loan)}
+                >
+                  <TableCell className="font-mono text-sm font-medium">{loan.loanNumber}</TableCell>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">{loan.customerName}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">{loan.phone}</p>
+                    </div>
+                  </TableCell>
+                  <TableCell>{formatCurrency(loan.principal)}</TableCell>
+                  <TableCell className={`text-right font-semibold ${
+                    loan.outstandingBalance > 0 ? 'text-slate-900 dark:text-white' : 'text-emerald-600'
+                  }`}>
+                    {formatCurrency(loan.outstandingBalance)}
+                  </TableCell>
+                  <TableCell>{loan.interestRate}%</TableCell>
+                  <TableCell className="text-sm text-slate-500 dark:text-slate-400">
+                    {formatDate(loan.disbursementDate)}
+                  </TableCell>
+                  <TableCell className={`text-sm ${
+                    loan.nextPaymentDue !== '-' && new Date(loan.nextPaymentDue) < new Date('2026-01-25')
+                      ? 'text-red-600 font-medium'
+                      : 'text-slate-600 dark:text-slate-400'
+                  }`}>
+                    {formatDate(loan.nextPaymentDue)}
+                  </TableCell>
+                  <TableCell>{getStatusBadge(loan.status, loan.daysInArrears)}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        title="View details"
+                        onClick={() => onViewLoan?.(loan)}
+                        className="dark:hover:bg-slate-800"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      {(loan.status === 'in_arrears') && (
+                        <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 dark:text-blue-400" title="Contact customer">
+                          <Phone className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" title="More options" className="dark:hover:bg-slate-800">
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
 
         {/* Pagination Footer */}
-        <div className="mt-4 pt-4 border-t flex flex-wrap items-center justify-between gap-4 text-sm">
-          <div className="text-slate-600">
-            Showing <strong>1-6</strong> of <strong>182,432</strong> active loans
+        <div className="mt-4 pt-4 border-t flex flex-wrap items-center justify-between gap-4 text-sm dark:border-slate-700">
+          <div className="text-slate-600 dark:text-slate-400">
+            Showing <strong>1-{loans.length}</strong> of <strong>182,432</strong> active loans
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" disabled>Previous</Button>
-            <Button variant="outline" size="sm">Next</Button>
+            <Button variant="outline" size="sm" disabled className="dark:border-slate-700">Previous</Button>
+            <Button variant="outline" size="sm" className="dark:border-slate-700 dark:hover:bg-slate-800">Next</Button>
           </div>
         </div>
       </CardContent>

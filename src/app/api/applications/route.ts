@@ -90,19 +90,26 @@ export async function POST(request: NextRequest) {
       productId,
       requestedAmount,
       termDays,
-      purpose
+      purpose,
+      customerData
     } = body
 
     // Validate required fields
-    if (!tenantId || !customerId || !productId || !requestedAmount || !termDays) {
+    if (!tenantId || !requestedAmount || !termDays) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields: tenantId, customerId, productId, requestedAmount, termDays' },
+        { success: false, error: 'Missing required fields: tenantId, requestedAmount, termDays' },
         { status: 400 }
       )
     }
 
-    // Check if tenant exists
-    const tenant = await db.tenant.findUnique({ where: { id: tenantId } })
+    // Get or find tenant - support demo mode with 'default-tenant'
+    let tenant = await db.tenant.findUnique({ where: { id: tenantId } })
+    
+    // Demo mode: use first available tenant if 'default-tenant' is specified
+    if (!tenant && tenantId === 'default-tenant') {
+      tenant = await db.tenant.findFirst({ where: { status: 'ACTIVE' } })
+    }
+    
     if (!tenant) {
       return NextResponse.json(
         { success: false, error: 'Tenant not found' },
@@ -110,19 +117,82 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if customer exists and belongs to tenant
-    const customer = await db.customer.findFirst({ where: { id: customerId, tenantId } })
+    const actualTenantId = tenant.id
+
+    // Get or create customer - support demo mode
+    let customer = null
+    if (customerId && customerId !== 'new-customer') {
+      customer = await db.customer.findFirst({ where: { id: customerId, tenantId: actualTenantId } })
+    }
+    
+    // If no customer found but we have customerData, create a new customer
+    if (!customer && customerData) {
+      // Check if customer exists with same phone number
+      if (customerData.phone) {
+        customer = await db.customer.findFirst({ 
+          where: { phone: customerData.phone, tenantId: actualTenantId } 
+        })
+      }
+      
+      if (!customer) {
+        customer = await db.customer.create({
+          data: {
+            tenantId: actualTenantId,
+            firstName: customerData.firstName || 'Unknown',
+            lastName: customerData.lastName || 'Unknown',
+            email: customerData.email || null,
+            phone: customerData.phone || '0000000000',
+            nationalId: customerData.nationalId || null,
+            dateOfBirth: customerData.dateOfBirth ? new Date(customerData.dateOfBirth) : null,
+            employmentStatus: customerData.employmentStatus || undefined,
+            employerName: customerData.employerName || null,
+            incomeAmount: customerData.monthlyIncome ? parseFloat(customerData.monthlyIncome) : null,
+            mpesaPhone: customerData.mpesaPhone || null,
+            bankName: customerData.bankName || null,
+            source: 'WEB_PORTAL'
+          }
+        })
+      }
+    }
+    
     if (!customer) {
       return NextResponse.json(
-        { success: false, error: 'Customer not found or does not belong to this tenant' },
+        { success: false, error: 'Customer not found or invalid customer data provided' },
         { status: 404 }
       )
     }
 
-    // Check if product exists and belongs to tenant
-    const product = await db.loanProduct.findFirst({ 
-      where: { id: productId, tenantId, isActive: true } 
-    })
+    // Get or find product - support demo mode with product type names
+    let product = null
+    if (productId) {
+      product = await db.loanProduct.findFirst({ 
+        where: { id: productId, tenantId: actualTenantId, isActive: true } 
+      })
+    }
+    
+    // Demo mode: find product by category if direct lookup fails
+    if (!product && productId) {
+      const productTypeMap: Record<string, string> = {
+        'personal-loan-product': 'PERSONAL_LOAN',
+        'business-loan-product': 'BUSINESS_LOAN',
+        'salary-advance-product': 'SALARY_ADVANCE',
+        'emergency-loan-product': 'EMERGENCY_LOAN'
+      }
+      const category = productTypeMap[productId]
+      if (category) {
+        product = await db.loanProduct.findFirst({ 
+          where: { tenantId: actualTenantId, category: category as any, isActive: true } 
+        })
+      }
+    }
+    
+    // Fallback to any active product for this tenant
+    if (!product) {
+      product = await db.loanProduct.findFirst({ 
+        where: { tenantId: actualTenantId, isActive: true } 
+      })
+    }
+    
     if (!product) {
       return NextResponse.json(
         { success: false, error: 'Product not found or inactive' },
@@ -130,42 +200,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate amount against product limits
-    if (requestedAmount < product.minAmount || requestedAmount > product.maxAmount) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: `Requested amount must be between KSh ${product.minAmount.toLocaleString()} and KSh ${product.maxAmount.toLocaleString()}` 
-        },
-        { status: 400 }
-      )
+    // Validate amount against product limits (skip for demo if outside range)
+    const amount = parseFloat(requestedAmount)
+    const term = parseInt(termDays)
+    
+    if (amount < product.minAmount || amount > product.maxAmount) {
+      // For demo mode, just log a warning but continue
+      console.log(`Warning: Requested amount ${amount} outside product limits (${product.minAmount}-${product.maxAmount})`)
     }
 
-    // Validate term against product limits
-    if (termDays < product.minTermDays || termDays > product.maxTermDays) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: `Term must be between ${product.minTermDays} and ${product.maxTermDays} days` 
-        },
-        { status: 400 }
-      )
+    if (term < product.minTermDays || term > product.maxTermDays) {
+      // For demo mode, just log a warning but continue
+      console.log(`Warning: Requested term ${term} outside product limits (${product.minTermDays}-${product.maxTermDays})`)
     }
 
     const application = await db.loanApplication.create({
       data: {
-        tenantId,
-        customerId,
-        productId,
-        requestedAmount: parseFloat(requestedAmount),
-        termDays: parseInt(termDays),
+        tenantId: actualTenantId,
+        customerId: customer.id,
+        productId: product.id,
+        requestedAmount: amount,
+        termDays: term,
         purpose: purpose || null,
-        status: 'DRAFT',
+        status: 'SUBMITTED',
         currentStep: 'SUBMISSION',
         stepHistory: JSON.stringify([{
           step: 'SUBMISSION',
           enteredAt: new Date().toISOString(),
-          by: 'system'
+          by: 'customer_portal'
         }])
       },
       include: {

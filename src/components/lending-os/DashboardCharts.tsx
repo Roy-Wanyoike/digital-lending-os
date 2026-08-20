@@ -41,8 +41,8 @@ const CustomTooltip = ({ active, payload, label, formatter }: {
 }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow-lg p-3">
-        <p className="text-sm font-medium text-slate-900 mb-1">{label}</p>
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg p-3">
+        <p className="text-sm font-medium text-slate-900 dark:text-white mb-1">{label}</p>
         {payload.map((entry, index) => (
           <p key={index} className="text-sm" style={{ color: entry.color }}>
             {entry.name}: {formatter ? formatter(entry.value) : entry.value.toLocaleString()}
@@ -114,7 +114,7 @@ export function PortfolioDistributionChart({
   }
 
   return (
-    <Card className="h-full">
+    <Card className="h-full dark:bg-slate-800/50 dark:border-slate-700">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-emerald-600" />
@@ -147,7 +147,7 @@ export function PortfolioDistributionChart({
               verticalAlign="bottom" 
               height={36}
               formatter={(value, entry: any) => (
-                <span className="text-sm text-slate-600">
+                <span className="text-sm text-slate-600 dark:text-slate-400">
                   {value} ({entry.payload?.value?.toLocaleString()})
                 </span>
               )}
@@ -155,14 +155,14 @@ export function PortfolioDistributionChart({
           </PieChart>
         </ResponsiveContainer>
         {/* Summary stats */}
-        <div className="grid grid-cols-2 gap-3 mt-2 pt-3 border-t">
-          <div className="text-center p-2 bg-emerald-50 rounded-lg">
-            <p className="text-xs text-emerald-600 font-medium">Total Loans</p>
-            <p className="text-lg font-bold text-emerald-800">{total.toLocaleString()}</p>
+        <div className="grid grid-cols-2 gap-3 mt-2 pt-3 border-t dark:border-slate-700">
+          <div className="text-center p-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Total Loans</p>
+            <p className="text-lg font-bold text-emerald-800 dark:text-emerald-300">{total.toLocaleString()}</p>
           </div>
-          <div className="text-center p-2 bg-blue-50 rounded-lg">
-            <p className="text-xs text-blue-600 font-medium">Active Rate</p>
-            <p className="text-lg font-bold text-blue-800">
+          <div className="text-center p-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+            <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Active Rate</p>
+            <p className="text-lg font-bold text-blue-800 dark:text-blue-300">
               {((data.find(d => d.name === 'Active')?.value || 0) / total * 100).toFixed(1)}%
             </p>
           </div>
@@ -201,7 +201,7 @@ export function MonthlyDisbursementsChart({
   }
 
   return (
-    <Card className="h-full">
+    <Card className="h-full dark:bg-slate-800/50 dark:border-slate-700">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-blue-600" />
@@ -246,18 +246,18 @@ export function MonthlyDisbursementsChart({
           </BarChart>
         </ResponsiveContainer>
         {/* Summary row */}
-        <div className="flex justify-between items-center pt-3 border-t mt-2">
+        <div className="flex justify-between items-center pt-3 border-t mt-2 dark:border-slate-700">
           <div className="flex gap-4">
             <div>
-              <p className="text-xs text-slate-500">Total Disbursed</p>
-              <p className="font-semibold text-slate-900">KSh 839M</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Total Disbursed</p>
+              <p className="font-semibold text-slate-900 dark:text-white">KSh 839M</p>
             </div>
             <div>
-              <p className="text-xs text-slate-500">Avg. Monthly</p>
-              <p className="font-semibold text-slate-900">KSh 139.8M</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Avg. Monthly</p>
+              <p className="font-semibold text-slate-900 dark:text-white">KSh 139.8M</p>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
+          <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-1 rounded">
             <span className="text-xs font-medium">+19.8%</span>
             <span className="text-xs">vs prev period</span>
           </div>
@@ -316,7 +316,7 @@ export function CollectionsTrendChart({
   const tickData = data.filter((_, i) => i % 5 === 0)
 
   return (
-    <Card className="h-full">
+    <Card className="h-full dark:bg-slate-800/50 dark:border-slate-700">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-purple-600" />
@@ -375,18 +375,18 @@ export function CollectionsTrendChart({
           </LineChart>
         </ResponsiveContainer>
         {/* Performance summary */}
-        <div className="grid grid-cols-3 gap-3 pt-3 border-t mt-2">
+        <div className="grid grid-cols-3 gap-3 pt-3 border-t mt-2 dark:border-slate-700">
           <div className="text-center">
-            <p className="text-xs text-slate-500">Total Collected</p>
-            <p className="font-bold text-slate-900">KSh 467M</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Total Collected</p>
+            <p className="font-bold text-slate-900 dark:text-white">KSh 467M</p>
           </div>
           <div className="text-center">
-            <p className="text-xs text-slate-500">Target Achievement</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Target Achievement</p>
             <p className="font-bold text-emerald-600">86.5%</p>
           </div>
           <div className="text-center">
-            <p className="text-xs text-slate-500">Best Day</p>
-            <p className="font-bold text-slate-900">KSh 21.2M</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Best Day</p>
+            <p className="font-bold text-slate-900 dark:text-white">KSh 21.2M</p>
           </div>
         </div>
       </CardContent>
@@ -420,7 +420,7 @@ export function TenantGrowthChart({
   description = "New tenants onboarded per month"
 }: TenantGrowthProps) {
   return (
-    <Card className="h-full">
+    <Card className="h-full dark:bg-slate-800/50 dark:border-slate-700">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-blue-600" />
@@ -467,16 +467,16 @@ export function TenantGrowthChart({
           </AreaChart>
         </ResponsiveContainer>
         {/* Growth metrics */}
-        <div className="flex justify-between items-center pt-3 border-t mt-2">
+        <div className="flex justify-between items-center pt-3 border-t mt-2 dark:border-slate-700">
           <div>
-            <p className="text-xs text-slate-500">Growth Rate (MoM)</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Growth Rate (MoM)</p>
             <p className="text-lg font-bold text-emerald-600">+15.6%</p>
           </div>
           <div>
-            <p className="text-xs text-slate-500">Total Active</p>
-            <p className="text-lg font-bold text-slate-900">238</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Total Active</p>
+            <p className="text-lg font-bold text-slate-900 dark:text-white">238</p>
           </div>
-          <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded">
+          <div className="flex items-center gap-1 text-blue-600 bg-blue-50 dark:bg-blue-950/30 px-2 py-1 rounded">
             <span className="text-xs font-medium">↑ 183%</span>
             <span className="text-xs">vs 6mo ago</span>
           </div>
@@ -508,7 +508,7 @@ export function PlanDistributionChart({
   const total = data.reduce((sum, item) => sum + item.value, 0)
 
   return (
-    <Card className="h-full">
+    <Card className="h-full dark:bg-slate-800/50 dark:border-slate-700">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
@@ -541,7 +541,7 @@ export function PlanDistributionChart({
               verticalAlign="bottom" 
               align="center"
               formatter={(value) => (
-                <span className="text-sm text-slate-600">{value}</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400">{value}</span>
               )}
             />
           </PieChart>
@@ -549,12 +549,12 @@ export function PlanDistributionChart({
         {/* Plan details */}
         <div className="grid grid-cols-2 gap-2 mt-2">
           {data.map((plan) => (
-            <div key={plan.name} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+            <div key={plan.name} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: plan.color }} />
-                <span className="text-xs font-medium text-slate-700">{plan.name}</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{plan.name}</span>
               </div>
-              <span className="text-sm font-bold text-slate-900">{plan.value}</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-white">{plan.value}</span>
             </div>
           ))}
         </div>
@@ -595,7 +595,7 @@ export function RegionalDistributionChart({
   ]
 
   return (
-    <Card className="h-full lg:col-span-2">
+    <Card className="h-full lg:col-span-2 dark:bg-slate-800/50 dark:border-slate-700">
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-teal-600" />
@@ -648,12 +648,12 @@ export function RegionalDistributionChart({
           </BarChart>
         </ResponsiveContainer>
         {/* County summary */}
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 pt-3 border-t mt-2">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 pt-3 border-t mt-2 dark:border-slate-700">
           {data.slice(0, 6).map((region) => (
-            <div key={region.county} className="text-center p-2 bg-slate-50 rounded-lg">
-              <p className="text-xs text-slate-500 truncate">{region.county}</p>
-              <p className="text-sm font-bold text-slate-900">{region.dcpCount}</p>
-              <p className="text-xs text-slate-400">{region.percentage}%</p>
+            <div key={region.county} className="text-center p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
+              <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{region.county}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-white">{region.dcpCount}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">{region.percentage}%</p>
             </div>
           ))}
         </div>

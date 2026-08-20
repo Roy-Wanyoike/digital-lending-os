@@ -107,7 +107,7 @@ export function LoanCalculator({ onApply }: LoanCalculatorProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Calculator Input */}
-      <Card className="lg:col-span-2">
+      <Card className="lg:col-span-2 dark:bg-slate-800/50 dark:border-slate-700">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calculator className="w-5 h-5 text-emerald-600" />
@@ -122,7 +122,7 @@ export function LoanCalculator({ onApply }: LoanCalculatorProps) {
           <div className="space-y-3">
             <Label className="text-sm font-medium">Loan Product</Label>
             <Select value={productType} onValueChange={handleProductChange}>
-              <SelectTrigger>
+              <SelectTrigger className="dark:bg-slate-800 dark:border-slate-600">
                 <SelectValue placeholder="Select loan product" />
               </SelectTrigger>
               <SelectContent>
@@ -180,7 +180,7 @@ export function LoanCalculator({ onApply }: LoanCalculatorProps) {
           </div>
 
           {/* Interest Rate Display */}
-          <div className="bg-slate-50 rounded-lg p-4">
+          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4">
             <div className="flex items-center justify-between mb-2">
               <Label className="text-sm font-medium flex items-center gap-2">
                 <Percent className="w-4 h-4" />
@@ -188,7 +188,7 @@ export function LoanCalculator({ onApply }: LoanCalculatorProps) {
               </Label>
               <span className="text-xl font-bold text-emerald-600">{interestRate}%</span>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Rate varies based on credit score and product type ({currentProductConfig?.name})
             </p>
           </div>

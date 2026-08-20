@@ -80,20 +80,20 @@ export function ApplicationStatusTracker() {
   const getStepStyle = (status: ApplicationStep['status']) => {
     switch (status) {
       case 'completed':
-        return 'border-emerald-200 bg-emerald-50/50'
+        return 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20'
       case 'current':
-        return 'border-amber-300 bg-amber-50 shadow-md'
+        return 'border-amber-300 bg-amber-50 shadow-md dark:border-amber-700 dark:bg-amber-950/30'
       case 'error':
-        return 'border-red-200 bg-red-50'
+        return 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/20'
       default:
-        return 'border-slate-200 bg-slate-50'
+        return 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
     }
   }
 
   return (
     <div className="space-y-6">
       {/* Application Header */}
-      <Card>
+      <Card className="dark:bg-slate-800/50 dark:border-slate-700">
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>

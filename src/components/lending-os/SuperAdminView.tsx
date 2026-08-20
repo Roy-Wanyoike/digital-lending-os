@@ -43,15 +43,15 @@ export function SuperAdminView() {
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
-            <Shield className="w-7 h-7 text-slate-700" />
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
+            <Shield className="w-7 h-7 text-slate-700 dark:text-slate-300" />
             Super Admin Console
           </h2>
-          <p className="text-slate-500 mt-1">
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
             Platform-wide administration and tenant management
           </p>
         </div>
-        <Button className="bg-emerald-600 hover:bg-emerald-700">
+        <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/20">
           <Plus className="w-4 h-4 mr-2" />
           Add New Tenant
         </Button>
@@ -59,57 +59,57 @@ export function SuperAdminView() {
 
       {/* Platform Overview Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="border-l-4 border-l-emerald-500">
+        <Card className="border-l-4 border-l-emerald-500 dark:bg-slate-800/50 dark:border-slate-700">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/40 rounded-lg flex items-center justify-center">
                 <Building2 className="w-5 h-5 text-emerald-600" />
               </div>
               <div>
-                <p className="text-sm text-slate-500">Total Tenants</p>
-                <p className="text-2xl font-bold text-slate-900">252</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Total Tenants</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white">252</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-blue-500">
+        <Card className="border-l-4 border-l-blue-500 dark:bg-slate-800/50 dark:border-slate-700">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/40 rounded-lg flex items-center justify-center">
                 <CheckCircle2 className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-sm text-slate-500">Active</p>
-                <p className="text-2xl font-bold text-slate-900">238</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Active</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white">238</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-amber-500">
+        <Card className="border-l-4 border-l-amber-500 dark:bg-slate-800/50 dark:border-slate-700">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/40 rounded-lg flex items-center justify-center">
                 <Activity className="w-5 h-5 text-amber-600" />
               </div>
               <div>
-                <p className="text-sm text-slate-500">Trial</p>
-                <p className="text-2xl font-bold text-slate-900">14</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Trial</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white">14</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-500">
+        <Card className="border-l-4 border-l-purple-500 dark:bg-slate-800/50 dark:border-slate-700">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/40 rounded-lg flex items-center justify-center">
                 <TrendingUp className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <p className="text-sm text-slate-500">Enterprise</p>
-                <p className="text-2xl font-bold text-slate-900">42</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Enterprise</p>
+                <p className="text-2xl font-bold text-slate-900 dark:text-white">42</p>
               </div>
             </div>
           </CardContent>
@@ -125,11 +125,11 @@ export function SuperAdminView() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-slate-100">
-          <TabsTrigger value="overview">Tenant Overview</TabsTrigger>
-          <TabsTrigger value="tenants">All Tenants</TabsTrigger>
-          <TabsTrigger value="health">Platform Health</TabsTrigger>
-          <TabsTrigger value="new">Add Tenant</TabsTrigger>
+        <TabsList className="bg-slate-100 dark:bg-slate-800 overflow-x-auto w-full sm:w-auto">
+          <TabsTrigger value="overview" className="data-[state=active]:dark:bg-slate-900 data-[state=active]:dark:border data-[state=active]:dark:border-slate-700">Tenant Overview</TabsTrigger>
+          <TabsTrigger value="tenants" className="data-[state=active]:dark:bg-slate-900 data-[state=active]:dark:border data-[state=active]:dark:border-slate-700">All Tenants</TabsTrigger>
+          <TabsTrigger value="health" className="data-[state=active]:dark:bg-slate-900 data-[state=active]:dark:border data-[state=active]:dark:border-slate-700">Platform Health</TabsTrigger>
+          <TabsTrigger value="new" className="data-[state=active]:dark:bg-slate-900 data-[state=active]:dark:border data-[state=active]:dark:border-slate-700">Add Tenant</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -164,50 +164,54 @@ function TenantOverview() {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <Card className="lg:col-span-2">
+      <Card className="lg:col-span-2 dark:bg-slate-800/50 dark:border-slate-700">
         <CardHeader>
           <CardTitle className="text-base">Recently Added Tenants</CardTitle>
           <CardDescription>Latest DCPs onboarded to the platform</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tenant Name</TableHead>
-                <TableHead>Slug</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Joined</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recentTenants.map((tenant) => (
-                <TableRow key={tenant.slug}>
-                  <TableCell className="font-medium">{tenant.name}</TableCell>
-                  <TableCell className="font-mono text-sm text-slate-500">{tenant.slug}</TableCell>
-                  <TableCell>
-                    <Badge variant={tenant.plan === 'ENTERPRISE' ? 'default' : 'secondary'}>
-                      {tenant.plan}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={
-                      tenant.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800 border-0' :
-                      tenant.status === 'TRIAL' ? 'bg-amber-100 text-amber-800 border-0' : ''
-                    }>
-                      {tenant.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-slate-500">{tenant.joinedDate}</TableCell>
+          <div className="overflow-x-auto -mx-6 px-6">
+            <Table>
+              <TableHeader>
+                <TableRow className="dark:border-slate-700 hover:dark:bg-slate-800/80">
+                  <TableHead>Tenant Name</TableHead>
+                  <TableHead>Slug</TableHead>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Joined</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {recentTenants.map((tenant) => (
+                  <TableRow key={tenant.slug} className="dark:border-slate-700 hover:dark:bg-slate-800/50">
+                    <TableCell className="font-medium">{tenant.name}</TableCell>
+                    <TableCell className="font-mono text-sm text-slate-500 dark:text-slate-400">{tenant.slug}</TableCell>
+                    <TableCell>
+                      <Badge variant={tenant.plan === 'ENTERPRISE' ? 'default' : 'secondary'} className={
+                        tenant.plan === 'ENTERPRISE' ? '' : 'dark:bg-slate-700 dark:text-slate-300'
+                      }>
+                        {tenant.plan}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={
+                        tenant.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 border-0' :
+                        tenant.status === 'TRIAL' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400 border-0' : ''
+                      }>
+                        {tenant.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-500 dark:text-slate-400">{tenant.joinedDate}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
       <div className="space-y-6">
-        <Card>
+        <Card className="dark:bg-slate-800/50 dark:border-slate-700">
           <CardHeader>
             <CardTitle className="text-base">Plan Distribution</CardTitle>
           </CardHeader>
@@ -221,9 +225,9 @@ function TenantOverview() {
               <div key={item.plan} className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>{item.plan}</span>
-                  <span className="text-slate-500">{item.count} ({item.percentage}%)</span>
+                  <span className="text-slate-500 dark:text-slate-400">{item.count} ({item.percentage}%)</span>
                 </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                   <div 
                     className={`h-full ${item.color} rounded-full`}
                     style={{ width: `${item.percentage * 4}%` }}
@@ -234,26 +238,26 @@ function TenantOverview() {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200 dark:from-emerald-950/30 dark:to-teal-950/30 dark:border-emerald-800">
           <CardHeader>
-            <CardTitle className="text-base text-emerald-800">Quick Stats</CardTitle>
+            <CardTitle className="text-base text-emerald-800 dark:text-emerald-400">Quick Stats</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between text-sm">
-              <span className="text-emerald-700">Onboarded this month</span>
-              <span className="font-semibold text-emerald-900">8</span>
+              <span className="text-emerald-700 dark:text-emerald-400">Onboarded this month</span>
+              <span className="font-semibold text-emerald-900 dark:text-emerald-300">8</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-emerald-700">Pending onboarding</span>
-              <span className="font-semibold text-emerald-900">5</span>
+              <span className="text-emerald-700 dark:text-emerald-400">Pending onboarding</span>
+              <span className="font-semibold text-emerald-900 dark:text-emerald-300">5</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-emerald-700">Trial conversions (MTD)</span>
-              <span className="font-semibold text-emerald-900">12</span>
+              <span className="text-emerald-700 dark:text-emerald-400">Trial conversions (MTD)</span>
+              <span className="font-semibold text-emerald-900 dark:text-emerald-300">12</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-emerald-700">Avg. activation time</span>
-              <span className="font-semibold text-emerald-900">2.3 days</span>
+              <span className="text-emerald-700 dark:text-emerald-400">Avg. activation time</span>
+              <span className="font-semibold text-emerald-900 dark:text-emerald-300">2.3 days</span>
             </div>
           </CardContent>
         </Card>
@@ -289,11 +293,11 @@ function PlatformHealth() {
   const getStatusBg = (status: string) => {
     switch (status) {
       case 'healthy':
-        return 'bg-emerald-50 border-emerald-200'
+        return 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800'
       case 'warning':
-        return 'bg-amber-50 border-amber-200'
+        return 'bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800'
       default:
-        return 'bg-red-50 border-red-200'
+        return 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800'
     }
   }
 
@@ -303,26 +307,26 @@ function PlatformHealth() {
         <Card key={metric.metric} className={`${getStatusBg(metric.status)}`}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between mb-2">
-              <p className="text-sm font-medium text-slate-700">{metric.metric}</p>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{metric.metric}</p>
               {getStatusIcon(metric.status)}
             </div>
-            <p className="text-2xl font-bold text-slate-900">{metric.value}</p>
-            <p className="text-xs text-slate-500 mt-1">Target: {metric.threshold}</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">{metric.value}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Target: {metric.threshold}</p>
           </CardContent>
         </Card>
       ))}
 
       {/* System Status Banner */}
-      <Card className="md:col-span-2 lg:col-span-4 bg-emerald-50 border-emerald-200">
-        <CardContent className="p-4 flex items-center justify-between">
+      <Card className="md:col-span-2 lg:col-span-4 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800">
+        <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Server className="w-5 h-5 text-emerald-600" />
+            <Server className="w-5 h-5 text-emerald-600 dark:text-emerald-500" />
             <div>
-              <p className="font-semibold text-emerald-800">All Systems Operational</p>
-              <p className="text-sm text-emerald-600">Last incident: 14 days ago (resolved in 23 min)</p>
+              <p className="font-semibold text-emerald-800 dark:text-emerald-400">All Systems Operational</p>
+              <p className="text-sm text-emerald-600 dark:text-emerald-500">Last incident: 14 days ago (resolved in 23 min)</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="border-emerald-300 text-emerald-700 hover:bg-emerald-100">
+          <Button variant="outline" size="sm" className="border-emerald-300 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30 w-full sm:w-auto">
             View Status Page
           </Button>
         </CardContent>
@@ -354,7 +358,7 @@ function AddTenantForm() {
   }
 
   return (
-    <Card className="max-w-2xl mx-auto">
+    <Card className="max-w-2xl mx-auto dark:bg-slate-800/50 dark:border-slate-700">
       <CardHeader>
         <CardTitle>Register New Tenant (DCP)</CardTitle>
         <CardDescription>
@@ -370,6 +374,7 @@ function AddTenantForm() {
               placeholder="e.g., Abepot Credit"
               value={formData.name}
               onChange={(e) => updateField('name', e.target.value)}
+              className="dark:bg-slate-800 dark:border-slate-600"
             />
           </div>
           <div className="space-y-2">
@@ -379,6 +384,7 @@ function AddTenantForm() {
               placeholder="e.g., abepot"
               value={formData.slug}
               onChange={(e) => updateField('slug', e.target.value)}
+              className="dark:bg-slate-800 dark:border-slate-600"
             />
           </div>
           <div className="space-y-2">
@@ -388,6 +394,7 @@ function AddTenantForm() {
               placeholder="Registered company name"
               value={formData.companyName}
               onChange={(e) => updateField('companyName', e.target.value)}
+              className="dark:bg-slate-800 dark:border-slate-600"
             />
           </div>
           <div className="space-y-2">
@@ -397,6 +404,7 @@ function AddTenantForm() {
               placeholder="DCP license number"
               value={formData.licenseNumber}
               onChange={(e) => updateField('licenseNumber', e.target.value)}
+              className="dark:bg-slate-800 dark:border-slate-600"
             />
           </div>
           <div className="space-y-2">
@@ -406,6 +414,7 @@ function AddTenantForm() {
               placeholder="+254 XXX XXX XXX"
               value={formData.phone}
               onChange={(e) => updateField('phone', e.target.value)}
+              className="dark:bg-slate-800 dark:border-slate-600"
             />
           </div>
           <div className="space-y-2">
@@ -416,6 +425,7 @@ function AddTenantForm() {
               placeholder="admin@company.com"
               value={formData.email}
               onChange={(e) => updateField('email', e.target.value)}
+              className="dark:bg-slate-800 dark:border-slate-600"
             />
           </div>
           <div className="space-y-2 md:col-span-2">
@@ -425,12 +435,13 @@ function AddTenantForm() {
               placeholder="https://www.example.com"
               value={formData.website}
               onChange={(e) => updateField('website', e.target.value)}
+              className="dark:bg-slate-800 dark:border-slate-600"
             />
           </div>
           <div className="space-y-2">
             <Label>Subscription Plan *</Label>
             <Select value={formData.plan} onValueChange={(v) => updateField('plan', v)}>
-              <SelectTrigger>
+              <SelectTrigger className="dark:bg-slate-800 dark:border-slate-600">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -444,7 +455,7 @@ function AddTenantForm() {
           <div className="space-y-2">
             <Label>Initial Status</Label>
             <Select value={formData.status} onValueChange={(v) => updateField('status', v)}>
-              <SelectTrigger>
+              <SelectTrigger className="dark:bg-slate-800 dark:border-slate-600">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -456,9 +467,9 @@ function AddTenantForm() {
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <Button variant="outline">Cancel</Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700">
+        <div className="flex justify-end gap-3 pt-4 border-t dark:border-slate-700">
+          <Button variant="outline" className="dark:border-slate-600 dark:hover:bg-slate-800">Cancel</Button>
+          <Button className="bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-500/20">
             Create Tenant
           </Button>
         </div>

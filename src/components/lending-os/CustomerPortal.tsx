@@ -72,7 +72,7 @@ export function CustomerPortal() {
   return (
     <div className="space-y-6">
       {/* Portal Header */}
-      <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-xl p-6 text-white">
+      <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 dark:from-emerald-700 dark:to-emerald-800 rounded-xl p-6 text-white shadow-lg shadow-emerald-500/20">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold mb-2">Customer Portal</h2>
@@ -82,11 +82,11 @@ export function CustomerPortal() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Badge variant="secondary" className="bg-white/20 text-white border-0">
+            <Badge variant="secondary" className="bg-white/20 text-white border-0 backdrop-blur-sm">
               <Clock className="w-3 h-3 mr-1" />
               24hr Approval
             </Badge>
-            <Badge variant="secondary" className="bg-white/20 text-white border-0">
+            <Badge variant="secondary" className="bg-white/20 text-white border-0 backdrop-blur-sm">
               M-Pesa Disbursement
             </Badge>
           </div>
@@ -95,23 +95,23 @@ export function CustomerPortal() {
 
       {/* Portal Navigation */}
       <Tabs value={activeSection} onValueChange={setActiveSection}>
-        <TabsList className="grid w-full grid-cols-4 bg-slate-100">
-          <TabsTrigger value="calculator" className="gap-2">
+        <TabsList className="grid w-full grid-cols-4 bg-slate-100 dark:bg-slate-800 overflow-x-auto">
+          <TabsTrigger value="calculator" className="gap-2 data-[state=active]:dark:bg-slate-900 data-[state=active]:dark:border data-[state=active]:dark:border-slate-700">
             <Calculator className="w-4 h-4" />
             Loan Calculator
           </TabsTrigger>
-          <TabsTrigger value="application" className="gap-2 relative">
+          <TabsTrigger value="application" className="gap-2 relative data-[state=active]:dark:bg-slate-900 data-[state=active]:dark:border data-[state=active]:dark:border-slate-700">
             <FileText className="w-4 h-4" />
             Apply Now
             {prefillData && (
               <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full animate-pulse" title="Data ready from calculator" />
             )}
           </TabsTrigger>
-          <TabsTrigger value="status" className="gap-2">
+          <TabsTrigger value="status" className="gap-2 data-[state=active]:dark:bg-slate-900 data-[state=active]:dark:border data-[state=active]:dark:border-slate-700">
             <CheckCircle2 className="w-4 h-4" />
             Track Status
           </TabsTrigger>
-          <TabsTrigger value="repayment" className="gap-2">
+          <TabsTrigger value="repayment" className="gap-2 data-[state=active]:dark:bg-slate-900 data-[state=active]:dark:border data-[state=active]:dark:border-slate-700">
             <ArrowRight className="w-4 h-4" />
             Repayments
           </TabsTrigger>
