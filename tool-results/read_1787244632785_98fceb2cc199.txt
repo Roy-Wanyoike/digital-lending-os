@@ -1,0 +1,708 @@
+     1→'use client'
+     2→
+     3→import { useState, useMemo } from 'react'
+     4→import { 
+     5→  Table,
+     6→  TableBody,
+     7→  TableCell,
+     8→  TableHead,
+     9→  TableHeader,
+    10→  TableRow 
+    11→} from '@/components/ui/table'
+    12→import { Button } from '@/components/ui/button'
+    13→import { Badge } from '@/components/ui/badge'
+    14→import { Input } from '@/components/ui/input'
+    15→import { Checkbox } from '@/components/ui/checkbox'
+    16→import { 
+    17→  Select,
+    18→  SelectContent,
+    19→  SelectItem,
+    20→  SelectTrigger,
+    21→  SelectValue 
+    22→} from '@/components/ui/select'
+    23→import {
+    24→  DropdownMenu,
+    25→  DropdownMenuContent,
+    26→  DropdownMenuItem,
+    27→  DropdownMenuTrigger
+    28→} from '@/components/ui/dropdown-menu'
+    29→import { Skeleton } from '@/components/ui/skeleton'
+    30→import { cn } from '@/lib/utils'
+    31→import {
+    32→  Phone,
+    33→  MessageSquare,
+    34→  Mail,
+    35→  MoreVertical,
+    36→  ArrowUpDown,
+    37→  ArrowUp,
+    38→  ArrowDown,
+    39→  Search,
+    40→  UserPlus,
+    41→  Eye,
+    42→  ChevronLeft,
+    43→  ChevronRight
+    44→} from 'lucide-react'
+    45→import { toast } from 'sonner'
+    46→import type { OverdueLoan, CollectionAgent, AgingBucket } from './types'
+    47→
+    48→// Mock data for development
+    49→const mockLoans: OverdueLoan[] = [
+    50→  {
+    51→    id: '1',
+    52→    loanNumber: 'LN-2026-000042',
+    53→    customerId: 'cust-001',
+    54→    customerName: 'John Kamau',
+    55→    customerPhone: '0712345678',
+    56→    customerEmail: 'john.kamau@email.com',
+    57→    principal: 50000,
+    58→    outstandingBalance: 42000,
+    59→    totalRepaid: 8000,
+    60→    daysInArrears: 12,
+    61→    status: 'IN_ARREARS',
+    62→    arrearsStatus: 'DAYS_8_30',
+    63→    assignedCollectorId: 'agent-001',
+    64→    collectorName: 'Sarah Chen',
+    65→    nextPaymentDue: '2026-02-15',
+    66→    disbursementDate: '2025-11-20',
+    67→    maturityDate: '2026-02-20',
+    68→    productName: 'Personal Loan',
+    69→    productCategory: 'PERSONAL_LOAN',
+    70→    riskLevel: 'MEDIUM'
+    71→  },
+    72→  {
+    73→    id: '2',
+    74→    loanNumber: 'LN-2026-000045',
+    75→    customerId: 'cust-002',
+    76→    customerName: 'Faith Chebet',
+    77→    customerPhone: '0723456789',
+    78→    customerEmail: 'faith.chebet@email.com',
+    79→    principal: 30000,
+    80→    outstandingBalance: 18000,
+    81→    totalRepaid: 12000,
+    82→    daysInArrears: 3,
+    83→    status: 'ACTIVE',
+    84→    arrearsStatus: 'DAYS_1_7',
+    85→    assignedCollectorId: null,
+    86→    collectorName: null,
+    87→    nextPaymentDue: '2026-01-25',
+    88→    disbursementDate: '2025-12-10',
+    89→    maturityDate: '2026-03-10',
+    90→    productName: 'Salary Advance',
+    91→    productCategory: 'SALARY_ADVANCE',
+    92→    riskLevel: 'LOW'
+    93→  },
+    94→  {
+    95→    id: '3',
+    96→    loanNumber: 'LN-2025-000089',
+    97→    customerId: 'cust-003',
+    98→    customerName: 'Peter Ochieng',
+    99→    customerPhone: '0734567890',
+   100→    principal: 100000,
+   101→    outstandingBalance: 85000,
+   102→    totalRepaid: 15000,
+   103→    daysInArrears: 45,
+   104→    status: 'IN_ARREARS',
+   105→    arrearsStatus: 'DAYS_31_60',
+   106→    assignedCollectorId: 'agent-002',
+   107→    collectorName: 'James Omondi',
+   108→    nextPaymentDue: '2026-01-10',
+   109→    disbursementDate: '2025-09-15',
+   110→    maturityDate: '2026-03-15',
+   111→    productName: 'Business Loan',
+   112→    productCategory: 'BUSINESS_LOAN',
+   113→    riskLevel: 'HIGH'
+   114→  },
+   115→  {
+   116→    id: '4',
+   117→    loanNumber: 'LN-2025-000078',
+   118→    customerId: 'cust-004',
+   119→    customerName: 'Mary Atieno',
+   120→    customerPhone: '0745678901',
+   121→    principal: 75000,
+   122→    outstandingBalance: 72000,
+   123→    totalRepaid: 3000,
+   124→    daysInArrears: 75,
+   125→    status: 'IN_ARREARS',
+   126→    arrearsStatus: 'DAYS_61_90',
+   127→    assignedCollectorId: 'agent-003',
+   128→    collectorName: 'Grace Wanjiku',
+   129→    nextPaymentDue: '2025-12-28',
+   130→    disbursementDate: '2025-08-20',
+   131→    maturityDate: '2026-02-20',
+   132→    productName: 'Emergency Loan',
+   133→    productCategory: 'EMERGENCY_LOAN',
+   134→    riskLevel: 'VERY_HIGH'
+   135→  },
+   136→  {
+   137→    id: '5',
+   138→    loanNumber: 'LN-2025-000056',
+   139→    customerId: 'cust-005',
+   140→    customerName: 'Daniel Kipchoge',
+   141→    customerPhone: '0756789012',
+   142→    principal: 40000,
+   143→    outstandingBalance: 38000,
+   144→    totalRepaid: 2000,
+   145→    daysInArrears: 95,
+   146→    status: 'DEFAULTED',
+   147→    arrearsStatus: 'DAYS_91_PLUS',
+   148→    assignedCollectorId: null,
+   149→    collectorName: null,
+   150→    nextPaymentDue: '2025-11-30',
+   151→    disbursementDate: '2025-07-15',
+   152→    maturityDate: '2025-11-15',
+   153→    productName: 'Personal Loan',
+   154→    productCategory: 'PERSONAL_LOAN',
+   155→    riskLevel: 'VERY_HIGH'
+   156→  },
+   157→  {
+   158→    id: '6',
+   159→    loanNumber: 'LN-2026-000052',
+   160→    customerId: 'cust-006',
+   161→    customerName: 'Sarah Muthoni',
+   162→    customerPhone: '0767890123',
+   163→    customerEmail: 'sarah.muthoni@email.com',
+   164→    principal: 25000,
+   165→    outstandingBalance: 15000,
+   166→    totalRepaid: 10000,
+   167→    daysInArrears: 7,
+   168→    status: 'ACTIVE',
+   169→    arrearsStatus: 'DAYS_1_7',
+   170→    assignedCollectorId: 'agent-001',
+   171→    collectorName: 'Sarah Chen',
+   172→    nextPaymentDue: '2026-01-28',
+   173→    disbursementDate: '2025-12-28',
+   174→    maturityDate: '2026-03-28',
+   175→    productName: 'Salary Advance',
+   176→    productCategory: 'SALARY_ADVANCE',
+   177→    riskLevel: 'LOW'
+   178→  },
+   179→  {
+   180→    id: '7',
+   181→    loanNumber: 'LN-2025-000102',
+   182→    customerId: 'cust-007',
+   183→    customerName: 'James Mwangi',
+   184→    customerPhone: '0778901234',
+   185→    principal: 120000,
+   186→    outstandingBalance: 110000,
+   187→    totalRepaid: 10000,
+   188→    daysInArrears: 55,
+   189→    status: 'IN_ARREARS',
+   190→    arrearsStatus: 'DAYS_31_60',
+   191→    assignedCollectorId: 'agent-002',
+   192→    collectorName: 'James Omondi',
+   193→    nextPaymentDue: '2025-12-20',
+   194→    disbursementDate: '2025-09-01',
+   195→    maturityDate: '2026-04-01',
+   196→    productName: 'SME Loan',
+   197→    productCategory: 'SME_LOAN',
+   198→    riskLevel: 'HIGH'
+   199→  },
+   200→  {
+   201→    id: '8',
+   202→    loanNumber: 'LN-2026-000067',
+   203→    customerId: 'cust-008',
+   204→    customerName: 'Grace Nyokabi',
+   205→    customerPhone: '0789012345',
+   206→    customerEmail: 'grace.nyokabi@email.com',
+   207→    principal: 20000,
+   208→    outstandingBalance: 8000,
+   209→    totalRepaid: 12000,
+   210→    daysInArrears: 2,
+   211→    status: 'ACTIVE',
+   212→    arrearsStatus: 'DAYS_1_7',
+   213→    assignedCollectorId: null,
+   214→    collectorName: null,
+   215→    nextPaymentDue: '2026-01-24',
+   216→    disbursementDate: '2026-01-02',
+   217→    maturityDate: '2026-04-02',
+   218→    productName: 'Salary Advance',
+   219→    productCategory: 'SALARY_ADVANCE',
+   220→    riskLevel: 'LOW'
+   221→  }
+   222→]
+   223→
+   224→interface OverdueLoansTableProps {
+   225→  onLoanSelect?: (loan: OverdueLoan) => void
+   226→  filterCollector?: string | null // 'mine', 'unassigned', or agent ID
+   227→  filterBucket?: string | null // bucket name to filter by
+   228→  highPriorityOnly?: boolean
+   229→  agents?: CollectionAgent[]
+   230→}
+   231→
+   232→type SortField = 'loanNumber' | 'customerName' | 'daysInArrears' | 'outstandingBalance' | 'status' | 'collectorName'
+   233→type SortDirection = 'asc' | 'desc'
+   234→
+   235→export function OverdueLoansTable({
+   236→  onLoanSelect,
+   237→  filterCollector = null,
+   238→  filterBucket = null,
+   239→  highPriorityOnly = false,
+   240→  agents = []
+   241→}: OverdueLoansTableProps) {
+   242→  const [searchQuery, setSearchQuery] = useState('')
+   243→  const [sortField, setSortField] = useState<SortField>('daysInArrears')
+   244→  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+   245→  const [selectedLoans, setSelectedLoans] = useState<Set<string>>(new Set())
+   246→  const [currentPage, setCurrentPage] = useState(1)
+   247→  const [isLoading, setIsLoading] = useState(false)
+   248→  const itemsPerPage = 10
+   249→
+   250→  // Filter and sort data
+   251→  const filteredAndSortedData = useMemo(() => {
+   252→    let result = [...mockLoans]
+   253→
+   254→    // Apply search filter
+   255→    if (searchQuery) {
+   256→      const query = searchQuery.toLowerCase()
+   257→      result = result.filter(loan =>
+   258→        loan.loanNumber.toLowerCase().includes(query) ||
+   259→        loan.customerName.toLowerCase().includes(query) ||
+   260→        loan.customerPhone.includes(query)
+   261→      )
+   262→    }
+   263→
+   264→    // Apply collector filter
+   265→    if (filterCollector === 'unassigned') {
+   266→      result = result.filter(loan => !loan.assignedCollectorId)
+   267→    } else if (filterCollector === 'mine') {
+   268→      // In production, this would use actual user ID
+   269→      result = result.filter(loan => loan.assignedCollectorId === 'agent-001')
+   270→    } else if (filterCollector && filterCollector !== 'all') {
+   271→      result = result.filter(loan => loan.assignedCollectorId === filterCollector)
+   272→    }
+   273→
+   274→    // Apply bucket filter (days in arrears range)
+   275→    if (filterBucket) {
+   276→      switch (filterBucket) {
+   277→        case '1-7 days':
+   278→          result = result.filter(loan => loan.daysInArrears >= 1 && loan.daysInArrears <= 7)
+   279→          break
+   280→        case '8-30 days':
+   281→          result = result.filter(loan => loan.daysInArrears >= 8 && loan.daysInArrears <= 30)
+   282→          break
+   283→        case '31-60 days':
+   284→          result = result.filter(loan => loan.daysInArrears >= 31 && loan.daysInArrears <= 60)
+   285→          break
+   286→        case '61-90 days':
+   287→          result = result.filter(loan => loan.daysInArrears >= 61 && loan.daysInArrears <= 90)
+   288→          break
+   289→        case '90+ days':
+   290→          result = result.filter(loan => loan.daysInArrears > 90)
+   291→          break
+   292→      }
+   293→    }
+   294→
+   295→    // Apply high priority filter (loans with 30+ days in arrears or very high risk)
+   296→    if (highPriorityOnly) {
+   297→      result = result.filter(loan =>
+   298→        loan.daysInArrears >= 30 || loan.riskLevel === 'VERY_HIGH' || loan.riskLevel === 'HIGH'
+   299→      )
+   300→    }
+   301→
+   302→    // Apply sorting
+   303→    result.sort((a, b) => {
+   304→      let aVal: string | number = a[sortField] || ''
+   305→      let bVal: string | number = b[sortField] || ''
+   306→      
+   307→      if (typeof aVal === 'string') aVal = aVal.toLowerCase()
+   308→      if (typeof bVal === 'string') bVal = bVal.toLowerCase()
+   309→      
+   310→      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+   311→      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+   312→      return 0
+   313→    })
+   314→
+   315→    return result
+   316→  }, [searchQuery, sortField, sortDirection, filterCollector, filterBucket, highPriorityOnly])
+   317→
+   318→  // Paginate data
+   319→  const paginatedData = useMemo(() => {
+   320→    const startIndex = (currentPage - 1) * itemsPerPage
+   321→    return filteredAndSortedData.slice(startIndex, startIndex + itemsPerPage)
+   322→  }, [filteredAndSortedData, currentPage])
+   323→
+   324→  const totalPages = Math.ceil(filteredAndSortedData.length / itemsPerPage)
+   325→
+   326→  // Handle sort toggle
+   327→  const handleSort = (field: SortField) => {
+   328→    if (sortField === field) {
+   329→      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+   330→    } else {
+   331→      setSortField(field)
+   332→      setSortDirection('desc')
+   333→    }
+   334→  }
+   335→
+   336→  // Handle selection
+   337→  const handleSelectAll = () => {
+   338→    if (selectedLoans.size === paginatedData.length) {
+   339→      setSelectedLoans(new Set())
+   340→    } else {
+   341→      setSelectedLoans(new Set(paginatedData.map(l => l.id)))
+   342→    }
+   343→  }
+   344→
+   345→  const handleSelectOne = (id: string) => {
+   346→    const newSet = new Set(selectedLoans)
+   347→    if (newSet.has(id)) {
+   348→      newSet.delete(id)
+   349→    } else {
+   350→      newSet.add(id)
+   351→    }
+   352→    setSelectedLoans(newSet)
+   353→  }
+   354→
+   355→  // Handle bulk assignment
+   356→  const handleBulkAssign = async (agentId: string) => {
+   357→    setIsLoading(true)
+   358→    try {
+   359→      // Simulate API call
+   360→      await new Promise(resolve => setTimeout(resolve, 500))
+   361→      toast.success(`Assigned ${selectedLoans.size} loans to agent`)
+   362→      setSelectedLoans(new Set())
+   363→    } catch (error) {
+   364→      toast.error('Failed to assign loans')
+   365→    } finally {
+   366→      setIsLoading(false)
+   367→    }
+   368→  }
+   369→
+   370→  // Handle contact action
+   371→  const handleContactAction = (method: string, loan: OverdueLoan) => {
+   372→    toast.success(`Initiating ${method.toUpperCase()} to ${loan.customerName}`)
+   373→  }
+   374→
+   375→  // Format currency
+   376→  const formatCurrency = (amount: number): string => `KSh ${amount.toLocaleString()}`
+   377→
+   378→  // Get row color based on arrears status
+   379→  const getRowClassName = (daysInArrears: number): string => {
+   380→    if (daysInArrears > 90) return 'bg-red-50/50 dark:bg-red-950/20'
+   381→    if (daysInArrears > 60) return 'bg-orange-50/50 dark:bg-orange-950/20'
+   382→    if (daysInArrears > 30) return 'bg-amber-50/50 dark:bg-amber-950/20'
+   383→    if (daysInArrears > 7) return 'bg-yellow-50/50 dark:bg-yellow-950/20'
+   384→    return ''
+   385→  }
+   386→
+   387→  // Get severity badge
+   388→  const getSeverityBadge = (daysInArrears: number) => {
+   389→    if (daysInArrears > 90) return <Badge className="bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-400 border-0">Severe</Badge>
+   390→    if (daysInArrears > 60) return <Badge className="bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400 border-0">Critical</Badge>
+   391→    if (daysInArrears > 30) return <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-400 border-0">High</Badge>
+   392→    if (daysInArrears > 7) return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400 border-0">Medium</Badge>
+   393→    return <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 border-0">Low</Badge>
+   394→  }
+   395→
+   396→  // Sort icon component
+   397→  const SortIcon = ({ field }: { field: SortField }) => {
+   398→    if (sortField !== field) return <ArrowUpDown className="w-4 h-4 ml-1 opacity-50" />
+   399→    return sortDirection === 'asc' 
+   400→      ? <ArrowUp className="w-4 h-4 ml-1" />
+   401→      : <ArrowDown className="w-4 h-4 ml-1" />
+   402→  }
+   403→
+   404→  return (
+   405→    <div className="space-y-4">
+   406→      {/* Search and Actions Bar */}
+   407→      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+   408→        <div className="relative w-full sm:w-auto sm:flex-1 max-w-sm">
+   409→          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+   410→          <Input
+   411→            placeholder="Search loans, customers..."
+   412→            value={searchQuery}
+   413→            onChange={(e) => setSearchQuery(e.target.value)}
+   414→            className="pl-10 bg-white dark:bg-slate-800"
+   415→          />
+   416→        </div>
+   417→        
+   418→        <div className="flex gap-2 w-full sm:w-auto">
+   419→          {selectedLoans.size > 0 && (
+   420→            <DropdownMenu>
+   421→              <DropdownMenuTrigger asChild>
+   422→                <Button variant="outline" size="sm" className="dark:border-slate-700">
+   423→                  <UserPlus className="w-4 h-4 mr-2" />
+   424→                  Assign ({selectedLoans.size})
+   425→                </Button>
+   426→              </DropdownMenuTrigger>
+   427→              <DropdownMenuContent align="end">
+   428→                {agents.map(agent => (
+   429→                  <DropdownMenuItem key={agent.id} onClick={() => handleBulkAssign(agent.id)}>
+   430→                    {agent.name}
+   431→                  </DropdownMenuItem>
+   432→                ))}
+   433→              </DropdownMenuContent>
+   434→            </DropdownMenu>
+   435→          )}
+   436→          
+   437→          <Button variant="outline" size="sm" className="dark:border-slate-700">
+   438→            Export CSV
+   439→          </Button>
+   440→        </div>
+   441→      </div>
+   442→
+   443→      {/* Table */}
+   444→      <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+   445→        <Table>
+   446→          <TableHeader>
+   447→            <TableRow className="bg-slate-50 dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-900">
+   448→              <TableHead className="w-12">
+   449→                <Checkbox
+   450→                  checked={selectedLoans.size === paginatedData.length && paginatedData.length > 0}
+   451→                  onCheckedChange={handleSelectAll}
+   452→                />
+   453→              </TableHead>
+   454→              <TableHead 
+   455→                className="cursor-pointer select-none"
+   456→                onClick={() => handleSort('loanNumber')}
+   457→              >
+   458→                <div className="flex items-center">
+   459→                  Loan #
+   460→                  <SortIcon field="loanNumber" />
+   461→                </div>
+   462→              </TableHead>
+   463→              <TableHead 
+   464→                className="cursor-pointer select-none"
+   465→                onClick={() => handleSort('customerName')}
+   466→              >
+   467→                <div className="flex items-center">
+   468→                  Customer
+   469→                  <SortIcon field="customerName" />
+   470→                </div>
+   471→              </TableHead>
+   472→              <TableHead 
+   473→                className="cursor-pointer select-none text-center"
+   474→                onClick={() => handleSort('daysInArrears')}
+   475→              >
+   476→                <div className="flex items-center justify-center">
+   477→                  Days Overdue
+   478→                  <SortIcon field="daysInArrears" />
+   479→                </div>
+   480→              </TableHead>
+   481→              <TableHead 
+   482→                className="cursor-pointer select-none text-right"
+   483→                onClick={() => handleSort('outstandingBalance')}
+   484→              >
+   485→                <div className="flex items-center justify-end">
+   486→                  Amount
+   487→                  <SortIcon field="outstandingBalance" />
+   488→                </div>
+   489→              </TableHead>
+   490→              <TableHead>Agent</TableHead>
+   491→              <TableHead>Status</TableHead>
+   492→              <TableHead className="text-right">Actions</TableHead>
+   493→            </TableRow>
+   494→          </TableHeader>
+   495→          <TableBody>
+   496→            {isLoading ? (
+   497→              Array.from({ length: 5 }).map((_, i) => (
+   498→                <TableRow key={i}>
+   499→                  {Array.from({ length: 8 }).map((_, j) => (
+   500→                    <TableCell key={j}>
+   501→                      <Skeleton className="h-5 w-full" />
+   502→                    </TableCell>
+   503→                  ))}
+   504→                </TableRow>
+   505→              ))
+   506→            ) : paginatedData.length === 0 ? (
+   507→              <TableRow>
+   508→                <TableCell colSpan={8} className="text-center py-12 text-slate-500">
+   509→                  <div className="space-y-2">
+   510→                    <p className="font-medium">No overdue loans found</p>
+   511→                    <p className="text-sm">Try adjusting your filters or search query</p>
+   512→                  </div>
+   513→                </TableCell>
+   514→              </TableRow>
+   515→            ) : (
+   516→              paginatedData.map((loan) => (
+   517→                <TableRow 
+   518→                  key={loan.id}
+   519→                  className={cn(
+   520→                    "cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50",
+   521→                    getRowClassName(loan.daysInArrears)
+   522→                  )}
+   523→                  onClick={() => onLoanSelect?.(loan)}
+   524→                >
+   525→                  <TableCell onClick={(e) => e.stopPropagation()}>
+   526→                    <Checkbox
+   527→                      checked={selectedLoans.has(loan.id)}
+   528→                      onCheckedChange={() => handleSelectOne(loan.id)}
+   529→                    />
+   530→                  </TableCell>
+   531→                  <TableCell className="font-mono text-sm font-medium">
+   532→                    {loan.loanNumber.replace('LN-', '').replace(/^0+/, '')}
+   533→                  </TableCell>
+   534→                  <TableCell>
+   535→                    <div>
+   536→                      <p className="font-medium">{loan.customerName}</p>
+   537→                      <p className="text-xs text-slate-500 dark:text-slate-400">{loan.customerPhone}</p>
+   538→                    </div>
+   539→                  </TableCell>
+   540→                  <TableCell className="text-center">
+   541→                    <div className="flex flex-col items-center gap-1">
+   542→                      <span className="font-bold text-lg">{loan.daysInArrears}</span>
+   543→                      {getSeverityBadge(loan.daysInArrears)}
+   544→                    </div>
+   545→                  </TableCell>
+   546→                  <TableCell className="text-right">
+   547→                    <div>
+   548→                      <p className="font-medium">{formatCurrency(loan.outstandingBalance)}</p>
+   549→                      <p className="text-xs text-slate-500 dark:text-slate-400">
+   550→                        of {formatCurrency(loan.principal)}
+   551→                      </p>
+   552→                    </div>
+   553→                  </TableCell>
+   554→                  <TableCell>
+   555→                    {loan.collectorName ? (
+   556→                      <span className="text-sm">{loan.collectorName}</span>
+   557→                    ) : (
+   558→                      <span className="text-sm text-slate-400 italic">Unassigned</span>
+   559→                    )}
+   560→                  </TableCell>
+   561→                  <TableCell>
+   562→                    <Badge 
+   563→                      variant="secondary"
+   564→                      className={
+   565→                        loan.status === 'DEFAULTED' 
+   566→                          ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400 border-0'
+   567→                          : loan.status === 'IN_ARREARS'
+   568→                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-400 border-0'
+   569→                          : ''
+   570→                      }
+   571→                    >
+   572→                      {loan.status.replace('_', ' ')}
+   573→                    </Badge>
+   574→                  </TableCell>
+   575→                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+   576→                    <div className="flex items-center justify-end gap-1">
+   577→                      <Button
+   578→                        variant="ghost"
+   579→                        size="icon"
+   580→                        className="h-8 w-8"
+   581→                        onClick={() => handleContactAction('call', loan)}
+   582→                        title="Call customer"
+   583→                      >
+   584→                        <Phone className="w-4 h-4 text-blue-600" />
+   585→                      </Button>
+   586→                      <Button
+   587→                        variant="ghost"
+   588→                        size="icon"
+   589→                        className="h-8 w-8"
+   590→                        onClick={() => handleContactAction('sms', loan)}
+   591→                        title="Send SMS"
+   592→                      >
+   593→                        <MessageSquare className="w-4 h-4 text-green-600" />
+   594→                      </Button>
+   595→                      <Button
+   596→                        variant="ghost"
+   597→                        size="icon"
+   598→                        className="h-8 w-8"
+   599→                        onClick={() => handleContactAction('whatsapp', loan)}
+   600→                        title="WhatsApp"
+   601→                      >
+   602→                        <MessageSquare className="w-4 h-4 text-emerald-600" />
+   603→                      </Button>
+   604→                      <Button
+   605→                        variant="ghost"
+   606→                        size="icon"
+   607→                        className="h-8 w-8"
+   608→                        onClick={() => handleContactAction('email', loan)}
+   609→                        title="Send Email"
+   610→                      >
+   611→                        <Mail className="w-4 h-4 text-purple-600" />
+   612→                      </Button>
+   613→                      <DropdownMenu>
+   614→                        <DropdownMenuTrigger asChild>
+   615→                          <Button variant="ghost" size="icon" className="h-8 w-8">
+   616→                            <MoreVertical className="w-4 h-4" />
+   617→                          </Button>
+   618→                        </DropdownMenuTrigger>
+   619→                        <DropdownMenuContent align="end">
+   620→                          <DropdownMenuItem onClick={() => onLoanSelect?.(loan)}>
+   621→                            <Eye className="w-4 h-4 mr-2" />
+   622→                            View Details
+   623→                          </DropdownMenuItem>
+   624→                          <DropdownMenuItem onClick={() => toast.info(`Recording promise for ${loan.customerName}`)}>
+   625→                            Record PTP
+   626→                          </DropdownMenuItem>
+   627→                          <DropdownMenuItem onClick={() => toast.info(`Setting up arrangement for ${loan.loanNumber}`)}>
+   628→                            Payment Arrangement
+   629→                          </DropdownMenuItem>
+   630→                          <DropdownMenuItem className="text-red-600" onClick={() => toast.warning(`Escalating ${loan.loanNumber}`)}>
+   631→                            Escalate
+   632→                          </DropdownMenuItem>
+   633→                        </DropdownMenuContent>
+   634→                      </DropdownMenu>
+   635→                    </div>
+   636→                  </TableCell>
+   637→                </TableRow>
+   638→              ))
+   639→            )}
+   640→          </TableBody>
+   641→        </Table>
+   642→      </div>
+   643→
+   644→      {/* Pagination */}
+   645→      {totalPages > 1 && (
+   646→        <div className="flex items-center justify-between">
+   647→          <p className="text-sm text-slate-500 dark:text-slate-400">
+   648→            Showing {(currentPage - 1) * itemsPerPage + 1} to{' '}
+   649→            {Math.min(currentPage * itemsPerPage, filteredAndSortedData.length)} of{' '}
+   650→            {filteredAndSortedData.length} loans
+   651→          </p>
+   652→          <div className="flex items-center gap-2">
+   653→            <Button
+   654→              variant="outline"
+   655→              size="sm"
+   656→              disabled={currentPage === 1}
+   657→              onClick={() => setCurrentPage(p => p - 1)}
+   658→              className="dark:border-slate-700"
+   659→            >
+   660→              <ChevronLeft className="w-4 h-4" />
+   661→              Previous
+   662→            </Button>
+   663→            <div className="flex gap-1">
+   664→              {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+   665→                let pageNum: number
+   666→                if (totalPages <= 5) {
+   667→                  pageNum = i + 1
+   668→                } else if (currentPage <= 3) {
+   669→                  pageNum = i + 1
+   670→                } else if (currentPage >= totalPages - 2) {
+   671→                  pageNum = totalPages - 4 + i
+   672→                } else {
+   673→                  pageNum = currentPage - 2 + i
+   674→                }
+   675→                
+   676→                return (
+   677→                  <Button
+   678→                    key={pageNum}
+   679→                    variant={currentPage === pageNum ? "default" : "outline"}
+   680→                    size="sm"
+   681→                    className={cn(
+   682→                      "w-8 h-8 p-0",
+   683→                      currentPage !== pageNum && "dark:border-slate-700"
+   684→                    )}
+   685→                    onClick={() => setCurrentPage(pageNum)}
+   686→                  >
+   687→                    {pageNum}
+   688→                  </Button>
+   689→                )
+   690→              })}
+   691→            </div>
+   692→            <Button
+   693→              variant="outline"
+   694→              size="sm"
+   695→              disabled={currentPage === totalPages}
+   696→              onClick={() => setCurrentPage(p => p + 1)}
+   697→              className="dark:border-slate-700"
+   698→            >
+   699→              Next
+   700→              <ChevronRight className="w-4 h-4" />
+   701→            </Button>
+   702→          </div>
+   703→        </div>
+   704→      )}
+   705→    </div>
+   706→  )
+   707→}
+   708→

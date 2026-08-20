@@ -1,0 +1,1294 @@
+     1→# Digital Lending OS - Work Log
+     2→
+     3→## Task ID: 2-a
+     4→## Date: 2026-01-20
+     5→## Status: COMPLETED
+     6→
+     7→---
+     8→
+     9→## Summary
+    10→
+    11→Built a comprehensive **Digital Lending OS** - a multi-tenant SaaS platform for Kenyan Digital Credit Providers (DCPs). This includes:
+    12→
+    13→1. **Complete Frontend Dashboard** with 4 main tabs (Customer Portal, Lender Admin, Super Admin, Architecture)
+    14→2. **Full REST API** with 11 endpoints for all major entities
+    15→3. **Database Seeding Script** with sample data for 5 DCP tenants
+    16→
+    17→---
+    18→
+    19→## Files Created/Modified
+    20→
+    21→### Main Page & Layout
+    22→- `src/app/page.tsx` - Complete rewrite with tab navigation and platform overview
+    23→- `src/app/layout.tsx` - Updated metadata for Digital Lending OS
+    24→
+    25→### Customer Portal Components (`src/components/lending-os/`)
+    26→- `CustomerPortal.tsx` - Main portal container with sub-tabs
+    27→- `LoanCalculator.tsx` - Interactive loan calculator with slider controls
+    28→- `ApplicationForm.tsx` - Multi-step loan application form
+    29→- `ApplicationStatusTracker.tsx` - Visual status tracker with timeline
+    30→- `RepaymentSchedule.tsx` - Repayment schedule table with payment history
+    31→
+    32→### Lender Dashboard Components (`src/components/lending-os/`)
+    33→- `LenderDashboard.tsx` - Main dashboard with KPIs and data tables
+    34→- `KPICards.tsx` - 4 KPI metric cards (Loan Book, Active Loans, PAR30, Collections)
+    35→- `ApplicationsTable.tsx` - Applications queue with approve/reject actions
+    36→- `LoansTable.tsx` - Active loans table with status badges
+    37→
+    38→### Super Admin Components (`src/components/lending-os/`)
+    39→- `SuperAdminView.tsx` - Platform administration console
+    40→- `TenantList.tsx` - Tenant directory with search/filter
+    41→
+    42→### Architecture Component (`src/components/lending-os/`)
+    43→- `ArchitectureDiagram.tsx` - System architecture visualization
+    44→
+    45→### API Routes (`src/app/api/`)
+    46→- `tenants/route.ts` - GET (list), POST (create)
+    47→- `tenants/[id]/route.ts` - GET, PUT, DELETE
+    48→- `customers/route.ts` - GET (list), POST (create)
+    49→- `customers/[id]/route.ts` - GET, PUT
+    50→- `loans/route.ts` - GET (list), POST (create)
+    51→- `loans/[id]/route.ts` - GET, PUT
+    52→- `applications/route.ts` - GET (list), POST (create)
+    53→- `applications/[id]/route.ts` - GET, PUT (approve/reject actions)
+    54→- `products/route.ts` - GET (list), POST (create)
+    55→- `dashboard/stats/route.ts` - GET (aggregated metrics)
+    56→
+    57→### Seed Script
+    58→- `scripts/seed.ts` - Database seeder with sample data
+    59→
+    60→---
+    61→
+    62→## Database Seed Data Summary
+    63→
+    64→| Entity | Count |
+    65→|--------|-------|
+    66→| Tenants | 5 |
+    67→| Users | 40 |
+    68→| Loan Products | 15 |
+    69→| Customers | ~63 |
+    70→| Loan Applications | ~93 |
+    71→| Loans | 10 |
+    72→| Repayments | 15 |
+    73→
+    74→### Sample Tenants Created:
+    75→1. **Abepot Credit** (abepot) - Starter plan, Tier 4 prospect
+    76→2. **Fabilo Credit** (fabilo) - Professional plan, Tier 4 prospect
+    77→3. **Signature Capital** (signaturecapital) - Enterprise plan, Tier 1 mature digital
+    78→4. **Karibu Credit** (karibucredit) - Starter trial, Tier 2 with website
+    79→5. **ED Partners Africa** (edpartners) - Enterprise plan, Tier 1 strong presence
+    80→
+    81→---
+    82→
+    83→## Technical Implementation Details
+    84→
+    85→### Design System
+    86→- Primary Color: Emerald/Green (#059669) - representing growth/money
+    87→- Secondary: Slate/Gray tones
+    88→- Accent: Amber for warnings, Red for alerts/danger
+    89→- Used shadcn/ui components throughout
+    90→- Responsive mobile-first design
+    91→- Lucide React icons
+    92→
+    93→### API Features
+    94→- Tenant isolation via tenantId query parameter/header
+    95→- Proper error handling with JSON responses
+    96→- Pagination support on list endpoints
+    97→- Search and filter capabilities
+    98→- Approve/reject workflow for applications
+    99→
+   100→### Key Components Features
+   101→- **Loan Calculator**: Amount slider, term selector, real-time calculations
+   102→- **Application Form**: 4-step wizard with validation
+   103→- **Status Tracker**: Visual timeline with step indicators
+   104→- **KPI Cards**: Gradient cards with trend indicators
+   105→- **Applications Table**: Filter by status, quick approve/reject
+   106→- **Architecture Diagram**: Layered system visualization
+   107→
+   108→---
+   109→
+   110→## Issues Encountered & Resolved
+   111→
+   112→1. **Product Code Uniqueness Error**: Fixed by using unique suffix from tenant ID
+   113→2. **skipDuplicates Parameter Error**: Removed unsupported Prisma parameter from createMany calls
+   114→3. **Loan Number Uniqueness Error**: Fixed by using global counter instead of per-tenant counter
+   115→4. **Duplicate Label Function Error**: Removed local Label definitions that conflicted with shadcn/ui import
+   116→
+   117→---
+   118→
+   119→## Lint Status
+   120→✅ **PASSES** - No ESLint errors
+   121→
+   122→---
+   123→
+   124→## Notes
+   125→- The application is viewable at the `/` route as required
+   126→- All components use 'use client' directive where needed
+   127→- APIs use Prisma client from @/lib/db
+   128→- Database schema was already set up in prisma/schema.prisma
+   129→
+   130→---
+   131→
+   132→# Task ID: 2-b
+   133→## Date: 2026-01-20
+   134→## Status: COMPLETED
+   135→
+   136→---
+   137→
+   138→## Summary
+   139→
+   140→Built a comprehensive **Credit & Risk Management Module** for the Digital Lending OS platform targeting Kenya's 252 DCPs (Digital Credit Providers). This module provides complete risk management capabilities including credit scoring, eligibility management, affordability assessment, blacklist management, fraud detection, and policy governance.
+   141→
+   142→---
+   143→
+   144→## Files Created
+   145→
+   146→### Risk Management Components (`src/components/lending-os/risk/`)
+   147→
+   148→1. **RiskDashboard.tsx** - Main risk monitoring dashboard
+   149→   - 4 KPI Cards: Total Exposure (KES), Weighted Avg Risk Score, Approval Rate, Default Rate
+   150→   - Risk Distribution Bar Chart showing loan count by grade (A+ to E)
+   151→   - Portfolio Quality Gauge visualization (Excellent to Poor)
+   152→   - Top Risk Alerts Feed with severity indicators and action buttons
+   153→   - Alert summary statistics (Critical, High Priority, Pending, Resolved)
+   154→
+   155→2. **CreditScoringEngine.tsx** - Interactive credit scoring simulation
+   156→   - Credit score visualization (0-1000 scale with color zones)
+   157→   - Score breakdown with 5 weighted factors:
+   158→     - CRB History (30%)
+   159→     - Repayment Behavior (25%)
+   160→     - Income Stability (20%)
+   161→     - Loan Utilization (15%)
+   162→     - Tenure/Customer Age (10%)
+   163→   - Adjustable sliders for real-time score simulation
+   164→   - Radar chart for factor performance visualization
+   165→   - Recommendation badges: Approve / Approve with Conditions / Refer / Decline
+   166→   - Pre-loaded sample Kenyan applicant data
+   167→
+   168→3. **EligibilityRulesEditor.tsx** - Eligibility criteria configuration
+   169→   - Rules table with 9 pre-built Kenyan DCP rules:
+   170→     - Minimum age: 18 years
+   171→     - Maximum age: 65 years
+   172→     - Valid National ID required
+   173→     - CRB clearance check
+   174→     - M-Pesa account age > 6 months
+   175→     - Monthly income > KSh 15,000
+   176→     - DTI ratio < 50%
+   177→     - Active loan count limit
+   178→     - Phone verification required
+   179→   - Toggle rules on/off with Switch component
+   180→   - Edit threshold values inline
+   181→   - Add custom rule dialog form
+   182→   - Category filtering and priority ordering
+   183→   - Regulatory reference guide for Kenyan DCP requirements
+   184→
+   185→4. **AffordabilityCalculator.tsx** - Borrower capacity assessment
+   186→   - Input fields: Monthly Income, Living Expenses, Dependents, Existing Loans, Other Debt
+   187→   - Calculated outputs:
+   188→     - Disposable Income
+   189→     - Recommended Max Loan Amount
+   190→     - Max Monthly Installment
+   191→     - DTI Ratio with traffic light indicator
+   192→   - Visual income breakdown bar chart
+   193→   - Net monthly income formula display
+   194→   - Warning messages when thresholds exceeded
+   195→   - Print/Share/Download report functionality
+   196→   - Loan term and interest rate parameters
+   197→
+   198→5. **BlacklistManager.tsx** - Blacklisted entity management
+   199→   - Comprehensive blacklist table with 8 sample entries
+   200→   - Blacklist types: Fraud Suspect, Identity Theft, Chronic Defaulter, Court Judgment, Suspicious Activity
+   201→   - Entity types: Customer, Phone, National ID, Device
+   202→   - Add to blacklist dialog with:
+   203→     - Reason field
+   204→     - Evidence upload area
+   205→     - Duration selection (permanent/temporary)
+   206→   - Search by name, phone, ID, or reason
+   207→   - Filter by type, status, entity category
+   208→   - Detail view dialog with full case information
+   209→   - Request removal workflow indication
+   210→   - Bulk CSV import/export buttons
+   211→   - Stats cards: Total, Active, Under Review, Permanent, Temporary
+   212→
+   213→6. **FraudDetectionPanel.tsx** - Real-time fraud monitoring
+   214→   - Real-time alerts feed with 6 sample alerts
+   215→   - Alert types: Multiple Applications, ID Mismatch, Unusual Location, Velocity Check, Device Risk, Synthetic Identity
+   216→   - Fraud Scoring Matrix table (Critical/High/Medium/Low thresholds)
+   217→   - Severity-based auto-actions and SLAs
+   218→   - Alert detail panel with:
+   219→     - Applicant info (name, phone, ID, IP, device fingerprint)
+   220→     - Risk indicators list
+   221→     - Recommended action
+   222→     - Case notes
+   223→   - Case management actions: Investigate | Block | Allow | Escalate
+   224→   - Historical statistics: Blocked this month, Escalated to DCI, False positive rate, Avg response time
+   225→
+   226→7. **CreditPolicyViewer.tsx** - Policy document viewer
+   227→   - Document-style view of active credit policies
+   228→   - 4 major policy sections:
+   229→     - Lending Criteria & Eligibility
+   230→     - Interest Rates & Pricing
+   231→     - Collateral Requirements
+   232→     - Exceptions Process
+   233→   - Version history sidebar with change log
+   234→   - Policy comparison mode (current vs previous version)
+   235→   - Approval status badges: Draft | Under Review | Active | Archived
+   236→   - Download/print functionality
+   237→   - Regulatory reference box (CBK DCP Regulations, Consumer Protection Act, etc.)
+   238→   - Full Kenyan regulatory compliance context
+   239→
+   240→8. **index.ts** - Component exports
+   241→   - Clean exports for all 7 components
+   242→   - TypeScript type exports for all interfaces
+   243→
+   244→---
+   245→
+   246→## TypeScript Interfaces Defined
+   247→
+   248→| Interface | File | Purpose |
+   249→|-----------|------|---------|
+   250→| `RiskKPI`, `RiskGradeData`, `RiskAlert` | RiskDashboard.tsx | Dashboard data structures |
+   251→| `ScoreFactor`, `CreditApplicant`, `CreditAssessment` | CreditScoringEngine.tsx | Credit scoring data |
+   252→| `EligibilityRule` | EligibilityRulesEditor.tsx | Rule configuration |
+   253→| `AffordabilityInput`, `AffordabilityResult` | AffordabilityCalculator.tsx | Calculator I/O |
+   254→| `BlacklistedEntity` | BlacklistManager.tsx | Blacklist entries |
+   255→| `FraudAlert` | FraudDetectionPanel.tsx | Fraud alert data |
+   256→| `CreditPolicy`, `PolicySection` | CreditPolicyViewer.tsx | Policy documents |
+   257→
+   258→---
+   259→
+   260→## Technical Implementation Details
+   261→
+   262→### Libraries Used
+   263→- **shadcn/ui**: Card, Table, Button, Badge, Dialog, Input, Select, Tabs, Slider, Switch, Progress, Separator, ScrollArea, Label, Textarea
+   264→- **Recharts**: BarChart, RadarChart with ResponsiveContainer for visualizations
+   265→- **Lucide React**: Consistent icon set across all components
+   266→
+   267→### Design Patterns
+   268→- All components use 'use client' directive
+   269→- Responsive mobile-first design
+   270→- Dark mode support via Tailwind dark: variants
+   271→- KES currency formatting throughout
+   272→- Kenyan DCP context in all mock data
+   273→- Color-coded severity/status indicators
+   274→- Traffic light UI patterns for risk levels
+   275→
+   276→### Mock Data Features
+   277→- Realistic Kenyan names and phone numbers (+254 format)
+   278→- KES currency values appropriate for Kenyan market
+   279→- CRB (Credit Reference Bureau) references
+   280→- M-Pesa integration context
+   281→- CBK (Central Bank of Kenya) regulatory references
+   282→- DCP-specific terminology and requirements
+   283→
+   284→---
+   285→
+   286→## Lint Status
+   287→✅ **PASSES** - No ESLint errors in risk module files
+   288→
+   289→---
+   290→
+   291→## Notes
+   292→- All 7 components fully functional with interactive features
+   293→- Ready for integration into main dashboard navigation
+   294→- Exported via index.ts for clean imports
+   295→- Follows existing project design patterns and conventions
+   296→
+   297→---
+   298→
+   299→# Task ID: 2-c
+   300→## Date: 2026-01-20
+   301→## Status: COMPLETED
+   302→
+   303→---
+   304→
+   305→## Summary
+   306→
+   307→Built a comprehensive **Customer Profile Detail View** for the Digital Lending OS platform. This is a complete 360-degree customer profile page with 6 tabbed sections, designed for Kenya's 252 DCPs (Digital Credit Providers).
+   308→
+   309→---
+   310→
+   311→## Files Created
+   312→
+   313→### Customer Profile Components (`src/components/lending-os/customers/`)
+   314→
+   315→1. **`types.ts`** - Complete TypeScript interfaces for all customer data types:
+   316→   - `CustomerProfile` - Main customer entity with personal, financial, and status fields
+   317→   - `CustomerQuickStats` - Summary statistics for quick display
+   318→   - `ActivityEvent` - Timeline activity events (login, payment, loan disbursed, etc.)
+   319→   - `AccountHealth` - Repayment metrics and account indicators
+   320→   - `KYCVerification` - Identity verification statuses (ID, M-Pesa, CRB, Face, Address)
+   321→   - `KYCDocument` - Document upload records with verification status
+   322→   - `LoanRecord` - Full loan details with payment schedule
+   323→   - `PaymentRecord` - Payment transaction records
+   324→   - `DocumentFile` - General document repository entries
+   325→   - `CustomerNote` - CRM-style internal notes with mentions/attachments
+   326→   - `PaymentSummaryByMonth`, `PaymentMethodBreakdown` - Aggregated payment analytics
+   327→
+   328→2. **`mock-data.ts`** - Realistic mock data for Kenyan customers:
+   329→   - Sample customer: Grace Wanjiku (+254 phone, KES amounts)
+   330→   - 10 recent activity events
+   331→   - 5 KYC verifications (all verified)
+   332→   - 4 KYC documents with thumbnails
+   333→   - 6 loans (active, paid, defaulted)
+   334→   - 14 payment transactions
+   335→   - 10 documents across categories
+   336→   - 7 CRM notes with different types
+   337→   - Monthly payment summaries and method breakdown for charts
+   338→
+   339→3. **`CustomerProfilePage.tsx`** - Main container component:
+   340→   - Header section with avatar, full name, phone (+254 format), Customer ID, member since date
+   341→   - Quick stats bar: Active Loans, Total Borrowed, Total Repaid, Credit Score, Status
+   342→   - Credit utilization progress bar with available credit indicator
+   343→   - Action buttons: Edit Profile, New Loan Application, Send SMS, View Documents
+   344→   - Tab navigation: Overview | KYC & Identity | Loan History | Payment History | Documents | Notes
+   345→   - Responsive layout with proper mobile support
+   346→
+   347→4. **`CustomerOverviewTab.tsx`** - Overview dashboard:
+   348→   - Next Payment Due card with date, amount, countdown badge
+   349→   - Available Credit Limit card with progress visualization
+   350→   - Utilization Ratio card with used/available/total breakdown
+   351→   - Account Health Indicators:
+   352→     - Repayment Track Record (% on-time) with color-coded progress
+   353→     - Loan Utilization Ratio with health assessment
+   354→     - Account Age with visual progress bar
+   355→     - Last Payment days and Average Delay metrics
+   356→   - Recent Activity Timeline (last 10 events):
+   357→     - Color-coded icons by event type
+   358→     - Relative timestamps (e.g., "2h ago")
+   359→     - Metadata badges (device, transaction IDs)
+   360→   - Quick Actions panel: Approve Limit Increase, Flag for Review, Add Note
+   361→
+   362→5. **`KYCIdentityTab.tsx`** - Identity verification management:
+   363→   - KYC Completion Overview:
+   364→     - Circular progress indicator showing completion %
+   365→     - Status badge (Fully Verified / Nearly Complete / In Progress)
+   366→   - Identity Verification Cards (5 types):
+   367→     - National ID: Verified/Pending/Failed with masked ID number
+   368→     - M-Pesa Verification: Phone match confirmation
+   369→     - CRB Status: Clear/Listed with last checked date
+   370→     - Face Recognition: Confidence score & liveness detection
+   371→     - Address Verification: Method and utility provider
+   372→   - Document Uploads Grid (4 documents):
+   373→     - Thumbnail placeholders with type icons
+   374→     - Verified/Unverified/Rejected status badges
+   375→     - Liveness score badge for selfie photos
+   376→     - Hover overlay with Preview/Download buttons
+   377→     - Verify/Reject action buttons (staff-only)
+   378→   - Re-check button for pending/failed verifications
+   379→
+   380→6. **`LoanHistoryTab.tsx`** - Comprehensive loan history:
+   381→   - Summary Stats Cards: Total Loans, Total Disbursed, Total Repaid, Active Loans
+   382→   - Filterable Data Table:
+   383→     - Columns: Loan ID, Product, Amount, Term, Date, Status, Balance, Paid % (progress bar)
+   384→     - Search by loan number or product name
+   385→     - Filter by status (Active, Paid, Defaulted, In Arrears)
+   386→     - Filter by product type
+   387→   - Expandable Rows showing:
+   388→     - Payment Schedule mini-table (installments, due dates, amounts, status)
+   389→     - Payment History Summary (individual payments with running balance)
+   390→     - Loan Details Summary (interest rate, total repayable, disbursement method, next payment)
+   391→   - Export to CSV functionality
+   392→   - Status badges with color coding
+   393→
+   394→7. **`PaymentHistoryTab.tsx** - Payment transactions:
+   395→   - Summary Cards: Total Payments, Transaction Count, Avg. Transaction Size
+   396→   - Monthly Grouped Transactions:
+   397→     - Collapsible month headers with total and count
+   398→     - Individual transaction rows within each month
+   399→     - Columns: Date, Loan Ref, Amount, Method (with icon), Transaction ID, Status, Running Balance
+   400→     - Receipt download button per completed transaction
+   401→   - Filters: Search, Payment Method (M-Pesa, Bank Transfer, Cash, STK Push), Status
+   402→   - Payment Method Breakdown Pie Chart (Recharts):
+   403→     - Visual distribution by method
+   404→     - Legend with amounts and percentages
+   405→     - Detailed breakdown list below chart
+   406→   - Export to CSV functionality
+   407→
+   408→8. **`DocumentsTab.tsx** - Document repository:
+   409→   - Grid/List view toggle
+   410→   - Category Stats Cards (KYC Documents, Loan Applications, Contracts, Correspondence)
+   411→   - Upload Dialog with drag-and-drop zone:
+   412→     - Drag & drop or click to browse
+   413→     - File type and size validation hints
+   414→     - Bulk upload indication
+   415→   - Document Cards (Grid View):
+   416→     - File type icon based on MIME type
+   417→     - Category badge
+   418→     - Hover overlay with Preview/Download buttons
+   419→     - File name, size, upload date, uploader name
+   420→     - Verified/Unverified status badge
+   421→     - Delete button with confirmation dialog
+   422→   - Table View with sortable columns
+   423→   - Preview Modal with document details
+   424→   - Download functionality
+   425→   - Empty state with clear filters option
+   426→
+   427→9. **`CustomerNotesTab.tsx`** - CRM notes system:
+   428→   - Add New Note Form:
+   429→     - Note Type selector (Call, Email, Visit, System, Other)
+   430→     - Content textarea with @mention support
+   431→     - Staff mention suggestions popup when typing @
+   432→     - Private/Internal visibility toggles
+   433→     - Attachment upload placeholder
+   434→   - Notes Timeline:
+   435→     - Pinned notes appear at top with highlight
+   436→     - Color-coded note type icons and badges
+   437→     - Author name, role, and timestamp
+   438→     - Collapsible long content (show more/less)
+   439→     - Pin/Unpin toggle per note
+   440→     - Visibility indicators (private/internal)
+   441→     - Attachments count display
+   442→     - @mentions as clickable badges
+   443→   - Filters: Search content/authors, Filter by type, Filter by author
+   444→   - Relative timestamps ("2h ago", "3d ago")
+   445→
+   446→10. **`index.ts`** - Barrel exports for all components, types, and mock data
+   447→
+   448→---
+   449→
+   450→## Technical Implementation Details
+   451→
+   452→### Component Architecture
+   453→- All components are 'use client' for interactivity
+   454→- Proper TypeScript typing throughout
+   455→- Consistent design patterns matching existing LenderDashboard
+   456→- Responsive mobile-first layouts using Tailwind CSS grid/flexbox
+   457→
+   458→### UI Components Used (shadcn/ui)
+   459→- Card, CardContent, CardHeader, CardTitle, CardDescription
+   460→- Button (with variants: default, outline, ghost, destructive)
+   461→- Badge (custom color variants for status display)
+   462→- Tabs, TabsList, TabsTrigger, TabsContent
+   463→- Table, TableBody, TableCell, TableHead, TableHeader, TableRow
+   464→- Input, Textarea, Select (with custom triggers)
+   465→- Dialog, AlertDialog (for confirmations)
+   466→- Progress (for percentages and utilization)
+   467→- Avatar, AvatarFallback
+   468→- Separator, ScrollArea
+   469→- Tooltip (via Lucide pattern)
+   470→
+   471→### Charts (Recharts)
+   472→- PieChart in PaymentHistoryTab for payment method breakdown
+   473→- ResponsiveContainer for responsive sizing
+   474→- Custom tooltip styling to match dark theme
+   475→
+   476→### Mock Data Characteristics
+   477→- Kenyan names (Grace Wanjiku, Peter Ochieng, Jane Muthoni, etc.)
+   478→- +254 formatted phone numbers
+   479→- KES currency formatting (KSh XX,XXX)
+   480→- Realistic Kenyan context (M-Pesa, Safaricom PLC, Nairobi counties, Kenya Power bills)
+   481→- Credit scores in typical range (500-750)
+   482→- Realistic loan terms (14-180 days)
+   483→
+   484→### State Management
+   485→- React useState for local component state
+   486→- React useMemo for filtered/computed data
+   487→- useCallback for event handlers
+   488→- useRef for textarea focus management
+   489→
+   490→---
+   491→
+   492→## Issues Encountered & Resolved
+   493→
+   494→1. **Missing Import Error**: `Input` component not imported in CustomerNotesTab.tsx
+   495→   - Fixed by adding import statement
+   496→
+   497→2. **Variable Access Order Error**: `filteredPayments` accessed before declaration in PaymentHistoryTab.tsx
+   498→   - Fixed by reordering useMemo hooks - filter first, then group by month
+   499→
+   500→3. **Image Alt Prop Warnings**: Lucide `Image` icon confused with HTML `<img>` element
+   501→   - Fixed by renaming import to `ImageIcon` (import aliasing)
+   502→
+   503→---
+   504→
+   505→## Lint Status
+   506→✅ **PASSES** - No ESLint errors in customer components (0 errors, 0 warnings)
+   507→
+   508→---
+   509→
+   510→## Notes
+   511→- All files located at: `/home/z/my-project/src/components/lending-os/customers/`
+   512→- Components can be imported via barrel export: `from '@/components/lending-os/customers'`
+   513→- Ready for integration into main application routing
+   514→- Mock data can be replaced with API calls when backend is ready
+   515→
+   516→---
+   517→
+   518→# Task ID: 2-d
+   519→## Date: 2026-01-20
+   520→## Status: COMPLETED
+   521→
+   522→---
+   523→
+   524→## Summary
+   525→
+   526→Built a comprehensive **Collections Module** for the Digital Lending OS platform targeting Kenya's 252 DCPs (Digital Credit Providers). This module provides complete collections management capabilities including dashboard analytics, overdue loan tracking, agent queue management, promise-to-pay workflows, PAR calculations, call history, and SMS campaign builder.
+   527→
+   528→---
+   529→
+   530→## Files Created/Modified
+   531→
+   532→### Collections Components (`src/components/lending-os/collections/`)
+   533→
+   534→1. **`CollectionsDashboard.tsx`** - Enhanced main collections dashboard (Modified)
+   535→   - **KPI Cards Row**: Total Overdue Amount, PAR >30 Days, Collection Rate (%), Active Agents
+   536→   - **PAR Bucket Donut Chart**: Using Recharts PieChart showing 1-30, 31-60, 61-90, 91-120, 120+ days distribution
+   537→   - **Collection Trend Line Chart**: Daily collections vs target over last 30 days using Recharts LineChart
+   538→   - **Aging Summary Table**: Buckets with count, principal, interest, fees, total columns
+   539→   - Exports all sub-components for individual use
+   540→
+   541→2. **`OverdueLoansTable.tsx`** - Enhanced data table with full functionality (Rewritten)
+   542→   - **Columns**: Loan ID, Customer Name/Phone, Principal, Days Overdue, PAR Bucket, Last Contact, Agent, Actions
+   543→   - **Filters**: 
+   544→     - PAR bucket dropdown (1-7, 8-30, 31-60, 61-90, 91-120, 120+ days)
+   545→     - Agent selector dropdown
+   546→     - Amount range (min/max)
+   547→   - **Search**: By customer name, phone number, or loan ID
+   548→   - **Bulk Actions**: Assign agent, Send SMS, Add to call queue
+   549→   - **Row Actions**: View details, Log Promise-to-Pay, Initiate Call, Send SMS
+   550→   - **Mock Data**: 18 realistic Kenyan customers (+254 phones)
+   551→   - Pagination with page controls
+   552→   - Sortable columns with direction indicators
+   553→
+   554→3. **`CollectionQueue.tsx`** - Kanban-style agent collection queue (New)
+   555→   - **5 Status Columns**: Pending | Called | Promised | Paid | Broken Promise
+   556→   - **Queue Item Cards**:
+   557→     - Customer name and phone number
+   558→     - Amount due with color coding
+   559→     - Promise date and amount (when applicable)
+   560→     - Call attempt counter
+   561→     - Priority indicator (high/medium/low with colored border)
+   562→   - **Quick Action Buttons per card**:
+   563→     - Call (simulated with toast)
+   564→     - SMS
+   565→     - Update Promise (opens dialog)
+   566→     - Mark Collected
+   567→   - **Drag handle** for visual reordering indication
+   568→   - **Summary Stats Bar**: Count of items in each status column
+   569→   - **Filters**: Search by customer, filter by status, filter by priority
+   570→   - **Update Promise Dialog**: Edit amount, date, notes
+   571→   - **Add Note Dialog**: Add collection notes to queue item
+   572→
+   573→4. **`PromiseToPayForm.tsx`** - Enhanced promise-to-pay modal form (New)
+   574→   - **Loan Summary Card**: Customer avatar, name, phone, loan number, outstanding balance
+   575→   - **Form Fields**:
+   576→     - Promised Amount (KSh input with validation)
+   577→     - Quick amount buttons (25%, 50%, 75%, 100% of outstanding)
+   578→     - Promise Date (Calendar picker, max 90 days future)
+   579→     - Payment Method selector (M-Pesa, Bank Transfer, Cash, Other)
+   580→     - Notes textarea (optional)
+   581→   - **Confirmation Options**:
+   582→     - Send SMS confirmation checkbox (recommended)
+   583→     - Send WhatsApp confirmation checkbox
+   584→   - **Validation Rules**:
+   585→     - Amount must be positive number
+   586→     - Amount cannot exceed outstanding balance
+   587→     - Promise date must be future date
+   588→     - Promise date cannot exceed 90 days from today
+   589→   - **Success State Animation**:
+   590→     - Bouncing checkmark icon
+   591→     - Party popper celebration icon
+   592→     - Summary card with all recorded data
+   593→     - Confirmation method indicators
+   594→   - Exports `PromiseData` interface for external use
+   595→
+   596→5. **`PARCalculator.tsx`** - Real-time PAR calculator with visual gauge (New)
+   597→   - **PAR Metrics Display**:
+   598→     - PAR >1 Day, >7 Days, >30 Days (main regulatory), >60 Days, >90 Days, >180 Days
+   599→   - **Custom SVG Gauge Component** (`PARGauge`):
+   600→     - Color-coded zones (green/yellow/orange/red)
+   601→     - Smooth animated transitions
+   602→     - Percentage-based arc rendering
+   603→     - Status labels (Excellent/Good/Average/Poor/Critical)
+   604→   - **Portfolio Summary Panel**:
+   605→     - Total Portfolio value
+   606→     - Overdue Amount
+   607→     - At Risk amount (PAR30 calculation)
+   608→     - Coverage Ratio percentage
+   609→     - Trend indicator (improving/worsening vs last month)
+   610→   - **Kenya DCP Industry Comparison Card**:
+   611→     - Visual progress bar comparison to 15% industry average
+   612→     - Zone legend (Excellent <5%, Good 5-10%, Average 10-15%, Poor 15-20%, Critical >20%)
+   613→     - Quick stats grid with benchmark values
+   614→   - **Formula Explanation Section**:
+   615→     - Mathematical formula display
+   616→     - Key points about PAR calculation
+   617→     - CBK regulatory context
+   618→   - **Compact Mode Prop**: For embedding in smaller spaces
+   619→   - Refresh button to simulate data updates
+   620→
+   621→6. **`CallHistoryPanel.tsx`** - Timeline-style call history viewer (New)
+   622→   - **Stats Cards Row**:
+   623→     - Total Calls
+   624→     - Connection Rate (%)
+   625→     - Promises Made / Kept / Broken counts
+   626→   - **Timeline View**:
+   627→     - Vertical timeline line with dots at each record
+   628→     - Color-coded outcome icons
+   629→     - Method icons (Phone, SMS, WhatsApp, Email)
+   630→     - Expandable cards with click-to-expand
+   631→   - **Call Record Details**:
+   632→     - Date/time formatted display
+   633→     - Duration (mm:ss format)
+   634→     - Outcome badge with color coding
+   635→     - Agent name
+   636→     - Notes preview in styled box
+   637→     - Promise amount/date when applicable (green highlight box)
+   638→   - **Add New Call Record Form**:
+   639→     - Contact Method selector (call/sms/whatsapp/email)
+   640→     - Outcome selector (9 options: contacted, no_answer, busy, wrong_number, callback_requested, promised_to_pay, broken_promise, refused_payment, payment_arrangement)
+   641→     - Duration field (for calls)
+   642→     - Promise amount/date fields (when outcome is promise-related)
+   643→     - Notes textarea (required)
+   644→   - **Filters**:
+   645→     - Search notes/agent names
+   646→     - Outcome type dropdown
+   647→     - Contact method dropdown
+   648→   - **Quick Actions on Expanded Records**: Call Back, Send SMS
+   649→   - **7 Sample Call Records** with realistic Kenyan context
+   650→
+   651→7. **`SMSCampaignBuilder.tsx`** - Bulk SMS campaign creation tool (New)
+   652→   - **3-Tab Interface**:
+   653→     - **Compose Tab**:
+   654→       - Campaign Name input
+   655→       - Message Template Selection (4 pre-built templates):
+   656→         - Payment Reminder
+   657→         - Urgent/Final Notice
+   658→         - Friendly Reminder
+   659→         - Promise Follow-up
+   660→       - Message Editor with character/SMS count
+   661→       - Template Variables Reference ({name}, {amount}, {days_overdue}, {due_date}, {loan_number}, {company})
+   662→       - Click-to-insert variable buttons
+   663→       - Schedule Options (Send Now / Schedule Later)
+   664→       - DateTime picker for scheduled sends
+   665→     - **Recipients Tab**:
+   666→       - 4 Selection Methods:
+   667→         - All Overdue Customers (183 contacts)
+   668→         - By PAR Bucket (with bucket-specific counts)
+   669→         - Saved Segment (from predefined segments)
+   670→         - Manual Phone Entry (with validation)
+   671→       - Manual entry supports +254 and 07 formats
+   672→       - Recipient badges with remove option
+   673→       - Cost estimate summary card
+   674→     - **Preview Tab**:
+   675→       - Personalized message preview for first 5 recipients
+   676→       - Search/filter recipients in preview
+   677→       - Message bubble styling (green for outgoing)
+   678→       - Per-message stats (chars, SMS count, cost)
+   679→   - **Cost Estimation**:
+   680→     - Real-time cost calculation based on recipient count
+   681→     - KSh 1.2 per SMS (Kenyan market rate)
+   682→     - Multi-SMS message splitting awareness
+   683→   - **Confirm Dialog**:
+   684→     - Campaign summary review
+   685→     - Cost breakdown
+   686→     - Scheduled time display (if applicable)
+   687→     - Warning about irreversible action
+   688→     - Processing animation on submit
+   689→   - **4 Pre-built Message Templates** with Kenyan DCP context
+   690→   - **3 Saved Segments** example data
+   691→
+   692→8. **`types.ts`** - Enhanced TypeScript interfaces (Updated)
+   693→   - Added SMS Campaign types: `SMSCampaignRecipientType`, `SMSCampaignScheduleType`, `SMSMessageTemplate`, `SMSCampaign`, `SavedSegment`
+   694→   - Added Call History types: `CallOutcome`, `CallRecord`
+   695→   - Added Queue types: `QueueItemStatus`, `QueueItem`
+   696→   - Added PAR Calculator types: `PARData`, `PARBenchmark`
+   697→
+   698→---
+   699→
+   700→## Technical Implementation Details
+   701→
+   702→### Libraries Used
+   703→- **shadcn/ui**: Card, Table, Button, Badge, Dialog, Input, Select, Tabs, Checkbox, Progress, Separator, ScrollArea, Label, Textarea, Calendar, Popover, Tooltip, Sheet, Skeleton, RadioGroup
+   704→- **Recharts**: PieChart, LineChart with ResponsiveContainer, Cell, Tooltip, Legend, XAxis, YAxis, CartesianGrid
+   705→- **Lucide React**: Consistent icon set across all components
+   706→- **date-fns**: Date formatting utilities
+   707→
+   708→### Design Patterns
+   709→- All components use 'use client' directive
+   710→- Responsive mobile-first design
+   711→- Dark mode support via Tailwind dark: variants
+   712→- KES currency formatting throughout
+   713→- Kenyan DCP context in all mock data
+   714→- Color-coded severity/status indicators
+   715→- SVG custom components for gauges/meters
+   716→- Kanban board layout pattern for Collection Queue
+   717→- Timeline pattern for Call History
+   718→
+   719→### Key Features
+   720→- **Real-time filtering and search** with useMemo optimization
+   721→- **Form validation** with inline error messages
+   722→- **Success states** with animations and confirmations
+   723→- **Bulk actions** with selection state management
+   724→- **Pagination** for large datasets
+   725→- **Sortable table columns**
+   726→- **Export-ready component structure**
+   727→
+   728→---
+   729→
+   730→## Mock Data Characteristics
+   731→- 18+ overdue loans with realistic Kenyan data
+   732→- Names: John Kamau Mwangi, Faith Achieng Oloo, Peter Njoroge Kimani, Mary Wanjiru Ndungu, etc.
+   733→- Phones: +254712345678, +254723456789 format
+   734→- Loan amounts: KSh 15,000 - KSh 150,000
+   735→- Arrears ranges: 2 - 145 days
+   736→- Products: Personal Loan, Business Loan, Salary Advance, Emergency Loan, Asset Finance
+   737→- Collection agents: Sarah Chen, James Omondi, Grace Wanjiku, Peter Kamau
+   738→
+   739→---
+   740→
+   741→## Issues Encountered & Resolved
+   742→
+   743→1. **JSX Parsing Error in PromiseToPayForm.tsx**: Multiple DialogContent components not properly nested
+   744→   - Fixed by restructuring to use single DialogContent with conditional content rendering
+   745→   
+   746→2. **Comment Text Node Error in SMSCampaignBuilder.tsx**: Comment outside JSX braces
+   747→   - Fixed by converting `/* comment */` to `{/* comment */}` format
+   748→
+   749→---
+   750→
+   751→## Lint Status
+   752→✅ **PASSES** - No ESLint errors in collections module files (0 errors, 0 warnings)
+   753→
+   754→---
+   755→
+   756→## Notes
+   757→- All files located at: `/home/z/my-project/src/components/lending-os/collections/`
+   758→- Components exported via CollectionsDashboard barrel exports
+   759→- Ready for integration into main application routing
+   760→- Mock data can be replaced with API calls when backend is ready
+   761→- All components follow existing project design patterns and conventions
+   762→
+   763→---
+   764→
+   765→# Task ID: 2-e
+   766→## Date: 2026-01-20
+   767→## Status: COMPLETED
+   768→
+   769→---
+   770→
+   771→## Summary
+   772→
+   773→Built a comprehensive **Financial Management & Ledger Module** for the Digital Lending OS platform targeting Kenya's 252 DCPs (Digital Credit Providers). This module provides complete financial management capabilities including dashboard analytics, double-entry accounting ledger, multi-account wallet management, transaction history with advanced filtering, bank reconciliation wizard, financial statements generation, and disbursement queue management.
+   774→
+   775→---
+   776→
+   777→## Files Created
+   778→
+   779→### Finance Components (`src/components/lending-os/finance/`)
+   780→
+   781→1. **`FinanceDashboard.tsx`** - Main financial dashboard with KPI cards and charts
+   782→   - **KPI Cards (4)**:
+   783→     - Total Portfolio Value (outstanding principal) - KSh 45.85M
+   784→     - Cash Balance (wallet + float + reserve) - KSh 4.85M
+   785→     - Collections Today vs Target with progress bar
+   786→     - Disbursements Today (count + amount)
+   787→   - **Cash Position Chart**: Stacked AreaChart showing Wallet, Float, Reserve accounts over 30 days
+   788→   - **Income vs Expense Trend**: LineChart comparing revenue vs expenses over 30 days
+   789→   - **Quick Links Panel**: Reconcile Accounts, View Ledger, Generate Statement, Provider Balances
+   790→   - **Summary Stats Row**: Active Loans, Collection Rate, PAR>30, Monthly Revenue/Expenses, Recon Status
+   791→   - Uses Recharts library for visualizations
+   792→
+   793→2. **`AccountLedgerView.tsx`** - Double-entry accounting ledger table
+   794→   - **Columns**: Date, Entry ID, Description, Debit Account, Credit Account, Debit Amount, Credit Amount, Running Balance, Reference, User, Reconciliation Status
+   795→   - **Category Filter Dropdown**: All / Disbursement / Collection / Fee / Interest / Penalty / Write-off / Adjustment
+   796→   - **Date Range Filter**: Start and End date pickers
+   797→   - **Search**: By description, reference, or account name
+   798→   - **Pagination**: Shows "Showing X-Y of Z entries" with page navigation
+   799→   - **Running Balance Column**: Cumulative balance calculation
+   800→   - **Export to CSV/PDF**: Download functionality
+   801→   - **Color Coding**: Debits in red, Credits in emerald green
+   802→   - **Expandable Rows**: Shows full double-entry visualization, entry details, and action buttons
+   803→   - 85+ mock entries with realistic Kenyan data
+   804→
+   805→3. **`WalletAccountsPanel.tsx`** - Multi-account wallet management view
+   806→   - **5 Account Types**:
+   807→     - Operating Account (main) - KSh 2.85M
+   808→     - Disbursement Float Account - KSh 1.5M
+   809→     - Collection Account - KSh 4.25M
+   810→     - Reserve Fund Account - KSh 800K
+   811→     - Fees Account - KSh 450K
+   812→   - **Per-Account Display**:
+   813→     - Account name + masked number (****XXXX)
+   814→     - Current balance (large display)
+   815→     - Available balance (if different from current)
+   816→     - Pending transactions count badge
+   817→     - Last reconciled date with status (Reconciled/Overdue)
+   818→     - Daily limit utilization progress bar (where applicable)
+   819→   - **Visual Design**: Color-coded gradient headers per account type
+   820→   - **Transfer Between Accounts Modal**:
+   821→     - Source/Destination account selectors
+   822→     - Amount input
+   823→     - Optional reference field
+   824→     - Processing animation
+   825→   - **Summary Footer**: Total portfolio value, available balance, reconciliation status counts
+   826→
+   827→4. **`TransactionHistory.tsx`** - Comprehensive transaction listing
+   828→   - **Filters**:
+   829→     - Account selector (Collection, Disbursement Float, Operating, Fee)
+   830→     - Type filter (Disbursement, Principal, Interest, Fee, Penalty, Refund, Transfer)
+   831→     - Status filter (Completed, Pending, Failed)
+   832→     - Date range picker
+   833→     - Min/Max amount range
+   834→     - Full-text search (reference, description, customer)
+   835→   - **Group By Options**: Date / Account / Category
+   836→   - **Transaction Detail Expansion**:
+   837→     - Double-entry accounting visualization (Debit/Credit accounts and amounts)
+   838→     - Related loan/customer info (Loan #, Customer Name, Phone, Product)
+   839→     - Provider reference (M-Pesa receipt # or Bank ref #)
+   840→     - Created by user + timestamp
+   841→   - **Reconciliation Status Badge**: Reconciled / Unreconciled / Flagged
+   842→   - **Type Badges**: Color-coded by transaction type
+   843→   - **Direction Indicators**: Credit (green +) / Debit (red -)
+   844→   - **Detail Dialog Modal**: Full transaction information view
+   845→   - 120+ mock transactions with realistic data
+   846→
+   847→5. **`ReconciliationModule.tsx`** - Bank reconciliation wizard module
+   848→   - **Accounts Dashboard**: List of accounts needing reconciliation with:
+   849→     - Days since last reconciliation
+   850→     - Status badges (Current / Due Soon / Overdue)
+   851→     - Pending items count
+   852→     - Current balance
+   853→     - Click to start reconciliation
+   854→   - **6-Step Reconciliation Wizard**:
+   855→     1. Select Account & Period (account dropdown, date range)
+   856→     2. Import Statement (CSV/Excel upload simulation)
+   857→     3. Auto-Match Entries (progress indicator, confidence scores)
+   858→     4. Review Matches (matched/unmatched internal/unmatched external tables)
+   859→     5. Calculate Variance (variance detection with threshold alert)
+   860→     6. Confirm & Report (summary, confirmation dialog)
+   861→   - **Step Indicator**: Visual progress bar showing all steps
+   862→   - **Match Results**:
+   863→     - Matched transactions with confidence % badges
+   864→     - Unmatched internal records with manual match option
+   865→     - Unmatched bank entries with manual match option
+   866→   - **Variance Threshold Alert**: Warning if variance > KES 100
+   867→   - **Reconciliation History Table**:
+   868→     - Account, Period, Status (Completed/Variance Found/In Progress)
+   869→     - Matched/Unmatched counts, Variance amount
+   870→     - Completed by user, Date
+   871→   - **Export History**: Download button
+   872→
+   873→6. **`FinancialStatements.tsx`** - Tabbed financial statements viewer
+   874→   - **Period Selector**: This Month / Last Month / Quarter / YTD / Custom Range
+   875→   - **3 Statement Tabs**:
+   876→     
+   877→     **Balance Sheet**:
+   878→     - Assets section: Current Assets (5 cash accounts), Loans Receivable (by aging), Other Assets
+   879→     - Liabilities section: Current Liabilities, Long-term Liabilities
+   880→     - Equity section: Share Capital, Retained Earnings, Current Period Profit
+   881→     - Previous period comparison with % change indicators
+   882→     - Total Assets = Total Liabilities + Equity verification
+   883→     
+   884→     **Income Statement (P&L)**:
+   885→     - Revenue: Interest Income, Fee Income, Other Income (with sub-items)
+   886→     - Expenses: Cost of Funds, Operating Expenses (6 line items), Other Expenses
+   887→     - Net Income/Loss calculation with visual emphasis
+   888→     - Key Metrics: Gross Margin, Operating Margin, Net Margin %
+   889→     - Color-coded sections (green for revenue, red for expenses)
+   890→     
+   891→     **Cash Flow Statement**:
+   892→     - Operating Activities (8 line items with inflow/outflow)
+   893→     - Investing Activities (purchases)
+   894→     - Financing Activities (dividends, draws)
+   895→     - Net Change in Cash calculation
+   896→     - Opening/Closing Cash Balance
+   897→   - **% Change Indicators**: Compare to previous period with trend arrows
+   898→   - **Export Options**: Print, Export PDF, Export Excel buttons
+   899→   - **Print-Formatted View**: Clean layout for printing
+   900→
+   901→7. **`DisbursementQueue.tsx`** - Pending disbursements queue management
+   902→   - **Summary Cards**:
+   903→     - Pending count
+   904→     - Today Total / Completed / Failed
+   905→     - Daily Limit Utilization progress bar (with color thresholds)
+   906→   - **Filters**: Search, Status (Pending Approval/Approved/Processing/Completed/Failed), Priority
+   907→   - **Disbursement Table**:
+   908→     - Customer (name + phone)
+   909→     - Amount (KES formatted)
+   910→     - Account (M-Pesa icon + number OR Bank icon + masked account)
+   911→     - Loan Product
+   912→     - Time in Queue (with amber highlight if >30 min)
+   913→     - Priority badge (High/Normal/Low)
+   914→     - Status badge with icons
+   915→     - Actions (View, Retry failed, Cancel pending)
+   916→   - **Status Flow**: Pending Approval → Approved → Processing → Completed → Failed
+   917→   - **Bulk Actions**: Select All Approved, Release Selected button
+   918→   - **Detail Dialog**:
+   919→     - Customer Information panel
+   920→     - Disbursement Details panel (amount, loan #, product, priority)
+   921→     - Status & Timing (current status, time in queue, queued/processed at)
+   922→     - Provider Response (success/fail/pending with reference, error codes)
+   923→     - Retry Info (attempt X of Y with progress bar)
+   924→     - Action buttons (Retry, Cancel, Process Now)
+   925→   - **Failed Disbursement Retry**: One-click retry with retry counter
+   926→   - **Cancel Functionality**: Remove from queue before processing
+   927→   - 35 mock disbursements with Kenyan customer data
+   928→
+   929→---
+   930→
+   931→## TypeScript Interfaces Defined
+   932→
+   933→| Interface | File | Purpose |
+   934→|-----------|------|---------|
+   935→| `KPIData`, `CashPositionData`, `IncomeExpenseData`, `QuickLink` | FinanceDashboard.tsx | Dashboard data structures |
+   936→| `LedgerEntry`, `EntryCategory`, `LedgerFilters` | AccountLedgerView.tsx | Ledger entries and filters |
+   937→| `WalletAccount`, `TransferForm` | WalletAccountsPanel.tsx | Wallet accounts and transfers |
+   938→| `Transaction`, `TransactionFilters`, `TransactionType`, `GroupBy` | TransactionHistory.tsx | Transactions and grouping |
+   939→| `ReconciliationAccount`, `ReconciliationStep`, `MatchedItem`, etc. | ReconciliationModule.tsx | Reconciliation workflow |
+   940→| `FinancialStatementData`, `BalanceSheetData`, `IncomeStatementData`, `CashFlowData` | FinancialStatements.tsx | Financial statements |
+   941→| `DisbursementItem`, `QueueSummary`, `DisbursementStatus` | DisbursementQueue.tsx | Disbursement queue |
+   942→
+   943→---
+   944→
+   945→## Technical Implementation Details
+   946→
+   947→### Libraries Used
+   948→- **shadcn/ui**: Card, Table, Button, Badge, Dialog, Input, Select, Tabs, Progress, ScrollArea, Separator, Alert, Label, Tooltip
+   949→- **Recharts**: AreaChart, LineChart with ResponsiveContainer for charts
+   950→- **Lucide React**: Consistent icon set across all components (40+ icons used)
+   951→
+   952→### Design Patterns
+   953→- All components use 'use client' directive
+   954→- Responsive mobile-first design using Tailwind CSS grid/flexbox
+   955→- Dark mode support via Tailwind dark: variants
+   956→- KES currency formatting throughout (Intl.NumberFormat with en-KE locale)
+   957→- Kenyan DCP context in all mock data
+   958→- Color-coded status/severity indicators
+   959→- Loading states with skeleton/pulse animations
+   960→- Error states with retry functionality
+   961→
+   962→### Features Implemented
+   963→- **Charts**: Stacked area chart (cash position), Line chart (income vs expense)
+   964→- **Pagination**: Page navigation with item count display
+   965→- **Export**: CSV download, PDF/Excel export buttons
+   966→- **Search & Filter**: Multi-criteria filtering with real-time results
+   967→- **Expandable Rows**: Detailed information on demand
+   968→- **Modal Dialogs**: Transfer funds, View details, Confirmation dialogs
+   969→- **Progress Indicators**: Matching progress, Limit utilization, Retry attempts
+   970→- **Step Wizards**: 6-step reconciliation process with visual progress
+   971→- **Tabbed Interfaces**: Financial statements (3 tabs)
+   972→
+   973→### Mock Data Characteristics
+   974→- Realistic Kenyan names (John Kamau Mwangi, Sarah Wanjiku Njoroge, etc.)
+   975→- +254 formatted phone numbers
+   976→- KES currency values appropriate for Kenyan micro-lending market
+   977→- M-Pesa receipt numbers (QMJXXXXXXXX format)
+   978→- Bank references (CBA, KCB, Equity, NCBA, Co-op, Stanbic, Absa, I&M)
+   979→- Loan numbers (LN-2024-XXXXXX format)
+   980→- Transaction references (REF-XXXXXXXXX format)
+   981→- Journal entry IDs (JE-YYYYMMXXX format)
+   982→
+   983→---
+   984→
+   985→## Issues Encountered & Resolved
+   986→
+   987→1. **Parsing Error with '>' character**: JSX parsing error in FinanceDashboard.tsx "PAR >30 Days"
+   988→   - Fixed by escaping as `&gt;`
+   989→
+   990→2. **Missing Import - ArrowDownLeft**: Icon not imported in FinanceDashboard.tsx
+   991→   - Fixed by adding to lucide-react imports
+   992→
+   993→3. **Missing Import - CheckCircle2**: Icon not imported in AccountLedgerView.tsx
+   994→   - Fixed by adding to lucide-react imports
+   995→
+   996→---
+   997→
+   998→## Lint Status
+   999→✅ **PASSES** - No ESLint errors in all 7 finance module files
+  1000→
+  1001→---
+  1002→
+  1003→## Notes
+  1004→- All files located at: `/home/z/my-project/src/components/lending-os/finance/`
+  1005→- Components can be imported individually: `from '@/components/lending-os/finance/FinanceDashboard'`
+  1006→- Ready for integration into main application navigation
+  1007→- Mock data uses realistic KES amounts and Kenyan market context
+  1008→- All components follow existing project design patterns and conventions
+  1009→
+  1010→---
+  1011→
+  1012→# Task ID: 2-f
+  1013→## Date: 2026-01-20
+  1014→## Status: COMPLETED
+  1015→
+  1016→---
+  1017→
+  1018→## Summary
+  1019→
+  1020→Built a comprehensive **Provider Health Monitoring Dashboard** for the Digital Lending OS platform. This is a complete external provider monitoring system for Kenya's 252 DCPs, covering all critical integrations (M-Pesa, Bank Transfers, KYC, CRB, SMS, Email).
+  1021→
+  1022→---
+  1023→
+  1024→## Files Created
+  1025→
+  1026→### Provider Dashboard Components (`src/components/lending-os/providers/`)
+  1027→
+  1028→1. **`MpesaStatusPanel.tsx`** - Detailed M-Pesa/Daraja API monitoring:
+  1029→   - **STK Push Metrics**: Success rate (94.7%), avg completion time (18.5s), timeout rate (3.2%)
+  1030→   - **B2C Disbursements**: Success rate (98.3%), failed transactions count, avg processing time
+  1031→   - **C2B Repayments**: Payments received today (389), pending confirmation count (12)
+  1032→   - **Balance Display**: Working account balance (~4.5M KES), utility account, charges paid
+  1033→   - **Rate Limiting Status**: API quota used/available (1847/3000), reset timer
+  1034→   - **Recent Transactions Log**: Last 10 M-Pesa interactions with statuses and details
+  1035→   - **Error Analysis**: Common error codes with frequency counts (MPESA-5001, TIMEOUT, etc.)
+  1036→   - **Hourly Transaction Volume Chart** (AreaChart + LineChart)
+  1037→   - Tabs: Overview | Transactions | Errors
+  1038→
+  1039→2. **`CRBIntegrationMonitor.tsx`** - Three CRB bureau status monitoring:
+  1040→   - **Bureau Status Cards** (Metropol, TransUnion, CreditInfo):
+  1041→     - Connection status, response time (ms)
+  1042→     - Checks performed today, cost per check (KES)
+  1043→     - Queue depth, uptime today (%), success rate (%)
+  1044→   - **Check History Table**: Customer name, bureau checked, score returned, grade, time taken, cost, timestamp
+  1045→   - **Bureau Comparison**: Radar chart comparing Speed, Cost, Reliability, Data Quality, Coverage
+  1046→   - **Failure Handling**: Auto-retry count (47), fallback bureau usage (12), common failure reasons
+  1047→   - **Monthly CRB Spend Tracker vs Budget** (BarChart): July-December spend visualization
+  1048→   - Tabs: Overview | Check History | Comparison
+  1049→
+  1050→3. **`SMSGatewayMonitor.tsx`** - SMS gateway health monitoring:
+  1051→   - **Today's Metrics**: Sent (4,521), Delivered (4,389), Failed (89), Pending (43), Total Cost (KES 68,235)
+  1052→   - **Delivery Rate Trend** (AreaChart): 7-day delivered vs failed trend
+  1053→   - **Message Types Breakdown** (PieChart): Notifications (41%), OTP (27%), Collections (20%), Marketing (9%)
+  1054→   - **Recent Messages**: Last 20 SMS with masked recipient, message preview, status, time, cost
+  1055→   - **Gateway Balance**: Remaining credits (45,280) / Monthly quota (75,000), usage percentage
+  1056→   - **Throughput**: Current MPM (28), Peak today (52), Average (35)
+  1057→   - **Failed Messages Reasons**: Invalid number (38.2%), Network error (24.7%), Blocked (20.2%), etc.
+  1058→   - **Provider Connections**: Africa's Talking, Twilio, BulkSMS Kenya status cards
+  1059→   - Tabs: Overview | Messages | Failures
+  1060→
+  1061→4. **`KYCProviderStatus.tsx`** - KYC provider integration monitoring:
+  1062→   - **Verification Type Metrics** (ID, Selfie Liveness, Address, AML):
+  1063→     - Provider used (Smile Identity, Onfido, ComplyAdvantage)
+  1064→     - Success rate (%), avg processing time (s), cost per verification (KES)
+  1065→   - **Today's Verifications**: Total (1,861), Passed (1,723), Failed (98), Pending Review (40)
+  1066→   - **Fraud Attempts Blocked**: Count (24), common fraud types detected
+  1067→   - **Fraud Detection**: Recent attempts table with risk scores, types, status
+  1068→   - **SLA Compliance**: Target vs actual times per verification type, overall compliance (97.6%)
+  1069→   - **Provider Connections**: Smile Identity, Onfido, ComplyAdvantage status
+  1070→   - **Security Health Score**: Circular progress indicator (94/100)
+  1071→   - **Hourly Verification Volume & Fraud Attempts Chart**
+  1072→   - Tabs: Overview | Verification Types | Fraud Detection
+  1073→
+  1074→5. **`ProviderConfigManager.tsx`** - Configuration panel for each provider:
+  1075→   - **Provider Selection Sidebar**: All 6 providers with environment indicators
+  1076→   - **API Credentials Management**: Masked values, show/hide toggle, inline editing
+  1077→   - **Environment Toggle** (Sandbox/Live): With secondary confirmation dialog (danger zone styling)
+  1078→   - **Rate Limits Configuration**: Requests/sec, burst limit, daily quota with usage indicator
+  1079→   - **Retry Settings**: Max retries, backoff strategy (exponential/linear/fixed), delays
+  1080→   - **Webhook URLs**: Endpoint configuration with events list, active/inactive toggle
+  1081→   - **Timeout Thresholds**: Per-provider timeout configuration
+  1082→   - **Fallback Provider Ordering**: Drag-style priority list
+  1083→   - **Test Connection Button**: Shows success/fail with response time
+  1084→   - **Configuration Change History (Audit Log)**: Recent changes per provider
+  1085→   - **Quick Stats Panel**: Total providers, connected count, live/sandbox split
+  1086→
+  1087→6. **`IncidentTimeline.tsx`** (Enhanced): Historical incidents with full features:
+  1088→   - **Timeline View**: Timestamp, Provider, Issue type, Severity (P1-P4), Status (Investigating/Identified/Monitoring/Resolved)
+  1089→   - **Filters**: By provider, severity (P1-P4), status, date range (calendar picker)
+  1090→   - **MTTR Calculation & Trend**: Mean Time to Resolution chart over 4 weeks
+  1091→   - **Incident Summary Stats**: Total this month (41), Avg resolution time (98m), P1 count (3), P2 count (12)
+  1092→   - **MTTR Trend Indicator**: Improving/stable/degrading with percentage change (-18.5%)
+  1093→   - **Export Incident Report**: CSV download with all incident details
+  1094→   - **Expandable Details**: Impact, affected services, root cause, action buttons
+  1095→   - **Severity Color Coding**: P1=Red, P2=Orange, P3=Amber, P4=Blue
+  1096→
+  1097→---
+  1098→
+  1099→## Technical Implementation Details
+  1100→
+  1101→### Component Architecture
+  1102→- All components use 'use client' directive for interactivity
+  1103→- Comprehensive TypeScript interfaces for all data types
+  1104→- Consistent design patterns matching existing dashboard components
+  1105→- Responsive mobile-first layouts using Tailwind CSS grid/flexbox
+  1106→
+  1107→### UI Components Used (shadcn/ui)
+  1108→- Card, CardContent, CardHeader, CardTitle, CardDescription
+  1109→- Button (with variants: default, outline, ghost, destructive)
+  1110→- Badge (custom color variants for status display)
+  1111→- Tabs, TabsList, TabsTrigger, TabsContent
+  1112→- Table, TableBody, TableCell, TableHead, TableHeader, TableRow
+  1113→- Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+  1114→- Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger
+  1115→- Progress (for percentages, quotas, compliance rates)
+  1116→- Popover, Calendar (for date range selection)
+  1117→- Tooltip patterns via Lucide icons
+  1118→- Alert component for recommendations/warnings
+  1119→
+  1120→### Charts (Recharts)
+  1121→- **LineChart**: MTTR trend, delivery rate trends
+  1122→- **AreaChart**: Transaction volume with gradient fills
+  1123→- **BarChart**: Monthly spend vs budget, failure reasons, hourly volumes
+  1124→- **PieChart**: Message type breakdown with custom colors
+  1125→- **RadarChart**: Bureau performance comparison (Speed, Cost, Reliability, Data Quality, Coverage)
+  1126→- **ResponsiveContainer**: All charts are responsive
+  1127→
+  1128→### Icons (Lucide React)
+  1129→- Smartphone (M-Pesa), Building (Bank), Shield (KYC), Database (CRB)
+  1130→- MessageSquare (SMS), Mail (Email), Activity, AlertTriangle, CheckCircle2, XCircle
+  1131→- Clock, RefreshCw, Zap, TrendingUp, TrendingDown, BarChart3, PieChart as PieChartIcon
+  1132→- Key, Eye, EyeOff, Edit2, Save, Plug, Webhook, Timer, Globe, ToggleLeft, ToggleRight
+  1133→- And many more context-specific icons
+  1134→
+  1135→### Status Colors (Per Requirements)
+  1136→- **Operational/Connected**: Green (#22c55e / emerald-500)
+  1137→- **Degraded**: Yellow (#eab308 / amber-500)
+  1138→- **Outage/Error**: Red (#ef4444 / red-500)
+  1139→- **Maintenance/Unknown**: Gray (#6b7280 / gray-500)
+  1140→
+  1141→### Mock Data Characteristics
+  1142→- Realistic Kenyan context (KES currency, +254 phone numbers)
+  1143→- Appropriate response times in milliseconds (245ms - 1250ms)
+  1144→- Realistic uptime percentages (97.2% - 99.95%)
+  1145→- Realistic costs in KES (15 - 180 per operation)
+  1146→- Kenyan names in sample data (John Kamau, Grace Wanjiku, Peter Ochieng, etc.)
+  1147→- Proper date/time formatting for timestamps
+  1148→
+  1149→### State Management
+  1150→- React useState for UI state (tabs, filters, expanded items, dialogs)
+  1151→- React useMemo for filtered/computed data optimization
+  1152→- useCallback pattern for event handlers where appropriate
+  1153→
+  1154→---
+  1155→
+  1156→## Issues Encountered & Resolved
+  1157→
+  1158→1. **Parsing Error in IncidentTimeline.tsx**: Unterminated string literal on line 878
+  1159→   - Cause: Typo `mr-1}` instead of `mr-1"` in className attribute
+  1160→   - Fixed by correcting the quote character
+  1161→
+  1162→2. **Typo in SMSGatewayMonitor.tsx**: Property name `sed` instead of `sent`
+  1163→   - Found during code review of delivery trend data
+  1164→   - Fixed by renaming to correct property name `sent`
+  1165→
+  1166→---
+  1167→
+  1168→## Lint Status
+  1169→✅ **PASSES** - No ESLint errors (0 errors, 0 warnings)
+  1170→
+  1171→---
+  1172→
+  1173→## Notes
+  1174→- All files located at: `/home/z/my-project/src/components/lending-os/providers/`
+  1175→- Components can be imported individually or as a group
+  1176→- Ready for integration into main ProviderHealthDashboard
+  1177→- Mock data can be replaced with real API calls from `/api/providers/*` endpoints
+  1178→- Environment switch dialog includes proper danger zone styling with confirmation steps
+  1179→
+  1180→---
+  1181→
+  1182→# Task ID: 2-d
+  1183→## Date: 2026-01-20
+  1184→## Status: COMPLETED
+  1185→
+  1186→---
+  1187→
+  1188→## Summary
+  1189→
+  1190→Built a complete **Loan Application Review Workflow with Maker-Checker Workflow** for the Digital Lending OS platform. This is a comprehensive underwriting module with 6 major components designed for Kenya's 252 DCPs (Digital Credit Providers).
+  1191→
+  1192→---
+  1193→
+  1194→## Files Created
+  1195→
+  1196→### Underwriting Components (`src/components/lending-os/underwriting/`)
+  1197→
+  1198→1. **`types.ts`** - Complete TypeScript interfaces for all data types:
+  1199→   - `LoanApplication`, `CustomerSummary`, `RiskAssessment`, `SupportingDocument`
+  1200→   - `PreviousLoan`, `DecisionAction`, `WorkflowStepInfo`, `WorkflowHistory`
+  1201→   - `DecisionRecord`, `PendingApproval`, `CreditMemo`, `BulkActionConfig`, `BulkActionResult`
+  1202→   - `ReviewDashboardStats`, `ApplicationFilters` and supporting types
+  1203→
+  1204→2. **`mock-data.ts`** - Realistic Kenyan-context mock data:
+  1205→   - 10 sample loan applications (KES amounts, +254 phones, Kenyan names)
+  1206→   - Dashboard stats, customer summary, risk assessment data
+  1207→   - Policy rules, documents, previous loans, workflow history
+  1208→   - Decision history, pending approvals, credit memo content
+  1209→   - Helper functions: formatCurrency(), formatDate(), getRelativeTime(), getRiskScoreColor()
+  1210→
+  1211→3. **`ApplicationReviewDashboard.tsx`** - Main queue management dashboard:
+  1212→   - 4 Stats Cards (Pending My Review, Pending Approval, Approved/Rejected Today)
+  1213→   - Search bar with real-time filtering
+  1214→   - Expandable filter panel (Product, Priority, Amount range, Risk score)
+  1215→   - Applications table with row selection and bulk actions
+  1216→   - Click-to-review opens ApplicationReviewScreen in modal
+  1217→
+  1218→4. **`ApplicationReviewScreen.tsx`** - Full application review interface:
+  1219→   - Tabbed layout: Review | Workflow | Credit Memo | History
+  1220→   - Customer Summary Card, Requested Loan Card, Risk Assessment Panel
+  1221→   - Supporting Documents Grid, Previous Loans Table
+  1222→   - Decision Section: Approve (with amount/rate/term modification), Reject (with reasons), Return to Maker
+  1223→   - Maker-Checker Display, SLA Timer
+  1224→
+  1225→5. **`ApprovalWorkflowTracker.tsx`** - Visual workflow stepper:
+  1226→   - 6-step horizontal timeline (Submitted → Disbursement)
+  1227→   - Step icons with status colors, SLA indicator
+  1228→   - Return history panel, collapsible audit trail
+  1229→
+  1230→6. **`CreditMemoGenerator.tsx`** - Auto-generated credit memo document:
+  1231→   - Professional document layout with header and quick info bar
+  1232→   - 6 sections (Executive Summary through Recommendation)
+  1233→   - Edit mode for editable sections, PDF download, Print
+  1234→   - Sign-off section with digital signature representation
+  1235→
+  1236→7. **`DecisionHistoryPanel.tsx`** - Decision timeline side panel:
+  1237→   - Color-coded decision timeline with connectors
+  1238→   - Escalation chain display, pending approvals list
+  1239→   - Summary statistics cards
+  1240→
+  1241→8. **`BulkApprovalModal.tsx`** - Batch processing modal:
+  1242→   - Risk warnings for high-risk applications
+  1243→   - Applications summary with total amount
+  1244→   - Common terms settings, "APPROVE" confirmation
+  1245→   - Processing animation with progress, results summary
+  1246→
+  1247→9. **`index.ts`** - Barrel exports for all components and types
+  1248→
+  1249→---
+  1250→
+  1251→## Page Integration
+  1252→
+  1253→Updated `src/app/page.tsx`:
+  1254→- Added Underwriting tab with ClipboardCheck icon
+  1255→- Integrated ApplicationReviewDashboard component
+  1256→
+  1257→---
+  1258→
+  1259→## Technical Implementation Details
+  1260→
+  1261→### UI Components Used
+  1262→Card, Button, Badge, Input, Textarea, Label, Select, Dialog, Tabs, Progress, Checkbox, Separator, Collapsible, Table, Alert (styled divs)
+  1263→
+  1264→### Design Patterns
+  1265→- Color coding: Emerald (approve/success), Red (reject/error), Amber (warning/return), Blue (info/current), Purple (escalation)
+  1266→- Responsive mobile-first layouts
+  1267→- Kenyan context: KES currency, +254 phones, local employers (Safaricom PLC), CRB references
+  1268→
+  1269→### State Management
+  1270→- React useState for form inputs and modal states
+  1271→- React useMemo for filtered lists
+  1272→- Toast notifications via sonner
+  1273→
+  1274→---
+  1275→
+  1276→## Issues Encountered & Resolved
+  1277→
+  1278→1. **Missing UserCheck import**: Added to lucide-react imports in ApplicationReviewScreen.tsx
+  1279→2. **Missing Card/CardContent imports**: Added to BulkApprovalModal.tsx
+  1280→3. **Missing Clock import**: Added to lucide-react imports in CreditMemoGenerator.tsx
+  1281→
+  1282→---
+  1283→
+  1284→## Lint Status
+  1285→✅ **PASSES** - No ESLint errors in underwriting module files
+  1286→
+  1287→---
+  1288→
+  1289→## Notes
+  1290→- All files at: `/home/z/my-project/src/components/lending-os/underwriting/`
+  1291→- Import via: `from '@/components/lending-os/underwriting'`
+  1292→- Accessible via "Underwriting" tab in main application
+  1293→- Ready for API integration when backend is ready
+  1294→

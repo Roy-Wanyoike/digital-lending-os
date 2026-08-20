@@ -1,0 +1,875 @@
+     1→"use client";
+     2→
+     3→import React, { useState, useEffect, useCallback } from "react";
+     4→import {
+     5→  ProviderStatus,
+     6→  HealthCheckResult,
+     7→  Alert,
+     8→  Incident,
+     9→  HistoricalDataPoint,
+    10→} from "@/lib/provider-health";
+    11→
+    12→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+    13→import { Button } from "@/components/ui/button";
+    14→import { Badge } from "@/components/ui/badge";
+    15→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    16→import { Separator } from "@/components/ui/separator";
+    17→
+    18→// Import sub-components
+    19→import { ProviderCard } from "./ProviderCard";
+    20→import { UptimeDisplay } from "./UptimeDisplay";
+    21→import { LatencyChart } from "./LatencyChart";
+    22→import { AlertFeed } from "./AlertFeed";
+    23→import { IncidentTimeline } from "./IncidentTimeline";
+    24→import { DependencyGraph } from "./DependencyGraph";
+    25→import { ProviderDetailPanel } from "./ProviderDetailPanel";
+    26→
+    27→// Icons
+    28→import {
+    29→  Activity,
+    30→  HeartPulse,
+    31→  RefreshCw,
+    32→  Bell,
+    33→  AlertTriangle,
+    34→  CheckCircle2,
+    35→  XCircle,
+    36→  Clock,
+    37→  Server,
+    38→  Globe,
+    39→  Zap,
+    40→  Shield,
+    41→  ArrowUpRight,
+    42→  Filter,
+    43→  LayoutGrid,
+    44→  List,
+    45→  Maximize2,
+    46→} from "lucide-react";
+    47→
+    48→type ViewMode = "grid" | "list";
+    49→type ProviderType = "all" | "payment" | "kyc" | "credit" | "communication" | "banking";
+    50→
+    51→interface ProviderHealthDashboardProps {
+    52→  tenantId?: string;
+    53→}
+    54→
+    55→export function ProviderHealthDashboard({ tenantId }: ProviderHealthDashboardProps) {
+    56→  // State
+    57→  const [healthData, setHealthData] = useState<HealthCheckResult | null>(null);
+    58→  const [loading, setLoading] = useState(true);
+    59→  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+    60→  const [selectedProvider, setSelectedProvider] = useState<ProviderStatus | null>(null);
+    61→  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+    62→  const [typeFilter, setTypeFilter] = useState<ProviderType>("all");
+    63→  const [activeTab, setActiveTab] = useState("overview");
+    64→  
+    65→  // Detail panel state
+    66→  const [showDetailPanel, setShowDetailPanel] = useState(false);
+    67→  const [detailProvider, setDetailProvider] = useState<ProviderStatus | null>(null);
+    68→  const [providerHistory, setProviderHistory] = useState<HistoricalDataPoint[]>([]);
+    69→  const [providerIncidents, setProviderIncidents] = useState<Incident[]>([]);
+    70→
+    71→  // Fetch health data
+    72→  const fetchHealthData = useCallback(async () => {
+    73→    try {
+    74→      setLoading(true);
+    75→      const response = await fetch(`/api/providers${tenantId ? `?tenantId=${tenantId}` : ""}`);
+    76→      const result = await response.json();
+    77→      
+    78→      if (result.success) {
+    79→        setHealthData(result.data);
+    80→        setLastRefresh(new Date());
+    81→      }
+    82→    } catch (error) {
+    83→      console.error("Error fetching health data:", error);
+    84→    } finally {
+    85→      setLoading(false);
+    86→    }
+    87→  }, [tenantId]);
+    88→
+    89→  // Initial fetch and auto-refresh
+    90→  useEffect(() => {
+    91→    fetchHealthData();
+    92→    
+    93→    // Auto-refresh every 30 seconds
+    94→    const interval = setInterval(fetchHealthData, 30000);
+    95→    
+    96→    return () => clearInterval(interval);
+    97→  }, [fetchHealthData]);
+    98→
+    99→  // Fetch provider details when detail panel opens
+   100→  useEffect(() => {
+   101→    if (detailProvider) {
+   102→      fetch(`/api/providers/${detailProvider.id}?history=true&incidents=true`)
+   103→        .then((res) => res.json())
+   104→        .then((result) => {
+   105→          if (result.success) {
+   106→            setProviderHistory(result.history?.data || []);
+   107→            setProviderIncidents(result.incidents || []);
+   108→          }
+   109→        })
+   110→        .catch(console.error);
+   111→    }
+   112→  }, [detailProvider]);
+   113→
+   114→  // Handle provider selection for detail view
+   115→  const handleProviderClick = (provider: ProviderStatus) => {
+   116→    setDetailProvider(provider);
+   117→    setShowDetailPanel(true);
+   118→  };
+   119→
+   120→  // Handle alert acknowledgment
+   121→  const handleAcknowledgeAlert = async (alertId: string) => {
+   122→    try {
+   123→      await fetch("/api/providers/alerts", {
+   124→        method: "PUT",
+   125→        headers: { "Content-Type": "application/json" },
+   126→        body: JSON.stringify({
+   127→          alertId,
+   128→          action: "acknowledge",
+   129→          acknowledgedBy: "dashboard-user",
+   130→        }),
+   131→      });
+   132→      
+   133→      // Refresh data
+   134→      fetchHealthData();
+   135→    } catch (error) {
+   136→      console.error("Error acknowledging alert:", error);
+   137→    }
+   138→  };
+   139→
+   140→  // Handle incident actions
+   141→  const handleAcknowledgeIncident = async (incidentId: string) => {
+   142→    try {
+   143→      await fetch("/api/providers/incidents", {
+   144→        method: "PUT",
+   145→        headers: { "Content-Type": "application/json" },
+   146→        body: JSON.stringify({
+   147→          incidentId,
+   148→          action: "acknowledge",
+   149→          acknowledgedBy: "dashboard-user",
+   150→        }),
+   151→      });
+   152→      
+   153→      fetchHealthData();
+   154→    } catch (error) {
+   155→      console.error("Error acknowledging incident:", error);
+   156→    }
+   157→  };
+   158→
+   159→  const handleResolveIncident = async (incidentId: string) => {
+   160→    try {
+   161→      await fetch("/api/providers/incidents", {
+   162→        method: "PUT",
+   163→        headers: { "Content-Type": "application/json" },
+   164→        body: JSON.stringify({
+   165→          incidentId,
+   166→          action: "resolve",
+   167→          resolvedBy: "dashboard-user",
+   168→        }),
+   169→      });
+   170→      
+   171→      fetchHealthData();
+   172→    } catch (error) {
+   173→      console.error("Error resolving incident:", error);
+   174→    }
+   175→  };
+   176→
+   177→  // Get filtered providers by type
+   178→  const getFilteredProviders = () => {
+   179→    if (!healthData || typeFilter === "all") return healthData.providers;
+   180→    return healthData.providers.filter((p) => p.type === typeFilter);
+   181→  };
+   182→
+   183→  // Group providers by type
+   184→  const getProvidersByType = () => {
+   185→    if (!healthData) return {};
+   186→    
+   187→    return {
+   188→      payment: healthData.providers.filter((p) => p.type === "payment"),
+   189→      kyc: healthData.providers.filter((p) => p.type === "kyc"),
+   190→      credit: healthData.providers.filter((p) => p.type === "credit"),
+   191→      communication: healthData.providers.filter((p) => p.type === "communication"),
+   192→      banking: healthData.providers.filter((p) => p.type === "banking"),
+   193→    };
+   194→  };
+   195→
+   196→  // Overall status configuration
+   197→  const getOverallStatusConfig = () => {
+   198→    if (!healthData) return null;
+   199→    
+   200→    switch (healthData.overallHealth) {
+   201→      case "healthy":
+   202→        return {
+   203→          icon: <CheckCircle2 className="h-6 w-6 text-emerald-500" />,
+   204→          label: "All Systems Operational",
+   205→          color: "text-emerald-600",
+   206→          bgColor: "bg-emerald-50",
+   207→          borderColor: "border-emerald-200",
+   208→        };
+   209→      case "degraded":
+   210→        return {
+   211→          icon: <AlertTriangle className="h-6 w-6 text-amber-500 animate-pulse" />,
+   212→          label: "Some Systems Degraded",
+   213→          color: "text-amber-600",
+   214→          bgColor: "bg-amber-50",
+   215→          borderColor: "border-amber-200",
+   216→        };
+   217→      case "critical":
+   218→        return {
+   219→          icon: <XCircle className="h-6 w-6 text-red-500 animate-pulse" />,
+   220→          label: "System Outage Detected",
+   221→          color: "text-red-600",
+   222→          bgColor: "bg-red-50",
+   223→          borderColor: "border-red-200",
+   224→        };
+   225→    }
+   226→  };
+   227→
+   228→  // Loading state
+   229→  if (loading && !healthData) {
+   230→    return (
+   231→      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+   232→        <div className="text-center">
+   233→          <RefreshCw className="h-12 w-12 text-primary mx-auto mb-4 animate-spin" />
+   234→          <p className="text-lg font-medium">Loading provider health data...</p>
+   235→          <p className="text-sm text-muted-foreground">Checking all integrations</p>
+   236→        </div>
+   237→      </div>
+   238→    );
+   239→  }
+   240→
+   241→  const overallStatus = getOverallStatusConfig();
+   242→  const providersByType = getProvidersByType();
+   243→
+   244→  return (
+   245→    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+   246→      {/* Header */}
+   247→      <header className="bg-white border-b sticky top-0 z-40">
+   248→        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+   249→          <div className="flex items-center justify-between h-16">
+   250→            <div className="flex items-center gap-3">
+   251→              <HeartPulse className="h-8 w-8 text-primary" />
+   252→              <div>
+   253→                <h1 className="text-xl font-bold">Provider Health Monitoring</h1>
+   254→                <p className="text-xs text-muted-foreground">
+   255→                  Digital Lending OS • External Integration Status
+   256→                </p>
+   257→              </div>
+   258→            </div>
+   259→
+   260→            <div className="flex items-center gap-4">
+   261→              {/* Overall Status */}
+   262→              {overallStatus && (
+   263→                <div className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg border ${overallStatus.bgColor} ${overallStatus.borderColor}`}>
+   264→                  {overallStatus.icon}
+   265→                  <span className={`font-medium text-sm ${overallStatus.color}`}>
+   266→                    {overallStatus.label}
+   267→                  </span>
+   268→                </div>
+   269→              )}
+   270→
+   271→              {/* Last Updated */}
+   272→              <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
+   273→                <Clock className="h-4 w-4" />
+   274→                <span>Updated: {lastRefresh.toLocaleTimeString()}</span>
+   275→              </div>
+   276→
+   277→              {/* Refresh Button */}
+   278→              <Button
+   279→                variant="outline"
+   280→                size="sm"
+   281→                onClick={fetchHealthData}
+   282→                disabled={loading}
+   283→              >
+   284→                <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
+   285→                Refresh
+   286→              </Button>
+   287→            </div>
+   288→          </div>
+   289→        </div>
+   290→      </header>
+   291→
+   292→      {/* Main Content */}
+   293→      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+   294→        {/* Summary Cards */}
+   295→        {healthData && (
+   296→          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+   297→            <Card>
+   298→              <CardContent className="p-4 flex items-center gap-3">
+   299→                <div className="p-2 bg-blue-100 rounded-lg">
+   300→                  <Server className="h-5 w-5 text-blue-600" />
+   301→                </div>
+   302→                <div>
+   303→                  <p className="text-2xl font-bold">{healthData.summary.totalProviders}</p>
+   304→                  <p className="text-xs text-muted-foreground">Total Providers</p>
+   305→                </div>
+   306→              </CardContent>
+   307→            </Card>
+   308→
+   309→            <Card>
+   310→              <CardContent className="p-4 flex items-center gap-3">
+   311→                <div className="p-2 bg-emerald-100 rounded-lg">
+   312→                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+   313→                </div>
+   314→                <div>
+   315→                  <p className="text-2xl font-bold text-emerald-600">{healthData.summary.healthyCount}</p>
+   316→                  <p className="text-xs text-muted-foreground">Healthy</p>
+   317→                </div>
+   318→              </CardContent>
+   319→            </Card>
+   320→
+   321→            <Card>
+   322→              <CardContent className="p-4 flex items-center gap-3">
+   323→                <div className="p-2 bg-amber-100 rounded-lg">
+   324→                  <AlertTriangle className="h-5 w-5 text-amber-600" />
+   325→                </div>
+   326→                <div>
+   327→                  <p className="text-2xl font-bold text-amber-600">{healthData.summary.degradedCount}</p>
+   328→                  <p className="text-xs text-muted-foreground">Degraded</p>
+   329→                </div>
+   330→              </CardContent>
+   331→            </Card>
+   332→
+   333→            <Card>
+   334→              <CardContent className="p-4 flex items-center gap-3">
+   335→                <div className="p-2 bg-red-100 rounded-lg">
+   336→                  <XCircle className="h-5 w-5 text-red-600" />
+   337→                </div>
+   338→                <div>
+   339→                  <p className="text-2xl font-bold text-red-600">{healthData.summary.downCount}</p>
+   340→                  <p className="text-xs text-muted-foreground">Down</p>
+   341→                </div>
+   342→              </CardContent>
+   343→            </Card>
+   344→
+   345→            <Card className="col-span-2 md:col-span-1">
+   346→              <CardContent className="p-4 flex items-center gap-3">
+   347→                <div className="p-2 bg-purple-100 rounded-lg">
+   348→                  <Bell className="h-5 w-5 text-purple-600" />
+   349→                </div>
+   350→                <div>
+   351→                  <p className="text-2xl font-bold text-purple-600">{healthData.summary.activeAlerts}</p>
+   352→                  <p className="text-xs text-muted-foreground">Active Alerts</p>
+   353→                </div>
+   354→              </CardContent>
+   355→            </Card>
+   356→          </div>
+   357→        )}
+   358→
+   359→        {/* Main Tabs */}
+   360→        <Tabs value={activeTab} onValueChange={setActiveTab}>
+   361→          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+   362→            <TabsList className="grid w-full sm:w-auto grid-cols-4">
+   363→              <TabsTrigger value="overview" className="flex items-center gap-1">
+   364→                <Activity className="h-4 w-4" /> Overview
+   365→              </TabsTrigger>
+   366→              <TabsTrigger value="providers" className="flex items-center gap-1">
+   367→                <Server className="h-4 w-4" /> Providers
+   368→              </TabsTrigger>
+   369→              <TabsTrigger value="incidents" className="flex items-center gap-1">
+   370→                <AlertTriangle className="h-4 w-4" /> Incidents
+   371→              </TabsTrigger>
+   372→              <TabsTrigger value="analytics" className="flex items-center gap-1">
+   373→                <Zap className="h-4 w-4" /> Analytics
+   374→              </TabsTrigger>
+   375→            </TabsList>
+   376→
+   377→            {/* View Mode Toggle - Only on Providers tab */}
+   378→            {activeTab === "providers" && (
+   379→              <div className="flex items-center gap-2">
+   380→                <Button
+   381→                  variant={viewMode === "grid" ? "default" : "outline"}
+   382→                  size="sm"
+   383→                  onClick={() => setViewMode("grid")}
+   384→                >
+   385→                  <LayoutGrid className="h-4 w-4" />
+   386→                </Button>
+   387→                <Button
+   388→                  variant={viewMode === "list" ? "default" : "outline"}
+   389→                  size="sm"
+   390→                  onClick={() => setViewMode("list")}
+   391→                >
+   392→                  <List className="h-4 w-4" />
+   393→                </Button>
+   394→                
+   395→                {/* Type Filter */}
+   396→                <select
+   397→                  value={typeFilter}
+   398→                  onChange={(e) => setTypeFilter(e.target.value as ProviderType)}
+   399→                  className="border rounded-md px-3 py-1.5 text-sm bg-background"
+   400→                >
+   401→                  <option value="all">All Types</option>
+   402→                  <option value="payment">Payment</option>
+   403→                  <option value="kyc">KYC</option>
+   404→                  <option value="credit">Credit</option>
+   405→                  <option value="communication">Communication</option>
+   406→                  <option value="banking">Banking</option>
+   407→                </select>
+   408→              </div>
+   409→            )}
+   410→          </div>
+   411→
+   412→          {/* Overview Tab */}
+   413→          <TabsContent value="overview" className="space-y-6">
+   414→            {/* Quick Status Grid */}
+   415→            {healthData && (
+   416→              <>
+   417→                {/* Payment Providers */}
+   418→                {providersByType.payment.length > 0 && (
+   419→                  <section>
+   420→                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+   421→                      <span className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">💳</span>
+   422→                      Payment Providers
+   423→                    </h2>
+   424→                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+   425→                      {providersByType.payment.map((provider) => (
+   426→                        <ProviderCard
+   427→                          key={provider.id}
+   428→                          provider={provider}
+   429→                          compact
+   430→                          onClick={handleProviderClick}
+   431→                        />
+   432→                      ))}
+   433→                    </div>
+   434→                  </section>
+   435→                )}
+   436→
+   437→                {/* Verification/KYC Providers */}
+   438→                {(providersByType.kyc.length > 0 || providersByType.credit.length > 0) && (
+   439→                  <section>
+   440→                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+   441→                      <span className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">🆔</span>
+   442→                      Verification & Credit Services
+   443→                    </h2>
+   444→                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+   445→                      {[...providersByType.kyc, ...providersByType.credit].map((provider) => (
+   446→                        <ProviderCard
+   447→                          key={provider.id}
+   448→                          provider={provider}
+   449→                          compact
+   450→                          onClick={handleProviderClick}
+   451→                        />
+   452→                      ))}
+   453→                    </div>
+   454→                  </section>
+   455→                )}
+   456→
+   457→                {/* Communication Providers */}
+   458→                {providersByType.communication.length > 0 && (
+   459→                  <section>
+   460→                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+   461→                      <span className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center">📡</span>
+   462→                      Communication Services
+   463→                    </h2>
+   464→                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+   465→                      {providersByType.communication.map((provider) => (
+   466→                        <ProviderCard
+   467→                          key={provider.id}
+   468→                          provider={provider}
+   469→                          compact
+   470→                          onClick={handleProviderClick}
+   471→                        />
+   472→                      ))}
+   473→                    </div>
+   474→                  </section>
+   475→                )}
+   476→
+   477→                {/* Banking Providers */}
+   478→                {providersByType.banking.length > 0 && (
+   479→                  <section>
+   480→                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+   481→                      <span className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">🏦</span>
+   482→                      Banking Services
+   483→                    </h2>
+   484→                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+   485→                      {providersByType.banking.map((provider) => (
+   486→                        <ProviderCard
+   487→                          key={provider.id}
+   488→                          provider={provider}
+   489→                          compact
+   490→                          onClick={handleProviderClick}
+   491→                        />
+   492→                      ))}
+   493→                    </div>
+   494→                  </section>
+   495→                )}
+   496→
+   497→                {/* Active Incidents Summary & Alerts */}
+   498→                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+   499→                  <Card>
+   500→                    <CardHeader>
+   501→                      <CardTitle className="flex items-center gap-2">
+   502→                        <AlertTriangle className="h-5 w-5" />
+   503→                        Active Incidents ({healthData.summary.activeIncidents})
+   504→                      </CardTitle>
+   505→                    </CardHeader>
+   506→                    <CardContent>
+   507→                      {healthData.summary.activeIncidents === 0 ? (
+   508→                        <div className="text-center py-8 text-muted-foreground">
+   509→                          <CheckCircle2 className="h-12 w-12 mx-auto mb-3 opacity-50" />
+   510→                          <p>No active incidents</p>
+   511→                          <p className="text-sm">All systems operational ✅</p>
+   512→                        </div>
+   513→                      ) : (
+   514→                        <div className="space-y-3">
+   515→                          {healthData.alerts
+   516→                            .filter((a) => !a.resolved)
+   517→                            .slice(0, 5)
+   518→                            .map((alert) => (
+   519→                              <div
+   520→                                key={alert.id}
+   521→                                className={`p-3 rounded-lg border-l-4 ${
+   522→                                  alert.severity === "critical"
+   523→                                    ? "bg-red-50 border-red-400"
+   524→                                    : alert.severity === "warning"
+   525→                                    ? "bg-amber-50 border-amber-400"
+   526→                                    : "bg-blue-50 border-blue-400"
+   527→                                }`}
+   528→                              >
+   529→                                <div className="flex items-start justify-between gap-2">
+   530→                                  <div>
+   531→                                    <Badge
+   532→                                      variant="secondary"
+   533→                                      className={
+   534→                                        alert.severity === "critical"
+   535→                                          ? "bg-red-100 text-red-700"
+   536→                                          : alert.severity === "warning"
+   537→                                          ? "bg-amber-100 text-amber-700"
+   538→                                          : "bg-blue-100 text-blue-700"
+   539→                                      }
+   540→                                    >
+   541→                                      {alert.severity.toUpperCase()}
+   542→                                    </Badge>
+   543→                                    <p className="mt-1 text-sm font-medium">
+   544→                                      {alert.message}
+   545→                                    </p>
+   546→                                  </div>
+   547→                                  {!alert.acknowledged && (
+   548→                                    <Button
+   549→                                      size="sm"
+   550→                                      variant="outline"
+   551→                                      onClick={() => handleAcknowledgeAlert(alert.id)}
+   552→                                    >
+   553→                                      Ack
+   554→                                    </Button>
+   555→                                  )}
+   556→                                </div>
+   557→                              </div>
+   558→                            ))}
+   559→                        </div>
+   560→                      )}
+   561→                    </CardContent>
+   562→                  </Card>
+   563→
+   564→                  <AlertFeed
+   565→                    alerts={healthData.alerts}
+   566→                    onAcknowledge={handleAcknowledgeAlert}
+   567→                  />
+   568→                </div>
+   569→              </>
+   570→            )}
+   571→          </TabsContent>
+   572→
+   573→          {/* Providers Tab */}
+   574→          <TabsContent value="providers" className="space-y-6">
+   575→            {healthData && (
+   576→              <>
+   577→                {viewMode === "grid" ? (
+   578→                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+   579→                    {getFilteredProviders().map((provider) => (
+   580→                      <ProviderCard
+   581→                        key={provider.id}
+   582→                        provider={provider}
+   583→                        onClick={handleProviderClick}
+   584→                        isSelected={selectedProvider?.id === provider.id}
+   585→                      />
+   586→                    ))}
+   587→                  </div>
+   588→                ) : (
+   589→                  <Card>
+   590→                    <CardContent className="p-0">
+   591→                      <div className="overflow-x-auto">
+   592→                        <table className="w-full">
+   593→                          <thead className="bg-gray-50 border-b">
+   594→                            <tr>
+   595→                              <th className="text-left p-4 font-medium text-sm">Provider</th>
+   596→                              <th className="text-left p-4 font-medium text-sm">Type</th>
+   597→                              <th className="text-left p-4 font-medium text-sm">Status</th>
+   598→                              <th className="text-right p-4 font-medium text-sm">Uptime</th>
+   599→                              <th className="text-right p-4 font-medium text-sm">P95 Latency</th>
+   600→                              <th className="text-right p-4 font-medium text-sm">Success Rate</th>
+   601→                              <th className="text-right p-4 font-medium text-sm">Requests</th>
+   602→                              <th className="text-center p-4 font-medium text-sm">Actions</th>
+   603→                            </tr>
+   604→                          </thead>
+   605→                          <tbody>
+   606→                            {getFilteredProviders().map((provider) => (
+   607→                              <tr
+   608→                                key={provider.id}
+   609→                                className="border-b hover:bg-gray-50 cursor-pointer transition-colors"
+   610→                                onClick={() => handleProviderClick(provider)}
+   611→                              >
+   612→                                <td className="p-4">
+   613→                                  <div className="flex items-center gap-2">
+   614→                                    <span className="text-xl">{provider.icon}</span>
+   615→                                    <div>
+   616→                                      <p className="font-medium">{provider.displayName}</p>
+   617→                                      <p className="text-xs text-muted-foreground">{provider.region}</p>
+   618→                                    </div>
+   619→                                  </div>
+   620→                                </td>
+   621→                                <td className="p-4">
+   622→                                  <Badge variant="secondary" className="capitalize">
+   623→                                    {provider.type}
+   624→                                  </Badge>
+   625→                                </td>
+   626→                                <td className="p-4">
+   627→                                  <Badge
+   628→                                    variant="outline"
+   629→                                    className={
+   630→                                      provider.status === "healthy"
+   631→                                        ? "border-emerald-300 text-emerald-700"
+   632→                                        : provider.status === "degraded"
+   633→                                        ? "border-amber-300 text-amber-700"
+   634→                                        : "border-red-300 text-red-700"
+   635→                                    }
+   636→                                  >
+   637→                                    {provider.status.charAt(0).toUpperCase() + provider.status.slice(1)}
+   638→                                  </Badge>
+   639→                                </td>
+   640→                                <td className="p-4 text-right">
+   641→                                  <span
+   642→                                    className={
+   643→                                      provider.uptime >= 99.9
+   644→                                        ? "text-emerald-600 font-medium"
+   645→                                        : provider.uptime >= 99.5
+   646→                                        ? "text-amber-600 font-medium"
+   647→                                        : "text-red-600 font-medium"
+   648→                                    }
+   649→                                  >
+   650→                                    {provider.uptime}%
+   651→                                  </span>
+   652→                                </td>
+   653→                                <td className="p-4 text-right">
+   654→                                  <span
+   655→                                    className={
+   656→                                      provider.latency.p95 >= 1000
+   657→                                        ? "text-red-600 font-medium"
+   658→                                        : provider.latency.p95 >= 500
+   659→                                        ? "text-amber-600 font-medium"
+   660→                                        : "text-emerald-600 font-medium"
+   661→                                    }
+   662→                                  >
+   663→                                    {provider.latency.p95 >= 1000
+   664→                                      ? `${(provider.latency.p95 / 1000).toFixed(1)}s`
+   665→                                      : `${provider.latency.p95}ms`}
+   666→                                  </span>
+   667→                                </td>
+   668→                                <td className="p-4 text-right">
+   669→                                  <span
+   670→                                    className={
+   671→                                      provider.successRate >= 99.9
+   672→                                        ? "text-emerald-600 font-medium"
+   673→                                        : "text-amber-600 font-medium"
+   674→                                    }
+   675→                                  >
+   676→                                    {provider.successRate}%
+   677→                                  </span>
+   678→                                </td>
+   679→                                <td className="p-4 text-right">
+   680→                                  <span className="font-mono text-sm">
+   681→                                    {provider.requestVolume.total.toLocaleString()}
+   682→                                  </span>
+   683→                                </td>
+   684→                                <td className="p-4 text-center">
+   685→                                  <Button variant="ghost" size="sm">
+   686→                                    <ArrowUpRight className="h-4 w-4" />
+   687→                                  </Button>
+   688→                                </td>
+   689→                              </tr>
+   690→                            ))}
+   691→                          </tbody>
+   692→                        </table>
+   693→                      </div>
+   694→                    </CardContent>
+   695→                  </Card>
+   696→                )}
+   697→
+   698→                {/* Dependency Graph */}
+   699→                <DependencyGraph
+   700→                  providers={healthData.providers}
+   701→                  selectedProvider={selectedProvider?.id || null}
+   702→                  onProviderSelect={(id) => {
+   703→                    const provider = healthData.providers.find((p) => p.id === id);
+   704→                    if (provider) handleProviderClick(provider);
+   705→                  }}
+   706→                />
+   707→              </>
+   708→            )}
+   709→          </TabsContent>
+   710→
+   711→          {/* Incidents Tab */}
+   712→          <TabsContent value="incidents">
+   713→            <IncidentTimeline
+   714→              incidents={[]}
+   715→              onAcknowledge={handleAcknowledgeIncident}
+   716→              onResolve={handleResolveIncident}
+   717→            />
+   718→            {/* We'll need to fetch incidents separately or pass them through props */}
+   719→          </TabsContent>
+   720→
+   721→          {/* Analytics Tab */}
+   722→          <TabsContent value="analytics" className="space-y-6">
+   723→            {healthData && (
+   724→              <>
+   725→                {/* Uptime Displays for Critical Providers */}
+   726→                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+   727→                  {healthData.providers
+   728→                    .filter((p) => p.status !== "healthy")
+   729→                    .slice(0, 6)
+   730→                    .map((provider) => (
+   731→                      <UptimeDisplay
+   732→                        key={provider.id}
+   733→                        provider={provider}
+   734→                        showTrend
+   735→                        size="md"
+   736→                      />
+   737→                    ))}
+   738→                </div>
+   739→
+   740→                {/* Sample Latency Chart */}
+   741→                <LatencyChart
+   742→                  data={Array.from({ length: 48 }, (_, i) => ({
+   743→                    timestamp: new Date(Date.now() - (47 - i) * 30 * 60 * 1000),
+   744→                    latency: {
+   745→                      p50: 200 + Math.random() * 300,
+   746→                      p95: 350 + Math.random() * 400,
+   747→                      p99: 500 + Math.random() * 800,
+   748→                    },
+   749→                    successRate: 99 + Math.random(),
+   750→                    errorRate: Math.random() * 1,
+   751→                    requestCount: Math.round(100 + Math.random() * 500),
+   752→                    errorCount: Math.round(Math.random() * 10),
+   753→                  }))}
+   754→                  title="M-Pesa Response Time Trends (24h)"
+   755→                />
+   756→
+   757→                {/* Additional Analytics Cards */}
+   758→                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+   759→                  <Card>
+   760→                    <CardHeader>
+   761→                      <CardTitle className="flex items-center gap-2">
+   762→                        <Shield className="h-5 w-5" />
+   763→                        SLA Compliance Summary
+   764→                      </CardTitle>
+   765→                    </CardHeader>
+   766→                    <CardContent>
+   767→                      <div className="space-y-4">
+   768→                        {healthData.providers.map((provider) => {
+   769→                          const compliant = provider.uptime >= provider.slaTarget;
+   770→                          return (
+   771→                            <div
+   772→                              key={provider.id}
+   773→                              className="flex items-center justify-between p-3 rounded-lg bg-gray-50"
+   774→                            >
+   775→                              <div className="flex items-center gap-2">
+   776→                                <span>{provider.icon}</span>
+   777→                                <span className="font-medium text-sm">
+   778→                                  {provider.displayName}
+   779→                                </span>
+   780→                              </div>
+   781→                              <div className="flex items-center gap-4">
+   782→                                <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+   783→                                  <div
+   784→                                    className={`h-full rounded-full ${
+   785→                                      compliant ? "bg-emerald-500" : "bg-red-500"
+   786→                                    }`}
+   787→                                    style={{
+   788→                                      width: `${Math.min(100, (provider.uptime / 100) * 100)}%`,
+   789→                                    }}
+   790→                                  />
+   791→                                </div>
+   792→                                <span
+   793→                                  className={`text-sm font-medium w-14 text-right ${
+   794→                                    compliant ? "text-emerald-600" : "text-red-600"
+   795→                                  }`}
+   796→                                >
+   797→                                  {provider.uptime}%
+   798→                                </span>
+   799→                                {compliant ? (
+   800→                                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+   801→                                ) : (
+   802→                                  <XCircle className="h-4 w-4 text-red-500" />
+   803→                                )}
+   804→                              </div>
+   805→                            </div>
+   806→                          );
+   807→                        })}
+   808→                      </div>
+   809→                    </CardContent>
+   810→                  </Card>
+   811→
+   812→                  <Card>
+   813→                    <CardHeader>
+   814→                      <CardTitle className="flex items-center gap-2">
+   815→                        <Globe className="h-5 w-5" />
+   816→                        Regional Performance
+   817→                      </CardTitle>
+   818→                    </CardHeader>
+   819→                    <CardContent>
+   820→                      <div className="space-y-4">
+   821→                        {[
+   822→                          { region: "Kenya - Nairobi", avgLatency: 420, uptime: 99.94 },
+   823→                          { region: "EU - Ireland", avgLatency: 850, uptime: 99.80 },
+   824→                          { region: "Global - US-East", avgLatency: 220, uptime: 99.99 },
+   825→                          { region: "Global - Failover", avgLatency: 320, uptime: 99.95 },
+   826→                        ].map((region) => (
+   827→                          <div
+   828→                            key={region.region}
+   829→                            className="flex items-center justify-between p-3 rounded-lg bg-gray-50"
+   830→                          >
+   831→                            <div>
+   832→                              <p className="font-medium text-sm">{region.region}</p>
+   833→                              <p className="text-xs text-muted-foreground">
+   834→                                Avg Latency:{" "}
+   835→                                {region.avgLatency >= 1000
+   836→                                  ? `${(region.avgLatency / 1000).toFixed(1)}s`
+   837→                                  : `${region.avgLatency}ms`}
+   838→                              </p>
+   839→                            </div>
+   840→                            <div className="text-right">
+   841→                              <p className="font-bold text-emerald-600">
+   842→                                {region.uptime}%
+   843→                              </p>
+   844→                              <p className="text-xs text-muted-foreground">Uptime</p>
+   845→                            </div>
+   846→                          </div>
+   847→                        ))}
+   848→                      </div>
+   849→                    </CardContent>
+   850→                  </Card>
+   851→                </div>
+   852→              </>
+   853→            )}
+   854→          </TabsContent>
+   855→        </Tabs>
+   856→      </main>
+   857→
+   858→      {/* Detail Panel Modal */}
+   859→      {showDetailPanel && detailProvider && (
+   860→        <ProviderDetailPanel
+   861→          provider={detailProvider}
+   862→          history={providerHistory}
+   863→          incidents={providerIncidents}
+   864→          onClose={() => {
+   865→            setShowDetailPanel(false);
+   866→            setDetailProvider(null);
+   867→          }}
+   868→        />
+   869→      )}
+   870→    </div>
+   871→  );
+   872→}
+   873→
+   874→export default ProviderHealthDashboard;
+   875→

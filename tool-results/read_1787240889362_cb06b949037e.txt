@@ -1,0 +1,954 @@
+     1→'use client'
+     2→// Digital Lending OS - Credit Scoring Engine Demo
+     3→
+     4→import { useState, useCallback } from 'react'
+     5→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+     6→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+     7→import { Badge } from '@/components/ui/badge'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+    10→import { Separator } from '@/components/ui/separator'
+    11→import { 
+    12→  Building2, 
+    13→  Users, 
+    14→  Shield, 
+    15→  Network, 
+    16→  Landmark,
+    17→  TrendingUp,
+    18→  CreditCard,
+    19→  Calculator,
+    20→  FileText,
+    21→  Database,
+    22→  Settings,
+    23→  AlertTriangle
+    24→} from 'lucide-react'
+    25→
+    26→// Credit Engine Components
+    27→import { CreditScoreCard, CreditScoreGauge, AffordabilityCalculator, CreditPolicyEditor, ApplicationAssessmentView, CreditBureauSimulator } from '@/components/lending-os/credit'
+    28→import { calculateCreditScore, generateSampleInput, type CreditScoreOutput, type CreditPolicy, DEFAULT_CREDIT_POLICY } from '@/lib/credit-engine'
+    29→
+    30→// Original components (keep for other tabs)
+    31→import { CustomerPortal } from '@/components/lending-os/CustomerPortal'
+    32→import { LenderDashboard } from '@/components/lending-os/LenderDashboard'
+    33→import { SuperAdminView } from '@/components/lending-os/SuperAdminView'
+    34→import { ArchitectureDiagram } from '@/components/lending-os/ArchitectureDiagram'
+    35→
+    36→// Collections Module
+    37→import { CollectionsDashboard } from '@/components/lending-os/collections/CollectionsDashboard'
+    38→import { ThemeToggle } from '@/components/lending-os/ThemeToggle'
+    39→import { AuthProvider, useAuthContext } from '@/components/lending-os/AuthProvider'
+    40→import { AuthStatusbar } from '@/components/lending-os/AuthStatusbar'
+    41→import { LoginScreen } from '@/components/lending-os/LoginScreen'
+    42→import type { PortalType } from '@/lib/auth-types'
+    43→
+    44→function CreditScoringDemo() {
+    45→  const [selectedProfile, setSelectedProfile] = useState<string>('good')
+    46→  const [creditResult, setCreditResult] = useState<CreditScoreOutput | null>(null)
+    47→  const [policy, setPolicy] = useState<CreditPolicy>(DEFAULT_CREDIT_POLICY)
+    48→  const [previousScore, setPreviousScore] = useState<number | undefined>(undefined)
+    49→
+    50→  // Calculate credit score when profile changes
+    51→  const handleProfileChange = useCallback((profile: string) => {
+    52→    setSelectedProfile(profile)
+    53→    if (creditResult) {
+    54→      setPreviousScore(creditResult.score)
+    55→    }
+    56→    const input = generateSampleInput(profile as 'excellent' | 'good' | 'fair' | 'poor' | 'veryPoor')
+    57→    const result = calculateCreditScore(input, policy)
+    58→    setCreditResult(result)
+    59→  }, [policy, creditResult])
+    60→
+    61→  // Initial calculation
+    62→  if (!creditResult) {
+    63→    const input = generateSampleInput('good')
+    64→    setCreditResult(calculateCreditScore(input, policy))
+    65→  }
+    66→
+    67→  return (
+    68→    <div className="space-y-6">
+    69→      {/* Header */}
+    70→      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    71→        <div>
+    72→          <h2 className="text-2xl font-bold flex items-center gap-3">
+    73→            <Shield className="w-8 h-8 text-emerald-600" />
+    74→            Credit Scoring & Risk Assessment Engine
+    75→          </h2>
+    76→          <p className="text-muted-foreground mt-1">
+    77→            Automated lending decisions powered by advanced credit scoring algorithms
+    78→          </p>
+    79→        </div>
+    80→        
+    81→        {/* Profile Selector */}
+    82→        <div className="flex items-center gap-3">
+    83→          <span className="text-sm text-muted-foreground">Test Profile:</span>
+    84→          <Select value={selectedProfile} onValueChange={handleProfileChange}>
+    85→            <SelectTrigger className="w-[160px]">
+    86→              <SelectValue placeholder="Select profile" />
+    87→            </SelectTrigger>
+    88→            <SelectContent>
+    89→              <SelectItem value="excellent">Excellent (Grade A)</SelectItem>
+    90→              <SelectItem value="good">Good (Grade B)</SelectItem>
+    91→              <SelectItem value="fair">Fair (Grade C)</SelectItem>
+    92→              <SelectItem value="poor">Poor (Grade D)</SelectItem>
+    93→              <SelectItem value="veryPoor">Very Poor (Grade E)</SelectItem>
+    94→            </SelectContent>
+    95→          </Select>
+    96→        </div>
+    97→      </div>
+    98→
+    99→      {/* Quick Stats */}
+   100→      {creditResult && (
+   101→        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+   102→          <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0">
+   103→            <CardContent className="p-4">
+   104→              <p className="text-emerald-100 text-xs">Credit Score</p>
+   105→              <p className="text-2xl font-bold">{creditResult.score}</p>
+   106→              <p className="text-sm opacity-80">Grade {creditResult.grade}</p>
+   107→            </CardContent>
+   108→          </Card>
+   109→          
+   110→          <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0">
+   111→            <CardContent className="p-4">
+   112→              <p className="text-blue-100 text-xs">Risk Level</p>
+   113→              <p className="text-xl font-bold">{creditResult.riskLevel.replace('_', '-')}</p>
+   114→              <p className="text-sm opacity-80">{getDecisionLabel(creditResult.decision)}</p>
+   115→            </CardContent>
+   116→          </Card>
+   117→          
+   118→          <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0">
+   119→            <CardContent className="p-4">
+   120→              <p className="text-purple-100 text-xs">Max Loan Amount</p>
+   121→              <p className="text-xl font-bold">KSh {(creditResult.maxLoanAmount / 1000).toFixed(0)}K</p>
+   122→              <p className="text-sm opacity-80">{creditResult.maxTenureDays} days max</p>
+   123→            </CardContent>
+   124→          </Card>
+   125→          
+   126→          <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-0">
+   127→            <CardContent className="p-4">
+   128→              <p className="text-amber-100 text-xs">DTI Ratio</p>
+   129→              <p className="text-xl font-bold">{creditResult.affordability.dtiRatio}%</p>
+   130→              <p className="text-sm opacity-80">{creditResult.affordability.affordable ? 'Affordable' : 'Not Affordable'}</p>
+   131→            </CardContent>
+   132→          </Card>
+   133→          
+   134→          <Card className="bg-gradient-to-br from-slate-600 to-slate-700 text-white border-0">
+   135→            <CardContent className="p-4">
+   136→              <p className="text-slate-300 text-xs">Confidence</p>
+   137→              <p className="text-xl font-bold">{creditResult.confidenceLevel}%</p>
+   138→              <p className="text-sm opacity-80">Data completeness</p>
+   139→            </CardContent>
+   140→          </Card>
+   141→        </div>
+   142→      )}
+   143→
+   144→      {/* Main Content Grid */}
+   145→      {creditResult && (
+   146→        <Tabs defaultValue="overview" className="space-y-6">
+   147→          <TabsList className="grid w-full grid-cols-6 bg-slate-100 dark:bg-slate-800 p-1 h-auto">
+   148→            <TabsTrigger value="overview" className="gap-1.5 py-2.5 px-3 text-xs">
+   149→              <Calculator className="w-4 h-4" /> Overview
+   150→            </TabsTrigger>
+   151→            <TabsTrigger value="assessment" className="gap-1.5 py-2.5 px-3 text-xs">
+   152→              <FileText className="w-4 h-4" /> Assessment
+   153→            </TabsTrigger>
+   154→            <TabsTrigger value="bureau" className="gap-1.5 py-2.5 px-3 text-xs">
+   155→              <Database className="w-4 h-4" /> CRB Report
+   156→            </TabsTrigger>
+   157→            <TabsTrigger value="policy" className="gap-1.5 py-2.5 px-3 text-xs">
+   158→              <Settings className="w-4 h-4" /> Policy Editor
+   159→            </TabsTrigger>
+   160→            <TabsTrigger value="gauge" className="gap-1.5 py-2.5 px-3 text-xs">
+   161→              <TrendingUp className="w-4 h-4" /> Gauge Chart
+   162→            </TabsTrigger>
+   163→            <TabsTrigger value="api" className="gap-1.5 py-2.5 px-3 text-xs">
+   164→              <Shield className="w-4 h-4" /> API Docs
+   165→            </TabsTrigger>
+   166→          </TabsList>
+   167→
+   168→          {/* Overview Tab */}
+   169→          <TabsContent value="overview" className="space-y-6">
+   170→            <div className="grid lg:grid-cols-2 gap-6">
+   171→              {/* Credit Score Card */}
+   172→              <CreditScoreCard result={creditResult} showDetails={true} />
+   173→              
+   174→              {/* Affordability Calculator */}
+   175→              <AffordabilityCalculator 
+   176→                affordability={creditResult.affordability}
+   177→                maxDtiRatio={policy.maxDtiRatio}
+   178→                showBreakdown={true}
+   179→              />
+   180→            </div>
+   181→
+   182→            {/* Score Breakdown */}
+   183→            <Card>
+   184→              <CardHeader>
+   185→                <CardTitle className="text-base">Score Breakdown by Category</CardTitle>
+   186→                <CardDescription>Detailed point allocation across scoring factors</CardDescription>
+   187→              </CardHeader>
+   188→              <CardContent>
+   189→                <div className="space-y-3">
+   190→                  {creditResult.scoreBreakdown.map((item, index) => (
+   191→                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+   192→                      <div className="flex items-center gap-3">
+   193→                        <Badge variant="outline" className="font-mono text-xs">
+   194→                          {item.category}
+   195→                        </Badge>
+   196→                        <div>
+   197→                          <p className="font-medium text-sm">{item.factor}</p>
+   198→                          <p className="text-xs text-muted-foreground">{item.description}</p>
+   199→                        </div>
+   200→                      </div>
+   201→                      <div className="flex items-center gap-3">
+   202→                        <span className="text-xs text-muted-foreground">Weight: {item.weight}%</span>
+   203→                        <span className={`font-mono font-bold text-lg min-w-[60px] text-right ${
+   204→                          item.points > 0 ? 'text-emerald-600' : item.points < 0 ? 'text-red-600' : 'text-gray-500'
+   205→                        }`}>
+   206→                          {item.points > 0 ? '+' : ''}{item.points}
+   207→                        </span>
+   208→                      </div>
+   209→                    </div>
+   210→                  ))}
+   211→                </div>
+   212→
+   213→                <Separator className="my-4" />
+   214→
+   215→                <div className="flex justify-between items-center p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
+   216→                  <span className="font-semibold">Total Score</span>
+   217→                  <span className="text-3xl font-bold text-emerald-600">{creditResult.score}</span>
+   218→                </div>
+   219→              </CardContent>
+   220→            </Card>
+   221→          </TabsContent>
+   222→
+   223→          {/* Full Assessment Tab */}
+   224→          <TabsContent value="assessment">
+   225→            <ApplicationAssessmentView
+   226→              applicationId={`APP-${selectedProfile.toUpperCase()}`}
+   227→              customerName={`${getCustomerName(selectedProfile as any)}`}
+   228→              requestedAmount={getRequestedAmount(selectedProfile as any)}
+   229→              termDays={90}
+   230→              purpose={getPurpose(selectedProfile as any)}
+   231→              submittedAt={new Date()}
+   232→              result={creditResult}
+   233→              riskFlags={[
+   234→                ...(selectedProfile === 'poor' || selectedProfile === 'veryPoor' ? [
+   235→                  { level: 'critical' as const, message: 'Significant arrears history detected' },
+   236→                ] : []),
+   237→                ...(selectedProfile === 'veryPoor' ? [
+   238→                  { level: 'warning' as const, message: 'No verifiable employment or income' },
+   239→                  { level: 'warning' as const, message: 'KYC verification incomplete' },
+   240→                ] : selectedProfile === 'poor' ? [
+   241→                  { level: 'warning' as const, message: 'High DTI ratio approaching threshold' },
+   242→                ] : []),
+   243→                { level: 'info' as const, message: `Confidence score: ${creditResult.confidenceLevel}% based on data completeness` }
+   244→              ]}
+   245→              comparableLoans={[
+   246→                { score: creditResult.score + 25, amount: 85000, decision: 'APPROVE', outcome: 'REPAID' },
+   247→                { score: creditResult.score + 10, amount: 70000, decision: 'APPROVE', outcome: 'ACTIVE' },
+   248→                { score: creditResult.score - 15, amount: 55000, decision: 'REVIEW', outcome: 'ACTIVE' },
+   249→                { score: creditResult.score - 35, amount: 40000, decision: 'APPROVE', outcome: 'REPAID' },
+   250→              ]}
+   251→              canOverride={true}
+   252→              onOverride={(decision, reason) => {
+   253→                console.log('Override:', decision, reason)
+   254→                alert(`Decision overridden to ${decision}: ${reason}`)
+   255→              }}
+   256→            />
+   257→          </TabsContent>
+   258→
+   259→          {/* CRB Report Tab */}
+   260→          <TabsContent value="bureau">
+   261→            <div className="grid lg:grid-cols-2 gap-6">
+   262→              <CreditBureauSimulator
+   263→                customerName={getCustomerName(selectedProfile as any)}
+   264→                nationalId="12345678"
+   265→                initialData={{
+   266→                  crbStatus: selectedProfile === 'veryPoor' || selectedProfile === 'poor' ? 'LISTED' : 'CLEAN',
+   267→                  overallScore: creditResult.score
+   268→                }}
+   269→                onRefresh={() => console.log('CRB refreshed')}
+   270→              />
+   271→              
+   272→              {/* Mini CRB Summary */}
+   273→              <div className="space-y-6">
+   274→                <Card>
+   275→                  <CardHeader>
+   276→                    <CardTitle className="text-base">CRB Integration Points</CardTitle>
+   277→                  </CardHeader>
+   278→                  <CardContent className="space-y-4">
+   279→                    <IntegrationPoint
+   280→                      title="Metropol CRB"
+   281→                      status="connected"
+   282→                      description="Primary bureau for Kenyan market"
+   283→                      lastSync="2 minutes ago"
+   284→                    />
+   285→                    <IntegrationPoint
+   286→                      title="TransUnion Kenya"
+   287→                      status="connected"
+   288→                      description="Secondary bureau verification"
+   289→                      lastSync="5 minutes ago"
+   290→                    />
+   291→                    <IntegrationPoint
+   292→                      title="CreditInfo Kenya"
+   293→                      status="pending"
+   294→                      description="Third bureau (optional)"
+   295→                      lastSync="Never"
+   296→                    />
+   297→                  </CardContent>
+   298→                </Card>
+   299→
+   300→                <Card>
+   301→                  <CardHeader>
+   302→                    <CardTitle className="text-base">CRB Status Legend</CardTitle>
+   303→                  </CardHeader>
+   304→                  <CardContent>
+   305→                    <div className="space-y-3">
+   306→                      <div className="flex items-center gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-950/30">
+   307→                        <Badge className="bg-green-500 text-white">CLEAN</Badge>
+   308→                        <div>
+   309→                          <p className="font-medium text-sm">Clean Record</p>
+   310→                          <p className="text-xs text-muted-foreground">No negative listings, eligible for credit</p>
+   311→                        </div>
+   312→                      </div>
+   313→                      <div className="flex items-center gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-950/30">
+   314→                        <Badge variant="destructive">LISTED</Badge>
+   315→                        <div>
+   316→                          <p className="font-medium text-sm">Negative Listing</p>
+   317→                          <p className="text-xs text-muted-foreground">Has defaults or arrears over 90 days</p>
+   318→                        </div>
+   319→                      </div>
+   320→                      <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30">
+   321→                        <Badge className="bg-amber-500 text-white">PENDING</Badge>
+   322→                        <div>
+   323→                          <p className="font-medium text-sm">Pending Verification</p>
+   324→                          <p className="text-xs text-muted-foreground">CRB check in progress</p>
+   325→                        </div>
+   326→                      </div>
+   327→                    </div>
+   328→                  </CardContent>
+   329→                </Card>
+   330→              </div>
+   331→            </div>
+   332→          </TabsContent>
+   333→
+   334→          {/* Policy Editor Tab */}
+   335→          <TabsContent value="policy">
+   336→            <CreditPolicyEditor
+   337→              initialPolicy={policy}
+   338→              onPolicyChange={(newPolicy) => {
+   339→                setPolicy(newPolicy)
+   340→                // Recalculate with new policy
+   341→                if (selectedProfile) {
+   342→                  const input = generateSampleInput(selectedProfile as 'excellent' | 'good' | 'fair' | 'poor' | 'veryPoor')
+   343→                  setCreditResult(calculateCreditScore(input, newPolicy))
+   344→                }
+   345→              }}
+   346→              onSave={async (newPolicy) => {
+   347→                console.log('Saving policy:', newPolicy)
+   348→                await new Promise(resolve => setTimeout(resolve, 1000))
+   349→              }}
+   350→              showPreview={true}
+   351→            />
+   352→          </TabsContent>
+   353→
+   354→          {/* Gauge Chart Tab */}
+   355→          <TabsContent value="gauge">
+   356→            <div className="grid lg:grid-cols-2 gap-8">
+   357→              <Card>
+   358→                <CardHeader>
+   359→                  <CardTitle className="text-base">Animated Score Gauge</CardTitle>
+   360→                  <CardDescription>Visual representation of credit score (0-850 scale)</CardDescription>
+   361→                </CardHeader>
+   362→                <CardContent className="flex flex-col items-center space-y-6">
+   363→                  {creditResult && (
+   364→                    <CreditScoreGauge
+   365→                      score={creditResult.score}
+   366→                      previousScore={previousScore}
+   367→                      size="lg"
+   368→                      animated={true}
+   369→                      showLabels={true}
+   370→                    />
+   371→                  )}
+   372→                  
+   373→                  <div className="grid grid-cols-5 gap-2 w-full mt-4">
+   374→                    {(['excellent', 'good', 'fair', 'poor', 'veryPoor'] as const).map((profile) => {
+   375→                      const sampleResult = calculateCreditScore(generateSampleInput(profile))
+   376→                      return (
+   377→                        <button
+   378→                          key={profile}
+   379→                          onClick={() => handleProfileChange(profile)}
+   380→                          className={`p-3 rounded-lg border-2 transition-all ${
+   381→                            selectedProfile === profile 
+   382→                              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30' 
+   383→                              : 'border-transparent hover:border-gray-300'
+   384→                          }`}
+   385→                        >
+   386→                          <div className="text-center">
+   387→                            <p className="text-lg font-bold">{sampleResult.score}</p>
+   388→                            <p className="text-xs text-muted-foreground capitalize">{profile.replace(/([A-Z])/g, ' $1')}</p>
+   389→                          </div>
+   390→                        </button>
+   391→                      )
+   392→                    })}
+   393→                  </div>
+   394→                  
+   395→                  <p className="text-sm text-muted-foreground text-center">
+   396→                    Click a profile above to see the gauge animation
+   397→                  </p>
+   398→                </CardContent>
+   399→              </Card>
+   400→
+   401→              <Card>
+   402→                <CardHeader>
+   403→                  <CardTitle className="text-base">Gauge Size Variants</CardTitle>
+   404→                  <CardDescription>Different sizes for various UI contexts</CardDescription>
+   405→                </CardHeader>
+   406→                <CardContent className="space-y-8">
+   407→                  <div className="space-y-4">
+   408→                    <h4 className="text-sm font-medium">Large (320px)</h4>
+   409→                    <div className="flex justify-center">
+   410→                      <CreditScoreGauge score={creditResult?.score || 650} size="lg" animated={false} showLabels={false} />
+   411→                    </div>
+   412→                  </div>
+   413→                  
+   414→                  <Separator />
+   415→                  
+   416→                  <div className="space-y-4">
+   417→                    <h4 className="text-sm font-medium">Medium (240px) - Default</h4>
+   418→                    <div className="flex justify-center">
+   419→                      <CreditScoreGauge score={creditResult?.score || 650} size="md" animated={false} showLabels={true} />
+   420→                    </div>
+   421→                  </div>
+   422→                  
+   423→                  <Separator />
+   424→                  
+   425→                  <div className="space-y-4">
+   426→                    <h4 className="text-sm font-medium">Small (160px) - Compact</h4>
+   427→                    <div className="flex justify-center">
+   428→                      <CreditScoreGauge score={creditResult?.score || 650} size="sm" animated={false} showLabels={true} />
+   429→                    </div>
+   430→                  </div>
+   431→                </CardContent>
+   432→              </Card>
+   433→            </div>
+   434→          </TabsContent>
+   435→
+   436→          {/* API Documentation Tab */}
+   437→          <TabsContent value="api">
+   438→            <div className="space-y-6">
+   439→              <Card>
+   440→                <CardHeader>
+   441→                  <CardTitle className="text-lg flex items-center gap-2">
+   442→                    <Shield className="w-5 h-5" />
+   443→                    Credit Scoring API Endpoints
+   444→                  </CardTitle>
+   445→                  <CardDescription>
+   446→                    RESTful API for integrating the credit engine into your applications
+   447→                  </CardDescription>
+   448→                </CardHeader>
+   449→                <CardContent className="space-y-6">
+   450→                  {/* Calculate Score Endpoint */}
+   451→                  <ApiEndpoint
+   452→                    method="POST"
+   453→                    path="/api/credit"
+   454→                    description="Calculate credit score for an applicant"
+   455→                    body={{
+   456→                      customerId: "string (optional)",
+   457→                      loanAmount: "number (optional)",
+   458→                      tenureDays: "number (optional)",
+   459→                      profileType: "'excellent' | 'good' | 'fair' | 'poor' | 'veryPoor' (for demo)",
+   460→                      kycVerified: "boolean (required)",
+   461→                      employmentStatus: "string",
+   462→                      incomeAmount: "number",
+   463→                      incomeFrequency: "string",
+   464→                      completedLoans: "number",
+   465→                      daysInArrears: "number"
+   466→                    }}
+   467→                    response={{
+   468→                      success: "boolean",
+   469→                      data: "{ score, grade, riskLevel, maxLoanAmount, ... }",
+   470→                      requestId: "string",
+   471→                      cached: "boolean"
+   472→                    }}
+   473→                  />
+   474→
+   475→                  <Separator />
+   476→
+   477→                  {/* Get Assessment Endpoint */}
+   478→                  <ApiEndpoint
+   479→                    method="GET"
+   480→                    path="/api/credit/assessment?applicationId=xxx"
+   481→                    description="Get full credit assessment for a loan application"
+   482→                    params={{
+   483→                      applicationId: "string (required)",
+   484→                      profileType: "'excellent' | 'good' | 'fair' | 'poor' | 'veryPoor' (for demo)"
+   485→                    }}
+   486→                    response={{
+   487→                      application: "{ id, customerName, requestedAmount, ... }",
+   488→                      scoreResult: "{ score, grade, riskLevel, decision, confidenceLevel }",
+   489→                      affordability: "{ monthlyIncome, dtiRatio, affordable, ... }",
+   490→                      decision: "{ recommendation, reasoning, conditions, nextSteps }",
+   491→                      comparableLoans: "[{ score, amount, decision, outcome }]",
+   492→                      riskFlags: "[{ level, message }]"
+   493→                    }}
+   494→                  />
+   495→
+   496→                  <Separator />
+   497→
+   498→                  {/* Policies Endpoint */}
+   499→                  <ApiEndpoint
+   500→                    method="GET / PUT"
+   501→                    path="/api/credit/policies"
+   502→                    description="Get or update tenant-level credit policies"
+   503→                    body={{
+   504→                      minCreditScore: "number (300-700)",
+   505→                      autoApproveThreshold: "number (500-800)",
+   506→                      maxDtiRatio: "number (0.2-0.8)",
+   507→                      requireKyc: "boolean",
+   508→                      requireEmployment: "boolean",
+   509→                      interestRateAdjustments: "{ lowRisk, mediumRisk, highRisk, veryHighRisk }",
+   510→                      loanLimitsByGrade: "{ A, B, C, D, D: { maxAmount, maxTenureDays } }"
+   511→                    }}
+   512→                  />
+   513→
+   514→                  <Separator />
+   515→
+   516→                  {/* Rules Endpoint */}
+   517→                  <ApiEndpoint
+   518→                    method="GET / POST / PUT / DELETE"
+   519→                    path="/api/credit/rules"
+   520→                    description="Manage custom credit rules and business logic"
+   521→                    body={{
+   522→                      name: "string (required)",
+   523→                      description: "string",
+   524→                      action: "'APPROVE' | 'REVIEW' | 'DECLINE' | 'ADJUST_SCORE' | 'ADJUST_LIMIT'",
+   525→                      conditionType: "'score_threshold' | 'arrears_days' | 'employment_status' | 'kyc_status'",
+   526→                      priority: "number (1-100)",
+   527→                      isActive: "boolean"
+   528→                    }}
+   529→                  />
+   530→
+   531→                  {/* Quick Test Section */}
+   532→                  <Separator />
+   533→                  
+   534→                  <div className="bg-muted/50 rounded-lg p-4">
+   535→                    <h4 className="font-semibold mb-3">Quick Test</h4>
+   536→                    <div className="flex gap-3 flex-wrap">
+   537→                      {(['excellent', 'good', 'fair', 'poor', 'veryPoor'] as const).map((profile) => (
+   538→                        <Button
+   539→                          key={profile}
+   540→                          variant={selectedProfile === profile ? 'default' : 'outline'}
+   541→                          size="sm"
+   542→                          onClick={() => handleProfileChange(profile)}
+   543→                        >
+   544→                          Test {profile.charAt(0).toUpperCase() + profile.slice(1)} Profile
+   545→                        </Button>
+   546→                      ))}
+   547→                    </div>
+   548→                    
+   549→                    {creditResult && (
+   550→                      <div className="mt-4 p-3 bg-background rounded-md font-mono text-sm overflow-x-auto">
+   551→                        <pre>{JSON.stringify({
+   552→                          score: creditResult.score,
+   553→                          grade: creditResult.grade,
+   554→                          decision: creditResult.decision,
+   555→                          maxLoan: creditResult.maxLoanAmount,
+   556→                          dtiRatio: `${creditResult.affordability.dtiRatio}%`
+   557→                        }, null, 2)}</pre>
+   558→                      </div>
+   559→                    )}
+   560→                  </div>
+   561→                </CardContent>
+   562→              </Card>
+   563→            </div>
+   564→          </TabsContent>
+   565→        </Tabs>
+   566→      )}
+   567→    </div>
+   568→  )
+   569→}
+   570→
+   571→// Helper Components
+   572→function ApiEndpoint({ 
+   573→  method, 
+   574→  path, 
+   575→  description, 
+   576→  body, 
+   577→  params, 
+   578→  response 
+   579→}: { 
+   580→  method: string; 
+   581→  path: string; 
+   582→  description: string;
+   583→  body?: Record<string, string>;
+   584→  params?: Record<string, string>;
+   585→  response?: Record<string, string>;
+   586→}) {
+   587→  const getMethodColor = (m: string) => {
+   588→    if (m.includes('POST')) return 'bg-emerald-500'
+   589→    if (m.includes('PUT')) return 'bg-blue-500'
+   590→    if (m.includes('DELETE')) return 'bg-red-500'
+   591→    return 'bg-amber-500'
+   592→  }
+   593→
+   594→  return (
+   595→    <div className="space-y-3">
+   596→      <div className="flex items-center gap-3">
+   597→        <Badge className={`${getMethodColor(method)} text-white`}>
+   598→          {method}
+   599→        </Badge>
+   600→        <code className="text-sm bg-muted px-3 py-1 rounded font-mono">{path}</code>
+   601→      </div>
+   602→      <p className="text-sm text-muted-foreground ml-20">{description}</p>
+   603→      
+   604→      {body && (
+   605→        <div className="ml-20 space-y-1">
+   606→          <p className="text-xs font-medium text-muted-foreground uppercase">Request Body:</p>
+   607→          <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
+   608→            {JSON.stringify(body, null, 2)}
+   609→          </pre>
+   610→        </div>
+   611→      )}
+   612→      
+   613→      {params && (
+   614→        <div className="ml-20 space-y-1">
+   615→          <p className="text-xs font-medium text-muted-foreground uppercase">Query Params:</p>
+   616→          <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
+   617→            {JSON.stringify(params, null, 2)}
+   618→          </pre>
+   619→        </div>
+   620→      )}
+   621→      
+   622→      {response && (
+   623→        <div className="ml-20 space-y-1">
+   624→          <p className="text-xs font-medium text-muted-foreground uppercase">Response:</p>
+   625→          <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
+   626→            {JSON.stringify(response, null, 2)}
+   627→          </pre>
+   628→        </div>
+   629→      )}
+   630→    </div>
+   631→  )
+   632→}
+   633→
+   634→function IntegrationPoint({ 
+   635→  title, 
+   636→  status, 
+   637→  description, 
+   638→  lastSync 
+   639→}: { 
+   640→  title: string; 
+   641→  status: string; 
+   642→  description: string; 
+   643→  lastSync: string 
+   644→}) {
+   645→  return (
+   646→    <div className="flex items-start justify-between p-3 rounded-lg border">
+   647→      <div className="flex items-start gap-3">
+   648→        <div className={`w-2 h-2 rounded-full mt-2 ${
+   649→          status === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'
+   650→        }`} />
+   651→        <div>
+   652→          <p className="font-medium text-sm">{title}</p>
+   653→          <p className="text-xs text-muted-foreground">{description}</p>
+   654→        </div>
+   655→      </div>
+   656→      <span className="text-xs text-muted-foreground">Synced {lastSync}</span>
+   657→    </div>
+   658→  )
+   659→}
+   660→
+   661→// Helper functions for demo data
+   662→function getCustomerName(profile: string): string {
+   663→  const names: Record<string, string> = {
+   664→    excellent: 'Mary Wanjiku Kamau',
+   665→    good: 'John Kamau Mwangi',
+   666→    fair: 'Grace Atieno Ochieng',
+   667→    poor: 'Peter Ndungu Githinji',
+   668→    veryPoor: 'James Mwangi Kariuki'
+   669→  }
+   670→  return names[profile] || 'Demo Customer'
+   671→}
+   672→
+   673→function getRequestedAmount(profile: string): number {
+   674→  const amounts: Record<string, number> = {
+   675→    excellent: 200000,
+   676→    good: 75000,
+   677→    fair: 50000,
+   678→    poor: 25000,
+   679→    veryPoor: 10000
+   680→  }
+   681→  return amounts[profile] || 50000
+   682→}
+   683→
+   684→function getPurpose(profile: string): string {
+   685→  const purposes: Record<string, string> = {
+   686→    excellent: 'Business expansion - equipment purchase',
+   687→    good: 'School fees payment for children',
+   688→    fair: 'Emergency medical expenses',
+   689→    poor: 'Rent payment and household expenses',
+   690→    veryPoor: 'Personal emergency needs'
+   691→  }
+   692→  return purposes[profile] || 'General purpose loan'
+   693→}
+   694→
+   695→function getDecisionLabel(decision: string): string {
+   696→  switch (decision) {
+   697→    case 'APPROVE': return 'Auto-Approved'
+   698→    case 'REVIEW': return 'Manual Review'
+   699→    case 'DECLINE': return 'Declined'
+   700→    default: return decision
+   701→  }
+   702→}
+   703→
+   704→// Main Dashboard Component
+   705→function DashboardContent() {
+   706→  const [activeTab, setActiveTab] = useState<PortalType>('customer')
+   707→  const [showLoginDialog, setShowLoginDialog] = useState(false)
+   708→  
+   709→  const { requireAuth } = useAuthContext()
+   710→
+   711→  const handleLoginClick = useCallback(() => {
+   712→    setShowLoginDialog(true)
+   713→  }, [])
+   714→
+   715→  const handleLoginSuccess = useCallback(() => {
+   716→    setShowLoginDialog(false)
+   717→  }, [])
+   718→
+   719→  const handlePortalChange = useCallback((portal: string) => {
+   720→    setActiveTab(portal as PortalType)
+   721→  }, [])
+   722→
+   723→  return (
+   724→    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-900 dark:to-slate-950">
+   725→      {/* Header */}
+   726→      <header className="border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
+   727→        <div className="container mx-auto px-4 py-3 md:py-4">
+   728→          <div className="flex flex-col md:flex-row items-center justify-between gap-3 md:gap-4">
+   729→            <div className="flex items-center gap-3">
+   730→              <div className="w-10 h-10 bg-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/20">
+   731→                <Landmark className="w-6 h-6 text-white" />
+   732→              </div>
+   733→              <div>
+   734→                <h1 className="text-xl font-bold text-slate-900 dark:text-white">Digital Lending OS</h1>
+   735→                <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
+   736→                  Multi-Tenant Lending Platform for Kenyan DCPs
+   737→                </p>
+   738→              </div>
+   739→            </div>
+   740→            
+   741→            <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto">
+   742→              <AuthStatusbar 
+   743→                onLoginClick={handleLoginClick}
+   744→                onPortalChange={(portal) => setActiveTab(portal)}
+   745→                compact={true}
+   746→              />
+   747→              
+   748→              <ThemeToggle />
+   749→              <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 hidden sm:inline-flex">
+   750→                v2.0.0
+   751→              </Badge>
+   752→              <Badge variant="outline" className="border-amber-300 text-amber-700 hidden sm:inline-flex">
+   753→                CBK Licensed
+   754→              </Badge>
+   755→            </div>
+   756→          </div>
+   757→        </div>
+   758→      </header>
+   759→
+   760→      {/* Main Content */}
+   761→      <main className="container mx-auto px-4 py-6">
+   762→        {/* Auth Status Bar (Full Version) - Shown below header on larger screens */}
+   763→        <div className="mb-6 flex justify-end">
+   764→          <AuthStatusbar 
+   765→            onLoginClick={handleLoginClick}
+   766→            onPortalChange={handlePortalChange}
+   767→          />
+   768→        </div>
+   769→
+   770→        {/* Platform Overview Cards */}
+   771→        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+   772→          <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0 hover:shadow-lg transition-shadow duration-200">
+   773→            <CardContent className="p-4 md:p-5">
+   774→              <div className="flex items-center justify-between">
+   775→                <div>
+   776→                  <p className="text-emerald-100 text-xs md:text-sm">Total Loan Book</p>
+   777→                  <p className="text-xl md:text-2xl font-bold">KSh 840M</p>
+   778→                </div>
+   779→                <TrendingUp className="w-7 h-7 md:w-8 md:h-8 text-emerald-200" />
+   780→              </div>
+   781→            </CardContent>
+   782→          </Card>
+   783→          
+   784→          <Card className="bg-gradient-to-br from-slate-700 to-slate-800 text-white border-0 hover:shadow-lg transition-shadow duration-200">
+   785→            <CardContent className="p-4 md:p-5">
+   786→              <div className="flex items-center justify-between">
+   787→                <div>
+   788→                  <p className="text-slate-300 text-xs md:text-sm">Active Loans</p>
+   789→                  <p className="text-xl md:text-2xl font-bold">182,432</p>
+   790→                </div>
+   791→                <CreditCard className="w-7 h-7 md:w-8 md:h-8 text-slate-400" />
+   792→              </div>
+   793→            </CardContent>
+   794→          </Card>
+   795→          
+   796→          <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-0 hover:shadow-lg transition-shadow duration-200">
+   797→            <CardContent className="p-4 md:p-5">
+   798→              <div className="flex items-center justify-between">
+   799→                <div>
+   800→                  <p className="text-amber-100 text-xs md:text-sm">PAR30 Ratio</p>
+   801→                  <p className="text-xl md:text-2xl font-bold">4.2%</p>
+   802→                </div>
+   803→                <Building2 className="w-7 h-7 md:w-8 md:h-8 text-amber-200" />
+   804→              </div>
+   805→            </CardContent>
+   806→          </Card>
+   807→          
+   808→          <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white border-0 hover:shadow-lg transition-shadow duration-200">
+   809→            <CardContent className="p-4 md:p-5">
+   810→              <div className="flex items-center justify-between">
+   811→                <div>
+   812→                  <p className="text-blue-100 text-xs md:text-sm">DCP Tenants</p>
+   813→                  <p className="text-xl md:text-2xl font-bold">252+</p>
+   814→                </div>
+   815→                <Users className="w-7 h-7 md:w-8 md:h-8 text-blue-200" />
+   816→              </div>
+   817→            </CardContent>
+   818→          </Card>
+   819→        </div>
+   820→
+   821→        {/* Tab Navigation */}
+   822→        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as PortalType)} className="space-y-6">
+   823→          <TabsList className="grid w-full grid-cols-6 bg-slate-100 dark:bg-slate-800 p-1 h-auto">
+   824→            <TabsTrigger 
+   825→              value="customer" 
+   826→              className="data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5 md:py-3 px-2 md:px-4 text-xs md:text-sm"
+   827→            >
+   828→              <Users className="w-4 h-4 mr-1.5" />
+   829→              <span className="hidden sm:inline">Customer Portal</span>
+   830→              <span className="sm:hidden">Customer</span>
+   831→            </TabsTrigger>
+   832→            <TabsTrigger 
+   833→              value="lender" 
+   834→              className="data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5 md:py-3 px-2 md:px-4 text-xs md:text-sm"
+   835→            >
+   836→              <Building2 className="w-4 h-4 mr-1.5" />
+   837→              <span className="hidden sm:inline">Lender Admin</span>
+   838→              <span className="sm:hidden">Lender</span>
+   839→            </TabsTrigger>
+   840→            <TabsTrigger 
+   841→              value="collections" 
+   842→              className="data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5 md:py-3 px-2 md:px-4 text-xs md:text-sm"
+   843→            >
+   844→              <AlertTriangle className="w-4 h-4 mr-1.5" />
+   845→              <span className="hidden sm:inline">Collections</span>
+   846→              <span className="sm:hidden">Collect</span>
+   847→            </TabsTrigger>
+   848→            <TabsTrigger 
+   849→              value="admin" 
+   850→              className="data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5 md:py-3 px-2 md:px-4 text-xs md:text-sm"
+   851→            >
+   852→              <Shield className="w-4 h-4 mr-1.5" />
+   853→              <span className="hidden sm:inline">Super Admin</span>
+   854→              <span className="sm:hidden">Admin</span>
+   855→            </TabsTrigger>
+   856→            <TabsTrigger 
+   857→              value="credit" 
+   858→              className="data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5 md:py-3 px-2 md:px-4 text-xs md:text-sm"
+   859→            >
+   860→              <Calculator className="w-4 h-4 mr-1.5" />
+   861→              <span className="hidden sm:inline">Credit Engine</span>
+   862→              <span className="sm:hidden">Credit</span>
+   863→            </TabsTrigger>
+   864→            <TabsTrigger 
+   865→              value="architecture" 
+   866→              className="data-[state=active]:bg-white data-[state=active]:shadow-sm py-2.5 md:py-3 px-2 md:px-4 text-xs md:text-sm"
+   867→            >
+   868→              <Network className="w-4 h-4 mr-1.5" />
+   869→              <span className="hidden sm:inline">Architecture</span>
+   870→              <span className="sm:hidden">Arch</span>
+   871→            </TabsTrigger>
+   872→          </TabsList>
+   873→
+   874→          {/* Customer Portal Tab */}
+   875→          <TabsContent value="customer">
+   876→            <CustomerPortal />
+   877→          </TabsContent>
+   878→
+   879→          {/* Lender Admin Dashboard Tab */}
+   880→          <TabsContent value="lender">
+   881→            <LenderDashboard />
+   882→          </TabsContent>
+   883→
+   884→          {/* Collections Module Tab */}
+   885→          <TabsContent value="collections">
+   886→            <CollectionsDashboard />
+   887→          </TabsContent>
+   888→
+   889→          {/* Super Admin View Tab */}
+   890→          <TabsContent value="admin">
+   891→            <SuperAdminView />
+   892→          </TabsContent>
+   893→
+   894→          {/* Credit Scoring Engine Tab */}
+   895→          <TabsContent value="credit">
+   896→            <CreditScoringDemo />
+   897→          </TabsContent>
+   898→
+   899→          {/* Architecture Diagram Tab */}
+   900→          <TabsContent value="architecture">
+   901→            <ArchitectureDiagram />
+   902→          </TabsContent>
+   903→        </Tabs>
+   904→      </main>
+   905→
+   906→      {/* Login Dialog */}
+   907→      <Dialog open={showLoginDialog} onOpenChange={setShowLoginDialog}>
+   908→        <DialogContent className="max-w-md p-0 overflow-hidden bg-transparent border-none shadow-2xl">
+   909→          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-6 rounded-xl">
+   910→            <LoginScreen 
+   911→              portal={activeTab}
+   912→              onPortalChange={(portal) => {
+   913→                setActiveTab(portal)
+   914→              }}
+   915→              onSuccess={handleLoginSuccess}
+   916→              onClose={() => setShowLoginDialog(false)}
+   917→              showPortalSelector={true}
+   918→            />
+   919→          </div>
+   920→        </DialogContent>
+   921→      </Dialog>
+   922→
+   923→      {/* Footer */}
+   924→      <footer className="mt-auto border-t bg-slate-50 dark:bg-slate-900 py-6 mt-12">
+   925→        <div className="container mx-auto px-4">
+   926→          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+   927→            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 text-sm">
+   928→              <Landmark className="w-5 h-5 text-emerald-600" />
+   929→              <span>Digital Lending OS © 2026</span>
+   930→            </div>
+   931→            <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
+   932→              <span>Regulated by Central Bank of Kenya</span>
+   933→              <span>•</span>
+   934→              <span>252+ Licensed DCPs</span>
+   935→            </div>
+   936→          </div>
+   937→        </div>
+   938→      </footer>
+   939→    </div>
+   940→  )
+   941→}
+   942→
+   943→// Import Dialog component
+   944→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+   945→
+   946→// Main page component wrapped with AuthProvider
+   947→export default function Home() {
+   948→  return (
+   949→    <AuthProvider defaultPortal="customer" requireAuthentication={false}>
+   950→      <DashboardContent />
+   951→    </AuthProvider>
+   952→  )
+   953→}
+   954→

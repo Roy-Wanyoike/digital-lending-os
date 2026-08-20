@@ -1,0 +1,835 @@
+     1→// Provider Health Monitoring Service for Digital Lending OS
+     2→// Monitors external integrations: M-Pesa, KYC, CRB, SMS, Email
+     3→
+     4→export type ProviderType = "payment" | "kyc" | "credit" | "communication" | "banking";
+     5→export type ProviderStatusType = "healthy" | "degraded" | "down" | "unknown";
+     6→export type AlertSeverity = "info" | "warning" | "critical";
+     7→
+     8→export interface LatencyMetrics {
+     9→  p50: number;
+    10→  p95: number;
+    11→  p99: number;
+    12→}
+    13→
+    14→export interface RequestVolume {
+    15→  total: number;
+    16→  successful: number;
+    17→  failed: number;
+    18→}
+    19→
+    20→export interface Incident {
+    21→  id: string;
+    22→  providerId: string;
+    23→  providerName: string;
+    24→  type: string;
+    25→  description: string;
+    26→  severity: AlertSeverity;
+    27→  status: "active" | "acknowledged" | "resolved";
+    28→  startTime: Date;
+    29→  endTime?: Date;
+    30→  duration?: number; // minutes
+    31→  resolvedBy?: string;
+    32→  resolvedAt?: Date;
+    33→  acknowledgedBy?: string;
+    34→  acknowledgedAt?: Date;
+    35→  rootCause?: string;
+    36→  impact: string;
+    37→  affectedServices: string[];
+    38→}
+    39→
+    40→export interface MaintenanceWindow {
+    41→  start: Date;
+    42→  end: Date;
+    43→  reason: string;
+    44→  planned: boolean;
+    45→}
+    46→
+    47→export interface LastIncident {
+    48→  time: Date;
+    49→  type: string;
+    50→  description: string;
+    51→  resolved: boolean;
+    52→  duration?: number;
+    53→}
+    54→
+    55→export interface ProviderStatus {
+    56→  id: string;
+    57→  name: string;
+    58→  displayName: string;
+    59→  type: ProviderType;
+    60→  status: ProviderStatusType;
+    61→  uptime: number; // Percentage (99.95)
+    62→  latency: LatencyMetrics; // ms
+    63→  successRate: number; // Percentage (99.94)
+    64→  errorRate: number; // Percentage (0.06)
+    65→  requestVolume: RequestVolume;
+    66→  lastIncident?: LastIncident;
+    67→  currentIncidents: number;
+    68→  maintenanceWindow?: MaintenanceWindow;
+    69→  endpoint: string;
+    70→  region: string;
+    71→  lastChecked: Date;
+    72→  slaTarget: number;
+    73→  dependencies: string[];
+    74→  icon: string;
+    75→}
+    76→
+    77→export interface HealthCheckResult {
+    78→  timestamp: Date;
+    79→  providers: ProviderStatus[];
+    80→  overallHealth: "healthy" | "degraded" | "critical";
+    81→  alerts: Alert[];
+    82→  summary: {
+    83→    totalProviders: number;
+    84→    healthyCount: number;
+    85→    degradedCount: number;
+    86→    downCount: number;
+    87→    unknownCount: number;
+    88→    activeIncidents: number;
+    89→    activeAlerts: number;
+    90→  };
+    91→}
+    92→
+    93→export interface Alert {
+    94→  id: string;
+    95→  severity: AlertSeverity;
+    96→  provider: string;
+    97→  providerId: string;
+    98→  message: string;
+    99→  createdAt: Date;
+   100→  acknowledged: boolean;
+   101→  acknowledgedBy?: string;
+   102→  acknowledgedAt?: Date;
+   103→  resolvedAt?: Date;
+   104→  resolved: boolean;
+   105→  type: string;
+   106→}
+   107→
+   108→export interface HistoricalDataPoint {
+   109→  timestamp: Date;
+   110→  latency: LatencyMetrics;
+   111→  successRate: number;
+   112→  errorRate: number;
+   113→  requestCount: number;
+   114→  errorCount: number;
+   115→}
+   116→
+   117→export interface ProviderHistory {
+   118→  providerId: string;
+   119→  period: string;
+   120→  data: HistoricalDataPoint[];
+   121→  summary: {
+   122→    avgLatency: LatencyMetrics;
+   123→    maxLatency: LatencyMetrics;
+   124→    minLatency: LatencyMetrics;
+   125→    totalRequests: number;
+   126→    totalErrors: number;
+   127→    overallUptime: number;
+   128→  };
+   129→}
+   130→
+   131→// Mock Data for Kenyan DCP Providers
+   132→const PROVIDERS_CONFIG = [
+   133→  // Payment Providers
+   134→  {
+   135→    id: "mpesa",
+   136→    name: "mpesa",
+   137→    displayName: "M-Pesa STK Push",
+   138→    type: "payment" as ProviderType,
+   139→    endpoint: "api.safaricom.co.ke/mpesa/stkpush/v1",
+   140→    region: "Kenya - Nairobi",
+   141→    slaTarget: 99.9,
+   142→    dependencies: ["sms-gateway"],
+   143→    icon: "📱",
+   144→  },
+   145→  {
+   146→    id: "pesalink",
+   147→    name: "pesalink",
+   148→    displayName: "Pesalink Transfer",
+   149→    type: "payment" as ProviderType,
+   150→    endpoint: "pesalink.interswitch.co.ke/api/v2",
+   151→    region: "Kenya - Nairobi",
+   152→    slaTarget: 99.95,
+   153→    dependencies: [],
+   154→    icon: "🏦",
+   155→  },
+   156→  {
+   157→    id: "card-gateway",
+   158→    name: "card-gateway",
+   159→    displayName: "Card Payment Gateway",
+   160→    type: "payment" as ProviderType,
+   161→    endpoint: "gateway.dpo.group/api/v3",
+   162→    region: "Global - Failover",
+   163→    slaTarget: 99.95,
+   164→    dependencies: ["fraud-detection"],
+   165→    icon: "💳",
+   166→  },
+   167→  {
+   168→    id: "bank-transfer",
+   169→    name: "bank-transfer",
+   170→    displayName: "Bank Transfer (EFT)",
+   171→    type: "banking" as ProviderType,
+   172→    endpoint: "rtgs.centralbank.go.ke/rtgs/v1",
+   173→    region: "Kenya - CBK",
+   174→    slaTarget: 99.99,
+   175→    dependencies: [],
+   176→    icon: "🏦",
+   177→  },
+   178→
+   179→  // Verification/KYC Providers
+   180→  {
+   181→    id: "id-verification",
+   182→    name: "id-verification",
+   183→    displayName: "ID Verification (NIDA)",
+   184→    type: "kyc" as ProviderType,
+   185→    endpoint: "verification.crbservices.co.ke/id/v2",
+   186→    region: "Kenya - Nairobi",
+   187→    slaTarget: 99.9,
+   188→    dependencies: [],
+   189→    icon: "🆔",
+   190→  },
+   191→  {
+   192→    id: "crb-check",
+   193→    name: "crb-check",
+   194→    displayName: "CRB Credit Check",
+   195→    type: "credit" as ProviderType,
+   196→    endpoint: "api.metropolcorp.com/crb/v3",
+   197→    region: "Kenya - Multi-region",
+   198→    slaTarget: 99.95,
+   199→    dependencies: ["id-verification"],
+   200→    icon: "📋",
+   201→  },
+   202→  {
+   203→    id: "biometrics",
+   204→    name: "biometrics",
+   205→    displayName: "Biometric Verification",
+   206→    type: "kyc" as ProviderType,
+   207→    endpoint: "bio.onfido.com/verify/v4",
+   208→    region: "EU - Ireland",
+   209→    slaTarget: 99.8,
+   210→    dependencies: ["id-verification"],
+   211→    icon: "📷",
+   212→  },
+   213→
+   214→  // Communication Providers
+   215→  {
+   216→    id: "sms-gateway",
+   217→    name: "sms-gateway",
+   218→    displayName: "SMS Gateway (Africa's Talking)",
+   219→    type: "communication" as ProviderType,
+   220→    endpoint: "api.africastalking.com/version1/messaging",
+   221→    region: "Kenya - Multi-AZ",
+   222→    slaTarget: 99.95,
+   223→    dependencies: [],
+   224→    icon: "📲",
+   225→  },
+   226→  {
+   227→    id: "email-service",
+   228→    name: "email-service",
+   229→    displayName: "Email Service (SendGrid)",
+   230→    type: "communication" as ProviderType,
+   231→    endpoint: "api.sendgrid.com/v3/mail/send",
+   232→    region: "Global - US-East",
+   233→    slaTarget: 99.99,
+   234→    dependencies: [],
+   235→    icon: "📧",
+   236→  },
+   237→  {
+   238→    id: "whatsapp-api",
+   239→    name: "whatsapp-api",
+   240→    displayName: "WhatsApp Business API",
+   241→    type: "communication" as ProviderType,
+   242→    endpoint: "graph.facebook.com/v17.0/whatsapp",
+   243→    region: "Global - Multi-region",
+   244→    slaTarget: 99.9,
+   245→    dependencies: ["sms-gateway"],
+   246→    icon: "💬",
+   247→  },
+   248→];
+   249→
+   250→// Generate realistic latency based on time of day
+   251→function generateTimeBasedLatency(
+   252→  baseLatency: number,
+   253→  variance: number
+   254→): LatencyMetrics {
+   255→  const hour = new Date().getHours();
+   256→  const isPeakHour = hour >= 8 && hour <= 11 || hour >= 14 && hour <= 17;
+   257→  const peakMultiplier = isPeakHour ? 1.3 + Math.random() * 0.4 : 1;
+   258→  
+   259→  const p50 = Math.round(baseLatency * peakMultiplier + (Math.random() - 0.5) * variance);
+   260→  const p95 = Math.round(p50 * (1.8 + Math.random() * 0.4));
+   261→  const p99 = Math.round(p95 * (1.5 + Math.random() * 0.5));
+   262→  
+   263→  return { p50, p95, p99 };
+   264→}
+   265→
+   266→// Generate request volume with realistic patterns
+   267→function generateRequestVolume(baseVolume: number): RequestVolume {
+   268→  const hour = new Date().getHours();
+   269→  const dayOfWeek = new Date().getDay();
+   270→  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+   271→  
+   272→  let timeMultiplier = 1;
+   273→  if (isWeekend) {
+   274→    timeMultiplier = 0.4 + Math.random() * 0.2;
+   275→  } else if (hour >= 6 && hour <= 9) {
+   276→    timeMultiplier = 1.5 + Math.random() * 0.3; // Morning peak
+   277→  } else if (hour >= 12 && hour <= 14) {
+   278→    timeMultiplier = 1.2 + Math.random() * 0.2; // Lunch
+   279→  } else if (hour >= 17 && hour <= 20) {
+   280→    timeMultiplier = 1.4 + Math.random() * 0.3; // Evening
+   281→  } else if (hour >= 0 && hour <= 5) {
+   282→    timeMultiplier = 0.1 + Math.random() * 0.1; // Night
+   283→  }
+   284→  
+   285→  const total = Math.round(baseVolume * timeMultiplier);
+   286→  const errorRate = 0.01 + Math.random() * 0.09; // 1-10% base error rate varies by provider
+   287→  const failed = Math.max(0, Math.round(total * errorRate / 100));
+   288→  const successful = total - failed;
+   289→  
+   290→  return { total, successful, failed };
+   291→}
+   292→
+   293→// Generate provider status with realistic data
+   294→function generateProviderStatus(config: typeof PROVIDERS_CONFIG[0]): ProviderStatus {
+   295→  const now = new Date();
+   296→  
+   297→  // Base configurations per provider
+   298→  const configs: Record<string, {
+   299→    baseUptime: number;
+   300→    baseLatency: number;
+   301→    latencyVariance: number;
+   302→    baseVolume: number;
+   303→    statusWeights: [number, number, number, number]; // healthy, degraded, down, unknown
+   304→  }> = {
+   305→    "mpesa": { baseUptime: 99.94, baseLatency: 420, latencyVariance: 100, baseVolume: 15000, statusWeights: [92, 6, 1, 1] },
+   306→    "pesalink": { baseUptime: 99.98, baseLatency: 180, latencyVariance: 50, baseVolume: 5000, statusWeights: [97, 2, 0.5, 0.5] },
+   307→    "card-gateway": { baseUptime: 99.95, baseLatency: 320, latencyVariance: 80, baseVolume: 8000, statusWeights: [95, 4, 0.5, 0.5] },
+   308→    "bank-transfer": { baseUptime: 99.99, baseLatency: 1200, latencyVariance: 300, baseVolume: 2000, statusWeights: [98, 1.5, 0.25, 0.25] },
+   309→    "id-verification": { baseUptime: 99.92, baseLatency: 850, latencyVariance: 200, baseVolume: 12000, statusWeights: [90, 8, 1.5, 0.5] },
+   310→    "crb-check": { baseUptime: 99.95, baseLatency: 1100, latencyVariance: 250, baseVolume: 9000, statusWeights: [94, 5, 0.75, 0.25] },
+   311→    "biometrics": { baseUptime: 99.80, baseLatency: 1500, latencyVariance: 400, baseVolume: 4000, statusWeights: [80, 15, 4, 1] },
+   312→    "sms-gateway": { baseUptime: 99.97, baseLatency: 150, latencyVariance: 40, baseVolume: 25000, statusWeights: [96, 3, 0.5, 0.5] },
+   313→    "email-service": { baseUptime: 99.99, baseLatency: 220, latencyVariance: 60, baseVolume: 18000, statusWeights: [99, 0.75, 0.125, 0.125] },
+   314→    "whatsapp-api": { baseUptime: 99.95, baseLatency: 380, latencyVariance: 90, baseVolume: 6000, statusWeights: [93, 5, 1.5, 0.5] },
+   315→  };
+   316→
+   317→  const pc = configs[config.id];
+   318→  const rand = Math.random() * 100;
+   319→  
+   320→  let status: ProviderStatusType;
+   321→  const cumulative = [
+   322→    pc.statusWeights[0],
+   323→    pc.statusWeights[0] + pc.statusWeights[1],
+   324→    pc.statusWeights[0] + pc.statusWeights[1] + pc.statusWeights[2],
+   325→    100
+   326→  ];
+   327→  
+   328→  if (rand < cumulative[0]) status = "healthy";
+   329→  else if (rand < cumulative[1]) status = "degraded";
+   330→  else if (rand < cumulative[2]) status = "down";
+   331→  else status = "unknown";
+   332→
+   333→  const uptimeVariation = status === "healthy" ? 0 : status === "degraded" ? -0.5 : -2;
+   334→  const uptime = Math.max(95, Math.min(99.99, pc.baseUptime + (Math.random() - 0.5) * 0.1 + uptimeVariation));
+   335→  
+   336→  const latency = generateTimeBasedLatency(pc.baseLatency, pc.latianceVariance);
+   337→  const requestVolume = generateRequestVolume(pc.baseVolume);
+   338→  
+   339→  const successRate = 100 - (requestVolume.failed / Math.max(1, requestVolume.total)) * 100;
+   340→  const errorRate = 100 - successRate;
+   341→
+   342→  // Generate last incident
+   343→  const hasIncident = Math.random() > 0.3;
+   344→  let lastIncident: LastIncident | undefined;
+   345→  if (hasIncident) {
+   346→    const incidentTypes = [
+   347→      { type: "timeout", desc: "Connection timeout during peak hours" },
+   348→      { type: "error_5xx", desc: "Upstream server error (HTTP 503)" },
+   349→      { type: "slow_response", desc: "Elevated response times detected" },
+   350→      { type: "auth_failure", desc: "Authentication token expired" },
+   351→      { type: "rate_limit", desc: "Rate limit exceeded" },
+   352→      { type: "dns_failure", desc: "DNS resolution failure" },
+   353→    ];
+   354→    const incident = incidentTypes[Math.floor(Math.random() * incidentTypes.length)];
+   355→    const daysAgo = Math.floor(Math.random() * 30);
+   356→    
+   357→    lastIncident = {
+   358→      time: new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000),
+   359→      type: incident.type,
+   360→      description: incident.desc,
+   361→      resolved: Math.random() > 0.2,
+   362→      duration: Math.round(5 + Math.random() * 120),
+   363→    };
+   364→  }
+   365→
+   366→  // Current incidents (more likely when not healthy)
+   367→  const currentIncidents = status === "down" ? Math.floor(1 + Math.random() * 3) :
+   368→                           status === "degraded" ? (Math.random() > 0.7 ? 1 : 0) : 0;
+   369→
+   370→  // Maintenance window (rare)
+   371→  let maintenanceWindow: MaintenanceWindow | undefined;
+   372→  if (Math.random() > 0.95) {
+   373→    maintenanceWindow = {
+   374→      start: new Date(now.getTime() + 2 * 60 * 60 * 1000),
+   375→      end: new Date(now.getTime() + 4 * 60 * 60 * 1000),
+   376→      reason: "Scheduled infrastructure upgrade",
+   377→      planned: true,
+   378→    };
+   379→  }
+   380→
+   381→  return {
+   382→    id: config.id,
+   383→    name: config.name,
+   384→    displayName: config.displayName,
+   385→    type: config.type,
+   386→    status,
+   387→    uptime: Math.round(uptime * 100) / 100,
+   388→    latency,
+   389→    successRate: Math.round(successRate * 100) / 100,
+   390→    errorRate: Math.round(errorRate * 100) / 100,
+   391→    requestVolume,
+   392→    lastIncident,
+   393→    currentIncidents,
+   394→    maintenanceWindow,
+   395→    endpoint: config.endpoint,
+   396→    region: config.region,
+   397→    lastChecked: now,
+   398→    slaTarget: config.slaTarget,
+   399→    dependencies: config.dependencies,
+   400→    icon: config.icon,
+   401→  };
+   402→}
+   403→
+   404→// Generate alerts based on provider statuses
+   405→function generateAlerts(providers: ProviderStatus[]): Alert[] {
+   406→  const alerts: Alert[] = [];
+   407→  const alertTemplates: Record<ProviderStatusType, { severity: AlertSeverity; messages: string[] }[]> = {
+   408→    healthy: [],
+   409→    degraded: [
+   410→      { severity: "warning", messages: [
+   411→        "Elevated response times detected",
+   412→        "Success rate below threshold",
+   413→        "Intermittent timeouts occurring",
+   414→        "Performance degradation observed",
+   415→      ]},
+   416→      { severity: "info", messages: [
+   417→        "Approaching rate limits",
+   418→        "Cache hit ratio decreased",
+   419→      ]},
+   420→    ],
+   421→    down: [
+   422→      { severity: "critical", messages: [
+   423→        "Service unreachable",
+   424→        "Connection refused",
+   425→        "All health checks failing",
+   426→        "Complete service outage",
+   427→      ]},
+   428→      { severity: "warning", messages: [
+   429→        "Failover initiated",
+   430→        "Circuit breaker open",
+   431→      ]},
+   432→    ],
+   433→    unknown: [
+   434→      { severity: "warning", messages: [
+   435→        "Unable to determine service status",
+   436→        "Health check timeout",
+   437→        "Status check pending",
+   438→      ]},
+   439→    ],
+   440→  };
+   441→
+   442→  providers.forEach((provider, index) => {
+   443→    const templates = alertTemplates[provider.status];
+   444→    templates?.forEach(({ severity, messages }) => {
+   445→      if (Math.random() > 0.5) {
+   446→        const message = messages[Math.floor(Math.random() * messages.length)];
+   447→        alerts.push({
+   448→          id: `alert-${provider.id}-${index}-${Date.now()}`,
+   449→          severity,
+   450→          provider: provider.displayName,
+   451→          providerId: provider.id,
+   452→          message: `${provider.displayName}: ${message}`,
+   453→          createdAt: new Date(Date.now() - Math.random() * 3600000),
+   454→          acknowledged: Math.random() > 0.7,
+   455→          ...(Math.random() > 0.7 ? { acknowledgedBy: "ops-team@lendingos.co.ke" } : {}),
+   456→          resolved: false,
+   457→          type: severity === "critical" ? "outage" : severity === "warning" ? "degradation" : "info",
+   458→        });
+   459→      }
+   460→    });
+   461→  });
+   462→
+   463→  return alerts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+   464→}
+   465→
+   466→// Generate sample incidents
+   467→function generateSampleIncidents(): Incident[] {
+   468→  const now = new Date();
+   469→  return [
+   470→    {
+   471→      id: "inc-001",
+   472→      providerId: "mpesa",
+   473→      providerName: "M-Pesa STK Push",
+   474→      type: "timeout",
+   475→      description: "Sustained timeouts affecting STK Push transactions during morning peak hours",
+   476→      severity: "critical",
+   477→      status: "resolved",
+   478→      startTime: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
+   479→      endTime: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000),
+   480→      duration: 45,
+   481→      resolvedBy: "john.kamau@lendingos.co.ke",
+   482→      resolvedAt: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000),
+   483→      rootCause: "Safaricom API rate limiting during high traffic period",
+   484→      impact: "Delayed loan disbursements for ~200 customers",
+   485→      affectedServices: ["loan-disbursement", "repayment-collection"],
+   486→    },
+   487→    {
+   488→      id: "inc-002",
+   489→      providerId: "biometrics",
+   490→      providerName: "Biometric Verification",
+   491→      type: "slow_response",
+   492→      description: "Biometric verification API showing elevated P99 latencies (>3s)",
+   493→      severity: "warning",
+   494→      status: "active",
+   495→      startTime: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+   496→      impact: "Slower onboarding experience, increased abandonment",
+   497→      affectedServices: ["customer-onboarding", "kyc-verification"],
+   498→    },
+   499→    {
+   500→      id: "inc-003",
+   501→      providerId: "crb-check",
+   502→      providerName: "CRB Credit Check",
+   503→      type: "intermittent_errors",
+   504→      description: "Intermittent HTTP 502 errors from Metropol CRB API",
+   505→      severity: "warning",
+   506→      status: "acknowledged",
+   507→      startTime: new Date(now.getTime() - 6 * 60 * 60 * 1000),
+   508→      acknowledgedBy: "grace.otieno@lendingos.co.ke",
+   509→      acknowledgedAt: new Date(now.getTime() - 5 * 60 * 60 * 1000),
+   510→      impact: "Some credit checks require retry, slight delay in approval",
+   511→      affectedServices: ["credit-assessment", "loan-approval"],
+   512→    },
+   513→    {
+   514→      id: "inc-004",
+   515→      providerId: "sms-gateway",
+   516→      providerName: "SMS Gateway",
+   517→      type: "delivery_delays",
+   518→      description: "SMS delivery delays of 5-10 minutes reported",
+   519→      severity: "info",
+   520→      status: "resolved",
+   521→      startTime: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000),
+   522→      endTime: new Date(now.getTime() - 22 * 60 * 60 * 1000),
+   523→      duration: 120,
+   524→      resolvedBy: "system-auto",
+   525→      resolvedAt: new Date(now.getTime() - 22 * 60 * 60 * 1000),
+   526→      rootCause: "Telco network congestion",
+   527→      impact: "OTP and notification delays",
+   528→      affectedServices: ["two-factor-auth", "notifications"],
+   529→    },
+   530→    {
+   531→      id: "inc-005",
+   532→      providerId: "id-verification",
+   533→      providerName: "ID Verification (NIDA)",
+   534→      type: "connection_error",
+   535→      description: "Failed to establish connection to NIDA verification endpoint",
+   536→      severity: "critical",
+   537→      status: "resolved",
+   538→      startTime: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+   539→      endTime: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000 + 20 * 60 * 1000),
+   540→      duration: 20,
+   541→      resolvedBy: "tech-ops@lendingos.co.ke",
+   542→      resolvedAt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000 + 20 * 60 * 1000),
+   543→      rootCause: "Scheduled NIDA system maintenance extended beyond window",
+   544→      impact: "New customer registration blocked for 20 minutes",
+   545→      affectedServices: ["customer-registration", "kyc-verification"],
+   546→    },
+   547→  ];
+   548→}
+   549→
+   550→// In-memory store for incidents and alerts
+   551→let incidentsStore: Incident[] = generateSampleIncidents();
+   552→let alertsStore: Alert[] = [];
+   553→
+   554→// Main health check function
+   555→export function performHealthCheck(tenantId?: string): HealthCheckResult {
+   556→  const now = new Date();
+   557→  const providers = PROVIDERS_CONFIG.map(generateProviderStatus);
+   558→  const alerts = [...generateAlerts(providers), ...alertsStore.filter(a => !a.resolved)];
+   559→  
+   560→  const healthyCount = providers.filter(p => p.status === "healthy").length;
+   561→  const degradedCount = providers.filter(p => p.status === "degraded").length;
+   562→  const downCount = providers.filter(p => p.status === "down").length;
+   563→  const unknownCount = providers.filter(p => p.status === "unknown").length;
+   564→  
+   565→  let overallHealth: "healthy" | "degraded" | "critical";
+   566→  if (downCount > 0) {
+   567→    overallHealth = "critical";
+   568→  } else if (degradedCount > 2 || unknownCount > 0) {
+   569→    overallHealth = "degraded";
+   570→  } else if (degradedCount > 0) {
+   571→    overallHealth = "degraded";
+   572→  } else {
+   573→    overallHealth = "healthy";
+   574→  }
+   575→
+   576→  return {
+   577→    timestamp: now,
+   578→    providers,
+   579→    overallHealth,
+   580→    alerts: alerts.slice(0, 20), // Limit to recent 20 alerts
+   581→    summary: {
+   582→      totalProviders: providers.length,
+   583→      healthyCount,
+   584→      degradedCount,
+   585→      downCount,
+   586→      unknownCount,
+   587→      activeIncidents: incidentsStore.filter(i => i.status !== "resolved").length,
+   588→      activeAlerts: alerts.filter(a => !a.resolved).length,
+   589→    },
+   590→  };
+   591→}
+   592→
+   593→// Get single provider details
+   594→export function getProviderDetails(providerId: string): ProviderStatus | null {
+   595→  const config = PROVIDERS_CONFIG.find(p => p.id === providerId);
+   596→  if (!config) return null;
+   597→  return generateProviderStatus(config);
+   598→}
+   599→
+   600→// Get all providers
+   601→export function getAllProviders(): ProviderStatus[] {
+   602→  return PROVIDERS_CONFIG.map(generateProviderStatus);
+   603→}
+   604→
+   605→// Get incidents
+   606→export function getIncidents(options?: { 
+   607→  providerId?: string; 
+   608→  status?: string; 
+   609→  severity?: string;
+   610→}): Incident[] {
+   611→  let filtered = [...incidentsStore];
+   612→  
+   613→  if (options?.providerId) {
+   614→    filtered = filtered.filter(i => i.providerId === options.providerId);
+   615→  }
+   616→  if (options?.status) {
+   617→    filtered = filtered.filter(i => i.status === options.status);
+   618→  }
+   619→  if (options?.severity) {
+   620→    filtered = filtered.filter(i => i.severity === options.severity);
+   621→  }
+   622→  
+   623→  return filtered.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+   624→}
+   625→
+   626→// Create incident
+   627→export function createIncident(data: Omit<Incident, "id" | "startTime">): Incident {
+   628→  const incident: Incident = {
+   629→    ...data,
+   630→    id: `inc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+   631→    startTime: new Date(),
+   632→  };
+   633→  incidentsStore.unshift(incident);
+   634→  return incident;
+   635→}
+   636→
+   637→// Update incident (acknowledge/resolve)
+   638→export function updateIncident(
+   639→  incidentId: string, 
+   640→  updates: Partial<Pick<Incident, "status" | "acknowledgedBy" | "acknowledgedAt" | "resolvedBy" | "resolvedAt" | "endTime" | "duration">>
+   641→): Incident | null {
+   642→  const index = incidentsStore.findIndex(i => i.id === incidentId);
+   643→  if (index === -1) return null;
+   644→  
+   645→  incidentsStore[index] = { ...incidentsStore[index], ...updates };
+   646→  return incidentsStore[index];
+   647→}
+   648→
+   649→// Get alerts
+   650→export function getAlerts(options?: { 
+   651→  providerId?: string; 
+   652→  severity?: string;
+   653→  acknowledged?: boolean;
+   654→}): Alert[] {
+   655→  let filtered = [...alertsStore];
+   656→  
+   657→  if (options?.providerId) {
+   658→    filtered = filtered.filter(a => a.providerId === options.providerId);
+   659→  }
+   660→  if (options?.severity) {
+   661→    filtered = filtered.filter(a => a.severity === options.severity);
+   662→  }
+   663→  if (options?.acknowledged !== undefined) {
+   664→    filtered = filtered.filter(a => a.acknowledged === options.acknowledged);
+   665→  }
+   666→  
+   667→  return filtered.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+   668→}
+   669→
+   670→// Acknowledge alert
+   671→export function acknowledgeAlert(alertId: string, acknowledgedBy?: string): Alert | null {
+   672→  const index = alertsStore.findIndex(a => a.id === alertId);
+   673→  if (index === -1) return null;
+   674→  
+   675→  alertsStore[index] = {
+   676→    ...alertsStore[index],
+   677→    acknowledged: true,
+   678→    acknowledgedBy,
+   679→    acknowledgedAt: new Date(),
+   680→  };
+   681→  return alertsStore[index];
+   682→}
+   683→
+   684→// Generate historical data for charts
+   685→export function generateHistoricalData(
+   686→  providerId: string, 
+   687→  period: "1h" | "6h" | "24h" | "7d" | "30d" = "24h"
+   688→): ProviderHistory {
+   689→  const config = PROVIDERS_CONFIG.find(p => p.id === providerId);
+   690→  if (!config) {
+   691→    throw new Error(`Provider ${providerId} not found`);
+   692→  }
+   693→
+   694→  const now = new Date();
+   695→  let points: number;
+   696→  let intervalMs: number;
+   697→
+   698→  switch (period) {
+   699→    case "1h":
+   700→      points = 60;
+   701→      intervalMs = 60 * 1000; // 1 minute
+   702→      break;
+   703→    case "6h":
+   704→      points = 72;
+   705→      intervalMs = 5 * 60 * 1000; // 5 minutes
+   706→      break;
+   707→    case "24h":
+   708→      points = 96;
+   709→      intervalMs = 15 * 60 * 1000; // 15 minutes
+   710→      break;
+   711→    case "7d":
+   712→      points = 168;
+   713→      intervalMs = 60 * 60 * 1000; // 1 hour
+   714→      break;
+   715→    case "30d":
+   716→      points = 120;
+   717→      intervalMs = 6 * 60 * 60 * 1000; // 6 hours
+   718→      break;
+   719→  }
+   720→
+   721→  const configs: Record<string, { baseLatency: number; baseErrorRate: number }> = {
+   722→    "mpesa": { baseLatency: 420, baseErrorRate: 0.06 },
+   723→    "pesalink": { baseLatency: 180, baseErrorRate: 0.02 },
+   724→    "card-gateway": { baseLatency: 320, baseErrorRate: 0.05 },
+   725→    "bank-transfer": { baseLatency: 1200, baseErrorRate: 0.01 },
+   726→    "id-verification": { baseLatency: 850, baseErrorRate: 0.08 },
+   727→    "crb-check": { baseLatency: 1100, baseErrorRate: 0.05 },
+   728→    "biometrics": { baseLatency: 1500, baseErrorRate: 0.20 },
+   729→    "sms-gateway": { baseLatency: 150, baseErrorRate: 0.03 },
+   730→    "email-service": { baseLatency: 220, baseErrorRate: 0.01 },
+   731→    "whatsapp-api": { baseLatency: 380, baseErrorRate: 0.05 },
+   732→  };
+   733→
+   734→  const pc = configs[config.id] || { baseLatency: 500, baseErrorRate: 0.05 };
+   735→  const data: HistoricalDataPoint[] = [];
+   736→  
+   737→  let totalRequests = 0;
+   738→  let totalErrors = 0;
+   739→  let minLatency = { p50: Infinity, p95: Infinity, p99: Infinity };
+   740→  let maxLatency = { p50: 0, p95: 0, p99: 0 };
+   741→  let sumLatency = { p50: 0, p95: 0, p99: 0 };
+   742→
+   743→  for (let i = points - 1; i >= 0; i--) {
+   744→    const timestamp = new Date(now.getTime() - i * intervalMs);
+   745→    const hour = timestamp.getHours();
+   746→    const isPeakHour = hour >= 8 && hour <= 11 || hour >= 14 && hour <= 17;
+   747→    const peakMultiplier = isPeakHour ? 1.3 + Math.random() * 0.4 : 1;
+   748→    
+   749→    // Add some random spikes
+   750→    const spikeChance = Math.random();
+   751→    const spikeMultiplier = spikeChance > 0.98 ? 3 : spikeChance > 0.95 ? 2 : 1;
+   752→    
+   753→    const p50 = Math.round(pc.baseLatency * peakMultiplier * spikeMultiplier + (Math.random() - 0.5) * pc.baseLatency * 0.3);
+   754→    const p95 = Math.round(p50 * (1.8 + Math.random() * 0.4));
+   755→    const p99 = Math.round(p95 * (1.5 + Math.random() * 0.5));
+   756→
+   757→    const requestCount = Math.round(100 + Math.random() * 500);
+   758→    const errorRate = pc.baseErrorRate * spikeMultiplier + (Math.random() - 0.5) * 0.02;
+   759→    const errorCount = Math.max(0, Math.round(requestCount * Math.max(0, errorRate) / 100));
+   760→
+   761→    const point: HistoricalDataPoint = {
+   762→      timestamp,
+   763→      latency: { p50: Math.max(1, p50), p95: Math.max(1, p95), p99: Math.max(1, p99) },
+   764→      successRate: Math.round((100 - errorRate) * 100) / 100,
+   765→      errorRate: Math.round(Math.max(0, errorRate) * 100) / 100,
+   766→      requestCount,
+   767→      errorCount,
+   768→    };
+   769→
+   770→    data.push(point);
+   771→
+   772→    // Accumulate stats
+   773→    totalRequests += requestCount;
+   774→    totalErrors += errorCount;
+   775→    
+   776→    if (point.latency.p50 < minLatency.p50) minLatency.p50 = point.latency.p50;
+   777→    if (point.latency.p95 < minLatency.p95) minLatency.p95 = point.latency.p95;
+   778→    if (point.latency.p99 < minLatency.p99) minLatency.p99 = point.latency.p99;
+   779→    
+   780→    if (point.latency.p50 > maxLatency.p50) maxLatency.p50 = point.latency.p50;
+   781→    if (point.latency.p95 > maxLatency.p95) maxLatency.p95 = point.latency.p95;
+   782→    if (point.latency.p99 > maxLatency.p99) maxLatency.p99 = point.latency.p99;
+   783→    
+   784→    sumLatency.p50 += point.latency.p50;
+   785→    sumLatency.p95 += point.latency.p95;
+   786→    sumLatency.p99 += point.latency.p99;
+   787→  }
+   788→
+   789→  const pointCount = data.length || 1;
+   790→  const overallUptime = ((totalRequests - totalErrors) / totalRequests) * 100;
+   791→
+   792→  return {
+   793→    providerId: config.id,
+   794→    period,
+   795→    data,
+   796→    summary: {
+   797→      avgLatency: {
+   798→        p50: Math.round(sumLatency.p50 / pointCount),
+   799→        p95: Math.round(sumLatency.p95 / pointCount),
+   800→        p99: Math.round(sumLatency.p99 / pointCount),
+   801→      },
+   802→      maxLatency,
+   803→      minLatency: {
+   804→        p50: minLatency.p50 === Infinity ? 0 : minLatency.p50,
+   805→        p95: minLatency.p95 === Infinity ? 0 : minLatency.p95,
+   806→        p99: minLatency.p99 === Infinity ? 0 : minLatency.p99,
+   807→      },
+   808→      totalRequests,
+   809→      totalErrors,
+   810→      overallUptime: Math.round(overallUptime * 100) / 100,
+   811→    },
+   812→  };
+   813→}
+   814→
+   815→// Get dependency graph data
+   816→export function getDependencyGraph(): { nodes: Array<{ id: string; label: string; type: string; status: string }>; edges: Array<{ from: string; to: string }> } {
+   817→  const providers = PROVIDERS_CONFIG.map(generateProviderStatus);
+   818→  
+   819→  const nodes = providers.map(p => ({
+   820→    id: p.id,
+   821→    label: `${p.icon} ${p.displayName}`,
+   822→    type: p.type,
+   823→    status: p.status,
+   824→  }));
+   825→
+   826→  const edges: Array<{ from: string; to: string }> = [];
+   827→  providers.forEach(p => {
+   828→    p.dependencies.forEach(dep => {
+   829→      edges.push({ from: p.id, to: dep });
+   830→    });
+   831→  });
+   832→
+   833→  return { nodes, edges };
+   834→}
+   835→

@@ -263,6 +263,25 @@ export interface AuditLogEntry {
 export type Permission = string
 
 // ============================================
+// AUTH CONTEXT (for API route handlers)
+// ============================================
+
+/**
+ * Authentication context passed to protected API route handlers
+ * Contains user identity, tenant, and computed permissions
+ */
+export interface AuthContext {
+  /** Authenticated user object */
+  user: User
+  /** Tenant ID for multi-tenancy isolation */
+  tenantId: string
+  /** Whether authentication was successful */
+  isAuthenticated: boolean
+  /** Computed permission set based on user role */
+  permissions: Set<string>
+}
+
+// ============================================
 // CONFIGURATION EXPORTS
 // ============================================
 
