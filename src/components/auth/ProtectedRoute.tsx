@@ -69,12 +69,12 @@ interface ProtectedRouteProps {
   customCheck?: (user: User | null) => boolean | Promise<boolean>
 }
 
-// Default portal role mappings
+// Default portal role mappings (must match PortalType from auth-types)
 const PORTAL_ROLES: Record<PortalType, UserRole[]> = {
-  super_admin: ['SUPER_ADMIN'],
-  dcp_staff: ['TENANT_ADMIN', 'MANAGER', 'STAFF', 'AGENT', 'VIEWER'],
+  admin: ['SUPER_ADMIN'],
+  lender: ['TENANT_ADMIN', 'MANAGER', 'TENANT_STAFF', 'TENANT_AGENT'],
   customer: ['CUSTOMER'],
-  api: [],
+  architecture: ['SUPER_ADMIN', 'TENANT_ADMIN'],
 }
 
 // ============================================================

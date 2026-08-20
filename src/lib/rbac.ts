@@ -124,8 +124,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'collection:read',
   ],
   
-  // Regular staff - basic operations
-  STAFF: [
+  // Regular staff - basic operations (TENANT_STAFF)
+  TENANT_STAFF: [
     // Customer access (read-only mostly)
     'customer:read',
     'customer:create',
@@ -142,8 +142,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'repayment:read',
   ],
   
-  // Field agent - collections focused
-  AGENT: [
+  // Field agent - collections focused (TENANT_AGENT)
+  TENANT_AGENT: [
     // Customer identification
     'customer:read',
     'customer:view-contact',
@@ -160,16 +160,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     // Repayment recording
     'repayment:read',
     'repayment:create',
-  ],
-  
-  // Viewer - read-only access
-  VIEWER: [
-    'customer:read',
-    'loan:read',
-    'application:read',
-    'repayment:read',
-    'reports:view',
-    'collection:read',
   ],
   
   // Customer - self-service only
@@ -209,13 +199,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
  * Higher roles implicitly have permissions of lower roles.
  */
 export const ROLE_INHERITANCE: Record<UserRole, UserRole[]> = {
-  SUPER_ADMIN: [],                    // Top of hierarchy
-  TENANT_ADMIN: ['MANAGER', 'STAFF', 'AGENT', 'VIEWER'],
-  MANAGER: ['STAFF', 'AGENT', 'VIEWER'],
-  STAFF: ['VIEWER'],
-  AGENT: ['VIEWER'],
-  VIEWER: [],
-  CUSTOMER: [],                       // Separate hierarchy
+  SUPER_ADMIN: [],                              // Top of hierarchy
+  TENANT_ADMIN: ['MANAGER', 'TENANT_STAFF', 'TENANT_AGENT'],
+  MANAGER: ['TENANT_STAFF', 'TENANT_AGENT'],
+  TENANT_STAFF: [],
+  TENANT_AGENT: [],
+  CUSTOMER: [],                               // Separate hierarchy
 };
 
 // ============================================
@@ -224,13 +213,12 @@ export const ROLE_INHERITANCE: Record<UserRole, UserRole[]> = {
 
 /** Default approval limits in Kenyan Shillings (KES) */
 export const DEFAULT_APPROVAL_LIMITS: Record<UserRole, number> = {
-  SUPER_ADMIN: Infinity,              // Unlimited
-  TENANT_ADMIN: Infinity,             // Unlimited within tenant
-  MANAGER: 500000,                    // KES 500,000
-  STAFF: 0,                           // Cannot approve
-  AGENT: 0,                           // Cannot approve
-  VIEWER: 0,                          // Cannot approve
-  CUSTOMER: 0,                        // N/A for customers
+  SUPER_ADMIN: Infinity,                        // Unlimited
+  TENANT_ADMIN: Infinity,                       // Unlimited within tenant
+  MANAGER: 500000,                             // KES 500,000
+  TENANT_STAFF: 0,                            // Cannot approve
+  TENANT_AGENT: 0,                            // Cannot approve
+  CUSTOMER: 0,                                // N/A for customers
 };
 
 // ============================================
@@ -239,10 +227,10 @@ export const DEFAULT_APPROVAL_LIMITS: Record<UserRole, number> = {
 
 /** Which roles are allowed in each portal */
 export const PORTAL_ROLES: Record<PortalType, UserRole[]> = {
-  super_admin: ['SUPER_ADMIN'],
-  dcp_admin: ['TENANT_ADMIN', 'MANAGER', 'STAFF', 'AGENT', 'VIEWER'],
-  dcp_staff: ['MANAGER', 'STAFF', 'AGENT', 'VIEWER'],
+  admin: ['SUPER_ADMIN'],
+  lender: ['TENANT_ADMIN', 'MANAGER', 'TENANT_STAFF', 'TENANT_AGENT'],
   customer: ['CUSTOMER'],
+  architecture: ['SUPER_ADMIN', 'TENANT_ADMIN'],
 };
 
 // ============================================

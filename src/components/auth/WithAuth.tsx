@@ -330,7 +330,7 @@ export function WithDcpStaff<P extends object>(
   Component: React.ComponentType<P & AuthInjectedProps>
 ): React.ComponentType<Omit<P, keyof AuthInjectedProps>> {
   return WithAuth(Component, {
-    allowedRoles: ['TENANT_ADMIN', 'MANAGER', 'STAFF', 'AGENT', 'VIEWER'],
+    allowedRoles: ['TENANT_ADMIN', 'MANAGER', 'TENANT_STAFF', 'TENANT_AGENT'],
   })
 }
 
