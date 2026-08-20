@@ -5,6 +5,7 @@ const prisma = new PrismaClient()
 
 // Sample tenant data representing different DCP types
 const tenants = [
+  // Original 5 tenants
   {
     name: 'Abepot Credit',
     slug: 'abepot',
@@ -79,22 +80,367 @@ const tenants = [
     licenseDate: new Date('2022-02-28'),
     monthlyFee: 50000,
     transactionRate: 0.5
+  },
+
+  // ===== NEW TIER 4 PROSPECTS (20 additional tenants) =====
+
+  // STARTER Plan Tenants
+  {
+    name: 'Amaze Credit Limited',
+    slug: 'amaze',
+    companyName: 'Amaze Credit Limited',
+    licenseNumber: 'DCP-2025-0089',
+    phone: '+254701234567',
+    email: 'info@amaze.co.ke',
+    physicalAddress: 'Mombasa Road, Nairobi',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'STARTER' as const,
+    licenseDate: new Date('2025-01-20'),
+    monthlyFee: 5000,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Baecot Credit Ltd',
+    slug: 'baecot',
+    companyName: 'Baecot Credit Limited',
+    licenseNumber: 'DCP-2025-0102',
+    phone: '+254712345678',
+    email: 'admin@baecot.co.ke',
+    physicalAddress: 'Nakuru Town, Nakuru County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'STARTER' as const,
+    licenseDate: new Date('2025-03-10'),
+    monthlyFee: 5000,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Bluewave Cash Limited',
+    slug: 'bluewave',
+    companyName: 'Bluewave Cash Limited',
+    licenseNumber: 'DCP-2024-0188',
+    phone: '+254723456789',
+    email: 'hello@bluewave.co.ke',
+    physicalAddress: 'Kisumu City, Kisumu County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'STARTER' as const,
+    licenseDate: new Date('2024-08-05'),
+    monthlyFee: 5000,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Dahawi Credit Limited',
+    slug: 'dahawi',
+    companyName: 'Dahawi Credit Limited',
+    licenseNumber: 'DCP-2025-0115',
+    phone: '+254734567890',
+    email: 'contact@dahawi.co.ke',
+    physicalAddress: 'Eldoret Town, Uasin Gishu',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'STARTER' as const,
+    licenseDate: new Date('2025-04-12'),
+    monthlyFee: 5000,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Eversure Credit Limited',
+    slug: 'eversure',
+    companyName: 'Eversure Credit Limited',
+    licenseNumber: 'DCP-2024-0199',
+    phone: '+254745678901',
+    email: 'support@eversure.co.ke',
+    physicalAddress: 'Nyeri Town, Nyeri County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'STARTER' as const,
+    licenseDate: new Date('2024-09-18'),
+    monthlyFee: 5000,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Finseil Limited',
+    slug: 'finseil',
+    companyName: 'Finseil Limited',
+    licenseNumber: 'DCP-2025-0133',
+    phone: '+254756789012',
+    email: 'info@finseil.co.ke',
+    physicalAddress: 'Machakos Town, Machakos County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'STARTER' as const,
+    licenseDate: new Date('2025-05-22'),
+    monthlyFee: 5000,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Iboda Credit',
+    slug: 'iboda',
+    companyName: 'Iboda Credit Limited',
+    licenseNumber: 'DCP-2024-0211',
+    phone: '+254767890123',
+    email: 'admin@iboda.co.ke',
+    physicalAddress: 'Thika Town, Kiambu County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'STARTER' as const,
+    licenseDate: new Date('2024-10-30'),
+    monthlyFee: 5000,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Maison Capital',
+    slug: 'maison',
+    companyName: 'Maison Capital Limited',
+    licenseNumber: 'DCP-2025-0144',
+    phone: '+254778901234',
+    email: 'hello@maison.co.ke',
+    physicalAddress: 'Malindi, Kilifi County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'STARTER' as const,
+    licenseDate: new Date('2025-06-15'),
+    monthlyFee: 5000,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Malicash Investment',
+    slug: 'malicash',
+    companyName: 'Malicash Investment Limited',
+    licenseNumber: 'DCP-2024-0225',
+    phone: '+254789012345',
+    email: 'info@malicash.co.ke',
+    physicalAddress: 'Naivasha, Nakuru County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'STARTER' as const,
+    licenseDate: new Date('2024-11-08'),
+    monthlyFee: 5000,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Mimi Credit Limited',
+    slug: 'mimicredit',
+    companyName: 'Mimi Credit Limited',
+    licenseNumber: 'DCP-2025-0167',
+    phone: '+254790123456',
+    email: 'support@mimicredit.co.ke',
+    physicalAddress: 'Meru Town, Meru County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'STARTER' as const,
+    licenseDate: new Date('2025-07-01'),
+    monthlyFee: 5000,
+    transactionRate: 1.5
+  },
+  {
+    name: 'NJB Limited',
+    slug: 'njb',
+    companyName: 'NJB Limited',
+    licenseNumber: 'DCP-2024-0244',
+    phone: '+254702345678',
+    email: 'admin@njb.co.ke',
+    physicalAddress: 'Garissa Town, Garissa County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'STARTER' as const,
+    licenseDate: new Date('2024-12-14'),
+    monthlyFee: 5000,
+    transactionRate: 1.5
+  },
+
+  // TRIAL Plan Tenants
+  {
+    name: 'Becalob Credit Limited',
+    slug: 'becalob',
+    companyName: 'Becalob Credit Limited',
+    licenseNumber: 'DCP-2026-0045',
+    phone: '+254713456789',
+    email: 'info@becalob.co.ke',
+    physicalAddress: 'Kitale, Trans Nzoia County',
+    website: null,
+    status: 'TRIAL' as const,
+    plan: 'STARTER' as const,
+    licenseDate: null,
+    monthlyFee: 0,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Equal Reach Limited',
+    slug: 'equalreach',
+    companyName: 'Equal Reach Limited',
+    licenseNumber: 'DCP-2026-0056',
+    phone: '+254724567890',
+    email: 'hello@equalreach.co.ke',
+    physicalAddress: 'Kakamega Town, Kakamega County',
+    website: null,
+    status: 'TRIAL' as const,
+    plan: 'STARTER' as const,
+    licenseDate: null,
+    monthlyFee: 0,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Kechita Credit',
+    slug: 'kechita',
+    companyName: 'Kechita Credit Limited',
+    licenseNumber: 'DCP-2026-0078',
+    phone: '+254735678901',
+    email: 'contact@kechita.co.ke',
+    physicalAddress: 'Nanyuki, Laikipia County',
+    website: null,
+    status: 'TRIAL' as const,
+    plan: 'STARTER' as const,
+    licenseDate: null,
+    monthlyFee: 0,
+    transactionRate: 1.5
+  },
+  {
+    name: 'Mkulimapay Credit',
+    slug: 'mkulimapay',
+    companyName: 'Mkulimapay Credit Limited',
+    licenseNumber: 'DCP-2026-0089',
+    phone: '+254746789012',
+    email: 'admin@mkulimapay.co.ke',
+    physicalAddress: 'Embu Town, Embu County',
+    website: null,
+    status: 'TRIAL' as const,
+    plan: 'STARTER' as const,
+    licenseDate: null,
+    monthlyFee: 0,
+    transactionRate: 1.5
+  },
+
+  // PROFESSIONAL Plan Tenants
+  {
+    name: 'Centenary Micro Enterprise Services',
+    slug: 'centenary',
+    companyName: 'Centenary Micro Enterprise Services Limited',
+    licenseNumber: 'DCP-2023-0134',
+    phone: '+254757890123',
+    email: 'info@centenary.co.ke',
+    physicalAddress: 'Wundanyi, Taita Taveta County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'PROFESSIONAL' as const,
+    licenseDate: new Date('2023-06-25'),
+    monthlyFee: 15000,
+    transactionRate: 1.0
+  },
+  {
+    name: 'Hawkins Capital',
+    slug: 'hawkins',
+    companyName: 'Hawkins Capital Limited',
+    licenseNumber: 'DCP-2023-0156',
+    phone: '+254768901234',
+    email: 'operations@hawkins.co.ke',
+    physicalAddress: 'Nyahururu, Nyandarua County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'PROFESSIONAL' as const,
+    licenseDate: new Date('2023-08-14'),
+    monthlyFee: 15000,
+    transactionRate: 1.0
+  },
+  {
+    name: 'Lucason Capital',
+    slug: 'lucason',
+    companyName: 'Lucason Capital Limited',
+    licenseNumber: 'DCP-2022-0178',
+    phone: '+254779012345',
+    email: 'support@lucason.co.ke',
+    physicalAddress: 'Voi Town, Taita Taveta County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'PROFESSIONAL' as const,
+    licenseDate: new Date('2022-10-05'),
+    monthlyFee: 15000,
+    transactionRate: 1.0
+  },
+  {
+    name: 'Milhan Access Capital',
+    slug: 'milhan',
+    companyName: 'Milhan Access Capital Limited',
+    licenseNumber: 'DCP-2023-0190',
+    phone: '+254780123456',
+    email: 'hello@milhan.co.ke',
+    physicalAddress: 'Bungoma Town, Bungoma County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'PROFESSIONAL' as const,
+    licenseDate: new Date('2023-04-18'),
+    monthlyFee: 15000,
+    transactionRate: 1.0
+  },
+  {
+    name: 'Novatok Credit',
+    slug: 'novatok',
+    companyName: 'Novatok Credit Limited',
+    licenseNumber: 'DCP-2022-0212',
+    phone: '+254791234567',
+    email: 'info@novatok.co.ke',
+    physicalAddress: 'Marsabit Town, Marsabit County',
+    website: null,
+    status: 'ACTIVE' as const,
+    plan: 'PROFESSIONAL' as const,
+    licenseDate: new Date('2022-07-22'),
+    monthlyFee: 15000,
+    transactionRate: 1.0
   }
 ]
 
-// Sample user roles for each tenant
-const userRoles = [
-  { role: 'TENANT_ADMIN', count: 1 },
-  { role: 'MANAGER', count: 2 },
-  { role: 'STAFF', count: 3 },
-  { role: 'AGENT', count: 2 }
-]
+// Tenant configuration for data generation based on tier
+const tenantConfig = {
+  STARTER: { customerRange: [5, 10], applicationRange: [5, 10], userCount: 4 },
+  TRIAL: { customerRange: [5, 8], applicationRange: [3, 7], userCount: 3 },
+  PROFESSIONAL: { customerRange: [10, 15], applicationRange: [8, 15], userCount: 6 },
+  ENTERPRISE: { customerRange: [15, 22], applicationRange: [12, 20], userCount: 8 }
+}
 
-// Loan product templates
-function generateProducts(tenantId: string) {
-  // Generate unique suffix from tenant ID to ensure uniqueness
+// Sample user roles for each tenant based on plan
+function getUserRoles(plan: string) {
+  switch (plan) {
+    case 'TRIAL':
+      return [
+        { role: 'TENANT_ADMIN', count: 1 },
+        { role: 'STAFF', count: 2 }
+      ]
+    case 'STARTER':
+      return [
+        { role: 'TENANT_ADMIN', count: 1 },
+        { role: 'MANAGER', count: 1 },
+        { role: 'STAFF', count: 2 },
+        { role: 'AGENT', count: 1 }
+      ]
+    case 'PROFESSIONAL':
+      return [
+        { role: 'TENANT_ADMIN', count: 1 },
+        { role: 'MANAGER', count: 2 },
+        { role: 'STAFF', count: 3 },
+        { role: 'AGENT', count: 2 }
+      ]
+    case 'ENTERPRISE':
+      return [
+        { role: 'TENANT_ADMIN', count: 1 },
+        { role: 'MANAGER', count: 3 },
+        { role: 'STAFF', count: 4 },
+        { role: 'AGENT', count: 3 }
+      ]
+    default:
+      return [
+        { role: 'TENANT_ADMIN', count: 1 },
+        { role: 'STAFF', count: 2 }
+      ]
+  }
+}
+
+// Loan product templates - varies by plan
+function generateProducts(tenantId: string, plan: string) {
   const suffix = tenantId.slice(-6).toUpperCase()
-  return [
+  
+  const baseProducts = [
     {
       tenantId,
       name: 'Personal Loan',
@@ -102,11 +448,11 @@ function generateProducts(tenantId: string) {
       productCode: `PL-${suffix}-001`,
       category: 'PERSONAL_LOAN',
       minAmount: 5000,
-      maxAmount: 200000,
+      maxAmount: plan === 'ENTERPRISE' ? 300000 : plan === 'PROFESSIONAL' ? 200000 : 100000,
       defaultAmount: 50000,
       interestType: 'FLAT_RATE' as const,
-      interestRate: 15,
-      processingFee: 300,
+      interestRate: plan === 'ENTERPRISE' ? 12 : plan === 'PROFESSIONAL' ? 14 : 16,
+      processingFee: plan === 'ENTERPRISE' ? 200 : 300,
       processingFeeType: 'FIXED' as const,
       insuranceFee: 1,
       insuranceFeeType: 'PERCENTAGE' as const,
@@ -124,11 +470,11 @@ function generateProducts(tenantId: string) {
       productCode: `BL-${suffix}-001`,
       category: 'BUSINESS_LOAN',
       minAmount: 10000,
-      maxAmount: 500000,
+      maxAmount: plan === 'ENTERPRISE' ? 800000 : plan === 'PROFESSIONAL' ? 500000 : 200000,
       defaultAmount: 100000,
       interestType: 'FLAT_RATE' as const,
-      interestRate: 12,
-      processingFee: 500,
+      interestRate: plan === 'ENTERPRISE' ? 10 : plan === 'PROFESSIONAL' ? 12 : 15,
+      processingFee: plan === 'ENTERPRISE' ? 300 : 500,
       processingFeeType: 'FIXED' as const,
       insuranceFee: 0.5,
       insuranceFeeType: 'PERCENTAGE' as const,
@@ -138,16 +484,43 @@ function generateProducts(tenantId: string) {
       repaymentFrequency: 'MONTHLY' as const,
       gracePeriodDays: 15,
       isActive: true
-    },
-    {
+    }
+  ]
+
+  // Add unique third product based on plan type
+  if (plan === 'TRIAL') {
+    baseProducts.push({
+      tenantId,
+      name: 'Quick Cash',
+      description: 'Fast emergency cash for immediate needs.',
+      productCode: `QC-${suffix}-001`,
+      category: 'SALARY_ADVANCE',
+      minAmount: 500,
+      maxAmount: 10000,
+      defaultAmount: 3000,
+      interestType: 'FLAT_RATE' as const,
+      interestRate: 20,
+      processingFee: 50,
+      processingFeeType: 'FIXED' as const,
+      insuranceFee: 0,
+      insuranceFeeType: 'PERCENTAGE' as const,
+      minTermDays: 7,
+      maxTermDays: 14,
+      defaultTermDays: 7,
+      repaymentFrequency: 'BULLET' as const,
+      gracePeriodDays: 0,
+      isActive: true
+    })
+  } else if (plan === 'STARTER') {
+    baseProducts.push({
       tenantId,
       name: 'Salary Advance',
       description: 'Short-term advance against your salary with quick disbursement.',
       productCode: `SA-${suffix}-001`,
       category: 'SALARY_ADVANCE',
       minAmount: 1000,
-      maxAmount: 50000,
-      defaultAmount: 15000,
+      maxAmount: 30000,
+      defaultAmount: 10000,
       interestType: 'FLAT_RATE' as const,
       interestRate: 18,
       processingFee: 100,
@@ -160,17 +533,69 @@ function generateProducts(tenantId: string) {
       repaymentFrequency: 'BULLET' as const,
       gracePeriodDays: 0,
       isActive: true
-    }
-  ]
+    })
+  } else if (plan === 'PROFESSIONAL') {
+    baseProducts.push({
+      tenantId,
+      name: 'Asset Finance',
+      description: 'Finance for purchase of assets including equipment, vehicles, and machinery.',
+      productCode: `AF-${suffix}-001`,
+      category: 'ASSET_FINANCE',
+      minAmount: 50000,
+      maxAmount: 1000000,
+      defaultAmount: 250000,
+      interestType: 'REDUCING_BALANCE' as const,
+      interestRate: 11,
+      processingFee: 1000,
+      processingFeeType: 'FIXED' as const,
+      insuranceFee: 0.5,
+      insuranceFeeType: 'PERCENTAGE' as const,
+      minTermDays: 180,
+      maxTermDays: 1095,
+      defaultTermDays: 730,
+      repaymentFrequency: 'MONTHLY' as const,
+      gracePeriodDays: 30,
+      isActive: true
+    })
+  } else if (plan === 'ENTERPRISE') {
+    baseProducts.push({
+      tenantId,
+      name: 'Premium Business Loan',
+      description: 'Premium business financing for established companies with competitive rates.',
+      productCode: `PB-${suffix}-001`,
+      category: 'BUSINESS_LOAN',
+      minAmount: 100000,
+      maxAmount: 2000000,
+      defaultAmount: 500000,
+      interestType: 'REDUCING_BALANCE' as const,
+      interestRate: 9,
+      processingFee: 0,
+      processingFeeType: 'FIXED' as const,
+      insuranceFee: 0.25,
+      insuranceFeeType: 'PERCENTAGE' as const,
+      minTermDays: 365,
+      maxTermDays: 1825,
+      defaultTermDays: 1095,
+      repaymentFrequency: 'MONTHLY' as const,
+      gracePeriodDays: 45,
+      isActive: true
+    })
+  }
+
+  return baseProducts
 }
 
 // Generate random Kenyan names
 function generateKenyanName() {
   const firstNames = ['John', 'Mary', 'Peter', 'Grace', 'James', 'Faith', 'Daniel', 'Sarah', 'Michael', 'Esther', 
-                       'Joseph', 'Ruth', 'David', 'Naomi', 'Samuel', 'Hannah', 'Benjamin', 'Rebecca', 'Andrew', 'Rachel']
+                       'Joseph', 'Ruth', 'David', 'Naomi', 'Samuel', 'Hannah', 'Benjamin', 'Rebecca', 'Andrew', 'Rachel',
+                       'Anthony', 'Joyce', 'Patrick', 'Dorothy', 'Charles', 'Catherine', 'Thomas', 'Elizabeth', 'Robert', 'Ann',
+                       'Francis', 'Jane', 'Vincent', 'Martha', 'Martin', 'Phyllis', 'George', 'Lucy', 'Henry', 'Susan']
   const lastNames = ['Kamau', 'Wanjiku', 'Ochieng', 'Atieno', 'Mwangi', 'Nyokabi', 'Kipchoge', 'Muthoni', 
                       'Odhiambo', 'Akinyi', 'Mutua', 'Wambui', 'Korir', 'Chebet', 'Maina', 'Njeri', 
-                      'Njoroge', 'Waithera', 'Kimani', 'Ndirangu']
+                      'Njoroge', 'Waithera', 'Kimani', 'Ndirangu', 'Otieno', 'Moraa', 'Kiptoo', 'Jepchirchir',
+                      'Mutiso', 'Mwikali', 'Kirubi', 'Nyambura', 'Too', 'Yego', 'Cherono', 'Langat',
+                      'Omondi', 'Auma', 'Kariuki', 'Wairimu', 'Rotich', 'Jepkemoi', 'Gikonyo', 'Muthoni']
   
   return {
     firstName: firstNames[Math.floor(Math.random() * firstNames.length)],
@@ -193,7 +618,7 @@ async function generateCustomers(tenantId: string, count: number) {
   for (let i = 0; i < count; i++) {
     const name = generateKenyanName()
     const employmentStatuses = ['EMPLOYED', 'SELF_EMPLOYED', 'BUSINESS_OWNER', 'CONTRACTOR'] as const
-    const counties = ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Thika', 'Kiambu', 'Machakos', 'Kajiado', 'Uasin Gishu']
+    const counties = ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Thika', 'Kiambu', 'Machakos', 'Kajiado', 'Uasin Gishu', 'Nyeri', 'Meru', 'Kakamega', 'Bungoma']
     
     customers.push({
       tenantId,
@@ -202,21 +627,21 @@ async function generateCustomers(tenantId: string, count: number) {
       email: `${name.firstName.toLowerCase()}.${name.lastName.toLowerCase()}${Math.floor(Math.random() * 100)}@gmail.com`,
       phone: `0${generateKenyanPhone().slice(-9)}`,
       alternativePhone: Math.random() > 0.5 ? `0${generateKenyanPhone().slice(-9)}` : null,
-      dateOfBirth: new Date(Date.now() - (Math.random() * 30 + 22) * 365.25 * 24 * 60 * 60 * 1000),
+      dateOfBirth: new Date(Date.now() - (Math.random() * 35 + 22) * 365.25 * 24 * 60 * 60 * 1000),
       gender: Math.random() > 0.5 ? ('MALE' as const) : ('FEMALE' as const),
       nationalId: String(Math.floor(Math.random() * 90000000) + 10000000),
       kraPin: Math.random() > 0.3 ? `A${Math.random().toString(36).substring(2, 8).toUpperCase()}Z` : null,
       employmentStatus: employmentStatuses[Math.floor(Math.random() * employmentStatuses.length)],
       employerName: Math.random() > 0.3 ? `${name.lastName} ${['Enterprises', 'Services', 'Ltd', 'Group', 'Solutions'][Math.floor(Math.random() * 5)]}` : null,
-      incomeAmount: Math.floor(Math.random() * 150000) + 15000,
+      incomeAmount: Math.floor(Math.random() * 180000) + 15000,
       incomeFrequency: 'MONTHLY' as const,
       businessName: Math.random() > 0.6 ? `${name.firstName}'s Shop` : null,
       county: counties[Math.floor(Math.random() * counties.length)],
       city: 'Nairobi',
-      bankName: Math.random() > 0.4 ? ['Equity Bank', 'KCB', 'Cooperative Bank', 'NCBA', 'Stanbic', 'Absa'][Math.floor(Math.random() * 6)] : null,
+      bankName: Math.random() > 0.4 ? ['Equity Bank', 'KCB', 'Cooperative Bank', 'NCBA', 'Stanbic', 'Absa', 'Family Bank', 'Diamond Trust'][Math.floor(Math.random() * 8)] : null,
       bankAccount: Math.random() > 0.4 ? String(Math.floor(Math.random() * 9000000000) + 1000000000) : null,
       mpesaPhone: `0${generateKenyanPhone().slice(-9)}`,
-      creditScore: Math.floor(Math.random() * 40) + 60,
+      creditScore: Math.floor(Math.random() * 550) + 300, // 300-850 range
       crbStatus: Math.random() > 0.85 ? ('LISTED' as const) : ('CLEAN' as const),
       status: Math.random() > 0.95 ? ('BLACKLISTED' as const) : ('ACTIVE' as const),
       riskLevel: Math.random() > 0.7 ? ('HIGH' as const) : Math.random() > 0.4 ? ('MEDIUM' as const) : ('LOW' as const),
@@ -233,7 +658,8 @@ async function generateCustomers(tenantId: string, count: number) {
 async function generateApplications(tenantId: string, customerIds: string[], productIds: string[], count: number) {
   const statuses = ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'CONDITIONALLY_APPROVED', 'REJECTED', 'DISBURSED', 'CANCELLED'] as const
   const purposes = ['Emergency expense', 'School fees payment', 'Business working capital', 'Home renovation', 
-                    'Medical bills', 'Vehicle purchase', 'Inventory purchase', 'Rent payment', 'Travel expenses', 'Wedding costs']
+                    'Medical bills', 'Vehicle purchase', 'Inventory purchase', 'Rent payment', 'Travel expenses', 'Wedding costs',
+                    'Farm inputs', 'Electronics purchase', 'Land purchase', 'Building construction']
 
   const applications = []
 
@@ -272,7 +698,7 @@ async function generateApplications(tenantId: string, customerIds: string[], pro
       disbursedAt: status === 'DISBURSED' 
         ? new Date(Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000) 
         : null,
-      creditScore: Math.floor(Math.random() * 40) + 60,
+      creditScore: Math.floor(Math.random() * 550) + 300,
       riskRating: Math.random() > 0.7 ? 'VERY_HIGH' : Math.random() > 0.5 ? 'HIGH' : Math.random() > 0.3 ? 'MEDIUM' : 'LOW'
     })
   }
@@ -435,7 +861,8 @@ async function generateRepayments(tenantId: string) {
 
 // Main seed function
 async function main() {
-  console.log('🌱 Starting Digital Lending OS database seeding...\n')
+  console.log('🌱 Starting Digital Lending OS database seeding...')
+  console.log(`   Total tenants to create: ${tenants.length}\n`)
 
   try {
     // Clean existing data (optional - comment out to preserve data)
@@ -459,7 +886,7 @@ async function main() {
     for (const tenant of tenants) {
       const created = await prisma.tenant.create({ data: tenant })
       createdTenants.push(created)
-      console.log(`   ✓ Created: ${created.name} (${created.slug})`)
+      console.log(`   ✓ Created: ${created.name} (${created.slug}) - ${tenant.plan} plan`)
     }
     console.log(`\n✅ Created ${createdTenants.length} tenants\n`)
 
@@ -467,7 +894,8 @@ async function main() {
     console.log('👥 Creating users...')
     let totalUsers = 0
     for (const tenant of createdTenants) {
-      for (const userRole of userRoles) {
+      const roles = getUserRoles(tenant.plan)
+      for (const userRole of roles) {
         for (let i = 0; i < userRole.count; i++) {
           const name = generateKenyanName()
           await prisma.user.create({
@@ -484,19 +912,20 @@ async function main() {
           totalUsers++
         }
       }
+      console.log(`   ✓ Created users for ${tenant.name}`)
     }
-    console.log(`   ✓ Created ${totalUsers} users across all tenants\n`)
+    console.log(`   ✓ Total: ${totalUsers} users across all tenants\n`)
 
     // Create products for each tenant
     console.log('📦 Creating loan products...')
     let totalProducts = 0
     for (const tenant of createdTenants) {
-      const products = generateProducts(tenant.id)
+      const products = generateProducts(tenant.id, tenant.plan)
       for (const product of products) {
         await prisma.loanProduct.create({ data: product })
         totalProducts++
       }
-      console.log(`   ✓ Created 3 products for ${tenant.name}`)
+      console.log(`   ✓ Created ${products.length} products for ${tenant.name}`)
     }
     console.log(`\n✅ Created ${totalProducts} products\n`)
 
@@ -504,7 +933,8 @@ async function main() {
     console.log('👤 Creating customers...')
     let totalCustomers = 0
     for (const tenant of createdTenants) {
-      const customerCount = Math.floor(Math.random() * 8) + 10 // 10-17 customers per tenant
+      const config = tenantConfig[tenant.plan]
+      const customerCount = Math.floor(Math.random() * (config.customerRange[1] - config.customerRange[0])) + config.customerRange[0]
       await generateCustomers(tenant.id, customerCount)
       totalCustomers += customerCount
       console.log(`   ✓ Created ~${customerCount} customers for ${tenant.name}`)
@@ -524,7 +954,8 @@ async function main() {
         select: { id: true }
       })
 
-      const appCount = Math.floor(Math.random() * 15) + 10 // 10-25 applications per tenant
+      const config = tenantConfig[tenant.plan]
+      const appCount = Math.floor(Math.random() * (config.applicationRange[1] - config.applicationRange[0])) + config.applicationRange[0]
       await generateApplications(
         tenant.id,
         customers.map(c => c.id),
@@ -562,9 +993,9 @@ async function main() {
     console.log('\n✅ Repayments created\n')
 
     // Print summary
-    console.log('=' .repeat(50))
+    console.log('=' .repeat(60))
     console.log('🎉 SEEDING COMPLETE!')
-    console.log('=' .repeat(50))
+    console.log('=' .repeat(60))
     console.log('\nSummary:')
     console.log(`   • Tenants: ${createdTenants.length}`)
     console.log(`   • Users: ${totalUsers}`)
@@ -576,7 +1007,22 @@ async function main() {
     const finalRepaymentCount = await prisma.repayment.count()
     console.log(`   • Loans: ${finalLoanCount}`)
     console.log(`   • Repayments: ${finalRepaymentCount}`)
-    console.log('\n✨ Database is now ready for use!\n')
+
+    // Count by plan
+    console.log('\n--- Tenant Breakdown by Plan ---')
+    const planCounts = await prisma.tenant.groupBy({
+      by: ['plan'],
+      _count: true
+    })
+    for (const pc of planCounts) {
+      console.log(`   • ${pc.plan}: ${pc._count} tenants`)
+    }
+
+    console.log('\n✨ Database is now ready for use!')
+    console.log('\n📊 Platform Statistics:')
+    console.log(`   • Licensed DCPs in Kenya: 252 (aspirational target)`)
+    console.log(`   • Current platform tenants: ${createdTenants.length}`)
+    console.log(`   • Market coverage: ${(createdTenants.length / 252 * 100).toFixed(1)}%\n`)
 
   } catch (error) {
     console.error('❌ Error during seeding:', error)

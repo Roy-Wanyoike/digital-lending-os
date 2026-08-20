@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { toast } from 'sonner'
 import { 
   Calculator, 
   TrendingUp, 
@@ -25,14 +27,41 @@ interface LoanCalculation {
   monthlyPayment: number
 }
 
-export function LoanCalculator() {
+// Product configurations with different interest rates
+const PRODUCT_CONFIGS: Record<string, { name: string; interestRate: number; minAmount: number; maxAmount: number }> = {
+  personal: { name: 'Personal Loan', interestRate: 15, minAmount: 5000, maxAmount: 500000 },
+  business: { name: 'Business Loan', interestRate: 18, minAmount: 10000, maxAmount: 500000 },
+  salary: { name: 'Salary Advance', interestRate: 12, minAmount: 5000, maxAmount: 150000 },
+  emergency: { name: 'Emergency Loan', interestRate: 20, minAmount: 5000, maxAmount: 100000 }
+}
+
+interface LoanCalculatorProps {
+  onApply?: (data: { amount: number; termDays: number; productType: string; calculation: LoanCalculation }) => void
+}
+
+export function LoanCalculator({ onApply }: LoanCalculatorProps) {
   const [amount, setAmount] = useState(50000)
   const [termDays, setTermDays] = useState(90)
   const [interestRate, setInterestRate] = useState(15)
   const [productType, setProductType] = useState('personal')
 
+  // Update interest rate when product type changes
+  const handleProductChange = useCallback((value: string) => {
+    setProductType(value)
+    const config = PRODUCT_CONFIGS[value]
+    if (config) {
+      setInterestRate(config.interestRate)
+      // Adjust amount if outside new product's range
+      if (amount < config.minAmount || amount > config.maxAmount) {
+        setAmount(Math.min(Math.max(amount, config.minAmount), config.maxAmount))
+      }
+      toast.success(`Switched to ${config.name}`, {
+        description: `Interest rate: ${config.interestRate}% per month`
+      })
+    }
+  }, [amount])
+
   const calculation: LoanCalculation = useMemo(() => {
-    const monthlyInterestRate = interestRate / 100
     const months = Math.ceil(termDays / 30)
     const totalInterest = amount * (interestRate / 100) * (termDays / 30)
     const processingFee = amount * 0.03 // 3% processing fee
@@ -43,7 +72,7 @@ export function LoanCalculator() {
       principal: amount,
       interestRate,
       termDays,
-      monthlyInterest: monthlyInterestRate,
+      monthlyInterest: interestRate / 100,
       totalInterest,
       processingFee,
       totalRepayable,
@@ -59,6 +88,21 @@ export function LoanCalculator() {
       maximumFractionDigits: 0
     }).format(value)
   }
+
+  const handleApply = () => {
+    if (onApply) {
+      onApply({ amount, termDays, productType, calculation })
+      toast.success('Proceeding to application', {
+        description: `Loan amount: ${formatCurrency(amount)}, Term: ${termDays} days`
+      })
+    } else {
+      toast.info('Apply for this loan', {
+        description: `Please navigate to "Apply Now" tab to continue with your application`
+      })
+    }
+  }
+
+  const currentProductConfig = PRODUCT_CONFIGS[productType]
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -77,7 +121,7 @@ export function LoanCalculator() {
           {/* Product Type Selection */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">Loan Product</Label>
-            <Select value={productType} onValueChange={setProductType}>
+            <Select value={productType} onValueChange={handleProductChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Select loan product" />
               </SelectTrigger>
@@ -101,14 +145,14 @@ export function LoanCalculator() {
             <Slider
               value={[amount]}
               onValueChange={(value) => setAmount(value[0])}
-              min={5000}
-              max={500000}
+              min={currentProductConfig?.minAmount || 5000}
+              max={currentProductConfig?.maxAmount || 500000}
               step={5000}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-slate-500">
-              <span>KSh 5,000</span>
-              <span>KSh 500,000</span>
+              <span>{formatCurrency(currentProductConfig?.minAmount || 5000)}</span>
+              <span>{formatCurrency(currentProductConfig?.maxAmount || 500000)}</span>
             </div>
           </div>
 
@@ -145,11 +189,14 @@ export function LoanCalculator() {
               <span className="text-xl font-bold text-emerald-600">{interestRate}%</span>
             </div>
             <p className="text-xs text-slate-500">
-              Rate varies based on credit score and product type
+              Rate varies based on credit score and product type ({currentProductConfig?.name})
             </p>
           </div>
 
-          <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 text-lg">
+          <Button 
+            onClick={handleApply}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-6 text-lg"
+          >
             Apply for this Loan
             <ArrowRight className="w-5 h-5 ml-2" />
           </Button>
@@ -202,13 +249,5 @@ export function LoanCalculator() {
         </CardContent>
       </Card>
     </div>
-  )
-}
-
-function Label({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <label className={`text-sm font-medium ${className || ''}`}>
-      {children}
-    </label>
   )
 }

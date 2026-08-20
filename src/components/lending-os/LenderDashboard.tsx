@@ -19,6 +19,11 @@ import {
 } from './KPICards'
 import { ApplicationsTable } from './ApplicationsTable'
 import { LoansTable } from './LoansTable'
+import {
+  PortfolioDistributionChart,
+  MonthlyDisbursementsChart,
+  CollectionsTrendChart
+} from './DashboardCharts'
 import { 
   Building2, 
   Search,
@@ -59,6 +64,13 @@ export function LenderDashboard() {
 
       {/* KPI Cards */}
       <KPICards />
+
+      {/* Data Visualization Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <PortfolioDistributionChart />
+        <MonthlyDisbursementsChart />
+        <CollectionsTrendChart />
+      </div>
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="applications" className="space-y-4">

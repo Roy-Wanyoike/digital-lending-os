@@ -17,6 +17,11 @@ import {
 } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { TenantList } from './TenantList'
+import {
+  TenantGrowthChart,
+  PlanDistributionChart,
+  RegionalDistributionChart
+} from './DashboardCharts'
 import { 
   Shield,
   Building2,
@@ -110,6 +115,13 @@ export function SuperAdminView() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Platform Analytics Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <TenantGrowthChart />
+        <PlanDistributionChart />
+      </div>
+      <RegionalDistributionChart />
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>

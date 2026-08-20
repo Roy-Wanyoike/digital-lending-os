@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { toast } from 'sonner'
 import { 
   Calculator, 
   FileText, 
@@ -25,8 +26,48 @@ import { ApplicationForm } from './ApplicationForm'
 import { ApplicationStatusTracker } from './ApplicationStatusTracker'
 import { RepaymentSchedule } from './RepaymentSchedule'
 
+// Interface for prefill data passed from calculator to form
+interface PrefillData {
+  amount: number
+  termDays: number
+  productType: string
+}
+
 export function CustomerPortal() {
   const [activeSection, setActiveSection] = useState('calculator')
+  const [prefillData, setPrefillData] = useState<PrefillData | null>(null)
+  
+  // Handle "Apply for this Loan" button click in calculator
+  const handleApplyFromCalculator = useCallback((data: {
+    amount: number
+    termDays: number
+    productType: string
+    calculation: unknown
+  }) => {
+    // Store the calculator data to prefill the application form
+    setPrefillData({
+      amount: data.amount,
+      termDays: data.termDays,
+      productType: data.productType
+    })
+    
+    // Switch to application form tab
+    setActiveSection('application')
+    
+    toast.success('Proceeding to Application', {
+      description: `Your loan details have been transferred to the application form.`,
+      duration: 4000
+    })
+  }, [])
+
+  // Handle successful application submission
+  const handleApplicationSuccess = useCallback(() => {
+    // Clear prefill data
+    setPrefillData(null)
+    
+    // Switch to status tracking tab
+    setActiveSection('status')
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -59,9 +100,12 @@ export function CustomerPortal() {
             <Calculator className="w-4 h-4" />
             Loan Calculator
           </TabsTrigger>
-          <TabsTrigger value="application" className="gap-2">
+          <TabsTrigger value="application" className="gap-2 relative">
             <FileText className="w-4 h-4" />
             Apply Now
+            {prefillData && (
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full animate-pulse" title="Data ready from calculator" />
+            )}
           </TabsTrigger>
           <TabsTrigger value="status" className="gap-2">
             <CheckCircle2 className="w-4 h-4" />
@@ -74,11 +118,14 @@ export function CustomerPortal() {
         </TabsList>
 
         <TabsContent value="calculator" className="mt-6">
-          <LoanCalculator />
+          <LoanCalculator onApply={handleApplyFromCalculator} />
         </TabsContent>
 
         <TabsContent value="application" className="mt-6">
-          <ApplicationForm />
+          <ApplicationForm 
+            prefillData={prefillData || undefined}
+            onSuccess={handleApplicationSuccess}
+          />
         </TabsContent>
 
         <TabsContent value="status" className="mt-6">
