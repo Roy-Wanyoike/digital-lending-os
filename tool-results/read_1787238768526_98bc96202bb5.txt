@@ -1,0 +1,848 @@
+     1→/**
+     2→ * Digital Lending OS - Authentication Store
+     3→ * 
+     4→ * Comprehensive Zustand-based state management for multi-tenant authentication.
+     5→ * Supports 4 portal types: super_admin, dcp_admin, dcp_staff, customer
+     6→ * 
+     7→ * Features:
+     8→ * - RBAC (Role-Based Access Control)
+     9→ * - ABAC (Attribute-Based Access Control)
+    10→ * - Multi-tenant session management
+    11→ * - Token refresh with automatic retry
+    12→ * - Portal switching
+    13→ */
+    14→
+    15→import { create } from 'zustand';
+    16→import { persist, createJSONStorage } from 'zustand/middleware';
+    17→import type {
+    18→  AuthStore,
+    19→  AuthState,
+    20→  AuthActions,
+    21→  User,
+    22→  Customer,
+    23→  Tenant,
+    24→  LoginCredentials,
+    25→  AuthResult,
+    26→  PortalType,
+    27→  UserRole,
+    28→  AbacAttributes,
+    29→  PersistedAuthState,
+    30→} from './auth-types';
+    31→import {
+    32→  DEFAULT_ABAC_ATTRIBUTES,
+    33→  SESSION_CONFIG,
+    34→  PORTAL_CONFIG,
+    35→  ROLE_HIERARCHY,
+    36→} from './auth-types';
+    37→import {
+    38→  hasPermission as checkPermission,
+    39→  canApproveLoan as checkLoanApproval,
+    40→  canAccessTenant as checkTenantAccess,
+    41→  canAccessDepartment as checkDepartmentAccess,
+    42→  DEFAULT_APPROVAL_LIMITS,
+    43→  PORTAL_ROLES,
+    44→} from './rbac';
+    45→
+    46→// ============================================
+    47→// API CONFIGURATION
+    48→// ============================================
+    49→
+    50→/** Base path for auth API routes */
+    51→const AUTH_API_BASE = '/api/auth';
+    52→
+    53→// ============================================
+    54→// INITIAL STATE
+    55→// ============================================
+    56→
+    57→/** Create the initial state for the auth store */
+    58→function getInitialState(): AuthState {
+    59→  return {
+    60→    // Identity
+    61→    user: null,
+    62→    customer: null,
+    63→    tenant: null,
+    64→    
+    65→    // Status
+    66→    isAuthenticated: false,
+    67→    isLoading: false,
+    68→    isInitialized: false,
+    69→    portalType: null,
+    70→    
+    71→    // Tokens
+    72→    token: null,
+    73→    refreshToken: null,
+    74→    sessionExpiresAt: null,
+    75→    tokenRefreshTimer: null,
+    76→    
+    77→    // ABAC Attributes
+    78→    attributes: { ...DEFAULT_ABAC_ATTRIBUTES },
+    79→    
+    80→    // Errors
+    81→    error: null,
+    82→    lastAuthAction: null,
+    83→  };
+    84→}
+    85→
+    86→// ============================================
+    87→// HELPER FUNCTIONS
+    88→// ============================================
+    89→
+    90→/**
+    91→ * Make an authenticated API request
+    92→ */
+    93→async function apiRequest<T>(
+    94→  endpoint: string,
+    95→  options: RequestInit = {},
+    96→  token?: string | null
+    97→): Promise<T> {
+    98→  const headers: Record<string, string> = {
+    99→    'Content-Type': 'application/json',
+   100→    ...options.headers as Record<string, string>,
+   101→  };
+   102→  
+   103→  if (token) {
+   104→    headers['Authorization'] = `Bearer ${token}`;
+   105→  }
+   106→  
+   107→  const response = await fetch(`${AUTH_API_BASE}${endpoint}`, {
+   108→    ...options,
+   109→    headers,
+   110→  });
+   111→  
+   112→  if (!response.ok) {
+   113→    const error = await response.json().catch(() => ({ message: 'Request failed' }));
+   114→    throw new Error(error.message || `HTTP ${response.status}`);
+   115→  }
+   116→  
+   117→  return response.json();
+   118→}
+   119→
+   120→/**
+   121→ * Parse ISO date string or return null
+   122→ */
+   123→function parseDate(dateStr: string | null | undefined): Date | null {
+   124→  if (!dateStr) return null;
+   125→  const date = new Date(dateStr);
+   126→  return isNaN(date.getTime()) ? null : date;
+   127→}
+   128→
+   129→/**
+   130→ * Check if session is still valid
+   131→ */
+   132→function isSessionValid(expiresAt: Date | null): boolean {
+   133→  if (!expiresAt) return false;
+   134→  
+   135→  const now = new Date();
+   136→  const expiryTime = new Date(expiresAt);
+   137→  const bufferMs = SESSION_CONFIG.MIN_SESSION_VALIDITY_MS;
+   138→  
+   139→  // Session is valid if it hasn't expired (with buffer)
+   140→  return now.getTime() < expiryTime.getTime() - bufferMs;
+   141→}
+   142→
+   143→/**
+   144→ * Calculate milliseconds until session expires
+   145→ */
+   146→function getTimeUntilExpiry(expiresAt: Date | null): number {
+   147→  if (!expiresAt) return 0;
+   148→  
+   149→  const now = new Date();
+   150→  const expiryTime = new Date(expiresAt);
+   151→  return expiryTime.getTime() - now.getTime();
+   152→}
+   153→
+   154→// ============================================
+   155→// STORE CREATION
+   156→// ============================================
+   157→
+   158→export const useAuthStore = create<AuthStore>()(
+   159→  persist(
+   160→    (set, get) => ({
+   161→      // ==========================================
+   162→      // INITIAL STATE
+   163→      // ==========================================
+   164→      ...getInitialState(),
+   165→      
+   166→      // ==========================================
+   167→      // AUTHENTICATION ACTIONS
+   168→      // ==========================================
+   169→      
+   170→      /**
+   171→       * Authenticate user with credentials
+   172→       * Handles all 4 portal types
+   173→       */
+   174→      login: async (credentials: LoginCredentials): Promise<AuthResult> => {
+   175→        set({ 
+   176→          isLoading: true, 
+   177→          error: null, 
+   178→          lastAuthAction: 'login' 
+   179→        });
+   180→        
+   181→        try {
+   182→          // Call authentication API
+   183→          const result = await apiRequest<AuthResult>('/login', {
+   184→            method: 'POST',
+   185→            body: JSON.stringify(credentials),
+   186→          });
+   187→          
+   188→          if (result.success && result.token) {
+   189→            const expiresAt = result.expiresIn
+   190→              ? new Date(Date.now() + result.expiresIn * 1000)
+   191→              : new Date(Date.now() + SESSION_CONFIG.DEFAULT_SESSION_DURATION_MS);
+   192→            
+   193→            // Build attributes from session data
+   194→            const attributes: AbacAttributes = {
+   195→              approvalLimit: result.sessionAttributes?.approvalLimit ?? 
+   196→                (result.user ? DEFAULT_APPROVAL_LIMITS[result.user.role] : 0),
+   197→              tenantIds: result.sessionAttributes?.tenantIds ?? 
+   198→                (result.tenant ? [result.tenant.id] : []),
+   199→              departments: result.sessionAttributes?.departments ?? [],
+   200→              permissions: result.sessionAttributes?.permissions ?? [],
+   201→              ipRestriction: result.sessionAttributes?.ipRestriction ?? null,
+   202→              mfaRequired: result.sessionAttributes?.mfaRequired ?? false,
+   203→              lastActivityAt: new Date(),
+   204→            };
+   205→            
+   206→            set({
+   207→              user: result.user ?? null,
+   208→              customer: result.customer ?? null,
+   209→              tenant: result.tenant ?? null,
+   210→              token: result.token ?? null,
+   211→              refreshToken: result.refreshToken ?? null,
+   212→              sessionExpiresAt: expiresAt,
+   213→              portalType: credentials.portalType,
+   214→              isAuthenticated: true,
+   215→              attributes,
+   216→              isLoading: false,
+   217→              error: null,
+   218→            });
+   219→            
+   220→            // Start token refresh timer
+   221→            get().startRefreshTimer();
+   222→            
+   223→            return result;
+   224→          } else {
+   225→            set({
+   226→              isLoading: false,
+   227→              error: result.error || 'Authentication failed',
+   228→            });
+   229→            
+   230→            return result;
+   231→          }
+   232→        } catch (error) {
+   233→          const errorMessage = error instanceof Error ? error.message : 'Login failed';
+   234→          set({
+   235→            isLoading: false,
+   236→            error: errorMessage,
+   237→          });
+   238→          
+   239→          return {
+   240→            success: false,
+   241→            error: errorMessage,
+   242→          };
+   243→        }
+   244→      },
+   245→      
+   246→      /**
+   247→       * Logout and clear session
+   248→       */
+   249→      logout: async (): Promise<void> => {
+   250→        const { token, refreshToken } = get();
+   251→        
+   252→        try {
+   253→          // Notify server to invalidate session
+   254→          await apiRequest('/logout', {
+   255→            method: 'POST',
+   256→            body: JSON.stringify({ refreshToken }),
+   257→          }, token);
+   258→        } catch {
+   259→          // Continue with local logout even if API call fails
+   260→        } finally {
+   261→          // Clear refresh timer
+   262→          get().clearRefreshTimer();
+   263→          
+   264→          // Reset all state
+   265→          set({
+   266→            ...getInitialState(),
+   267→            isInitialized: true,
+   268→          });
+   269→        }
+   270→      },
+   271→      
+   272→      /**
+   273→       * Refresh the authentication token
+   274→       */
+   275→      refreshSession: async (): Promise<boolean> => {
+   276→        const { refreshToken, token } = get();
+   277→        
+   278→        if (!refreshToken) {
+   279→          // No refresh token available, force re-login
+   280→          await get().logout();
+   281→          return false;
+   282→        }
+   283→        
+   284→        try {
+   285→          const result = await apiRequest<AuthResult>('/refresh', {
+   286→            method: 'POST',
+   287→            body: JSON.stringify({ refreshToken }),
+   288→          }, token);
+   289→          
+   290→          if (result.success && result.token) {
+   291→            const expiresAt = result.expiresIn
+   292→              ? new Date(Date.now() + result.expiresIn * 1000)
+   293→              : new Date(Date.now() + SESSION_CONFIG.DEFAULT_SESSION_DURATION_MS);
+   294→            
+   295→            set({
+   296→              token: result.token,
+   297→              refreshToken: result.refreshToken ?? refreshToken,
+   298→              sessionExpiresAt: expiresAt,
+   299→              attributes: {
+   300→                ...get().attributes,
+   301→                lastActivityAt: new Date(),
+   302→              },
+   303→            });
+   304→            
+   305→            // Restart refresh timer
+   306→            get().startRefreshTimer();
+   307→            
+   308→            return true;
+   309→          } else {
+   310→            // Refresh failed, logout
+   311→            await get().logout();
+   312→            return false;
+   313→          }
+   314→        } catch {
+   315→          // Network error during refresh
+   316→          // Don't immediately logout - allow retry
+   317→          return false;
+   318→        }
+   319→      },
+   320→      
+   321→      // ==========================================
+   322→      // PORTAL & TENANT SWITCHING
+   323→      // ==========================================
+   324→      
+   325→      /**
+   326→       * Switch between portals (e.g., admin -> staff view)
+   327→       * Note: This may require re-authentication depending on roles
+   328→       */
+   329→      switchPortal: (portal: PortalType): void => {
+   330→        const { user } = get();
+   331→        
+   332→        // Validate that user's role is allowed in target portal
+   333→        if (user && !PORTAL_ROLES[portal].includes(user.role)) {
+   334→          set({
+   335→            error: `Your role (${user.role}) does not have access to the ${portal} portal`,
+   336→          });
+   337→          return;
+   338→        }
+   339→        
+   340→        set({ portalType: portal });
+   341→      },
+   342→      
+   343→      /**
+   344→       * Switch tenant context (for SUPER_ADMIN users managing multiple tenants)
+   345→       */
+   346→      switchTenant: async (tenantId: string): Promise<void> => {
+   347→        const { token, attributes } = get();
+   348→        
+   349→        // Verify access to this tenant
+   350→        if (!attributes.tenantIds.includes(tenantId)) {
+   351→          set({
+   352→            error: 'You do not have access to this tenant',
+   353→          });
+   354→          return;
+   355→        }
+   356→        
+   357→        try {
+   358→          // Fetch tenant details and update context
+   359→          const result = await apiRequest<{ tenant: Tenant; user: User }>(
+   360→            `/switch-tenant?tenantId=${tenantId}`,
+   361→            {},
+   362→            token
+   363→          );
+   364→          
+   365→          set({
+   366→            tenant: result.tenant,
+   367→            user: result.user,
+   368→          });
+   369→        } catch (error) {
+   370→          set({
+   371→            error: error instanceof Error ? error.message : 'Failed to switch tenant',
+   372→          });
+   373→        }
+   374→      },
+   375→      
+   376→      // ==========================================
+   377→      // AUTHORIZATION CHECKS
+   378→      // ==========================================
+   379→      
+   380→      /**
+   381→       * Check if current user has a specific permission
+   382→       */
+   383→      hasPermission: (permission: string): boolean => {
+   384→        const { user } = get();
+   385→        
+   386→        if (!user) return false;
+   387→        
+   388→        return checkPermission(user.role, permission);
+   389→      },
+   390→      
+   391→      /**
+   392→       * Check if current user has any of the specified roles
+   393→       */
+   394→      hasRole: (roles: UserRole[]): boolean => {
+   395→        const { user } = get();
+   396→        
+   397→        if (!user) return false;
+   398→        
+   399→        return roles.includes(user.role);
+   400→      },
+   401→      
+   402→      /**
+   403→       * Check if current user has any of the specified roles (variadic)
+   404→       */
+   405→      hasAnyRole: (...roles: UserRole[]): boolean => {
+   406→        return get().hasRole(roles);
+   407→      },
+   408→      
+   409→      /**
+   410→       * Check if user can approve a loan of given amount (RBAC + ABAC)
+   411→       */
+   412→      canApproveLoan: (amount: number): boolean => {
+   413→        const { user, attributes } = get();
+   414→        
+   415→        if (!user) return false;
+   416→        
+   417→        return checkLoanApproval(user, amount, attributes.approvalLimit);
+   418→      },
+   419→      
+   420→      /**
+   421→       * Check if user can access a specific tenant
+   422→       */
+   423→      canAccessTenant: (tenantId: string): boolean => {
+   424→        const { user, attributes } = get();
+   425→        
+   426→        if (!user) return false;
+   427→        
+   428→        return checkTenantAccess(user, tenantId, attributes.tenantIds);
+   429→      },
+   430→      
+   431→      /**
+   432→       * Check if user can access a department
+   433→       */
+   434→      canAccessDepartment: (department: string): boolean => {
+   435→        const { attributes } = get();
+   436→        
+   437→        return checkDepartmentAccess(attributes.departments, department);
+   438→      },
+   439→      
+   440→      // ==========================================
+   441→      // STATE MANAGEMENT
+   442→      // ==========================================
+   443→      
+   444→      setUser: (user: User | null): void => set({ user }),
+   445→      
+   446→      setCustomer: (customer: Customer | null): void => set({ customer }),
+   447→      
+   448→      setTenant: (tenant: Tenant | null): void => set({ tenant }),
+   449→      
+   450→      setToken: (token: string | null, expiresAt?: Date | null): void => {
+   451→        set({
+   452→          token,
+   453→          sessionExpiresAt: expiresAt ?? (token ? new Date(Date.now() + SESSION_CONFIG.DEFAULT_SESSION_DURATION_MS) : null),
+   454→        });
+   455→        
+   456→        if (token) {
+   457→          get().startRefreshTimer();
+   458→        } else {
+   459→          get().clearRefreshTimer();
+   460→        }
+   461→      },
+   462→      
+   463→      setLoading: (isLoading: boolean): void => set({ isLoading }),
+   464→      
+   465→      setError: (error: string | null): void => set({ error }),
+   466→      
+   467→      clearError: (): void => set({ error: null }),
+   468→      
+   469→      // ==========================================
+   470→      // SESSION VALIDATION
+   471→      // ==========================================
+   472→      
+   473→      isSessionValid: (): boolean => {
+   474→        const { isAuthenticated, sessionExpiresAt } = get();
+   475→        
+   476→        if (!isAuthenticated) return false;
+   477→        
+   478→        return isSessionValid(sessionExpiresAt);
+   479→      },
+   480→      
+   481→      getTimeUntilExpiry: (): number => {
+   482→        const { sessionExpiresAt } = get();
+   483→        return getTimeUntilExpiry(sessionExpiresAt);
+   484→      },
+   485→      
+   486→      // ==========================================
+   487→      // MFA OPERATIONS
+   488→      // ==========================================
+   489→      
+   490→      verifyMfa: async (code: string): Promise<AuthResult> => {
+   491→        const { token } = get();
+   492→        
+   493→        set({ isLoading: true, error: null });
+   494→        
+   495→        try {
+   496→          const result = await apiRequest<AuthResult>('/mfa/verify', {
+   497→            method: 'POST',
+   498→            body: JSON.stringify({ code }),
+   499→          }, token);
+   500→          
+   501→          if (result.success && result.token) {
+   502→            set({
+   503→              token: result.token,
+   504→              attributes: {
+   505→                ...get().attributes,
+   506→                mfaRequired: false,
+   507→                lastActivityAt: new Date(),
+   508→              },
+   509→              isLoading: false,
+   510→            });
+   511→          } else {
+   512→            set({
+   513→              isLoading: false,
+   514→              error: result.error || 'MFA verification failed',
+   515→            });
+   516→          }
+   517→          
+   518→          return result;
+   519→        } catch (error) {
+   520→          const errorMessage = error instanceof Error ? error.message : 'MFA verification failed';
+   521→          set({ isLoading: false, error: errorMessage });
+   522→          
+   523→          return { success: false, error: errorMessage };
+   524→        }
+   525→      },
+   526→      
+   527→      enrollMfa: async (method: 'SMS' | 'EMAIL' | 'TOTP'): Promise<{ success: boolean; secret?: string }> => {
+   528→        const { token } = get();
+   529→        
+   530→        try {
+   531→          const result = await apiRequest<{ success: boolean; secret?: string }>(
+   532→            '/mfa/enroll',
+   533→            {
+   534→              method: 'POST',
+   535→              body: JSON.stringify({ method }),
+   536→            },
+   537→            token
+   538→          );
+   539→          
+   540→          return result;
+   541→        } catch {
+   542→          return { success: false };
+   543→        }
+   544→      },
+   545→      
+   546→      // ==========================================
+   547→      // PASSWORD OPERATIONS
+   548→      // ==========================================
+   549→      
+   550→      changePassword: async (
+   551→        currentPassword: string,
+   552→        newPassword: string
+   553→      ): Promise<{ success: boolean; error?: string }> => {
+   554→        const { token } = get();
+   555→        
+   556→        try {
+   557→          const result = await apiRequest<{ success: boolean; error?: string }>(
+   558→            '/password/change',
+   559→            {
+   560→              method: 'POST',
+   561→              body: JSON.stringify({ currentPassword, newPassword }),
+   562→            },
+   563→            token
+   564→          );
+   565→          
+   566→          return result;
+   567→        } catch (error) {
+   568→          return {
+   569→            success: false,
+   570→            error: error instanceof Error ? error.message : 'Failed to change password',
+   571→          };
+   572→        }
+   573→      },
+   574→      
+   575→      forgotPassword: async (email: string): Promise<{ success: boolean; message?: string }> => {
+   576→        try {
+   577→          const result = await apiRequest<{ success: boolean; message?: string }>(
+   578→            '/password/forgot',
+   579→            {
+   580→              method: 'POST',
+   581→              body: JSON.stringify({ email }),
+   582→            }
+   583→          );
+   584→          
+   585→          return result;
+   586→        } catch (error) {
+   587→          return {
+   588→            success: false,
+   589→            message: error instanceof Error ? error.message : 'Failed to process request',
+   590→          };
+   591→        }
+   592→      },
+   593→      
+   594→      resetPassword: async (
+   595→        token: string,
+   596→        newPassword: string
+   597→      ): Promise<{ success: boolean; error?: string }> => {
+   598→        try {
+   599→          const result = await apiRequest<{ success: boolean; error?: string }>(
+   600→            '/password/reset',
+   601→            {
+   602→              method: 'POST',
+   603→              body: JSON.stringify({ token, newPassword }),
+   604→            }
+   605→          );
+   606→          
+   607→          return result;
+   608→        } catch (error) {
+   609→          return {
+   610→            success: false,
+   611→            error: error instanceof Error ? error.message : 'Failed to reset password',
+   612→          };
+   613→        }
+   614→      },
+   615→      
+   616→      // ==========================================
+   617→      // TOKEN REFRESH TIMER MANAGEMENT
+   618→      // ==========================================
+   619→      
+   620→      startRefreshTimer: () => {
+   621→        // Clear existing timer first
+   622→        get().clearRefreshTimer();
+   623→        
+   624→        const { sessionExpiresAt } = get();
+   625→        const timeUntilExpiry = getTimeUntilExpiry(sessionExpiresAt);
+   626→        
+   627→        if (timeUntilExpiry <= 0) {
+   628→          // Already expired
+   629→          get().logout();
+   630→          return;
+   631→        }
+   632→        
+   633→        // Schedule refresh before expiry (with buffer)
+   634→        const refreshDelay = Math.max(
+   635→          timeUntilExpiry - SESSION_CONFIG.REFRESH_BUFFER_MS,
+   636→          1000 // Minimum 1 second delay
+   637→        );
+   638→        
+   639→        const timerId = setTimeout(async () => {
+   640→          await get().refreshSession();
+   641→        }, refreshDelay);
+   642→        
+   643→        // Store timer ID (won't be persisted)
+   644→        set({ tokenRefreshTimer: timerId as unknown as ReturnType<typeof setTimeout> });
+   645→      },
+   646→      
+   647→      clearRefreshTimer: () => {
+   648→        const { tokenRefreshTimer } = get();
+   649→        
+   650→        if (tokenRefreshTimer) {
+   651→          clearTimeout(tokenRefreshTimer);
+   652→          set({ tokenRefreshTimer: null });
+   653→        }
+   654→      },
+   655→      
+   656→      // ==========================================
+   657→      // HYDRATION
+   658→      // ==========================================
+   659→      
+   660→      /**
+   661→       * Called after store is hydrated from storage
+   662→       */
+   663→      _hasHydrated: false,
+   664→      
+   665→      setHydrated: () => {
+   666→        set({ isInitialized: true, _hasHydrated: true });
+   667→      },
+   668→    }),
+   669→    {
+   670→      name: 'digital-lending-auth',
+   671→      storage: createJSONStorage(() => localStorage),
+   672→      
+   673→      // Only persist specific fields (not timers or loading states)
+   674→      partialize: (state): PersistedAuthState => ({
+   675→        user: state.user,
+   676→        customer: state.customer,
+   677→        tenant: state.tenant,
+   678→        token: state.token,
+   679→        refreshToken: state.refreshToken,
+   680→        sessionExpiresAt: state.sessionExpiresAt?.toISOString() ?? null,
+   681→        portalType: state.portalType,
+   682→        attributes: state.attributes,
+   683→        isAuthenticated: state.isAuthenticated,
+   684→      }),
+   685→      
+   686→      // Handle hydration
+   687→      onRehydrateStorage: () => (state) => {
+   688→        if (state) {
+   689→          state.setHydrated();
+   690→          
+   691→          // Check if session is still valid after rehydration
+   692→          if (state.isAuthenticated && state.sessionExpiresAt) {
+   693→            if (!isSessionValid(state.sessionExpiresAt)) {
+   694→              // Session expired while away
+   695→              state.logout();
+   696→            } else {
+   697→              // Restart refresh timer
+   698→              state.startRefreshTimer();
+   699→            }
+   700→          }
+   701→        }
+   702→      },
+   703→      
+   704→      // Version for migration support
+   705→      version: 1,
+   706→      
+   707→      // Migrate old storage formats if needed
+   708→      migrate: (persisted: unknown, version: number) => {
+   709→        const state = persisted as PersistedAuthState;
+   710→        
+   711→        if (version === 0) {
+   712→          // Migration from v0 to v1
+   713→          return {
+   714→            ...state,
+   715→            attributes: state.attributes ?? DEFAULT_ABAC_ATTRIBUTES,
+   716→          };
+   717→        }
+   718→        
+   719→        return state as PersistedAuthState;
+   720→      },
+   721→    }
+   722→  )
+   723→);
+   724→
+   725→// ============================================
+   726→// SELECTORS (for optimized re-renders)
+   727→// ============================================
+   728→
+   729→/** Get current user */
+   730→export const selectUser = (state: AuthStore): User | null => state.user;
+   731→
+   732→/** Get current customer */
+   733→export const selectCustomer = (state: AuthStore): Customer | null => state.customer;
+   734→
+   735→/** Get current tenant */
+   736→export const selectTenant = (state: AuthStore): Tenant | null => state.tenant;
+   737→
+   738→/** Get authentication status */
+   739→export const selectIsAuthenticated = (state: AuthStore): boolean => state.isAuthenticated;
+   740→
+   741→/** Get loading status */
+   742→export const selectIsLoading = (state: AuthStore): boolean => state.isLoading;
+   743→
+   744→/** Get initialization status */
+   745→export const selectIsInitialized = (state: AuthStore): boolean => state.isInitialized;
+   746→
+   747→/** Get current portal type */
+   748→export const selectPortalType = (state: AuthStore): PortalType | null => state.portalType;
+   749→
+   750→/** Get current user role */
+   751→export const selectUserRole = (state: AuthStore): UserRole | null => state.user?.role ?? null;
+   752→
+   753→/** Get auth token */
+   754→export const selectToken = (state: AuthStore): string | null => state.token;
+   755→
+   756→/** Get ABAC attributes */
+   757→export const selectAttributes = (state: AuthStore): AbacAttributes => state.attributes;
+   758→
+   759→/** Get approval limit */
+   760→export const selectApprovalLimit = (state: AuthStore): number => state.attributes.approvalLimit;
+   761→
+   762→/** Check if user is super admin */
+   763→export const selectIsSuperAdmin = (state: AuthStore): boolean => state.user?.role === 'SUPER_ADMIN';
+   764→
+   765→/** Check if user is tenant admin */
+   766→export const selectIsTenantAdmin = (state: AuthStore): boolean => state.user?.role === 'TENANT_ADMIN';
+   767→
+   768→/** Check if user is manager or above */
+   769→export const selectIsManagerOrAbove = (state: AuthStore): boolean => {
+   770→  const role = state.user?.role;
+   771→  if (!role) return false;
+   772→  return (ROLE_HIERARCHY[role] ?? 0) >= ROLE_HIERARCHY.MANAGER;
+   773→};
+   774→
+   775→/** Get accessible tenant IDs */
+   776→export const selectAccessibleTenants = (state: AuthStore): string[] => state.attributes.tenantIds;
+   777→
+   778→/** Get user departments */
+   779→export const selectDepartments = (state: AuthStore): string[] => state.attributes.departments;
+   780→
+   781→/** Get error state */
+   782→export const selectError = (state: AuthStore): string | null => state.error;
+   783→
+   784→/** Get portal config for current portal */
+   785→export const selectPortalConfig = (state: AuthStore) => {
+   786→  return state.portalType ? PORTAL_CONFIG[state.portalType] : null;
+   787→};
+   788→
+   789→// ============================================
+   790→// HOOKS (convenience wrappers)
+   791→// ==========================================
+   792→
+   793→import { useEffect } from 'react';
+   794→
+   795→/**
+   796→ * Hook to check session validity and redirect if needed
+   797→ */
+   798→export function useRequireAuth() {
+   799→  const isAuthenticated = useAuthStore(selectIsAuthenticated);
+   800→  const isInitialized = useAuthStore(selectIsInitialized);
+   801→  const isValid = useAuthStore((s) => s.isSessionValid());
+   802→  
+   803→  useEffect(() => {
+   804→    if (isInitialized && !isAuthenticated) {
+   805→      // Redirect to login or trigger login modal
+   806→      // This would integrate with your router
+   807→      console.log('[Auth] User not authenticated, redirecting to login');
+   808→    }
+   809→    
+   810→    if (isInitialized && isAuthenticated && !isValid) {
+   811→      console.log('[Auth] Session expired, attempting refresh');
+   812→      useAuthStore.getState().refreshSession();
+   813→    }
+   814→  }, [isInitialized, isAuthenticated, isValid]);
+   815→  
+   816→  return { isAuthenticated, isInitialized, isValid };
+   817→}
+   818→
+   819→/**
+   820→ * Hook to require specific permission
+   821→ */
+   822→export function useRequirePermission(permission: string) {
+   823→  const hasPerm = useAuthStore((state) => state.hasPermission(permission));
+   824→  const userRole = useAuthStore(selectUserRole);
+   825→  
+   826→  return { hasPermission: hasPerm, userRole };
+   827→}
+   828→
+   829→/**
+   830→ * Hook to require specific role(s)
+   831→ */
+   832→export function useRequireRole(...roles: UserRole[]) {
+   833→  const hasRole = useAuthStore((state) => state.hasRole(roles));
+   834→  const currentUserRole = useAuthStore(selectUserRole);
+   835→  
+   836→  return { hasRole, currentUserRole };
+   837→}
+   838→
+   839→// ============================================
+   840→// UTILITY EXPORTS
+   841→// ============================================
+   842→
+   843→/** Export store instance for non-component usage (e.g., API routes, middleware) */
+   844→export { useAuthStore };
+   845→
+   846→/** Default export */
+   847→export default useAuthStore;
+   848→

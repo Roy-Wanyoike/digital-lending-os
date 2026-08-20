@@ -1,15 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { withAuth, withRoles, createAuditLog, getClientIP } from '@/lib/auth-utils'
+import type { AuthContext } from '@/lib/auth-utils'
 
 // GET /api/tenants/[id] - Get a specific tenant
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// Requires authentication. SUPER_ADMIN can access any tenant,
+// TENANT_ADMIN can only access their own tenant.
+export const GET = withAuth(async (
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+  authContext: AuthContext
+) => {
   try {
+    const { user, tenant } = authContext
     const { id } = await params
     
-    const tenant = await db.tenant.findUnique({
+    // SUPER_ADMIN can view any tenant
+    // TENANT_ADMIN can only view their own tenant
+    if (user.role !== 'SUPER_ADMIN' && user.tenantId !== id) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: You can only view your own tenant', code: 'FORBIDDEN' },
+        { status: 403 }
+      )
+    }
+    
+    const tenantData = await db.tenant.findUnique({
       where: { id },
       include: {
         users: {
@@ -34,14 +49,24 @@ export async function GET(
       }
     })
 
-    if (!tenant) {
+    if (!tenantData) {
       return NextResponse.json(
         { success: false, error: 'Tenant not found' },
         { status: 404 }
       )
     }
 
-    return NextResponse.json({ success: true, data: tenant })
+    // Audit log for sensitive data access
+    await createAuditLog({
+      userId: user.id,
+      tenantId: user.tenantId,
+      action: 'tenant:read',
+      entityType: 'Tenant',
+      entityId: id,
+      ipAddress: getClientIP(request),
+    })
+
+    return NextResponse.json({ success: true, data: tenantData })
   } catch (error) {
     console.error('Error fetching tenant:', error)
     return NextResponse.json(
@@ -49,16 +74,27 @@ export async function GET(
       { status: 500 }
     )
   }
-}
+})
 
 // PUT /api/tenants/[id] - Update a tenant
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// Only SUPER_ADMIN or own TENANT_ADMIN can update
+export const PUT = withRoles(['SUPER_ADMIN', 'TENANT_ADMIN'])(async (
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+  authContext: AuthContext
+) => {
   try {
+    const { user } = authContext
     const { id } = await params
     const body = await request.json()
+
+    // TENANT_ADMIN can only update their own tenant
+    if (user.role === 'TENANT_ADMIN' && user.tenantId !== id) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: You can only update your own tenant', code: 'FORBIDDEN' },
+        { status: 403 }
+      )
+    }
 
     // Check if tenant exists
     const existingTenant = await db.tenant.findUnique({ where: { id } })
@@ -99,12 +135,23 @@ export async function PUT(
       }
     }
 
-    const tenant = await db.tenant.update({
+    const updatedTenant = await db.tenant.update({
       where: { id },
       data: updateData
     })
 
-    return NextResponse.json({ success: true, data: tenant })
+    // Audit log for tenant updates
+    await createAuditLog({
+      userId: user.id,
+      tenantId: user.tenantId,
+      action: 'tenant:update',
+      entityType: 'Tenant',
+      entityId: id,
+      ipAddress: getClientIP(request),
+      metadata: { updatedFields: Object.keys(updateData) },
+    })
+
+    return NextResponse.json({ success: true, data: updatedTenant })
   } catch (error) {
     console.error('Error updating tenant:', error)
     return NextResponse.json(
@@ -112,14 +159,17 @@ export async function PUT(
       { status: 500 }
     )
   }
-}
+})
 
 // DELETE /api/tenants/[id] - Delete a tenant (soft delete via status change)
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// Only SUPER_ADMIN can terminate tenants
+export const DELETE = withRoles(['SUPER_ADMIN'])(async (
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+  authContext: AuthContext
+) => {
   try {
+    const { user } = authContext
     const { id } = await params
 
     // Check if tenant exists
@@ -137,6 +187,17 @@ export async function DELETE(
       data: { status: 'TERMINATED' }
     })
 
+    // Audit log for critical action
+    await createAuditLog({
+      userId: user.id,
+      tenantId: user.tenantId,
+      action: 'tenant:delete',
+      entityType: 'Tenant',
+      entityId: id,
+      ipAddress: getClientIP(request),
+      metadata: { previousStatus: existingTenant.status },
+    })
+
     return NextResponse.json({
       success: true,
       message: 'Tenant has been terminated'
@@ -148,4 +209,4 @@ export async function DELETE(
       { status: 500 }
     )
   }
-}
+})

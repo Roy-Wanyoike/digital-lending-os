@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { withAuth, createAuditLog, getClientIP } from '@/lib/auth-utils'
+import type { AuthContext } from '@/lib/auth-types'
 
 // GET /api/customers - List customers
-export async function GET(request: NextRequest) {
+// Requires authentication (any DCP staff role)
+export const GET = withAuth(async (request: Request, _ctx: unknown, authContext: AuthContext) => {
   try {
+    const { user } = authContext
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
@@ -12,19 +16,38 @@ export async function GET(request: NextRequest) {
     const riskLevel = searchParams.get('riskLevel')
     const search = searchParams.get('search')
 
+    // Use authenticated user's tenantId if not provided
+    const effectiveTenantId = tenantId || user.tenantId
+
+    // Customers can only access their own data
+    if (user.role === 'CUSTOMER') {
+      return NextResponse.json(
+        { success: false, error: 'Customers cannot access this endpoint', code: 'FORBIDDEN' },
+        { status: 403 }
+      )
+    }
+
+    // Ensure tenant isolation - non-SUPER_ADMIN must use their own tenant
+    if (user.role !== 'SUPER_ADMIN' && effectiveTenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Cannot access other tenant data', code: 'FORBIDDEN' },
+        { status: 403 }
+      )
+    }
+
     const skip = (page - 1) * limit
 
     // Build where clause - tenant isolation is required
     const where: Record<string, unknown> = {}
     
-    if (!tenantId) {
+    if (!effectiveTenantId) {
       return NextResponse.json(
         { success: false, error: 'tenantId query parameter is required' },
         { status: 400 }
       )
     }
     
-    where.tenantId = tenantId
+    where.tenantId = effectiveTenantId
     
     if (status) {
       where.status = status
@@ -63,6 +86,16 @@ export async function GET(request: NextRequest) {
       db.customer.count({ where })
     ])
 
+    // Audit log for customer list access
+    await createAuditLog({
+      userId: user.id,
+      tenantId: user.tenantId,
+      action: 'customer:list',
+      entityType: 'Customer',
+      ipAddress: getClientIP(request),
+      metadata: { filters: { status, riskLevel, search }, page, limit },
+    })
+
     return NextResponse.json({
       success: true,
       data: customers,
@@ -80,11 +113,22 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 // POST /api/customers - Create a new customer
-export async function POST(request: NextRequest) {
+// Requires STAFF or higher role
+export const POST = withAuth(async (request: Request, _ctx: unknown, authContext: AuthContext) => {
   try {
+    const { user } = authContext
+    
+    // Check role - AGENT and above can create customers
+    if (!['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER', 'STAFF', 'AGENT'].includes(user.role)) {
+      return NextResponse.json(
+        { success: false, error: 'Insufficient permissions to create customers', code: 'FORBIDDEN' },
+        { status: 403 }
+      )
+    }
+    
     const body = await request.json()
     
     const {
@@ -110,16 +154,27 @@ export async function POST(request: NextRequest) {
       mpesaPhone
     } = body
 
+    // Use authenticated user's tenantId if not provided
+    const effectiveTenantId = tenantId || user.tenantId
+
     // Validate required fields
-    if (!tenantId || !firstName || !lastName || !phone) {
+    if (!effectiveTenantId || !firstName || !lastName || !phone) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields: tenantId, firstName, lastName, phone' },
         { status: 400 }
       )
     }
 
+    // Ensure tenant access
+    if (user.role !== 'SUPER_ADMIN' && effectiveTenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Cannot create customer for other tenant', code: 'FORBIDDEN' },
+        { status: 403 }
+      )
+    }
+
     // Check if tenant exists
-    const tenant = await db.tenant.findUnique({ where: { id: tenantId } })
+    const tenant = await db.tenant.findUnique({ where: { id: effectiveTenantId } })
     if (!tenant) {
       return NextResponse.json(
         { success: false, error: 'Tenant not found' },
@@ -129,7 +184,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate phone within tenant
     const existingCustomer = await db.customer.findFirst({
-      where: { tenantId, phone }
+      where: { tenantId: effectiveTenantId, phone }
     })
 
     if (existingCustomer) {
@@ -141,7 +196,7 @@ export async function POST(request: NextRequest) {
 
     const customer = await db.customer.create({
       data: {
-        tenantId,
+        tenantId: effectiveTenantId,
         firstName,
         lastName,
         email: email || null,
@@ -164,6 +219,17 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Audit log for customer creation
+    await createAuditLog({
+      userId: user.id,
+      tenantId: user.tenantId,
+      action: 'customer:create',
+      entityType: 'Customer',
+      entityId: customer.id,
+      ipAddress: getClientIP(request),
+      metadata: { customerPhone: phone, customerName: `${firstName} ${lastName}` },
+    })
+
     return NextResponse.json(
       { success: true, data: customer },
       { status: 201 }
@@ -175,4 +241,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

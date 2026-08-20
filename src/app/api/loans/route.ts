@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { withAuth, withRoles, createAuditLog, getClientIP } from '@/lib/auth-utils'
+import type { AuthContext } from '@/lib/auth-utils'
 
 // GET /api/loans - List loans
-export async function GET(request: NextRequest) {
+// Requires authentication (any DCP staff role)
+export const GET = withAuth(async (request: Request, _ctx: unknown, authContext: AuthContext) => {
   try {
+    const { user } = authContext
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
@@ -12,19 +16,38 @@ export async function GET(request: NextRequest) {
     const customerId = searchParams.get('customerId')
     const arrearsStatus = searchParams.get('arrearsStatus')
 
+    // Use authenticated user's tenantId if not provided
+    const effectiveTenantId = tenantId || user.tenantId
+
+    // Customers cannot access this endpoint directly
+    if (user.role === 'CUSTOMER') {
+      return NextResponse.json(
+        { success: false, error: 'Access denied. Customers should use /api/customers/[id]/loans', code: 'FORBIDDEN' },
+        { status: 403 }
+      )
+    }
+
+    // Ensure tenant isolation
+    if (user.role !== 'SUPER_ADMIN' && effectiveTenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Cannot access other tenant data', code: 'FORBIDDEN' },
+        { status: 403 }
+      )
+    }
+
     const skip = (page - 1) * limit
 
     // Build where clause
     const where: Record<string, unknown> = {}
     
-    if (!tenantId) {
+    if (!effectiveTenantId) {
       return NextResponse.json(
         { success: false, error: 'tenantId query parameter is required' },
         { status: 400 }
       )
     }
     
-    where.tenantId = tenantId
+    where.tenantId = effectiveTenantId
     
     if (status) {
       where.status = status
@@ -70,6 +93,16 @@ export async function GET(request: NextRequest) {
       db.loan.count({ where })
     ])
 
+    // Audit log for loan list access
+    await createAuditLog({
+      userId: user.id,
+      tenantId: user.tenantId,
+      action: 'loan:list',
+      entityType: 'Loan',
+      ipAddress: getClientIP(request),
+      metadata: { filters: { status, customerId, arrearsStatus }, page, limit },
+    })
+
     return NextResponse.json({
       success: true,
       data: loans,
@@ -87,11 +120,17 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 // POST /api/loans - Create a new loan (from approved application)
-export async function POST(request: NextRequest) {
+// Requires MANAGER or higher role for loan creation
+export const POST = withRoles(['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER'])(async (
+  request: Request,
+  _ctx: unknown,
+  authContext: AuthContext
+) => {
   try {
+    const { user } = authContext
     const body = await request.json()
     
     const {
@@ -110,16 +149,27 @@ export async function POST(request: NextRequest) {
       disbursementAccount
     } = body
 
+    // Use authenticated user's tenantId if not provided
+    const effectiveTenantId = tenantId || user.tenantId
+
     // Validate required fields
-    if (!tenantId || !customerId || !productId || !principal || !termDays) {
+    if (!effectiveTenantId || !customerId || !productId || !principal || !termDays) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
       )
     }
 
+    // Ensure tenant access
+    if (user.role !== 'SUPER_ADMIN' && effectiveTenantId !== user.tenantId) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied: Cannot create loan for other tenant', code: 'FORBIDDEN' },
+        { status: 403 }
+      )
+    }
+
     // Check if tenant exists
-    const tenant = await db.tenant.findUnique({ where: { id: tenantId } })
+    const tenant = await db.tenant.findUnique({ where: { id: effectiveTenantId } })
     if (!tenant) {
       return NextResponse.json(
         { success: false, error: 'Tenant not found' },
@@ -128,7 +178,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if customer exists and belongs to tenant
-    const customer = await db.customer.findFirst({ where: { id: customerId, tenantId } })
+    const customer = await db.customer.findFirst({ where: { id: customerId, tenantId: effectiveTenantId } })
     if (!customer) {
       return NextResponse.json(
         { success: false, error: 'Customer not found or does not belong to this tenant' },
@@ -137,7 +187,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate loan number
-    const loanCount = await db.loan.count({ where: { tenantId } })
+    const loanCount = await db.loan.count({ where: { tenantId: effectiveTenantId } })
     const loanNumber = `LN-${new Date().getFullYear()}-${String(loanCount + 1).padStart(6, '0')}`
 
     // Calculate totals
@@ -158,7 +208,7 @@ export async function POST(request: NextRequest) {
 
     const loan = await db.loan.create({
       data: {
-        tenantId,
+        tenantId: effectiveTenantId,
         customerId,
         applicationId: applicationId || null,
         productId,
@@ -186,6 +236,23 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Audit log for loan creation (critical action)
+    await createAuditLog({
+      userId: user.id,
+      tenantId: user.tenantId,
+      action: 'loan:create',
+      entityType: 'Loan',
+      entityId: loan.id,
+      ipAddress: getClientIP(request),
+      metadata: {
+        loanNumber,
+        principal,
+        customerId,
+        productId,
+        approvedBy: user.name || user.email,
+      },
+    })
+
     return NextResponse.json(
       { success: true, data: loan },
       { status: 201 }
@@ -197,7 +264,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 // Helper function to generate repayment schedule
 function generateRepaymentSchedule(
