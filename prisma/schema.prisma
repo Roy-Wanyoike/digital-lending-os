@@ -1,0 +1,867 @@
+// Digital Lending OS - Multi-Tenant Schema
+// Designed for Kenyan Digital Credit Providers
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// TENANT & MULTI-TENANCY
+// ============================================
+
+model Tenant {
+  id                  String   @id @default(cuid())
+  name                String
+  slug                String   @unique // URL-safe identifier: abepot, fabilo, etc.
+  companyName         String   // Legal registered name
+  licenseNumber       String?  // CBK license number
+  licenseDate         DateTime?
+  
+  // Contact Information
+  phone               String
+  email               String
+  physicalAddress     String?
+  website             String?
+  
+  // White-label Branding Configuration
+  branding            String  @default("{}") // JSON: { logo, primaryColor, secondaryColor, font, favicon }
+  
+  // Tenant Status
+  status              TenantStatus @default(ACTIVE)
+  plan                TenantPlan @default(STARTER)
+  
+  // Configuration
+  config              String  @default("{}") // JSON: { kycRequirements, approvalWorkflow, paymentConfig }
+  
+  // Usage & Billing
+  monthlyFee          Float   @default(0)
+  transactionRate     Float   @default(0) // Percentage fee on transactions
+  
+  // Timestamps
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  users               User[]
+  customers           Customer[]
+  loanProducts        LoanProduct[]
+  loans               Loan[]
+  loanApplications    LoanApplication[]
+  transactions        Transaction[]
+  repayments          Repayment[]
+  kycDocuments        KycDocument[]
+  notifications       Notification[]
+  
+  @@index([slug])
+  @@index([status])
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+  PENDING_ONBOARDING
+  TERMINATED
+}
+
+enum TenantPlan {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+  CUSTOM
+}
+
+// ============================================
+// USERS & AUTHENTICATION
+// ============================================
+
+model User {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  email               String
+  passwordHash        String?  // For local auth; can be null if using SSO
+  name                String
+  role                UserRole @default(STAFF)
+  
+  // Profile
+  avatar              String?
+  phone               String?
+  lastLoginAt         DateTime?
+  isActive            Boolean  @default(true)
+  
+  // Timestamps
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  tenant              Tenant    @relation(fields: [tenantId], references: [id])
+  auditLogs           AuditLog[]
+  
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([role])
+}
+
+enum UserRole {
+  SUPER_ADMIN      // Platform-level admin
+  TENANT_ADMIN     // Lender administrator
+  MANAGER          // Loan officer/manager
+  STAFF            // Regular staff
+  AGENT            // Field agent/collector
+  VIEWER           // Read-only access
+}
+
+// ============================================
+// CUSTOMERS (BORROWERS)
+// ============================================
+
+model Customer {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  
+  // Personal Information
+  firstName           String
+  lastName            String
+  email               String?
+  phone               String   // Primary contact (M-Pesa registered)
+  alternativePhone    String?
+  dateOfBirth         DateTime?
+  gender              Gender?
+  nationality         String   @default("Kenyan")
+  nationalId          String?  // ID number
+  kraPin              String?  // KRA PIN for employed/business borrowers
+  
+  // Employment/Business
+  employmentStatus    EmploymentStatus?
+  employerName        String?
+  incomeAmount        Float?
+  incomeFrequency     IncomeFrequency?
+  businessName        String?
+  businessType        String?
+  registrationNumber  String?
+  
+  // Address
+  county              String?
+  city                String?
+  postalAddress       String?
+  physicalAddress     String?
+  
+  // Banking
+  bankName            String?
+  bankAccount         String?
+  mpesaPhone          String?  // M-Pesa registered phone (may differ from contact)
+  
+  // Credit Assessment
+  creditScore         Int?
+  creditScoreDate     DateTime?
+  crbStatus           CrbStatus @default(CLEAN)
+  totalBorrowed       Float   @default(0)
+  totalRepaid         Float   @default(0)
+  outstandingBalance  Float   @default(0)
+  
+  // Status
+  status              CustomerStatus @default(ACTIVE)
+  riskLevel           RiskLevel @default(MEDIUM)
+  
+  // Metadata
+  source              CustomerSource @default(WALK_IN)
+  notes               String?
+  tags                String   @default("") // Comma-separated tags
+  
+  // Timestamps
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  tenant              Tenant    @relation(fields: [tenantId], references: [id])
+  loans               Loan[]
+  loanApplications    LoanApplication[]
+  kycDocuments        KycDocument[]
+  repayments          Repayment[]
+  
+  @@index([tenantId])
+  @@index([phone])
+  @@index([nationalId])
+  @@index([status])
+  @@index([riskLevel])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum EmploymentStatus {
+  EMPLOYED
+  SELF_EMPLOYED
+  BUSINESS_OWNER
+  CONTRACTOR
+  UNEMPLOYED
+  STUDENT
+  RETIRED
+  OTHER
+}
+
+enum IncomeFrequency {
+  DAILY
+  WEEKLY
+  BI_WEEKLY
+  MONTHLY
+  ANNUAL
+  IRREGULAR
+}
+
+enum CrbStatus {
+  CLEAN
+  LISTED
+  PENDING_CHECK
+  UNKNOWN
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+  FROZEN
+  PENDING_VERIFICATION
+  REJECTED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+}
+
+enum CustomerSource {
+  WALK_IN
+  REFERRAL
+  MOBILE_APP
+  WEB_PORTAL
+  USSD
+  WHATSAPP
+  AGENT
+  PARTNER
+}
+
+// ============================================
+// LOAN PRODUCTS (CONFIGURABLE PER TENANT)
+// ============================================
+
+model LoanProduct {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  
+  // Basic Info
+  name                String   // e.g., "Business Loan", "Salary Advance"
+  description         String?
+  productCode         String   @unique // Internal code: BL-001, SA-002
+  category            ProductCategory
+  
+  // Amount Configuration
+  minAmount           Float    // Minimum loan amount (KSh)
+  maxAmount           Float    // Maximum loan amount (KSh)
+  defaultAmount       Float?
+  
+  // Interest & Fees
+  interestType        InterestType @default(FLAT_RATE)
+  interestRate        Float    // Monthly/annual rate depending on type
+  processingFee       Float    @default(0)  // Fixed or percentage
+  processingFeeType   FeeType  @default(FIXED)
+  insuranceFee        Float    @default(0)
+  insuranceFeeType    FeeType  @default(PERCENTAGE)
+  
+  // Term Configuration
+  minTermDays         Int      // Minimum loan term in days
+  maxTermDays         Int      // Maximum loan term in days
+  defaultTermDays     Int?
+  
+  // Repayment
+  repaymentFrequency  RepaymentFrequency @default(MONTHLY)
+  gracePeriodDays     Int      @default(0)
+  
+  // Eligibility Rules
+  eligibilityRules    String  @default("{}") // JSON: { minCreditScore, minIncome, requiredDocuments }
+  
+  // Status
+  isActive            Boolean  @default(true)
+  
+  // Timestamps
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  tenant              Tenant    @relation(fields: [tenantId], references: [id])
+  loans               Loan[]
+  applications        LoanApplication[]
+  
+  @@index([tenantId])
+  @@index([isActive])
+  @@index([category])
+}
+
+enum ProductCategory {
+  PERSONAL_LOAN
+  BUSINESS_LOAN
+  SME_LOAN
+  SALARY_ADVANCE
+  ASSET_FINANCE
+  EMERGENCY_LOAN
+  SCHOOL_FEES
+  INVOICE_FINANCING
+  LOGBOOK_LOAN
+  SUPPLY_CHAIN
+  OTHER
+}
+
+enum InterestType {
+  FLAT_RATE
+  REDUCING_BALANCE
+  AMORTIZED
+}
+
+enum FeeType {
+  FIXED
+  PERCENTAGE
+}
+
+enum RepaymentFrequency {
+  DAILY
+  WEEKLY
+  BI_WEEKLY
+  MONTHLY
+  BULLET          // Single payment at end of term
+  CUSTOM
+}
+
+// ============================================
+// LOAN APPLICATIONS
+// ============================================
+
+model LoanApplication {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  customerId          String
+  
+  // Application Details
+  productId           String
+  requestedAmount     Float
+  approvedAmount      Float?
+  termDays            Int
+  purpose             String?
+  
+  // Status Workflow
+  status              ApplicationStatus @default(DRAFT)
+  submittedAt         DateTime?
+  reviewedAt          DateTime?
+  approvedAt          DateTime?
+  rejectedAt         DateTime?
+  disbursedAt         DateTime?
+  
+  // Decision
+  decisionBy          String?  // User ID who made decision
+  decisionNotes       String?
+  rejectionReason     String?
+  
+  // Assessment
+  creditScore         Int?
+  affordabilityScore  Float?
+  riskRating          RiskLevel?
+  
+  // Automated Decision
+  autoApproved        Boolean  @default(false)
+  autoDecisionReason  String?
+  
+  // Timeline
+  currentStep         ApplicationStep @default(SUBMISSION)
+  stepHistory         String  @default("[]") // JSON: [{ step, enteredAt, exitedAt, by }]
+  
+  // Timestamps
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  tenant              Tenant        @relation(fields: [tenantId], references: [id])
+  customer            Customer      @relation(fields: [customerId], references: [id])
+  product             LoanProduct   @relation(fields: [productId], references: [id])
+  loan                Loan?
+  documents           KycDocument[]
+  
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([status])
+  @@index([currentStep])
+}
+
+enum ApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  CONDITIONALLY_APPROVED
+  REJECTED
+  CANCELLED
+  WITHDRAWN
+  DISBURSED
+  DISBURSEMENT_FAILED
+}
+
+enum ApplicationStep {
+  SUBMISSION
+  KYC_VERIFICATION
+  CREDIT_ASSESSMENT
+  AFFORDABILITY_CHECK
+  MANUAL_REVIEW
+  MANAGER_APPROVAL
+  DOCUMENT_SIGNING
+  DISBURSEMENT_PREPARATION
+  DISBURSED
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================
+// LOANS (ACTIVE & COMPLETED)
+// ============================================
+
+model Loan {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  customerId          String
+  applicationId       String?  @unique // Link to original application (one-to-one)
+  productId           String
+  
+  // Loan Details
+  loanNumber          String   @unique // Human-readable: LN-2026-00042
+  principal           Float    // Original principal amount
+  approvedAmount      Float    // Actual disbursed amount
+  interestRate        Float
+  interestType        InterestType
+  
+  // Fees
+  processingFee       Float    @default(0)
+  insuranceFee        Float    @default(0)
+  otherFees           Float    @default(0)
+  
+  // Totals
+  totalInterest       Float    @default(0)  // Calculated interest over full term
+  totalFees           Float    @default(0)
+  totalRepayable      Float    @default(0)  // Principal + Interest + Fees
+  
+  // Term
+  termDays            Int
+  disbursementDate    DateTime?
+  maturityDate        DateTime?
+  
+  // Repayment Tracking
+  repaidPrincipal     Float    @default(0)
+  repaidInterest      Float    @default(0)
+  repaidFees          Float    @default(0)
+  totalRepaid         Float    @default(0)
+  outstandingBalance  Float
+  nextPaymentDue      DateTime?
+  daysInArrears       Int      @default(0)
+  
+  // Status
+  status              LoanStatus @default(APPROVED)
+  arrearsStatus       ArrearsStatus @default(CURRENT)
+  
+  // Disbursement
+  disbursementMethod  DisbursementMethod?
+  disbursementReference String? // M-Pesa transaction ID, etc.
+  disbursementAccount  String?  // Phone/bank account credited
+  
+  // Repayment Schedule (generated)
+  repaymentSchedule   String  @default("[]") // JSON: [{ installmentNo, dueDate, principal, interest, fees, total, status }]
+  
+  // Collections
+  assignedCollector   String?  // User ID
+  collectionNotes     String?
+  lastCollectionAt    DateTime?
+  
+  // Closure
+  closedAt            DateTime?
+  closureReason       String?
+  writtenOffAmount    Float    @default(0)
+  
+  // Timestamps
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  tenant              Tenant        @relation(fields: [tenantId], references: [id])
+  customer            Customer      @relation(fields: [customerId], references: [id])
+  application         LoanApplication? @relation(fields: [applicationId], references: [id])
+  product             LoanProduct   @relation(fields: [productId], references: [id])
+  transactions        Transaction[]
+  repayments          Repayment[]
+  
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([status])
+  @@index([arrearsStatus])
+  @@index([loanNumber])
+  @@index([disbursementDate])
+}
+
+enum LoanStatus {
+  APPROVED
+  ACTIVE
+  IN_ARREARS
+  DEFAULTED
+  FULLY_PAID
+  WRITTEN_OFF
+  RESTRUCTURED
+  CANCELLED
+  DISBURSED
+  PENDING_DISBURSEMENT
+}
+
+enum ArrearsStatus {
+  CURRENT
+  DAYS_1_7
+  DAYS_8_30
+  DAYS_31_60
+  DAYS_61_90
+  DAYS_91_PLUS
+}
+
+enum DisbursementMethod {
+  MPESA
+  BANK_TRANSFER
+  PESALINK
+  CASH
+  CHECK
+  OTHER
+}
+
+// ============================================
+// REPAYMENTS
+// ============================================
+
+model Repayment {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  loanId              String
+  customerId          String
+  
+  // Payment Details
+  amount              Float
+  principalPortion    Float    @default(0)
+  interestPortion     Float    @default(0)
+  feePortion          Float    @default(0)
+  penaltyPortion      Float    @default(0)
+  
+  // Payment Method
+  paymentMethod       PaymentMethod
+  referenceNumber     String? // M-Pesa confirmation code, bank ref
+  paidBy              String?  // Who made the payment (name/phone)
+  
+  // Timing
+  paymentDate         DateTime
+  dueDate             DateTime?  // Which installment this covers
+  
+  // Status
+  status              RepaymentStatus @default(COMPLETED)
+  reversalReason      String?
+  reversedAt          DateTime?
+  reversedBy          String?
+  
+  // Timestamps
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  loan                Loan     @relation(fields: [loanId], references: [id])
+  customer            Customer @relation(fields: [customerId], references: [id])
+  transactions        Transaction[]
+  
+  @@index([tenantId])
+  @@index([loanId])
+  @@index([paymentDate])
+  @@index([status])
+  @@index([referenceNumber])
+}
+
+enum PaymentMethod {
+  MPESA
+  BANK_TRANSFER
+  PESALINK
+  CASH
+  CHECK
+  CARD
+  WAUTO_PAY
+  DIRECT_DEDUCT
+  OTHER
+}
+
+enum RepaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+  PARTIAL
+  CANCELLED
+}
+
+// ============================================
+// TRANSACTIONS (DOUBLE-ENTRY LEDGER)
+// ============================================
+
+model Transaction {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  
+  // Transaction Identity
+  referenceNumber     String   @unique // TXN-2026-0820-00123
+  transactionType     TransactionType
+  entityType          EntityType  // What this relates to
+  entityId            String  // Loan ID, Repayment ID, etc.
+  
+  // Double-Entry Accounting
+  debitAccount        String  // Account debited
+  creditAccount       String  // Account credited
+  amount              Float
+  currency            String  @default("KES")
+  
+  // Description
+  description         String?
+  narration           String?
+  
+  // Reconciliation
+  reconciled          Boolean  @default(false)
+  reconciledAt        DateTime?
+  reconciledBy        String?
+  
+  // External Reference
+  externalRef         String? // M-Pesa, Bank transaction reference
+  
+  // Metadata
+  metadata            String  @default("{}") // JSON: Additional data
+  batchId             String?  // For grouped transactions
+  
+  // Timestamps
+  occurredAt          DateTime @default(now()) // When the financial event happened
+  createdAt           DateTime @default(now())
+  
+  // Relations
+  tenant              Tenant      @relation(fields: [tenantId], references: [id])
+  loan                Loan?       @relation(fields: [entityId], references: [id])
+  repayment           Repayment?  @relation(fields: [entityId], references: [id])
+  
+  @@index([tenantId])
+  @@index([transactionType])
+  @@index([entityType, entityId])
+  @@index([occurredAt])
+  @@index([externalRef])
+}
+
+enum TransactionType {
+  DISBURSEMENT
+  REPAYMENT_PRINCIPAL
+  REPAYMENT_INTEREST
+  FEE_CHARGED
+  FEE_COLLECTED
+  PENALTY_CHARGED
+  PENALTY_COLLECTED
+  WRITE_OFF
+  REVERSAL
+  ADJUSTMENT
+  REFUND
+  INTEREST_ACCRUAL
+  BALANCE_BRING_FORWARD
+}
+
+enum EntityType {
+  LOAN
+  REPAYMENT
+  FEE
+  PENALTY
+  ADJUSTMENT
+  SYSTEM
+}
+
+// ============================================
+// KYC DOCUMENTS
+// ============================================
+
+model KycDocument {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  customerId          String?
+  applicationId       String?
+  
+  // Document Info
+  documentType        KycDocumentType
+  documentNumber      String? // ID number, passport no, etc.
+  issuer              String?  // Issuing authority
+  issueDate           DateTime?
+  expiryDate          DateTime?
+  
+  // File Storage
+  fileName            String
+  fileUrl             String   // S3/storage URL
+  fileSize            Int?
+  mimeType            String?
+  hash                String?  // File integrity hash
+  
+  // Verification
+  verificationStatus  VerificationStatus @default(PENDING)
+  verifiedAt          DateTime?
+  verifiedBy          String?
+  verificationNotes   String?
+  ocrData             String?   // JSON: Extracted OCR data
+  
+  // Timestamps
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  tenant              Tenant           @relation(fields: [tenantId], references: [id])
+  customer            Customer?        @relation(fields: [customerId], references: [id])
+  application         LoanApplication? @relation(fields: [applicationId], references: [id])
+  
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([applicationId])
+  @@index([verificationStatus])
+}
+
+enum KycDocumentType {
+  NATIONAL_ID
+  PASSPORT
+  ALIEN_ID
+  MILITARY_ID
+  DRIVERS_LICENSE
+  KRA_PIN_CERTIFICATE
+  PAYSLIP
+  BANK_STATEMENT
+  BUSINESS_REGISTRATION
+  TAX_COMPLIANCE
+  UTILITY_BILL
+  PASSPORT_PHOTO
+  SIGNATURE_SPECIMEN
+  GUARANTOR_FORM
+  CONSENT_FORM
+  OTHER
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  EXPIRED
+  NEEDS_REVIEW
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  
+  // Recipient
+  recipientType       RecipientType
+  recipientId         String?  // User or Customer ID
+  recipientContact    String?  // Email, phone, etc.
+  
+  // Content
+  channel             NotificationChannel
+  subject             String
+  body                String
+  templateId          String?
+  templateData        String  @default("{}") // JSON
+  
+  // Status
+  status              NotificationStatus @default(PENDING)
+  sentAt              DateTime?
+  deliveredAt         DateTime?
+  readAt              DateTime?
+  failedAt            DateTime?
+  failureReason       String?
+  
+  // External Tracking
+  externalId         String?  // SMS gateway ID, email message-id
+  
+  // Timestamps
+  scheduledFor        DateTime?
+  createdAt           DateTime @default(now())
+  
+  // Relations
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  
+  @@index([tenantId])
+  @@index([status])
+  @@index([channel])
+  @@index([scheduledFor])
+}
+
+enum RecipientType {
+  CUSTOMER
+  USER
+  SYSTEM
+  EXTERNAL
+}
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+  WHATSAPP
+  PUSH
+  IN_APP
+  USSD
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  CANCELLED
+  SCHEDULED
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id                  String   @id @default(cuid())
+  userId              String?
+  tenantId            String?
+  
+  action              String   // CREATE, UPDATE, DELETE, LOGIN, EXPORT, etc.
+  entityType          String   // Customer, Loan, User, etc.
+  entityId            String?
+  
+  // Changes
+  oldValues           String?
+  newValues           String?
+  
+  // Context
+  ipAddress           String?
+  userAgent           String?
+  
+  // Timestamp
+  createdAt           DateTime @default(now())
+  
+  // Relations
+  user                User?    @relation(fields: [userId], references: [id])
+  
+  @@index([userId])
+  @@index([tenantId])
+  @@index([entityType])
+  @@index([createdAt])
+}
