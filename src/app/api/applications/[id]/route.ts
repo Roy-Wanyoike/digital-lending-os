@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { withAuth, withRoles, withPermission, createAuditLog, getClientIP } from '@/lib/auth-utils'
-import type { AuthContext } from '@/lib/auth-utils'
+import { withAuth, createAuditLog, getClientIP, getParam } from '@/lib/auth-utils'
+import type { AuthContext, RouteContext } from '@/lib/auth-utils'
 
 // GET /api/applications/[id] - Get a specific application
 // Requires authentication
 export const GET = withAuth(async (
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  request: NextRequest,
+  { params }: RouteContext,
   authContext: AuthContext
 ) => {
   try {
     const { user } = authContext
-    const { id } = await params
+    const paramsObj = await params
+    const id = getParam(paramsObj, 'id')
     const { searchParams } = new URL(request.url)
     const tenantId = searchParams.get('tenantId') || user.tenantId
 
@@ -57,14 +58,12 @@ export const GET = withAuth(async (
     }
 
     // Audit log for application view
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'application:read',
-      entityType: 'LoanApplication',
-      entityId: id,
-      ipAddress: getClientIP(request),
-    })
+    createAuditLog(
+      'application:read',
+      user.id,
+      { entityId: id, tenantId: user.tenantId },
+      getClientIP(request)
+    )
 
     return NextResponse.json({
       success: true,
@@ -85,13 +84,14 @@ export const GET = withAuth(async (
 // PUT /api/applications/[id] - Update application (approve/reject)
 // For approve/reject actions, requires MANAGER+ role and application:approve permission
 export const PUT = withAuth(async (
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  request: NextRequest,
+  { params }: RouteContext,
   authContext: AuthContext
 ) => {
   try {
     const { user } = authContext
-    const { id } = await params
+    const paramsObj = await params
+    const id = getParam(paramsObj, 'id')
     const body = await request.json()
     const tenantId = body.tenantId || user.tenantId
 
@@ -154,7 +154,7 @@ export const PUT = withAuth(async (
         )
       }
 
-      const updateData = {
+      const updateData: Record<string, unknown> = {
         status: 'APPROVED',
         approvedAmount: approvedAmount || existingApplication.requestedAmount,
         approvedAt: new Date(),
@@ -187,20 +187,19 @@ export const PUT = withAuth(async (
       })
 
       // Critical audit log for approval
-      await createAuditLog({
-        userId: user.id,
-        tenantId: user.tenantId,
-        action: 'application:approve',
-        entityType: 'LoanApplication',
-        entityId: id,
-        ipAddress: getClientIP(request),
-        metadata: {
+      createAuditLog(
+        'application:approve',
+        user.id,
+        {
           previousStatus: existingApplication.status,
           newStatus: 'APPROVED',
           approvedAmount: updateData.approvedAmount,
           decisionNotes,
+          entityId: id,
+          tenantId: user.tenantId
         },
-      })
+        getClientIP(request)
+      )
 
       return NextResponse.json({ 
         success: true, 
@@ -221,7 +220,7 @@ export const PUT = withAuth(async (
 
       const rejectionReason = body.rejectionReason || decisionNotes || 'Not specified'
 
-      const updateData = {
+      const updateData: Record<string, unknown> = {
         status: 'REJECTED',
         rejectedAt: new Date(),
         reviewedAt: new Date(),
@@ -255,19 +254,18 @@ export const PUT = withAuth(async (
       })
 
       // Critical audit log for rejection
-      await createAuditLog({
-        userId: user.id,
-        tenantId: user.tenantId,
-        action: 'application:reject',
-        entityType: 'LoanApplication',
-        entityId: id,
-        ipAddress: getClientIP(request),
-        metadata: {
+      createAuditLog(
+        'application:reject',
+        user.id,
+        {
           previousStatus: existingApplication.status,
           newStatus: 'REJECTED',
           rejectionReason,
+          entityId: id,
+          tenantId: user.tenantId
         },
-      })
+        getClientIP(request)
+      )
 
       return NextResponse.json({ 
         success: true, 
@@ -309,15 +307,12 @@ export const PUT = withAuth(async (
     })
 
     // Audit log for general updates
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'application:update',
-      entityType: 'LoanApplication',
-      entityId: id,
-      ipAddress: getClientIP(request),
-      metadata: { updatedFields: Object.keys(updateData) },
-    })
+    createAuditLog(
+      'application:update',
+      user.id,
+      { updatedFields: Object.keys(updateData), entityId: id, tenantId: user.tenantId },
+      getClientIP(request)
+    )
 
     return NextResponse.json({ success: true, data: application })
   } catch (error) {

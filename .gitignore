@@ -1,7 +1,24 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# =============================================================================
+# Digital Lending OS - Comprehensive .gitignore
+# =============================================================================
+# Security-focused gitignore to prevent accidental secret leaks
+# =============================================================================
 
-# dependencies
-node_modules
+# -----------------------------------------------------------------------------
+# ENVIRONMENT VARIABLES (CRITICAL - NEVER COMMIT THESE!)
+# -----------------------------------------------------------------------------
+.env
+.env.local
+.env.production
+.env.development
+.env.test
+.env.*.local
+!.env.example
+
+# -----------------------------------------------------------------------------
+# DEPENDENCIES
+# -----------------------------------------------------------------------------
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -9,46 +26,149 @@ node_modules
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
-.DS_Store
-*.pem
-
-# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+package-lock.json
+yarn.lock
+bun.lock
 
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-
-# typescript
+# -----------------------------------------------------------------------------
+# BUILD OUTPUTS
+# -----------------------------------------------------------------------------
+.next/
+out/
+dist/
+build/
 *.tsbuildinfo
 next-env.d.ts
-local-*
-.claude
-.z-ai-config
+
+# -----------------------------------------------------------------------------
+# DATABASE FILES
+# -----------------------------------------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+prisma/*.db
+prisma/*.sqlite
+prisma/migrations/*.db
+
+# -----------------------------------------------------------------------------
+# LOGS & DEBUG
+# -----------------------------------------------------------------------------
+logs/
 *.log
 dev.log
 dev.out.log
-test
-prompt
-
 server.log
+npm-debug.log*
+yarn-debug.log*
+lerna-debug.log*
+
+# -----------------------------------------------------------------------------
+# CACHE & TEMPORARY FILES
+# -----------------------------------------------------------------------------
+.cache/
+temp/
+tmp/
+*.tmp
+*.temp
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# -----------------------------------------------------------------------------
+# IDE & EDITOR CONFIGURATIONS
+# -----------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# -----------------------------------------------------------------------------
+# OPERATING SYSTEM FILES
+# -----------------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# -----------------------------------------------------------------------------
+# SECURITY SENSITIVE FILES (SECRETS, KEYS, CREDENTIALS)
+# -----------------------------------------------------------------------------
+*.pem
+*.key
+*.crt
+*.csr
+*.p12
+*.pfx
+credentials.json
+service-account.json
+gcloud-service-key.json
+aws-credentials.json
+secrets.yaml
+secrets.yml
+.secrets/
+*.secret
+
+# M-Pesa / Payment credentials (if any files created)
+mpesa-certificates/
+certificates/
+
+# -----------------------------------------------------------------------------
+# COVERAGE & TESTING
+# -----------------------------------------------------------------------------
+coverage/
+.nyc_output/
+.jest/
+test-results/
+playwright-report/
+
+# -----------------------------------------------------------------------------
+# DEPLOYMENT & PLATFORM
+# -----------------------------------------------------------------------------
+.vercel/
+.netlify/
+.serverless/
+.firebase/
+.amplify/
+
+# -----------------------------------------------------------------------------
+# DOCKER
+# -----------------------------------------------------------------------------
+docker-compose.override.yml
+.docker/local.env
+
+# -----------------------------------------------------------------------------
+# MISCELLANEOUS
+# -----------------------------------------------------------------------------
+local-*
+*.bak
+*.backup
+*.dump
+*.sql.gz
+.claude
+.z-ai-config
+tool-results/
+download/
+prompt
+test
+
 # Skills directory
 /skills/

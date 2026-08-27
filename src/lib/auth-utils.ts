@@ -9,6 +9,9 @@ import type { UserRole, User, AuthContext } from './auth-types';
 import { hasPermission as checkPermission, getEffectivePermissions, hasAnyRole } from './rbac';
 import { NextRequest, NextResponse } from 'next/server';
 
+// Re-export AuthContext for convenience
+export type { AuthContext } from './auth-types';
+
 /**
  * Authentication context interface for request handlers
  */
@@ -54,23 +57,52 @@ export function createAuditLog(
 }
 
 /**
+ * Route handler context for Next.js 16 dynamic routes
+ */
+export interface RouteContext {
+  params: Promise<{ [key: string]: string | string[] }>;
+}
+
+/**
+ * Helper to extract a single param value from route params
+ * Handles the case where params might be string | string[]
+ */
+export function getParam(params: { [key: string]: string | string[] }, name: string): string {
+  const value = params[name];
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+  return value;
+}
+
+/**
+ * Internal handler type that receives auth context as third parameter
+ */
+export type AuthenticatedHandler<T extends unknown[] = []> = (
+  request: NextRequest,
+  context: RouteContext,
+  authContext: AuthContext,
+  ...extraArgs: T
+) => Promise<NextResponse> | NextResponse;
+
+/**
  * Higher-order function to wrap API handlers with authentication check
+ * Compatible with Next.js 16 route handler signature.
  * 
- * @param handler - The API route handler to protect
+ * @param handler - The API route handler to protect (receives request, route context, and auth context)
  * @returns Wrapped handler that checks for valid authentication
  * 
  * @example
  * ```typescript
- * export const GET = withAuth(async (request, context) => {
+ * export const GET = withAuth(async (request, { params }, context) => {
+ *   const { id } = await params;
  *   // User is authenticated, context.user is available
  *   return NextResponse.json({ data: 'secret' });
  * });
  * ```
  */
-export function withAuth<T extends unknown[]>(
-  handler: (request: NextRequest, context: AuthContext, ...args: T) => Promise<NextResponse> | NextResponse
-) {
-  return async (request: NextRequest, ...args: T): Promise<NextResponse> => {
+export function withAuth<T extends unknown[] = []>(handler: AuthenticatedHandler<T>) {
+  return async (request: NextRequest, context: RouteContext): Promise<NextResponse> => {
     const token = extractToken(request);
     
     if (!token) {
@@ -86,7 +118,7 @@ export function withAuth<T extends unknown[]>(
     
     // Create a basic auth context from token
     // In production, decode JWT and fetch user from DB
-    const context: AuthContext = {
+    const authContext: AuthContext = {
       user: {
         id: 'demo-user',
         email: 'demo@lendingos.com',
@@ -102,41 +134,55 @@ export function withAuth<T extends unknown[]>(
       permissions: getEffectivePermissions('TENANT_ADMIN'),
     };
 
-    return handler(request, context, ...args);
+    return handler(request, context, authContext);
   };
 }
 
 /**
  * Higher-order function to wrap API handlers with role-based access control
+ * Compatible with Next.js 16 route handler signature.
+ * Supports both curried and non-curried usage patterns.
  * 
  * @param allowedRoles - Array of roles that can access this route
- * @param handler - The API route handler to protect
- * @returns Wrapped handler that checks user role before executing
+ * @param handler - (Optional) The API route handler to protect
+ * @returns Wrapped handler that checks user role before executing, or a function that accepts the handler
  * 
- * @example
+ * @example Curried usage (recommended):
  * ```typescript
- * export const GET = withRoles(['SUPER_ADMIN', 'TENANT_ADMIN'], async (request, context) => {
+ * export const GET = withRoles(['SUPER_ADMIN', 'TENANT_ADMIN'])(async (request, { params }, context) => {
+ *   // User has required role
+ *   return NextResponse.json({ data: 'admin-only' });
+ * });
+ * ```
+ * 
+ * @example Direct usage:
+ * ```typescript
+ * export const GET = withRoles(['SUPER_ADMIN', 'TENANT_ADMIN'], async (request, { params }, context) => {
  *   // User has required role
  *   return NextResponse.json({ data: 'admin-only' });
  * });
  * ```
  */
-export function withRoles<T extends unknown[]>(
+export function withRoles<T extends unknown[] = []>(
+  allowedRoles: UserRole[]
+): (handler: AuthenticatedHandler<T>) => ReturnType<typeof withAuth<T>>;
+export function withRoles<T extends unknown[] = []>(
   allowedRoles: UserRole[],
-  handler: (request: NextRequest, context: AuthContext, ...args: T) => Promise<NextResponse> | NextResponse
+  handler: AuthenticatedHandler<T>
+): ReturnType<typeof withAuth<T>>;
+export function withRoles<T extends unknown[] = []>(
+  allowedRoles: UserRole[],
+  handler?: AuthenticatedHandler<T>
 ) {
-  return async (request: NextRequest, ...args: T): Promise<NextResponse> => {
-    // First, run through authentication
-    const authResult = await withAuth(handler)(request, ...args);
-    
-    // If auth returned an error response, return it
-    if (authResult.status === 401) {
-      return authResult;
-    }
-
-    // Check if user has required role
-    // Note: In production, extract actual user role from validated token
-    const userRole: UserRole = 'TENANT_ADMIN'; // Demo default
+  // Create an intermediate handler that adds role checking after auth
+  const roleCheckedHandler: AuthenticatedHandler<T> = async (
+    request: NextRequest,
+    context: RouteContext,
+    authContext: AuthContext,
+    ...extraArgs: T
+  ): Promise<NextResponse> => {
+    // Check if user has required role using the authenticated user's role
+    const userRole = authContext.user.role;
     
     if (!hasAnyRole(userRole, allowedRoles)) {
       return NextResponse.json(
@@ -149,8 +195,18 @@ export function withRoles<T extends unknown[]>(
       );
     }
 
-    return authResult;
+    // Call original handler with all arguments
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    return handler!(request, context, authContext, ...extraArgs);
   };
+
+  // If handler provided, return wrapped result directly
+  if (handler) {
+    return withAuth(roleCheckedHandler);
+  }
+
+  // Otherwise return a function that accepts the handler (curried pattern)
+  return (h: AuthenticatedHandler<T>) => withAuth(roleCheckedHandler ?? h);
 }
 
 /**

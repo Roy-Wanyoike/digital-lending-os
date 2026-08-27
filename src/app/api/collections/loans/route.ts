@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { withAuth, createAuditLog, getClientIP } from '@/lib/auth-utils'
-import type { AuthContext } from '@/lib/auth-utils'
+import type { AuthContext, RouteContext } from '@/lib/auth-utils'
 
 // GET /api/collections/loans - List overdue loans with filters
 // Supports: status, daysInArrears, assignedCollector, amountRange, pagination, sorting
-export const GET = withAuth(async (request: Request, _ctx: unknown, authContext: AuthContext) => {
+export const GET = withAuth(async (request: NextRequest, _context: RouteContext, authContext: AuthContext) => {
   try {
     const { user } = authContext
     const { searchParams } = new URL(request.url)
@@ -163,20 +163,18 @@ export const GET = withAuth(async (request: Request, _ctx: unknown, authContext:
     }
 
     // Audit log
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'collections:loans_list',
-      entityType: 'Loan',
-      ipAddress: getClientIP(request),
-      metadata: {
+    createAuditLog(
+      'collections:loans_list',
+      user.id,
+      {
         filters: { status, arrearsStatus, assignedCollector, amountMin, amountMax, search },
         page,
         limit,
         sortBy,
         sortOrder
-      }
-    })
+      },
+      getClientIP(request)
+    )
 
     return NextResponse.json({
       success: true,

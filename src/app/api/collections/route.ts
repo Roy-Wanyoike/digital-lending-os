@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { withAuth, createAuditLog, getClientIP } from '@/lib/auth-utils'
-import type { AuthContext } from '@/lib/auth-utils'
+import type { AuthContext, RouteContext } from '@/lib/auth-utils'
 
 // GET /api/collections - Collections Dashboard Data
 // Returns summary statistics, aging buckets, overdue loans list, and collection agents
-export const GET = withAuth(async (request: Request, _ctx: unknown, authContext: AuthContext) => {
+export const GET = withAuth(async (request: NextRequest, _context: RouteContext, authContext: AuthContext) => {
   try {
     const { user } = authContext
     const { searchParams } = new URL(request.url)
@@ -278,14 +278,12 @@ export const GET = withAuth(async (request: Request, _ctx: unknown, authContext:
     ]
 
     // Audit log
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'collections:dashboard_view',
-      entityType: 'Collection',
-      ipAddress: getClientIP(request),
-      metadata: { filters: { status, daysRange }, page }
-    })
+    createAuditLog(
+      'collections:dashboard_view',
+      user.id,
+      { filters: { status, daysRange }, page },
+      getClientIP(request)
+    )
 
     return NextResponse.json({
       success: true,

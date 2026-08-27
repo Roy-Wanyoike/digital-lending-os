@@ -381,7 +381,7 @@ export function ApplicationReviewScreen({ application, onClose }: ApplicationRev
                   {/* Policy Rules Check */}
                   <div>
                     <h4 className="font-medium mb-3 flex items-center gap-2">
-                      <CheckCircled className="w-4 h-4 text-emerald-600" />
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
                       Policy Rules Check
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

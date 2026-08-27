@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
     const actualTenantId = tenant.id
 
     // Get or create customer - support demo mode
-    let customer = null
+    let customer: Awaited<ReturnType<typeof db.customer.findFirst>> | null = null
     if (customerId && customerId !== 'new-customer') {
       customer = await db.customer.findFirst({ where: { id: customerId, tenantId: actualTenantId } })
     }
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get or find product - support demo mode with product type names
-    let product = null
+    let product: Awaited<ReturnType<typeof db.loanProduct.findFirst>> | null = null
     if (productId) {
       product = await db.loanProduct.findFirst({ 
         where: { id: productId, tenantId: actualTenantId, isActive: true } 

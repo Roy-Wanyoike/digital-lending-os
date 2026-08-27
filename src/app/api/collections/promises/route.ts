@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { withAuth, createAuditLog, getClientIP } from '@/lib/auth-utils'
-import type { AuthContext } from '@/lib/auth-utils'
+import type { AuthContext, RouteContext } from '@/lib/auth-utils'
 
 // Promise to Pay status types
 type PromiseStatus = 'PENDING' | 'KEPT' | 'BROKEN' | 'PARTIAL' | 'CANCELLED'
@@ -50,7 +50,7 @@ function extractPromisesFromNotes(collectionNotes: string | null): PromiseToPay[
 }
 
 // GET /api/collections/promises - List all promise-to-pay records
-export const GET = withAuth(async (request: Request, _ctx: unknown, authContext: AuthContext) => {
+export const GET = withAuth(async (request: NextRequest, _context: RouteContext, authContext: AuthContext) => {
   try {
     const { user } = authContext
     const { searchParams } = new URL(request.url)
@@ -181,14 +181,12 @@ export const GET = withAuth(async (request: Request, _ctx: unknown, authContext:
     const paginatedPromises = allPromises.slice(startIndex, startIndex + limit)
 
     // Audit log
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'collections:promises_list',
-      entityType: 'PromiseToPay',
-      ipAddress: getClientIP(request),
-      metadata: { filters: { status, loanId, collectorId }, page }
-    })
+    createAuditLog(
+      'collections:promises_list',
+      user.id,
+      { filters: { status, loanId, collectorId }, page },
+      getClientIP(request)
+    )
 
     return NextResponse.json({
       success: true,
@@ -211,7 +209,7 @@ export const GET = withAuth(async (request: Request, _ctx: unknown, authContext:
 })
 
 // POST /api/collections/promises - Create a new promise-to-pay record
-export const POST = withAuth(async (request: Request, _ctx: unknown, authContext: AuthContext) => {
+export const POST = withAuth(async (request: NextRequest, _context: RouteContext, authContext: AuthContext) => {
   try {
     const { user } = authContext
     const body = await request.json()
@@ -312,22 +310,18 @@ export const POST = withAuth(async (request: Request, _ctx: unknown, authContext
     })
 
     // Audit log
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'collections:promise_create',
-      entityType: 'PromiseToPay',
-      entityId: loanId,
-      ipAddress: getClientIP(request),
-      newValues: JSON.stringify(promiseData),
-      metadata: {
+    createAuditLog(
+      'collections:promise_create',
+      user.id,
+      {
         loanId: loan.loanNumber,
         customerName: `${loan.customer.firstName} ${loan.customer.lastName}`,
         promisedAmount,
         promisedDate,
         confidenceLevel
-      }
-    })
+      },
+      getClientIP(request)
+    )
 
     return NextResponse.json({
       success: true,
@@ -348,7 +342,7 @@ export const POST = withAuth(async (request: Request, _ctx: unknown, authContext
 })
 
 // PUT /api/collections/promises - Update a promise status (mark as kept/broken/partial)
-export async function PUT(request: Request) {
+export async function PUT(request: NextRequest) {
   try {
     // Note: In production, you'd want proper auth middleware here too
     const body = await request.json()
@@ -380,7 +374,7 @@ export async function PUT(request: Request) {
 
     // Parse existing notes and update the specific promise
     const lines = (loan.collectionNotes || '').split('\n')
-    let updatedLines = []
+    let updatedLines: string[] = []
     let promiseUpdated = false
 
     for (const line of lines) {

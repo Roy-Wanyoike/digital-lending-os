@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { withAuth, withRoles, createAuditLog, getClientIP } from '@/lib/auth-utils'
-import type { AuthContext } from '@/lib/auth-utils'
+import type { AuthContext, RouteContext } from '@/lib/auth-utils'
 
 // GET /api/loans - List loans
 // Requires authentication (any DCP staff role)
-export const GET = withAuth(async (request: Request, _ctx: unknown, authContext: AuthContext) => {
+export const GET = withAuth(async (request: NextRequest, _context: RouteContext, authContext: AuthContext) => {
   try {
     const { user } = authContext
     const { searchParams } = new URL(request.url)
@@ -94,14 +94,12 @@ export const GET = withAuth(async (request: Request, _ctx: unknown, authContext:
     ])
 
     // Audit log for loan list access
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'loan:list',
-      entityType: 'Loan',
-      ipAddress: getClientIP(request),
-      metadata: { filters: { status, customerId, arrearsStatus }, page, limit },
-    })
+    createAuditLog(
+      'loan:list',
+      user.id,
+      { filters: { status, customerId, arrearsStatus }, page, limit, tenantId: user.tenantId },
+      getClientIP(request)
+    )
 
     return NextResponse.json({
       success: true,
@@ -125,8 +123,8 @@ export const GET = withAuth(async (request: Request, _ctx: unknown, authContext:
 // POST /api/loans - Create a new loan (from approved application)
 // Requires MANAGER or higher role for loan creation
 export const POST = withRoles(['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER'])(async (
-  request: Request,
-  _ctx: unknown,
+  request: NextRequest,
+  _context: RouteContext,
   authContext: AuthContext
 ) => {
   try {
@@ -237,21 +235,20 @@ export const POST = withRoles(['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER'])(async 
     })
 
     // Audit log for loan creation (critical action)
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'loan:create',
-      entityType: 'Loan',
-      entityId: loan.id,
-      ipAddress: getClientIP(request),
-      metadata: {
+    createAuditLog(
+      'loan:create',
+      user.id,
+      {
         loanNumber,
         principal,
         customerId,
         productId,
         approvedBy: user.name || user.email,
+        entityId: loan.id,
+        tenantId: user.tenantId
       },
-    })
+      getClientIP(request)
+    )
 
     return NextResponse.json(
       { success: true, data: loan },

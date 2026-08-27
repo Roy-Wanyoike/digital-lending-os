@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { withAuth, createAuditLog, getClientIP } from '@/lib/auth-utils'
-import type { AuthContext } from '@/lib/auth-types'
+import type { AuthContext, RouteContext } from '@/lib/auth-utils'
 
 // GET /api/customers - List customers
 // Requires authentication (any DCP staff role)
-export const GET = withAuth(async (request: Request, _ctx: unknown, authContext: AuthContext) => {
+export const GET = withAuth(async (request: NextRequest, _context: RouteContext, authContext: AuthContext) => {
   try {
     const { user } = authContext
     const { searchParams } = new URL(request.url)
@@ -87,14 +87,12 @@ export const GET = withAuth(async (request: Request, _ctx: unknown, authContext:
     ])
 
     // Audit log for customer list access
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'customer:list',
-      entityType: 'Customer',
-      ipAddress: getClientIP(request),
-      metadata: { filters: { status, riskLevel, search }, page, limit },
-    })
+    createAuditLog(
+      'customer:list',
+      user.id,
+      { filters: { status, riskLevel, search }, page, limit, tenantId: user.tenantId },
+      getClientIP(request)
+    )
 
     return NextResponse.json({
       success: true,
@@ -117,7 +115,7 @@ export const GET = withAuth(async (request: Request, _ctx: unknown, authContext:
 
 // POST /api/customers - Create a new customer
 // Requires STAFF or higher role
-export const POST = withAuth(async (request: Request, _ctx: unknown, authContext: AuthContext) => {
+export const POST = withAuth(async (request: NextRequest, _context: RouteContext, authContext: AuthContext) => {
   try {
     const { user } = authContext
     
@@ -220,15 +218,12 @@ export const POST = withAuth(async (request: Request, _ctx: unknown, authContext
     })
 
     // Audit log for customer creation
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'customer:create',
-      entityType: 'Customer',
-      entityId: customer.id,
-      ipAddress: getClientIP(request),
-      metadata: { customerPhone: phone, customerName: `${firstName} ${lastName}` },
-    })
+    createAuditLog(
+      'customer:create',
+      user.id,
+      { customerPhone: phone, customerName: `${firstName} ${lastName}`, entityId: customer.id, tenantId: user.tenantId },
+      getClientIP(request)
+    )
 
     return NextResponse.json(
       { success: true, data: customer },

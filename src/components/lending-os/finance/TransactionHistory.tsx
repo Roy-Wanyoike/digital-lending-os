@@ -40,7 +40,6 @@ import {
   ArrowDownLeft,
   Eye,
   ChevronDown,
-  ChevronRight,
   Calendar,
   Hash,
   Layers,

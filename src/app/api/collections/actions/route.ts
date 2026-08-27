@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { withAuth, createAuditLog, getClientIP } from '@/lib/auth-utils'
-import type { AuthContext } from '@/lib/auth-utils'
+import type { AuthContext, RouteContext } from '@/lib/auth-utils'
 
 // Collection action types
 type CollectionActionType = 
@@ -39,12 +39,12 @@ interface CollectionActionBody {
 }
 
 // POST /api/collections/actions - Record a collection action
-export const POST = withAuth(async (request: Request, _ctx: unknown, authContext: AuthContext) => {
+export const POST = withAuth(async (request: NextRequest, _context: RouteContext, authContext: AuthContext) => {
   try {
     const { user } = authContext
     const body: CollectionActionBody = await request.json()
     
-    const tenantId = body.tenantId || user.tenantId
+    const tenantId = body.tenantId || user.tenantId || ''
     const { action, loanId, notes } = body
 
     // Validate required fields
@@ -128,21 +128,18 @@ export const POST = withAuth(async (request: Request, _ctx: unknown, authContext
     })
 
     // Create audit log for the action
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: auditAction,
-      entityType: 'Collection',
-      entityId: loanId,
-      ipAddress: getClientIP(request),
-      newValues: JSON.stringify({ ...body, performedBy: user.name }),
-      metadata: {
-        action,
-        loanId: loan.loanNumber,
-        customerName: `${loan.customer.firstName} ${loan.customer.lastName}`,
-        ...body
-      }
-    })
+    createAuditLog(
+      auditAction,
+      user.id,
+      { 
+        action, 
+        loanId: loan.loanNumber, 
+        customerName: `${loan.customer.firstName} ${loan.customer.lastName}`, 
+        performedBy: user.name,
+        ...notes ? { notes } : {}
+      },
+      getClientIP(request)
+    )
 
     return NextResponse.json({
       success: true,

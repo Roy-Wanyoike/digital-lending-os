@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { withAuth, createAuditLog, getClientIP } from '@/lib/auth-utils'
-import type { AuthContext } from '@/lib/auth-utils'
+import { withAuth, createAuditLog, getClientIP, getParam } from '@/lib/auth-utils'
+import type { AuthContext, RouteContext } from '@/lib/auth-utils'
 
 // GET /api/collections/loans/:id - Full loan details with payment history and contact history
 export const GET = withAuth(async (
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  request: NextRequest,
+  { params }: RouteContext,
   authContext: AuthContext
 ) => {
   try {
     const { user } = authContext
-    const { id: loanId } = await params
+    const paramsObj = await params
+    const loanId = getParam(paramsObj, 'id')
     const { searchParams } = new URL(request.url)
     const tenantId = searchParams.get('tenantId') || user.tenantId
 
@@ -121,14 +122,12 @@ export const GET = withAuth(async (
     })
 
     // Audit log
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'collections:loan_view',
-      entityType: 'Loan',
-      entityId: loanId,
-      ipAddress: getClientIP(request)
-    })
+    createAuditLog(
+      'collections:loan_view',
+      user.id,
+      { entityId: loanId },
+      getClientIP(request)
+    )
 
     return NextResponse.json({
       success: true,
@@ -151,13 +150,14 @@ export const GET = withAuth(async (
 // PUT /api/collections/loans/:id - Update loan collection actions
 // Supports: assignCollector, addCollectionNote, updateStatus, updateArrearsStatus
 export const PUT = withAuth(async (
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  request: NextRequest,
+  { params }: RouteContext,
   authContext: AuthContext
 ) => {
   try {
     const { user } = authContext
-    const { id: loanId } = await params
+    const paramsObj = await params
+    const loanId = getParam(paramsObj, 'id')
     const body = await request.json()
     
     const tenantId = body.tenantId || user.tenantId
@@ -288,22 +288,23 @@ export const PUT = withAuth(async (
     })
 
     // Audit log for the specific action
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: auditAction,
-      entityType: 'Loan',
-      entityId: loanId,
-      ipAddress: getClientIP(request),
-      oldValues: JSON.stringify({
-        assignedCollector: existingLoan.assignedCollector,
-        status: existingLoan.status,
-        arrearsStatus: existingLoan.arrearsStatus,
-        daysInArrears: existingLoan.daysInArrears
-      }),
-      newValues: JSON.stringify(updateData),
-      metadata: { action, performedBy: user.name }
-    })
+    createAuditLog(
+      auditAction,
+      user.id,
+      { 
+        action, 
+        performedBy: user.name,
+        entityId: loanId,
+        previousState: {
+          assignedCollector: existingLoan.assignedCollector,
+          status: existingLoan.status,
+          arrearsStatus: existingLoan.arrearsStatus,
+          daysInArrears: existingLoan.daysInArrears
+        },
+        newState: updateData
+      },
+      getClientIP(request)
+    )
 
     return NextResponse.json({
       success: true,

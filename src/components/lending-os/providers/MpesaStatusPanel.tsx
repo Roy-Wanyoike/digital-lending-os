@@ -44,7 +44,7 @@ import {
   Timer,
   CreditCard,
   Send,
-  Receive,
+  ArrowDownLeft,
   Filter,
 } from "lucide-react";
 import {
@@ -414,7 +414,7 @@ export function MpesaStatusPanel({ className }: MpesaStatusPanelProps) {
       case "B2C":
         return <Send className="h-4 w-4 text-blue-600" />;
       case "C2B":
-        return <Receive className="h-4 w-4 text-purple-600" />;
+        return <ArrowDownLeft className="h-4 w-4 text-purple-600" />;
       case "REVERSAL":
         return <RefreshCw className="h-4 w-4 text-orange-600" />;
       default:
@@ -513,7 +513,7 @@ export function MpesaStatusPanel({ className }: MpesaStatusPanelProps) {
               <span className="text-sm font-medium text-muted-foreground">
                 C2B Repayments Today
               </span>
-              <Receive className="h-4 w-4 text-purple-500" />
+              <ArrowDownLeft className="h-4 w-4 text-purple-500" />
             </div>
             <div className="flex items-end gap-2 mb-2">
               <span className="text-3xl font-bold">{c2bMetrics.paymentsReceived}</span>
@@ -747,7 +747,7 @@ export function MpesaStatusPanel({ className }: MpesaStatusPanelProps) {
                     <Card>
                       <CardContent className="p-4">
                         <h5 className="font-medium text-sm mb-3 flex items-center gap-2">
-                          <Receive className="h-4 w-4 text-purple-500" />
+                          <ArrowDownLeft className="h-4 w-4 text-purple-500" />
                           C2B Repayment Details
                         </h5>
                         <div className="space-y-2 text-sm">

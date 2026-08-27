@@ -42,7 +42,6 @@ import {
   FileSpreadsheet,
   Eye,
   ChevronDown,
-  ChevronRight,
   CheckCircle2
 } from 'lucide-react'
 

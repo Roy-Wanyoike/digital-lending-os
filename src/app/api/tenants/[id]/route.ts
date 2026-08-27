@@ -1,19 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { withAuth, withRoles, createAuditLog, getClientIP } from '@/lib/auth-utils'
-import type { AuthContext } from '@/lib/auth-utils'
+import { withAuth, withRoles, createAuditLog, getClientIP, getParam } from '@/lib/auth-utils'
+import type { AuthContext, RouteContext } from '@/lib/auth-utils'
 
 // GET /api/tenants/[id] - Get a specific tenant
 // Requires authentication. SUPER_ADMIN can access any tenant,
 // TENANT_ADMIN can only access their own tenant.
 export const GET = withAuth(async (
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  request: NextRequest,
+  { params }: RouteContext,
   authContext: AuthContext
 ) => {
   try {
-    const { user, tenant } = authContext
-    const { id } = await params
+    const { user } = authContext
+    const paramsObj = await params
+    const id = getParam(paramsObj, 'id')
     
     // SUPER_ADMIN can view any tenant
     // TENANT_ADMIN can only view their own tenant
@@ -57,14 +58,12 @@ export const GET = withAuth(async (
     }
 
     // Audit log for sensitive data access
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'tenant:read',
-      entityType: 'Tenant',
-      entityId: id,
-      ipAddress: getClientIP(request),
-    })
+    createAuditLog(
+      'tenant:read',
+      user.id,
+      { entityId: id, tenantId: user.tenantId },
+      getClientIP(request)
+    )
 
     return NextResponse.json({ success: true, data: tenantData })
   } catch (error) {
@@ -79,13 +78,14 @@ export const GET = withAuth(async (
 // PUT /api/tenants/[id] - Update a tenant
 // Only SUPER_ADMIN or own TENANT_ADMIN can update
 export const PUT = withRoles(['SUPER_ADMIN', 'TENANT_ADMIN'])(async (
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  request: NextRequest,
+  { params }: RouteContext,
   authContext: AuthContext
 ) => {
   try {
     const { user } = authContext
-    const { id } = await params
+    const paramsObj = await params
+    const id = getParam(paramsObj, 'id')
     const body = await request.json()
 
     // TENANT_ADMIN can only update their own tenant
@@ -141,15 +141,12 @@ export const PUT = withRoles(['SUPER_ADMIN', 'TENANT_ADMIN'])(async (
     })
 
     // Audit log for tenant updates
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'tenant:update',
-      entityType: 'Tenant',
-      entityId: id,
-      ipAddress: getClientIP(request),
-      metadata: { updatedFields: Object.keys(updateData) },
-    })
+    createAuditLog(
+      'tenant:update',
+      user.id,
+      { entityId: id, updatedFields: Object.keys(updateData), tenantId: user.tenantId },
+      getClientIP(request)
+    )
 
     return NextResponse.json({ success: true, data: updatedTenant })
   } catch (error) {
@@ -164,13 +161,14 @@ export const PUT = withRoles(['SUPER_ADMIN', 'TENANT_ADMIN'])(async (
 // DELETE /api/tenants/[id] - Delete a tenant (soft delete via status change)
 // Only SUPER_ADMIN can terminate tenants
 export const DELETE = withRoles(['SUPER_ADMIN'])(async (
-  request: Request,
-  { params }: { params: Promise<{ id: string }> },
+  request: NextRequest,
+  { params }: RouteContext,
   authContext: AuthContext
 ) => {
   try {
     const { user } = authContext
-    const { id } = await params
+    const paramsObj = await params
+    const id = getParam(paramsObj, 'id')
 
     // Check if tenant exists
     const existingTenant = await db.tenant.findUnique({ where: { id } })
@@ -188,15 +186,12 @@ export const DELETE = withRoles(['SUPER_ADMIN'])(async (
     })
 
     // Audit log for critical action
-    await createAuditLog({
-      userId: user.id,
-      tenantId: user.tenantId,
-      action: 'tenant:delete',
-      entityType: 'Tenant',
-      entityId: id,
-      ipAddress: getClientIP(request),
-      metadata: { previousStatus: existingTenant.status },
-    })
+    createAuditLog(
+      'tenant:delete',
+      user.id,
+      { entityId: id, previousStatus: existingTenant.status, tenantId: user.tenantId },
+      getClientIP(request)
+    )
 
     return NextResponse.json({
       success: true,
