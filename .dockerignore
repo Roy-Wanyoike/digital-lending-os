@@ -1,0 +1,138 @@
+# =============================================================================
+# Digital Lending OS - Frontend .dockerignore
+# =============================================================================
+# Files and directories to exclude from Docker build context
+# This reduces build context size and improves build speed
+# =============================================================================
+
+# Dependencies (installed fresh in container)
+node_modules
+npm-debug.log
+yarn-error.log
+.pnp.*
+.yarn
+
+# Build outputs
+.next
+out
+build
+dist
+
+# Environment files (should be mounted or passed as secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Version control
+.git
+.gitignore
+.gitattributes
+.github
+.gitlab-ci.yml
+
+# Documentation (not needed in image)
+docs
+*.md
+!README.md
+LICENSE
+CHANGELOG*
+CONTRIBUTING*
+
+# Testing
+tests
+__tests__
+__mocks__
+coverage
+.nyc_output
+.jest
+*.test.js
+*.test.ts
+*.test.tsx
+*.spec.js
+*.spec.ts
+*.spec.tsx
+jest.config.*
+vitest.config.*
+
+# Database files (SQLite)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+prisma/*.db
+prisma/*.db-journal
+
+# Logs
+logs
+*.log
+dev.log
+server.log
+
+# Temporary files
+tmp
+temp
+.cache
+.parcel-cache
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# Docker files (prevent recursive copy)
+Dockerfile
+Dockerfile*
+docker-compose.yml
+docker-compose*.yml
+.docker
+.dockerignore
+
+# CI/CD
+.travis.yml
+.circleci
+appveyor.yml
+Jenkinsfile
+azure-pipelines.yml
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Data directories
+data
+uploads
+public/uploads
+
+# Mini services (if any)
+mini-services
+
+# Scripts (development only)
+scripts
+
+# Tool results
+tool-results
+agent-ctx
+
+# Worklog
+worklog.md

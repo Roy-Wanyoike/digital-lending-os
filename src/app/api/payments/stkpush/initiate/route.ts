@@ -4,6 +4,13 @@
  * 
  * Initiates an M-Pesa STK Push payment request.
  * This sends a prompt to the customer's phone to enter their M-Pesa PIN.
+ * 
+ * Enhanced with:
+ * - Rate limiting (30 req/min for payment endpoints)
+ * - Input validation using Zod schemas
+ * - Standardized API responses
+ * - Security utilities for sanitization
+ * - Amount validation for financial compliance
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -12,133 +19,59 @@ import {
   type StkPushRequest,
   type StkPushResponse,
 } from '@/lib/mpesa-service';
+import {
+  withRateLimit,
+  createRateLimiter,
+} from '@/lib/rate-limit';
+import {
+  stkPushRequestSchema,
+  kenyanPhoneSchema,
+  stkPushAmountSchema,
+  formatValidationErrors,
+} from '@/lib/validation';
+import {
+  sanitizeInput,
+  sanitizeObject,
+  validateAmount,
+  isValidPhoneNumber,
+  normalizePhoneNumber,
+  maskPhone,
+  hashSensitiveData,
+  extractClientIP as getSecurityIP,
+} from '@/lib/security';
+import {
+  ApiResponse,
+  generateRequestId,
+  createCorsHeaders,
+  corsPreflightResponse,
+} from '@/lib/api-response';
 
-export async function POST(request: NextRequest) {
-  const startTime = Date.now();
-  
-  try {
-    // Parse request body
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch (e) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Invalid JSON body',
-          message: 'Request body must be valid JSON',
-        },
-        { status: 400 }
-      );
-    }
-    
-    const data = body as Record<string, unknown>;
-    
-    // Validate required fields
-    const { phone, amount, loanId, accountId, accountReference, transactionDesc, callbackUrl } = data;
-    
-    if (!phone || typeof phone !== 'string') {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Missing required field: phone',
-          message: 'Phone number is required',
-        },
-        { status: 400 }
-      );
-    }
-    
-    if (!amount || typeof amount !== 'number') {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Missing required field: amount',
-          message: 'Payment amount is required',
-        },
-        { status: 400 }
-      );
-    }
-    
-    // Build STK Push request
-    const stkPushRequest: StkPushRequest = {
-      phone: phone as string,
-      amount: amount as number,
-      accountReference: (accountReference || loanId || accountId || `PAY-${Date.now()}`) as string,
-      transactionDesc: (transactionDesc || `Payment of KSh ${amount.toLocaleString()}`) as string,
-      callbackUrl: callbackUrl as string | undefined,
-    };
-    
-    // Add optional metadata
-    if (loanId) {
-      stkPushRequest.accountReference = loanId as string;
-    }
-    
-    // Initiate STK Push
-    const result: StkPushResponse = await initiateStkPush(stkPushRequest);
-    
-    // Calculate processing time
-    const processingTime = Date.now() - startTime;
-    
-    // Return response
-    if (result.success) {
-      return NextResponse.json({
-        success: true,
-        message: result.customerMessage || 'STK Push initiated. Please enter your M-Pesa PIN.',
-        checkoutRequestID: result.checkoutRequestID,
-        merchantRequestID: result.merchantRequestID,
-        responseCode: result.responseCode,
-        responseDescription: result.responseDescription,
-        instructions: {
-          step1: 'Check your phone for the M-Pesa prompt',
-          step2: 'Enter your M-Pesa PIN to confirm',
-          step3: 'Do not share your PIN with anyone',
-        },
-        estimatedWaitTime: '30 seconds - 3 minutes',
-        pollingEndpoint: `/api/payments/stkpush/status?checkoutRequestID=${result.checkoutRequestID}`,
-        meta: {
-          processingTimeMs: processingTime,
-          timestamp: new Date().toISOString(),
-        },
-      });
-    } else {
-      return NextResponse.json({
-        success: false,
-        error: result.errorMessage || result.responseDescription || 'Failed to initiate STK Push',
-        errorCode: result.errorCode,
-        responseCode: result.responseCode,
-        customerMessage: result.customerMessage,
-        suggestions: getErrorSuggestions(result.errorCode),
-        meta: {
-          processingTimeMs: processingTime,
-          timestamp: new Date().toISOString(),
-        },
-      }, { status: 400 });
-    }
-    
-  } catch (error) {
-    console.error('STK Push initiation error:', error);
-    
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Internal server error',
-        message: 'An unexpected error occurred while initiating the payment',
-        timestamp: new Date().toISOString(),
-      },
-      { status: 500 }
-    );
-  }
-}
+// ============================================
+// RATE LIMITING CONFIGURATION
+// ============================================
 
 /**
- * Get user-friendly suggestions based on error code
+ * Payment-specific rate limiter.
+ * Stricter limits for financial operations.
+ */
+const paymentLimiter = createRateLimiter('payment', {
+  prefix: 'payment-stk',
+  skipInDevelopment: false, // Always enforce on payment routes
+});
+
+// ============================================
+// ERROR SUGGESTIONS
+// ============================================
+
+/**
+ * Get user-friendly suggestions based on error code.
  */
 function getErrorSuggestions(errorCode?: string): string[] {
   switch (errorCode) {
     case 'INVALID_PHONE_NUMBER':
       return [
-        'Ensure phone number starts with 2547...',
-        'Format: 254712345678 or 0712345678',
+        'Ensure phone number starts with +2547... or +2541...',
+        'Format examples: +254712345678 or +254112345678',
       ];
     case 'INVALID_AMOUNT':
       return [
@@ -147,12 +80,12 @@ function getErrorSuggestions(errorCode?: string): string[] {
       ];
     case 'AMOUNT_TOO_LOW':
       return [
-        'Minimum payment is KSh 10',
+        'Minimum M-Pesa STK Push is KSh 10',
         'Please enter a larger amount',
       ];
     case 'AMOUNT_TOO_HIGH':
       return [
-        'Maximum STK Push amount is KSh 150,000',
+        `Maximum STK Push amount is KSh 150,000`,
         'For larger amounts, consider bank transfer',
       ];
     default:
@@ -163,14 +96,128 @@ function getErrorSuggestions(errorCode?: string): string[] {
   }
 }
 
-// Handle OPTIONS for CORS preflight
+/**
+ * Extract client IP securely.
+ */
+function getClientIP(request: NextRequest): string {
+  return getSecurityIP(request.headers);
+}
+
+// ============================================
+// POST /api/payments/stkpush/initiate
+// ============================================
+
+export const POST = withRateLimit('payment', async (request: NextRequest) => {
+  const requestId = generateRequestId();
+  const startTime = Date.now();
+  
+  try {
+    // Parse request body with error handling
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      return ApiResponse.error('Invalid JSON in request body', {
+        statusCode: 400,
+        code: 'BAD_REQUEST',
+        requestId,
+        originalError: parseError,
+      });
+    }
+    
+    // Sanitize input object to prevent XSS/injection
+    const sanitizedBody = sanitizeObject(body as Record<string, unknown>);
+    
+    // Validate against STK Push schema
+    const validationResult = stkPushRequestSchema.safeParse(sanitizedBody);
+    
+    if (!validationResult.success) {
+      return ApiResponse.zodError(validationResult.error, { requestId });
+    }
+
+    const data = validationResult.data;
+    
+    // Additional security validation
+    const clientIP = getClientIP(request);
+
+    // Log payment initiation attempt (without sensitive data)
+    console.log(`[STK Push] Payment initiation`, {
+      requestId,
+      phone: maskPhone(data.phone),
+      amount: data.amount,
+      ip: hashSensitiveData(clientIP),
+      timestamp: new Date().toISOString(),
+    });
+
+    // Build STK Push request with validated data
+    const stkPushRequest: StkPushRequest = {
+      phone: data.phone, // Already normalized by schema
+      amount: data.amount, // Already validated by schema
+      accountReference: data.accountReference || `PAY-${Date.now()}`,
+      transactionDesc: data.transactionDesc || `Payment of KSh ${data.amount.toLocaleString()}`,
+      callbackUrl: data.callbackUrl,
+    };
+
+    // Add optional metadata if provided
+    if (data.loanId) {
+      stkPushRequest.accountReference = data.loanId;
+    }
+
+    // Initiate STK Push via M-Pesa service
+    const result: StkPushResponse = await initiateStkPush(stkPushRequest);
+    
+    // Calculate processing time
+    const processingTime = Date.now() - startTime;
+
+    // Return appropriate response based on result
+    if (result.success) {
+      return ApiResponse.success(
+        {
+          message: result.customerMessage || 'STK Push initiated. Please enter your M-Pesa PIN.',
+          checkoutRequestID: result.checkoutRequestID,
+          merchantRequestID: result.merchantRequestID,
+          responseCode: result.responseCode,
+          responseDescription: result.responseDescription,
+          instructions: {
+            step1: 'Check your phone for the M-Pesa prompt',
+            step2: 'Enter your M-Pesa PIN to confirm',
+            step3: 'Do not share your PIN with anyone',
+          },
+          estimatedWaitTime: '30 seconds - 3 minutes',
+          pollingEndpoint: `/api/payments/stkpush/status?checkoutRequestID=${result.checkoutRequestID}`,
+        },
+        {
+          message: 'STK Push initiated successfully',
+          requestId,
+          processingTimeMs: processingTime,
+        }
+      );
+    } else {
+      // Payment failed - return detailed error
+      return ApiResponse.paymentFailed({
+        reason: result.errorMessage || result.responseDescription || 'Failed to initiate STK Push',
+        errorCode: result.errorCode,
+        customerMessage: result.customerMessage,
+        suggestions: getErrorSuggestions(result.errorCode),
+        requestId,
+      });
+    }
+    
+  } catch (error) {
+    console.error('[STK Push] Initiation error:', error);
+    
+    return ApiResponse.internalError({
+      message: 'An unexpected error occurred while initiating the payment',
+      originalError: error,
+      requestId,
+    });
+  }
+});
+
+// ============================================
+// OPTIONS /api/payments/stkpush/initiate - CORS PREFLIGHT
+// ============================================
+
 export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
+  return corsPreflightResponse();
 }

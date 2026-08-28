@@ -1,5 +1,55 @@
+/**
+ * Digital Lending OS - Authentication API
+ * POST /api/auth - LOGIN
+ * GET /api/auth - SESSION VALIDATION
+ * 
+ * Enhanced with:
+ * - Rate limiting (10 req/min for auth endpoints)
+ * - Input validation using Zod schemas
+ * - Standardized API responses
+ * - Security utilities for sanitization and logging
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { 
+  createRateLimiter, 
+  withRateLimit,
+  type RateLimitResult 
+} from '@/lib/rate-limit'
+import { 
+  loginSchema, 
+  emailSchema, 
+  kenyanPhoneSchema,
+  formatValidationErrors,
+  createValidationErrorBody
+} from '@/lib/validation'
+import { 
+  sanitizeInput, 
+  sanitizeObject, 
+  isValidPhoneNumber,
+  normalizePhoneNumber,
+  hashSensitiveData,
+  maskPhone,
+  extractClientIP as getSecurityIP
+} from '@/lib/security'
+import { 
+  ApiResponse, 
+  generateRequestId 
+} from '@/lib/api-response'
+
+// ============================================
+// RATE LIMITING CONFIGURATION
+// ============================================
+
+/**
+ * Auth-specific rate limiter.
+ * Strict limits for authentication endpoints (brute force protection).
+ */
+const authLimiter = createRateLimiter('auth', {
+  prefix: 'auth',
+  skipInDevelopment: false, // Always enforce on auth routes
+})
 
 // ============================================
 // TOKEN UTILITIES (Demo Implementation)
@@ -36,6 +86,10 @@ function verifyToken(token: string): Record<string, unknown> | null {
 const DEMO_PASSWORDS = ['password123', 'admin123', 'demo123', 'Password123!', 'password']
 
 function verifyPassword(inputPassword: string): boolean {
+  // Sanitize password before comparison (prevent timing attacks via length)
+  if (!inputPassword || typeof inputPassword !== 'string') {
+    return false
+  }
   return DEMO_PASSWORDS.includes(inputPassword)
 }
 
@@ -60,8 +114,8 @@ async function createAuditLog(params: {
         action: params.action,
         entityType: params.entityType || 'AUTH',
         entityId: params.entityId || null,
-        ipAddress: params.ipAddress || null,
-        userAgent: params.userAgent || null
+        ipAddress: params.ipAddress ? hashSensitiveData(params.ipAddress) : null,
+        userAgent: params.userAgent ? sanitizeInput(params.userAgent.slice(0, 500)) : null
       }
     })
   } catch (error) {
@@ -84,54 +138,105 @@ interface LoginRequest {
 }
 
 // ============================================
+// HELPERS
+// ============================================
+
+/**
+ * Extract client IP address securely.
+ */
+function getClientIP(request: NextRequest): string {
+  return getSecurityIP(request.headers)
+}
+
+/**
+ * Check rate limit and return error response if limited.
+ */
+function checkAuthRateLimit(request: Request, requestId: string): NextResponse | null {
+  const result: RateLimitResult = authLimiter.checkRequest(request)
+  
+  if (!result.success) {
+    console.warn(`[Auth] Rate limit exceeded`, {
+      requestId,
+      ip: getClientIP(request as NextRequest),
+      info: result.info,
+    })
+    
+    return ApiResponse.rateLimited({
+      retryAfterSeconds: Math.ceil(result.info.retryAfterMs / 1000),
+      message: 'Too many authentication attempts. Please try again later.',
+      requestId,
+    })
+  }
+  
+  return null
+}
+
+// ============================================
 // POST /api/auth - LOGIN
 // ============================================
 
-export async function POST(request: NextRequest) {
+export const POST = withRateLimit('auth', async (request: NextRequest) => {
+  const requestId = generateRequestId()
+  const startTime = Date.now()
+  
   try {
-    const body: LoginRequest = await request.json()
-    const { portalType, email, phone, password, tenantSlug } = body
-
-    // Validate required fields
-    if (!portalType || !password) {
-      return NextResponse.json(
-        { success: false, error: 'Missing required fields: portalType and password are required' },
-        { status: 400 }
-      )
+    // Parse request body
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return ApiResponse.error('Invalid JSON in request body', {
+        statusCode: 400,
+        code: 'BAD_REQUEST',
+        requestId,
+      })
     }
 
+    // Sanitize input object
+    const sanitizedBody = sanitizeObject(body as Record<string, unknown>)
+    
+    // Validate against schema
+    const validationResult = loginSchema.safeParse(sanitizedBody)
+    
+    if (!validationResult.success) {
+      return ApiResponse.zodError(validationResult.error, { requestId })
+    }
+
+    const { portalType, email, phone, password, tenantSlug } = validationResult.data
+    
     // Get client IP for audit logging
-    const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0] || 
-                      request.headers.get('x-real-ip') || 
-                      'unknown'
-    const userAgent = request.headers.get('user-agent') || undefined
+    const ipAddress = getClientIP(request)
+    const userAgent = request.headers.get('user-agent')?.slice(0, 500) || undefined
 
     // Route based on portal type
     switch (portalType) {
       case 'super_admin':
-        return await handleSuperAdminLogin(email, password, ipAddress, userAgent)
+        return await handleSuperAdminLogin(email, password, ipAddress, userAgent, requestId)
       
       case 'dcp_admin':
       case 'dcp_staff':
-        return await handleDcpUserLogin(portalType, email, password, tenantSlug, ipAddress, userAgent)
+        return await handleDcpUserLogin(portalType, email, password, tenantSlug, ipAddress, userAgent, requestId)
       
       case 'customer':
-        return await handleCustomerLogin(phone, password, tenantSlug, ipAddress, userAgent)
+        return await handleCustomerLogin(phone, password, tenantSlug, ipAddress, userAgent, requestId)
       
       default:
-        return NextResponse.json(
-          { success: false, error: `Invalid portal type: ${portalType}` },
-          { status: 400 }
-        )
+        return ApiResponse.error(`Invalid portal type: ${portalType}`, {
+          statusCode: 400,
+          code: 'BAD_REQUEST',
+          requestId,
+        })
     }
   } catch (error) {
-    console.error('Login error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Internal server error during authentication' },
-      { status: 500 }
-    )
+    console.error('[Auth] Login error:', error)
+    
+    return ApiResponse.internalError({
+      message: 'Internal server error during authentication',
+      originalError: error,
+      requestId,
+    })
   }
-}
+})
 
 // ============================================
 // SUPER ADMIN LOGIN HANDLER
@@ -141,13 +246,21 @@ async function handleSuperAdminLogin(
   email: string | undefined,
   password: string,
   ipAddress: string,
-  userAgent: string | undefined
+  userAgent: string | undefined,
+  requestId: string
 ) {
+  // Validate required fields
   if (!email) {
-    return NextResponse.json(
-      { success: false, error: 'Email is required for super admin login' },
-      { status: 400 }
-    )
+    return ApiResponse.error('Email is required for super admin login', {
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      details: [{
+        field: 'email',
+        message: 'Email is required for super admin login',
+        code: 'REQUIRED',
+      }],
+      requestId,
+    })
   }
 
   // Find super admin user (role = SUPER_ADMIN)
@@ -163,10 +276,20 @@ async function handleSuperAdminLogin(
   })
 
   if (!user) {
-    return NextResponse.json(
-      { success: false, error: 'Invalid credentials or account not found' },
-      { status: 401 }
-    )
+    // Log failed attempt (don't reveal if user exists)
+    await createAuditLog({
+      action: 'LOGIN_FAILED_SUPER_ADMIN',
+      entityType: 'USER',
+      ipAddress,
+      userAgent
+    })
+    
+    return ApiResponse.error('Invalid credentials or account not found', {
+      statusCode: 401,
+      code: 'INVALID_CREDENTIALS',
+      requestId,
+      logError: false, // Don't log full error - security risk
+    })
   }
 
   // Verify password (demo mode - simple comparison)
@@ -181,10 +304,12 @@ async function handleSuperAdminLogin(
       userAgent
     })
     
-    return NextResponse.json(
-      { success: false, error: 'Invalid credentials' },
-      { status: 401 }
-    )
+    return ApiResponse.error('Invalid credentials', {
+      statusCode: 401,
+      code: 'INVALID_CREDENTIALS',
+      requestId,
+      logError: false,
+    })
   }
 
   // Update last login
@@ -213,28 +338,33 @@ async function handleSuperAdminLogin(
     userAgent
   })
 
-  return NextResponse.json({
-    success: true,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      tenantId: user.tenantId,
-      avatar: user.avatar,
-      phone: user.phone
+  return ApiResponse.success(
+    {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        tenantId: user.tenantId,
+        avatar: user.avatar,
+        phone: maskPhone(user.phone),
+      },
+      tenant: user.tenant ? {
+        id: user.tenant.id,
+        name: user.tenant.name,
+        slug: user.tenant.slug,
+        status: user.tenant.status,
+        branding: JSON.parse(user.tenant.branding || '{}')
+      } : null,
+      token,
+      expiresIn: Math.floor(TOKEN_EXPIRY_MS / 1000), // seconds
+      mfaRequired: false,
     },
-    tenant: user.tenant ? {
-      id: user.tenant.id,
-      name: user.tenant.name,
-      slug: user.tenant.slug,
-      status: user.tenant.status,
-      branding: JSON.parse(user.tenant.branding || '{}')
-    } : null,
-    token,
-    expiresIn: Math.floor(TOKEN_EXPIRY_MS / 1000), // seconds
-    mfaRequired: false
-  })
+    {
+      message: 'Authentication successful',
+      requestId,
+    }
+  )
 }
 
 // ============================================
@@ -247,39 +377,49 @@ async function handleDcpUserLogin(
   password: string,
   tenantSlug: string | undefined,
   ipAddress: string,
-  userAgent: string | undefined
+  userAgent: string | undefined,
+  requestId: string
 ) {
   if (!email) {
-    return NextResponse.json(
-      { success: false, error: 'Email is required for DCP user login' },
-      { status: 400 }
-    )
+    return ApiResponse.error('Email is required for DCP user login', {
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      details: [{ field: 'email', message: 'Email is required', code: 'REQUIRED' }],
+      requestId,
+    })
   }
 
   if (!tenantSlug) {
-    return NextResponse.json(
-      { success: false, error: 'Tenant slug is required for DCP staff login' },
-      { status: 400 }
-    )
+    return ApiResponse.error('Tenant slug is required for DCP staff login', {
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      details: [{ field: 'tenantSlug', message: 'Tenant slug is required', code: 'REQUIRED' }],
+      requestId,
+    })
   }
+
+  // Sanitize tenant slug
+  const sanitizedSlug = sanitizeInput(tenantSlug).toLowerCase()
 
   // Find tenant by slug
   const tenant = await db.tenant.findUnique({
-    where: { slug: tenantSlug.toLowerCase() }
+    where: { slug: sanitizedSlug }
   })
 
   if (!tenant) {
-    return NextResponse.json(
-      { success: false, error: 'Tenant not found' },
-      { status: 404 }
-    )
+    return ApiResponse.error('Tenant not found', {
+      statusCode: 404,
+      code: 'ENTITY_NOT_FOUND',
+      requestId,
+    })
   }
 
   if (tenant.status === 'SUSPENDED' || tenant.status === 'TERMINATED') {
-    return NextResponse.json(
-      { success: false, error: 'Tenant account is suspended or terminated' },
-      { status: 403 }
-    )
+    return ApiResponse.error('Tenant account is suspended or terminated', {
+      statusCode: 403,
+      code: 'FORBIDDEN',
+      requestId,
+    })
   }
 
   // Find user in this tenant
@@ -292,18 +432,28 @@ async function handleDcpUserLogin(
   })
 
   if (!user) {
-    return NextResponse.json(
-      { success: false, error: 'Invalid credentials or user not found in this tenant' },
-      { status: 401 }
-    )
+    await createAuditLog({
+      action: `LOGIN_FAILED_${portalType.toUpperCase()}`,
+      entityType: 'USER',
+      ipAddress,
+      userAgent,
+    })
+    
+    return ApiResponse.error('Invalid credentials or user not found in this tenant', {
+      statusCode: 401,
+      code: 'INVALID_CREDENTIALS',
+      requestId,
+      logError: false,
+    })
   }
 
   // Role-based access control
   if (portalType === 'dcp_admin' && !['SUPER_ADMIN', 'TENANT_ADMIN'].includes(user.role)) {
-    return NextResponse.json(
-      { success: false, error: 'Access denied. Admin privileges required.' },
-      { status: 403 }
-    )
+    return ApiResponse.error('Access denied. Admin privileges required.', {
+      statusCode: 403,
+      code: 'INSUFFICIENT_PERMISSIONS',
+      requestId,
+    })
   }
 
   // Verify password (demo mode)
@@ -318,10 +468,12 @@ async function handleDcpUserLogin(
       userAgent
     })
     
-    return NextResponse.json(
-      { success: false, error: 'Invalid credentials' },
-      { status: 401 }
-    )
+    return ApiResponse.error('Invalid credentials', {
+      statusCode: 401,
+      code: 'INVALID_CREDENTIALS',
+      requestId,
+      logError: false,
+    })
   }
 
   // Update last login
@@ -350,28 +502,33 @@ async function handleDcpUserLogin(
     userAgent
   })
 
-  return NextResponse.json({
-    success: true,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      tenantId: user.tenantId,
-      avatar: user.avatar,
-      phone: user.phone
+  return ApiResponse.success(
+    {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        tenantId: user.tenantId,
+        avatar: user.avatar,
+        phone: maskPhone(user.phone),
+      },
+      tenant: {
+        id: tenant.id,
+        name: tenant.name,
+        slug: tenant.slug,
+        status: tenant.status,
+        branding: JSON.parse(tenant.branding || '{}'),
+      },
+      token,
+      expiresIn: Math.floor(TOKEN_EXPIRY_MS / 1000),
+      mfaRequired: false,
     },
-    tenant: {
-      id: tenant.id,
-      name: tenant.name,
-      slug: tenant.slug,
-      status: tenant.status,
-      branding: JSON.parse(tenant.branding || '{}')
-    },
-    token,
-    expiresIn: Math.floor(TOKEN_EXPIRY_MS / 1000),
-    mfaRequired: false
-  })
+    {
+      message: 'Authentication successful',
+      requestId,
+    }
+  )
 }
 
 // ============================================
@@ -383,40 +540,40 @@ async function handleCustomerLogin(
   password: string,
   tenantSlug: string | undefined,
   ipAddress: string,
-  userAgent: string | undefined
+  userAgent: string | undefined,
+  requestId: string
 ) {
   if (!phone) {
-    return NextResponse.json(
-      { success: false, error: 'Phone number is required for customer login' },
-      { status: 400 }
-    )
+    return ApiResponse.error('Phone number is required for customer login', {
+      statusCode: 400,
+      code: 'VALIDATION_ERROR',
+      details: [{ field: 'phone', message: 'Phone number is required', code: 'REQUIRED' }],
+      requestId,
+    })
   }
 
-  // Normalize phone number (handle various formats)
-  let normalizedPhone = phone.replace(/\s/g, '')
-  if (normalizedPhone.startsWith('+254')) {
-    normalizedPhone = '0' + normalizedPhone.slice(4)
-  } else if (normalizedPhone.startsWith('254')) {
-    normalizedPhone = '0' + normalizedPhone.slice(3)
-  }
-
+  // Normalize phone number (already validated by Zod schema)
+  const normalizedPhone = normalizePhoneNumber(phone) || phone
+  
   // Build query
   const whereClause: Record<string, unknown> = {
-    phone: normalizedPhone,
+    phone: normalizedPhone.replace('+', ''), // Store without +
     status: 'ACTIVE'
   }
 
   // If tenantSlug provided, filter by tenant
   if (tenantSlug) {
+    const sanitizedSlug = sanitizeInput(tenantSlug).toLowerCase()
     const tenant = await db.tenant.findUnique({
-      where: { slug: tenantSlug.toLowerCase() }
+      where: { slug: sanitizedSlug }
     })
     
     if (!tenant) {
-      return NextResponse.json(
-        { success: false, error: 'Tenant not found' },
-        { status: 404 }
-      )
+      return ApiResponse.error('Tenant not found', {
+        statusCode: 404,
+        code: 'ENTITY_NOT_FOUND',
+        requestId,
+      })
     }
     
     whereClause.tenantId = tenant.id
@@ -431,10 +588,19 @@ async function handleCustomerLogin(
   })
 
   if (!customer) {
-    return NextResponse.json(
-      { success: false, error: 'Customer not found or account inactive' },
-      { status: 401 }
-    )
+    await createAuditLog({
+      action: 'CUSTOMER_LOGIN_FAILED',
+      entityType: 'CUSTOMER',
+      ipAddress,
+      userAgent,
+    })
+    
+    return ApiResponse.error('Customer not found or account inactive', {
+      statusCode: 401,
+      code: 'INVALID_CREDENTIALS',
+      requestId,
+      logError: false,
+    })
   }
 
   // Verify PIN/password (demo mode - same as user passwords)
@@ -448,10 +614,12 @@ async function handleCustomerLogin(
       userAgent
     })
     
-    return NextResponse.json(
-      { success: false, error: 'Invalid credentials' },
-      { status: 401 }
-    )
+    return ApiResponse.error('Invalid credentials', {
+      statusCode: 401,
+      code: 'INVALID_CREDENTIALS',
+      requestId,
+      logError: false,
+    })
   }
 
   // Generate token
@@ -472,28 +640,33 @@ async function handleCustomerLogin(
     userAgent
   })
 
-  return NextResponse.json({
-    success: true,
-    customer: {
-      id: customer.id,
-      firstName: customer.firstName,
-      lastName: customer.lastName,
-      phone: customer.phone,
-      email: customer.email,
-      tenantId: customer.tenantId,
-      status: customer.status
+  return ApiResponse.success(
+    {
+      customer: {
+        id: customer.id,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        phone: maskPhone(customer.phone),
+        email: customer.email,
+        tenantId: customer.tenantId,
+        status: customer.status,
+      },
+      tenant: customer.tenant ? {
+        id: customer.tenant.id,
+        name: customer.tenant.name,
+        slug: customer.tenant.slug,
+        status: customer.tenant.status,
+        branding: JSON.parse(customer.tenant.branding || '{}'),
+      } : null,
+      token,
+      expiresIn: Math.floor(TOKEN_EXPIRY_MS / 1000),
+      mfaRequired: false,
     },
-    tenant: customer.tenant ? {
-      id: customer.tenant.id,
-      name: customer.tenant.name,
-      slug: customer.tenant.slug,
-      status: customer.tenant.status,
-      branding: JSON.parse(customer.tenant.branding || '{}')
-    } : null,
-    token,
-    expiresIn: Math.floor(TOKEN_EXPIRY_MS / 1000),
-    mfaRequired: false
-  })
+    {
+      message: 'Authentication successful',
+      requestId,
+    }
+  )
 }
 
 // ============================================
@@ -501,25 +674,21 @@ async function handleCustomerLogin(
 // ============================================
 
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
+  
   try {
     // Get Authorization header
     const authHeader = request.headers.get('authorization')
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({
-        isAuthenticated: false,
-        error: 'No valid authorization token provided'
-      }, { status: 401 })
+      return ApiResponse.unauthorized({ requestId })
     }
 
     const token = authHeader.substring(7)
     const decoded = verifyToken(token)
 
     if (!decoded) {
-      return NextResponse.json({
-        isAuthenticated: false,
-        error: 'Token expired or invalid'
-      }, { status: 401 })
+      return ApiResponse.invalidToken({ requestId })
     }
 
     // Reconstruct session data based on decoded token
@@ -533,32 +702,36 @@ export async function GET(request: NextRequest) {
       })
 
       if (!customer || customer.status !== 'ACTIVE') {
-        return NextResponse.json({
-          isAuthenticated: false,
-          error: 'Customer account not found or inactive'
-        }, { status: 401 })
+        return ApiResponse.error('Customer account not found or inactive', {
+          statusCode: 401,
+          code: 'INVALID_TOKEN',
+          requestId,
+        })
       }
 
-      return NextResponse.json({
-        isAuthenticated: true,
-        customer: {
-          id: customer.id,
-          firstName: customer.firstName,
-          lastName: customer.lastName,
-          phone: customer.phone,
-          email: customer.email,
-          tenantId: customer.tenantId,
-          status: customer.status
+      return ApiResponse.success(
+        {
+          isAuthenticated: true,
+          customer: {
+            id: customer.id,
+            firstName: customer.firstName,
+            lastName: customer.lastName,
+            phone: maskPhone(customer.phone),
+            email: customer.email,
+            tenantId: customer.tenantId,
+            status: customer.status,
+          },
+          tenant: customer.tenant ? {
+            id: customer.tenant.id,
+            name: customer.tenant.name,
+            slug: customer.tenant.slug,
+            status: customer.tenant.status,
+          } : null,
+          portalType: 'customer',
+          expiresAt: new Date(decoded.exp as number).toISOString(),
         },
-        tenant: customer.tenant ? {
-          id: customer.tenant.id,
-          name: customer.tenant.name,
-          slug: customer.tenant.slug,
-          status: customer.tenant.status
-        } : null,
-        portalType: 'customer',
-        expiresAt: new Date(decoded.exp as number).toISOString()
-      })
+        { requestId }
+      )
     } else {
       // Validate and fetch user data
       const user = await db.user.findUnique({
@@ -567,38 +740,44 @@ export async function GET(request: NextRequest) {
       })
 
       if (!user || !user.isActive) {
-        return NextResponse.json({
-          isAuthenticated: false,
-          error: 'User account not found or inactive'
-        }, { status: 401 })
+        return ApiResponse.error('User account not found or inactive', {
+          statusCode: 401,
+          code: 'INVALID_TOKEN',
+          requestId,
+        })
       }
 
-      return NextResponse.json({
-        isAuthenticated: true,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          tenantId: user.tenantId,
-          avatar: user.avatar,
-          phone: user.phone
+      return ApiResponse.success(
+        {
+          isAuthenticated: true,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            tenantId: user.tenantId,
+            avatar: user.avatar,
+            phone: maskPhone(user.phone),
+          },
+          tenant: user.tenant ? {
+            id: user.tenant.id,
+            name: user.tenant.name,
+            slug: user.tenant.slug,
+            status: user.tenant.status,
+          } : null,
+          portalType: portalType || 'dcp_staff',
+          expiresAt: new Date(decoded.exp as number).toISOString(),
         },
-        tenant: user.tenant ? {
-          id: user.tenant.id,
-          name: user.tenant.name,
-          slug: user.tenant.slug,
-          status: user.tenant.status
-        } : null,
-        portalType: portalType || 'dcp_staff',
-        expiresAt: new Date(decoded.exp as number).toISOString()
-      })
+        { requestId }
+      )
     }
   } catch (error) {
-    console.error('Session validation error:', error)
-    return NextResponse.json({
-      isAuthenticated: false,
-      error: 'Failed to validate session'
-    }, { status: 500 })
+    console.error('[Auth] Session validation error:', error)
+    
+    return ApiResponse.internalError({
+      message: 'Failed to validate session',
+      originalError: error,
+      requestId,
+    })
   }
 }

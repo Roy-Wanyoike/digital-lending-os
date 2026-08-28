@@ -1,0 +1,230 @@
+# =============================================================================
+# Digital Lending OS - Docker Compose (Production)
+# =============================================================================
+# Production-ready orchestration with:
+# - Frontend: Next.js 16 (port 3000)
+# - Backend: Express.js API (port 4000)
+# - Database: PostgreSQL 16 (port 5432)
+# - Cache: Redis (port 6379)
+#
+# Usage:
+#   Production: docker compose up -d
+#   Development: docker compose -f docker-compose.yml -f docker-compose.override.yml up
+# =============================================================================
+
+version: "3.8"
+
+# -----------------------------------------------------------------------------
+# Networks
+# Custom network for inter-service communication
+# -----------------------------------------------------------------------------
+networks:
+  lending-os-network:
+    name: lending-os-network
+    driver: bridge
+
+# -----------------------------------------------------------------------------
+# Volumes
+# Persistent storage for database and cache
+# -----------------------------------------------------------------------------
+volumes:
+  postgres-data:
+    name: dlos-postgres-data
+  redis-data:
+    name: dlos-redis-data
+
+# -----------------------------------------------------------------------------
+# Services
+# -----------------------------------------------------------------------------
+services:
+
+  # ===========================================================================
+  # PostgreSQL Database
+  # Primary database for production (replaces SQLite in development)
+  # ===========================================================================
+  db:
+    image: postgres:16-alpine
+    container_name: dlos-postgres
+    restart: unless-stopped
+    networks:
+      - lending-os-network
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Optional: Init script for first-time setup
+      # - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dlos_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+      POSTGRES_DB: ${POSTGRES_DB:-digital_lending_os}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dlos_user} -d ${POSTGRES_DB:-digital_lending_os}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+
+  # ===========================================================================
+  # Redis Cache
+  # For session caching, rate limiting, and optional pub/sub
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: dlos-redis
+    restart: unless-stopped
+    networks:
+      - lending-os-network
+    volumes:
+      - redis-data:/data
+    command: >
+      redis-server
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+      --save 60 1000
+      --save 300 100
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+        reservations:
+          memory: 64M
+          cpus: "0.1"
+
+  # ===========================================================================
+  # Backend API Server
+  # Express.js REST API with TypeScript
+  # ===========================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runner
+    container_name: dlos-backend
+    restart: unless-stopped
+    networks:
+      - lending-os-network
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Server Configuration
+      NODE_ENV: production
+      PORT: 4000
+      HOST: 0.0.0.0
+
+      # Database (PostgreSQL for production)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dlos_user}:${POSTGRES_PASSWORD:-change_me_in_production}@db:5432/${POSTGRES_DB:-digital_lending_os}?schema=public
+
+      # Redis Connection
+      REDIS_URL: redis://redis:6379
+
+      # JWT Secrets (MUST be set via .env or secrets manager)
+      JWT_SECRET: ${JWT_SECRET:-change_this_super_secret_key_minimum_32_characters}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-change_this_refresh_token_secret}
+
+      # CORS - Allow frontend to communicate
+      CORS_ORIGINS: http://localhost:3000,https://${DOMAIN:-your-domain.com}
+
+      # Application URL
+      BASE_URL: https://${DOMAIN:-your-domain.com}/api/v1
+
+      # M-PESA Configuration
+      MPESA_CONSUMER_KEY: ${MPESA_CONSUMER_KEY:-}
+      MPESA_CONSUMER_SECRET: ${MPESA_CONSUMER_SECRET:-}
+      MPESA_PASSKEY: ${MPESA_PASSKEY:-}
+      MPESA_SHORTCODE: ${MPESA_SHORTCODE:-174379}
+      MPESA_ENVIRONMENT: ${MPESA_ENVIRONMENT:-production}
+      MPESA_CALLBACK_URL: https://${DOMAIN:-your-domain.com}/api/v1/webhooks/mpesa/stkpush
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: json
+
+      # File Uploads
+      UPLOAD_DIR: ./uploads
+      UPLOAD_MAX_SIZE: 5242880
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+
+  # ===========================================================================
+  # Frontend Application
+  # Next.js 16 with standalone output mode
+  # ===========================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: https://${DOMAIN:-your-domain.com}/api/v1
+    container_name: dlos-frontend
+    restart: unless-stopped
+    networks:
+      - lending-os-network
+    depends_on:
+      backend:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+
+      # Next.js Configuration
+      NEXT_PUBLIC_APP_NAME: Digital Lending OS
+      NEXT_PUBLIC_API_URL: https://${DOMAIN:-your-domain.com}/api/v1
+
+      # Database URL (for server-side operations if needed)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dlos_user}:${POSTGRES_PASSWORD:-change_me_in_production}@db:5432/${POSTGRES_DB:-digital_lending_os}?schema=public
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+        window: 120s

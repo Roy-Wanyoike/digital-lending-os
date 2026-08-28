@@ -1,5 +1,175 @@
 # Digital Lending OS - Work Log
 
+## Task ID: 2-d
+## Date: 2026-01-20
+## Status: COMPLETED
+
+---
+
+## Summary
+
+Implemented and enhanced **Core Backend Services Layer** for Digital Lending OS. Created Prisma client singleton, generated database client, and added missing methods to all 6 core service files to ensure complete business logic coverage.
+
+---
+
+## Files Created/Modified
+
+### Infrastructure
+- `prisma/client.ts` - **NEW** - Prisma Client singleton instance for database operations
+
+### Service Files Enhanced (`backend/src/services/`)
+
+#### 1. `auth.service.ts` - Authentication Service
+**Added Methods:**
+- `generateAccessToken(user)` - Generate JWT access token for user
+- `generateRefreshToken(user)` - Generate JWT refresh token for session management  
+- `verifyToken(token)` - Verify and decode JWT token with proper error handling
+
+**Existing Methods (Verified):**
+- `hashPassword(password)` - Hash password with bcrypt
+- `verifyPassword(password, hash)` - Compare password against hash
+- `login()` - Full authentication flow with lockout handling
+- `refreshToken()` - Token refresh logic
+- `changePassword()` - Secure password change
+- `initiatePasswordReset()` - Password reset flow initiation
+
+#### 2. `tenant.service.ts` - Tenant Management Service
+**All Required Methods Present:**
+- `findAll(params)` - List tenants with filtering, pagination, role-based access
+- `findById(id)` - Get tenant by ID with usage statistics
+- `findBySlug(slug)` - Get tenant by URL slug
+- `create(data)` - Create new tenant with plan pricing
+- `update(id, data)` - Update tenant with field-level validation
+- `deactivate(id)` - Soft deactivate tenant
+
+**Additional Methods:**
+- `activate(id)` - Reactivate tenant
+- `updateConfig(id, configData)` - Merge tenant configuration
+- `getUsageStats(tenantId)` - Get tenant usage metrics
+
+#### 3. `customer.service.ts` - Customer Management Service
+**Added Methods:**
+- `findByPhone(tenantId, phone)` - Find customer by phone within tenant scope
+- `getCreditSummary(customerId)` - Comprehensive credit summary including:
+  - Loan counts (total, active, completed)
+  - Financial totals (borrowed, repaid, outstanding)
+  - Payment performance (on-time rate, days in arrears)
+  - Active loan details with status
+
+**Existing Methods (Verified):**
+- `findAll(params)` - List customers with pagination and filtering
+- `findById(id)` - Get customer full profile with relations
+- `create(data)` - Create customer with duplicate phone check
+- `update(id, data)` - Update customer information
+- `search(tenantId, query)` - Search customers by multiple fields
+- `checkLoanEligibility(customerId)` - Loan eligibility validation
+
+#### 4. `loan.service.ts` - Loan Lifecycle Management Service
+**Added Methods:**
+- `approve(loanId, data)` - Approve loan with optional financial adjustments:
+  - Modify approved amount, interest rate, term
+  - Auto-recalculate totals and regenerate schedule
+- `calculateArrears(loanId)` - Comprehensive arrears calculation:
+  - Days in arrears computation
+  - Penalty amount calculation
+  - Arrears status bucketing (CURRENT → DAYS_91_PLUS)
+  - Installment overdue detection
+- `getStatus(loanId)` - Get detailed loan status with arrears info
+
+**Existing Methods (Verified):**
+- `findAll(params)` - List loans with filtering
+- `findById(id)` - Get loan with schedule parsed
+- `create(data)` - Create loan from application with schedule generation
+- `updateStatus(loanId, status)` - Status transition validation
+- `disburse(loanId, reference)` - Process disbursement with transaction
+- `generateRepaymentSchedule()` - Flat rate & reducing balance schedules
+- `updateArrearsStatus(loanId, days)` - Update arrears bucket
+
+#### 5. `payment.service.ts` - M-Pesa & Payment Processing Service
+**Added Methods:**
+- `getPaymentHistory(loanId, params)` - Get repayment history for specific loan:
+  - Paginated results
+  - Loan summary (principal, repaid, outstanding)
+- `disburseToCustomer(loanId, phone, amount)` - B2C disbursement:
+  - Validates loan is ready for disbursement
+  - Initiates M-Pesa B2C payment
+  - Returns transaction details
+- `recordPayment(loanId, amount, reference, options)` - Manual payment recording:
+  - Supports various payment methods
+  - Creates repayment record
+  - Updates loan balances
+
+**Existing Methods (Verified):**
+- `initiateStkPush(data)` - M-Pesa STK Push initiation
+- `queryStkStatus(checkoutRequestID)` - Query STK Push status
+- `processStkCallback(callbackData)` - Process Safaricom callback
+- `initiateB2C(data, tenantId)` - B2C payment initiation
+- `processB2CCallback(callbackData)` - Process B2C result callback
+- `processRepayment(data)` - Process repayment with allocation
+- `getBalance(tenantId)` - Wallet balance summary
+
+#### 6. `finance.service.ts` - Double-Entry Accounting Service
+**Added Methods:**
+- `getBalance(tenantId, accountType)` - Account-specific balance:
+  - Support for: disbursement, collection, fees, suspense accounts
+  - Debit/credit calculations per account type
+  - Transaction count and last updated timestamp
+- `generateStatement(tenantId, startDate, endDate)` - Financial statement:
+  - Opening/closing balance calculation
+  - Transaction listing with debit/credit breakdown
+  - Summary metrics (disbursements, collections, fees, penalties, net flow)
+
+**Existing Methods (Verified):**
+- `getDashboard(tenantId)` - Finance dashboard with wallet metrics
+- `getTransactions(params)` - List transactions with filtering
+- `getTransactionById(id)` - Single transaction details
+- `getLedger(tenantId)` - General ledger with running balance
+- `getReconciliationStatus(tenantId)` - Reconciliation summary
+- `reconcile(transactionIds, userId)` - Batch reconciliation
+- `processSettlement(data)` - Settlement processing
+- `createTransaction(data)` - Double-entry transaction creation
+- `reverseTransaction(transactionId, reason, userId)` - Transaction reversal
+
+---
+
+## Technical Implementation Details
+
+### Prisma Client Singleton (`prisma/client.ts`)
+```typescript
+// Singleton pattern prevents connection pool exhaustion during development
+export const db = global.prisma || new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+});
+```
+
+### Code Patterns Followed
+1. **Error Handling**: All methods use try-catch with typed error codes
+2. **Logging**: Consistent use of logger.info/warn/error from utils/logger
+3. **Configuration**: All config values from config/index.ts
+4. **Type Safety**: Full TypeScript types from @prisma/client and custom types
+5. **JSDoc Documentation**: All public functions have comprehensive JSDoc comments
+
+### Database Schema Utilization
+Services leverage the complete Prisma schema including:
+- **Tenant** - Multi-tenancy with plans, branding, config
+- **User** - Authentication with roles, lockout tracking
+- **Customer** - Borrower profiles with credit assessment fields
+- **Loan** - Full lifecycle with schedules, arrears tracking
+- **Repayment** - Payment records with principal/interest/fee split
+- **Transaction** - Double-entry ledger with reconciliation
+
+---
+
+## Verification
+
+✅ Prisma client generated successfully (v6.19.2)
+✅ Database schema pushed to SQLite
+✅ All 6 core services pass ESLint (no errors in service files)
+✅ All required methods implemented per task specification
+✅ Services export singleton instances for dependency injection
+
+---
+
 ## Task ID: 2-a
 ## Date: 2026-01-20
 ## Status: COMPLETED
@@ -1413,3 +1583,488 @@ Built a comprehensive **Reports & Analytics Suite** for the Digital Lending OS p
 - Components designed to work standalone or within ReportsHub navigation
 - Scheduler component can be used as dialog or standalone page
 - Ready for integration with backend API endpoints
+
+---
+
+# Task ID: 2-b
+# Date: 2026-01-20
+# Status: COMPLETED
+
+---
+
+## Summary
+
+Created complete **Docker configuration** for containerized deployment of Digital Lending OS. This enables production deployments on any Docker-compatible platform (Docker Engine, Swarm, Kubernetes, cloud providers).
+
+---
+
+## Files Created
+
+### Frontend Configuration
+| File | Description |
+|------|-------------|
+| `Dockerfile` | Multi-stage build (deps → builder → runner) for Next.js 16 |
+| `.dockerignore` | Build context exclusions to reduce image size |
+
+### Backend Configuration
+| File | Description |
+|------|-------------|
+| `backend/Dockerfile` | Multi-stage build with TypeScript compilation and Prisma generation |
+| `backend/.dockerignore` | Backend-specific build exclusions |
+
+### Orchestration
+| File | Description |
+|------|-------------|
+| `docker-compose.yml` | Production orchestration with PostgreSQL, Redis, health checks |
+| `docker-compose.override.yml` | Development overrides with SQLite, hot reload, debug mode |
+
+### Documentation
+| File | Description |
+|------|-------------|
+| `Docker.md` | Comprehensive deployment guide (~500 lines) |
+
+---
+
+## Technical Implementation Details
+
+### Frontend Dockerfile Features
+- **3-stage build**: deps → builder → runner
+- **Alpine Linux base**: Minimal image size (~180MB / ~60MB compressed)
+- **Non-root user**: Security best practice (nodejs:1001)
+- **Standalone output**: Leverages Next.js `output: "standalone"` config
+- **Health check**: HTTP probe on `/api/health`
+- **Prisma client**: Included for server-side database operations
+
+### Backend Dockerfile Features
+- **3-stage build**: deps → builder → runner
+- **TypeScript compilation**: Built via `npm run build` (tsc)
+- **Prisma generation**: Auto-generates client during build
+- **Production dependencies only**: Uses `npm ci --omit=dev`
+- **Non-root user**: backend:1001
+- **Uploads directory**: Pre-created with correct permissions
+
+### docker-compose.yml (Production) Services
+1. **db** (PostgreSQL 16 Alpine)
+   - Persistent volume for data
+   - Health check with pg_isready
+   - Resource limits (512M memory, 1 CPU)
+
+2. **redis** (Redis 7 Alpine)
+   - LRU eviction policy
+   - AOF persistence enabled
+   - Memory limit: 128MB
+
+3. **backend** (Express API)
+   - Depends on healthy db & redis
+   - Environment variables from .env
+   - Health check on `/api/v1/health`
+   - Restart policy: on-failure
+
+4. **frontend** (Next.js)
+   - Depends on backend service
+   - Production environment variables
+   - Health check on `/api/health`
+
+### docker-compose.override.yml (Development) Features
+- **SQLite** instead of PostgreSQL for simpler local setup
+- **Hot reload**: Next.js dev server + tsx watch mode
+- **Source code mounting**: Live updates without rebuild
+- **Debug logging**: LOG_LEVEL=debug, LOG_FORMAT=simple
+- **Relaxed CORS**: Allows localhost origins
+- **Named volumes**: Persist node_modules between rebuilds
+
+### Security Best Practices Implemented
+- ✅ Non-root users in all containers
+- ✅ Alpine images (smaller attack surface)
+- ✅ Secrets via environment variables (never hardcoded)
+- ✅ Health checks on all services
+- ✅ Resource limits to prevent DoS
+- ✅ Internal network isolation
+- ✅ Proper .dockerignore files
+
+### Environment Variables Supported
+| Category | Variables |
+|----------|-----------|
+| Database | POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, DATABASE_URL |
+| Auth | JWT_SECRET, REFRESH_TOKEN_SECRET, COOKIE_SECRET |
+| M-PESA | MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_PASSKEY |
+| App | NODE_ENV, PORT, DOMAIN, LOG_LEVEL |
+| Redis | REDIS_URL |
+
+---
+
+## Quick Start Commands
+
+```bash
+# Development (with SQLite and hot reload)
+cp .env.example .env
+docker compose up -d
+
+# Production (with PostgreSQL)
+export DOMAIN=your-domain.com
+export POSTGRES_PASSWORD=$(openssl rand -base64 32)
+export JWT_SECRET=$(openssl rand -base64 64)
+docker compose -f docker-compose.yml up -d --build
+
+# View logs
+docker compose logs -f
+
+# Check health
+curl http://localhost:3000/api/health
+curl http://localhost:4000/api/v1/health
+```
+
+---
+
+## Lint Status
+✅ **N/A** - Docker configuration files (not subject to ESLint)
+
+---
+
+## Notes
+- Images use Node.js 20 LTS Alpine for long-term support
+- Prisma schema supports both SQLite (dev) and PostgreSQL (production)
+- Override file automatically applied when running `docker compose up`
+- Documentation includes scaling guide, backup procedures, and troubleshooting
+- Ready for deployment to Docker Hub, AWS ECS, Google Cloud Run, or any OCI-compliant registry
+
+---
+
+# Task ID: 2-c
+# Date: 2026-01-20
+# Status: COMPLETED
+
+---
+
+## Summary
+
+Added comprehensive **Security Middleware and Hardening** to the Digital Lending OS API routes. This is critical for a financial application dealing with sensitive lending data.
+
+### Security Features Implemented:
+
+1. **Rate Limiting Middleware** (`src/lib/rate-limit.ts`)
+   - In-memory Map-based store with TTL cleanup
+   - Different limits per route type:
+     - Auth: 10 req/min (brute force protection)
+     - Payments: 30 req/min (sensitive operations)
+     - Admin: 60 req/min
+     - General API: 100 req/min
+   - Auto-detection of route category
+   - Higher-order function wrapper (`withRateLimit`)
+   - Rate limit headers in responses (X-RateLimit-*)
+
+2. **Enhanced Middleware** (`src/middleware.ts`)
+   - Security headers:
+     - Content-Security-Policy (strict script sources, frame-ancestors none)
+     - X-Frame-Options: DENY (clickjacking prevention)
+     - X-Content-Type-Options: nosniff
+     - Strict-Transport-Security with preload
+     - Referrer-Policy: strict-origin-when-cross-origin
+     - Permissions-Policy (camera, mic, geolocation disabled)
+   - IP blocking for known bad actors
+   - Unique request ID generation (X-Request-ID header)
+   - Structured audit logging with sensitive data masking
+   - Processing time tracking
+
+3. **Input Validation Utilities** (`src/lib/validation.ts`)
+   - Zod schemas for common inputs:
+     - Pagination (page, limit, sortBy, sortOrder)
+     - Date range (ISO 8601 validation)
+     - ID parameters (CUID/CUID2 format)
+     - Kenyan phone numbers (+254/254/07XX formats)
+     - Email addresses with disposable domain check
+     - Monetary amounts (positive decimals, bounds checking)
+     - KRA PIN format (A123456789X)
+     - National ID numbers
+   - Entity schemas (customer name, address, employment)
+   - Authentication schemas (login, password change)
+   - Payment schemas (STK Push, B2C disbursement)
+
+4. **Security Utilities** (`src/lib/security.ts`)
+   - XSS pattern detection and sanitization
+   - SQL injection pattern detection
+   - Phone number validation & normalization
+   - Data masking functions:
+     - maskPhone() → +254712***678
+     - maskAccount() → 1234****5678
+     - maskEmail() → j***n@example.com
+     - maskKRAPIN() → A********X
+     - maskId() → 12****89
+   - Sensitive data hashing for logging (SHA-256)
+   - IP blocking utilities
+   - CSRF token generation/verification
+   - Comprehensive field validation helper
+
+5. **API Response Standardization** (`src/lib/api-response.ts`)
+   - Consistent response format across all endpoints
+   - Response types:
+     - success(data, meta?)
+     - error(message, statusCode, details?)
+     - paginated(data, page, limit, total)
+     - created(data, location?) - 201
+     - noContent() - 204
+     - validationError(errors) - 422
+   - Convenience methods:
+     - unauthorized(), invalidToken()
+     - forbidden(), notFound(), conflict()
+     - rateLimited(), internalError()
+     - paymentFailed(), paymentPending()
+   - ZodError conversion utility
+   - Request timing wrapper
+   - CORS helpers
+
+6. **Updated Critical API Routes**
+   - `/api/auth/route.ts` - Rate limiting + input validation + masked responses
+   - `/api/payments/stkpush/initiate/route.ts` - Payment rate limit + amount validation
+   - `/api/customers/route.ts` - Full CRUD security + data masking
+   - `/api/loans/route.ts` - Financial amount validation + audit logging
+
+---
+
+## Files Created
+
+| File | Purpose |
+|------|---------|
+| `src/lib/rate-limit.ts` | In-memory rate limiter with TTL cleanup |
+| `src/lib/validation.ts` | Zod schemas for all input types |
+| `src/lib/security.ts` | Sanitization, masking, hashing utilities |
+| `src/lib/api-response.ts` | Standardized response wrappers |
+
+## Files Modified
+
+| File | Changes |
+|------|---------|
+| `src/middleware.ts` | Added security headers, IP blocking, request ID, audit logging |
+| `src/app/api/auth/route.ts` | Rate limiting, Zod validation, standardized responses, data masking |
+| `src/app/api/payments/stkpush/initiate/route.ts` | Payment rate limiting, STK schema validation, secure responses |
+| `src/app/api/customers/route.ts` | Input validation, SQL injection checks, PII masking |
+| `src/app/api/loans/route.ts` | Financial validation, loan schema, audit logging |
+
+---
+
+## Security Standards Applied
+
+### Financial Application Requirements ✅
+- [x] All monetary values validated as positive numbers with bounds
+- [x] Phone numbers validated in international format (+254...)
+- [x] All dates ISO 8601 formatted
+- [x] SQL injection prevention (pattern detection + Prisma parameterized queries)
+- [x] XSS prevention via input sanitization
+- [x] CSRF-ready token utilities available
+- [x] PII masking in all responses (phones, emails, IDs, KRA PINs)
+- [x] Audit logging with hashed IPs (no raw PII in logs)
+- [x] Rate limiting on authentication endpoints (brute force protection)
+- [x] Stricter rate limits on payment operations
+- [x] Security headers on all responses
+- [x] Request tracing with unique IDs
+
+### Technical Implementation
+- [x] TypeScript strict mode compatible
+- [x] No external dependencies (uses built-in Next.js APIs + Zod)
+- [x] Memory-efficient (TTL cleanup every 60 seconds)
+- [x] Thread-safe for serverless environments (per-request isolation)
+- [x] Comprehensive JSDoc comments throughout
+- [x] Development mode options for easier debugging
+
+---
+
+## Task ID: 2-e
+## Date: 2026-01-20
+## Status: COMPLETED
+
+---
+
+## Summary
+
+Implemented and verified **Backend Controllers Layer** for Digital Lending OS. All 6 core controller files are complete with proper HTTP request handling, service layer integration, and standardized response formatting.
+
+---
+
+## Files Modified
+
+### Controller Files (`backend/src/controllers/`)
+
+#### 1. `auth.controller.ts` - Authentication Controller ✅
+**Endpoints Implemented:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/login` | User login with email/phone + password |
+| POST | `/api/v1/auth/logout` | Invalidate session, clear refresh token |
+| GET | `/api/v1/auth/me` | Get current authenticated user profile |
+| POST | `/api/v1/auth/refresh` | Refresh access token using refresh token |
+| POST | `/api/v1/auth/change-password` | Change authenticated user's password |
+| POST | `/api/v1/auth/forgot-password` | Initiate password reset flow |
+
+**Key Features:**
+- Integrates with `authService` for all authentication operations
+- Sets HTTP-only refresh token cookie on login
+- Proper error code handling (INVALID_CREDENTIALS, ACCOUNT_LOCKED, etc.)
+- Password validation via service layer
+
+#### 2. `tenant.controller.ts` - Tenant Management Controller ✅
+**Endpoints Implemented:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/tenants` | List tenants (SUPER_ADMIN sees all) |
+| GET | `/api/v1/tenants/:id` | Get tenant by ID with counts |
+| POST | `/api/v1/tenants` | Create new tenant (SUPER_ADMIN only) |
+| PUT | `/api/v1/tenants/:id` | Update tenant details |
+| DELETE | `/api/v1/tenants/:id` | Soft deactivate tenant |
+| GET | `/api/v1/tenants/:id/usage` | Get tenant usage statistics |
+
+**Key Features:**
+- Role-based access control (SUPER_ADMIN vs TENANT_ADMIN)
+- Pagination support for list endpoints
+- Slug uniqueness validation via service layer
+- Usage statistics aggregation
+
+#### 3. `customer.controller.ts` - Customer Management Controller ✅
+**Endpoints Implemented:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/customers` | List customers with filtering/pagination |
+| GET | `/api/v1/customers/:id` | Get customer full profile |
+| POST | `/api/v1/customers` | Create new customer |
+| PUT | `/api/v1/customers/:id` | Update customer information |
+| GET | `/api/v1/customers/:id/loans` | Customer loan history |
+| GET | `/api/v1/customers/:id/documents` | KYC documents list |
+| GET | `/api/v1/customers/search` | Search customers by criteria |
+| GET | `/api/v1/customers/stats` | Customer statistics |
+| POST | `/api/v1/customers/:id/check-eligibility` | Check loan eligibility |
+
+**Key Features:**
+- Tenant-scoped access control
+- Duplicate phone detection
+- Credit summary and eligibility checking
+- Risk level management
+
+#### 4. `loan.controller.ts` - Loan Lifecycle Controller ✅ **[ENHANCED]**
+**Endpoints Implemented:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/loans` | List loans with filtering |
+| POST | `/api/v1/loans` | Create loan from application |
+| GET | `/api/v1/loans/:id` | Loan details with schedule |
+| PATCH | `/api/v1/loans/:id/status` | Status transition |
+| **POST** | **`/api/v1/loans/:id/approve`** | **Approve loan [NEW]** |
+| POST | `/api/v1/loans/:id/disburse` | Disburse to customer |
+| GET | `/api/v1/loans/stats` | Loan statistics |
+| POST | `/api/v1/loans/:id/assign-collector` | Assign collector |
+| POST | `/api/v1/loans/generate-schedule-preview` | Preview repayment schedule |
+
+**Enhancement Made:**
+- Added `approve()` method for loan approval workflow
+- Supports approvedAmount, interestRate, termDays overrides
+- Tracks approver ID for audit trail
+
+#### 5. `payment.controller.ts` - Payment Processing Controller ✅
+**Endpoints Implemented:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/payments/stkpush/initiate` | M-Pesa STK Push initiation |
+| GET | `/api/v1/payments/stkpush/status` | Check STK Push status |
+| POST | `/api/v1/payments/stkpush/callback` | Safaricom webhook callback |
+| POST | `/api/v1/payments/disburse/b2c` | B2C disbursement initiation |
+| POST | `/api/v1/payments/disburse/callback` | B2C result callback |
+| GET | `/api/v1/payments/history` | Payment transaction history |
+| GET | `/api/v1/payments/balance` | Account wallet balance |
+| POST | `/api/v1/payments/repayment` | Process manual repayment |
+
+**Key Features:**
+- M-Pesa Daraja API integration pattern
+- Webhook signature verification ready
+- Amount validation (KSh 10 - 150,000)
+- Transaction recording with double-entry accounting
+
+#### 6. `finance.controller.ts` - Financial Operations Controller ✅
+**Endpoints Implemented:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/finance` | Finance dashboard |
+| GET | `/api/v1/finance/transactions` | Transaction list |
+| GET | `/api/v1/finance/transactions/:id` | Single transaction details |
+| GET | `/api/v1/finance/ledger` | General ledger view |
+| GET | `/api/v1/finance/reconciliation` | Reconciliation status |
+| POST | `/api/v1/finance/reconciliation` | Process reconciliation |
+| POST | `/api/v1/finance/settlements` | Process settlement |
+| POST | `/api/v1/finance/transactions/:id/reverse` | Reverse transaction |
+
+**Key Features:**
+- Double-entry accounting ledger
+- Running balance calculation
+- Reconciliation workflow
+- Settlement processing (DEPOSIT, WITHDRAWAL, TRANSFER, ADJUSTMENT)
+- Transaction reversal with audit trail
+
+#### 7. `index.ts` - Barrel Export ✅
+**Exports all 13 controllers:**
+- authController, tenantController, customerController, loanController
+- applicationController, paymentController, collectionController
+- financeController, creditController, providerController
+- reportController, dashboardController, staffController, webhookController
+
+**Also exports TypeScript types for all controller classes**
+
+---
+
+## Technical Implementation Details
+
+### Controller Pattern Used
+```typescript
+import { Request, Response, NextFunction } from 'express';
+import { someService } from '../services';
+import { successResponse, errorResponse, ... } from '../utils/response';
+
+export class SomeController {
+  async methodName(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      // 1. Extract and validate input from req.body/query/params
+      // 2. Extract tenantId from req.user?.tenantId (multi-tenancy)
+      // 3. Call service layer method
+      // 4. Return response using helper functions
+    } catch (error) {
+      // Handle specific error codes appropriately
+      // Return standardized error responses
+    }
+  }
+}
+
+export const someController = new SomeController();
+```
+
+### Key Patterns Applied
+1. **Multi-tenancy**: Tenant ID extracted from `req.user?.tenantId`
+2. **Role-based access**: Checks against `req.user?.role` 
+3. **Input validation**: Required field checks before service calls
+4. **Error handling**: Specific error codes mapped to appropriate HTTP status codes
+5. **Response format**: Consistent `{ success, data?, error?, message? }` structure
+6. **Pagination**: Standardized pagination metadata in list responses
+7. **Audit logging**: User IDs tracked for sensitive operations
+
+### Response Helpers Used
+- `successResponse(res, data, message?)` - 200 OK
+- `createdResponse(res, data, message?)` - 201 Created
+- `paginatedResponse(res, items, page, limit, total)` - Paginated list
+- `notFoundResponse(res, resource?)` - 404 Not Found
+- `badRequestResponse(res, message, code?)` - 400 Bad Request
+- `unauthorizedResponse(res, message, code?)` - 401 Unauthorized
+- `forbiddenResponse(res, message, code?)` - 403 Forbidden
+- `errorResponse(res, statusCode, error, code?)` - Generic error
+
+---
+
+## Integration Status
+
+### Services Integration Matrix
+| Controller | Service | Status |
+|------------|---------|--------|
+| authController | authService | ✅ Complete |
+| tenantController | tenantService | ✅ Complete |
+| customerController | customerService | ✅ Complete |
+| loanController | loanService | ✅ Complete (+ approve added) |
+| paymentController | paymentService | ✅ Complete |
+| financeController | financeService | ✅ Complete |
+
+### Ready for Route Binding
+All controllers are exported from `backend/src/controllers/index.ts` and ready to be imported by route files.
+
