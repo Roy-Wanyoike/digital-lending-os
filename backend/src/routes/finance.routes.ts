@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { authenticate, requireRoles, requireTenantAccess } from '../middleware/auth';
 import {
   successResponse,
@@ -14,6 +14,7 @@ import {
   paginatedResponse,
   badRequestResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest, TransactionType } from '../types';
 
 export const financeRoutes = Router();
@@ -27,7 +28,7 @@ financeRoutes.use(requireTenantAccess);
  */
 financeRoutes.get('/', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
     if (!tenantId) {
       return require('../utils/response').badRequestResponse(res, 'tenantId is required');
@@ -86,11 +87,11 @@ financeRoutes.get('/', async (req: AuthRequest, res) => {
  */
 financeRoutes.get('/transactions', async (req: AuthRequest, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const page = getQueryNumber(req.query, "page", 1) || 1;
+    const limit = getQueryNumber(req.query, "limit", 20) || 20;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
     const type = req.query.type as TransactionType | undefined;
-    const status = req.query.status as string | undefined;
+    const status = getQueryString(req.query, "status") as string | undefined;
     const startDate = req.query.startDate as string | undefined;
     const endDate = req.query.endDate as string | undefined;
 
@@ -132,7 +133,7 @@ financeRoutes.get('/transactions', async (req: AuthRequest, res) => {
  */
 financeRoutes.get('/transactions/:id', async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     const transaction = await db.transaction.findUnique({
       where: { id },
@@ -164,9 +165,9 @@ financeRoutes.get('/transactions/:id', async (req: AuthRequest, res) => {
  */
 financeRoutes.get('/ledger', async (req: AuthRequest, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const page = getQueryNumber(req.query, "page", 1) || 1;
+    const limit = getQueryNumber(req.query, "limit", 20) || 50;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
     if (!tenantId) {
       return require('../utils/response').badRequestResponse(res, 'tenantId is required');
@@ -184,7 +185,7 @@ financeRoutes.get('/ledger', async (req: AuthRequest, res) => {
 
     // Calculate running balance for ledger view
     let runningBalance = 2400000; // Starting balance
-    const ledgerEntries = transactions.reverse().map((txn) => {
+    const ledgerEntries = transactions.reverse().map((txn: any) => {
       switch (txn.transactionType) {
         case 'DISBURSEMENT':
           runningBalance -= txn.amount;
@@ -223,7 +224,7 @@ financeRoutes.get('/ledger', async (req: AuthRequest, res) => {
  */
 financeRoutes.get('/reconciliation', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
     if (!tenantId) {
       return require('../utils/response').badRequestResponse(res, 'tenantId is required');

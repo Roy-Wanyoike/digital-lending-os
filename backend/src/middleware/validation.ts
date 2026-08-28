@@ -8,7 +8,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AnyZodObject, ZodError, z } from 'zod';
 import { validationErrorResponse, badRequestResponse } from '../utils/response';
 
-type ValidationTarget = 'body' | 'query' | 'params';
+export type ValidationTarget = 'body' | 'query' | 'params';
 
 interface ValidateOptions {
   target?: ValidationTarget;
@@ -18,7 +18,7 @@ interface ValidateOptions {
 /**
  * Validate request using Zod schema
  */
-export function validate(schema: AnyZodObject, options: ValidateTarget | ValidateOptions = 'body') {
+export function validate(schema: AnyZodObject, options: ValidationTarget | ValidateOptions = 'body') {
   const target: ValidationTarget = typeof options === 'string' ? options : (options.target || 'body');
   const abortEarly = typeof options === 'object' ? (options.abortEarly ?? true) : true;
 
@@ -38,32 +38,33 @@ export function validate(schema: AnyZodObject, options: ValidateTarget | Validat
           break;
       }
 
-      const result = schema.parse(data, { abortEarly });
+      // Use safeParse for validation
+      const result = schema.safeParse(data);
 
-      // Replace request data with validated/transformed data
-      switch (target) {
-        case 'body':
-          req.body = result;
-          break;
-        case 'query':
-          req.query = result as Record<string, string>;
-          break;
-        case 'params':
-          req.params = result as Record<string, string>;
-          break;
-      }
-
-      next();
-    } catch (error) {
-      if (error instanceof ZodError) {
-        const errors = error.errors.map((e) => ({
+      if (!result.success) {
+        const errors = result.error.errors.map((e) => ({
           field: e.path.join('.'),
           message: e.message,
           code: e.code,
         }));
         return validationErrorResponse(res, errors);
       }
-      
+
+      // Replace request data with validated/transformed data
+      switch (target) {
+        case 'body':
+          req.body = result.data;
+          break;
+        case 'query':
+          req.query = result.data as Record<string, string>;
+          break;
+        case 'params':
+          req.params = result.data as Record<string, string>;
+          break;
+      }
+
+      next();
+    } catch (error) {
       return badRequestResponse(res, 'Validation failed', 'VALIDATION_ERROR');
     }
   };

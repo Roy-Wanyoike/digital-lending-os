@@ -10,7 +10,7 @@
 
 import { logger } from '../utils/logger';
 import { config } from '../config';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { CreateLoanInput, LoanStatus, ArrearsStatus } from '../types';
 
 export interface LoanQueryParams {

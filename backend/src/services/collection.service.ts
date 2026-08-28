@@ -10,7 +10,7 @@
  */
 
 import { logger } from '../utils/logger';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { CollectionActionInput, PromiseToPayInput } from '../types';
 
 export interface CollectionsQueryParams {

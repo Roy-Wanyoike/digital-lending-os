@@ -10,6 +10,7 @@ import {
   successResponse,
   notFoundResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest, ProviderName, Incident } from '../types';
 
 export const providerRoutes = Router();
@@ -108,7 +109,7 @@ providerRoutes.get('/', (_req: AuthRequest, res) => {
  * Get detailed status of a specific provider
  */
 providerRoutes.get('/:id', (req: AuthRequest, res) => {
-  const { id } = req.params;
+  const id = String(req.params.id);
   const provider = providerStatus[id.toUpperCase()];
 
   if (!provider) {
@@ -169,9 +170,9 @@ providerRoutes.get('/alerts', (_req: AuthRequest, res) => {
  * Get incident history
  */
 providerRoutes.get('/incidents', async (req: AuthRequest, res) => {
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 20;
-  const status = req.query.status as string | undefined;
+  const page = getQueryNumber(req.query, "page", 1) || 1;
+  const limit = getQueryNumber(req.query, "limit", 20) || 20;
+  const status = getQueryString(req.query, "status") as string | undefined;
 
   let filteredIncidents = [...mockIncidents];
   

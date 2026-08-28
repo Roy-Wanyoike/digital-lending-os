@@ -5,7 +5,8 @@
  * These endpoints do NOT require authentication but verify signatures.
  */
 
-import { Router } from 'express', crypto from 'crypto';
+import { Router } from 'express';
+import crypto from 'crypto';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 

@@ -10,7 +10,7 @@
 
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 
 export interface SmsMessage {
   to: string;

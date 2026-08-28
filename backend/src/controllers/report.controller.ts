@@ -13,6 +13,7 @@ import {
   badRequestResponse,
   errorResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest } from '../types';
 
 export class ReportController {
@@ -37,7 +38,7 @@ export class ReportController {
    */
   async getPortfolioReport(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
       const period = req.query.period as string | undefined;
 
       if (!tenantId) {
@@ -59,7 +60,7 @@ export class ReportController {
    */
   async getCustomerReport(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
       const segmentBy = req.query.segmentBy as string | undefined;
 
       if (!tenantId) {
@@ -81,7 +82,7 @@ export class ReportController {
    */
   async getFinancialReport(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
       const period = req.query.period as string | undefined;
 
       if (!tenantId) {
@@ -103,7 +104,7 @@ export class ReportController {
    */
   async getOperationalReport(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');
@@ -159,7 +160,7 @@ export class ReportController {
    */
   async getScheduledReports(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');

@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { authenticate, requireRoles, requireTenantAccess } from '../middleware/auth';
 import {
   successResponse,
@@ -14,6 +14,7 @@ import {
   paginatedResponse,
   badRequestResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest } from '../types';
 
 export const collectionRoutes = Router();
@@ -27,11 +28,11 @@ collectionRoutes.use(requireTenantAccess);
  */
 collectionRoutes.get('/', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
-    const status = req.query.status as string | undefined;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
+    const status = getQueryString(req.query, "status") as string | undefined;
     const daysRange = req.query.daysRange as string | undefined;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const page = getQueryNumber(req.query, "page", 1) || 1;
+    const limit = getQueryNumber(req.query, "limit", 20) || 20;
 
     if (!tenantId) {
       return require('../utils/response').badRequestResponse(res, 'tenantId is required');
@@ -186,10 +187,10 @@ collectionRoutes.get('/', async (req: AuthRequest, res) => {
  */
 collectionRoutes.get('/loans', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
     const agentId = req.query.agentId as string | undefined;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const page = getQueryNumber(req.query, "page", 1) || 1;
+    const limit = getQueryNumber(req.query, "limit", 20) || 20;
 
     if (!tenantId) {
       return require('../utils/response').badRequestResponse(res, 'tenantId is required');
@@ -283,8 +284,8 @@ collectionRoutes.post('/actions', async (req: AuthRequest, res) => {
  */
 collectionRoutes.get('/promises', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
-    const status = req.query.status as string | undefined; // PENDING, KEPT, BROKEN
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
+    const status = getQueryString(req.query, "status") as string | undefined; // PENDING, KEPT, BROKEN
 
     if (!tenantId) {
       return require('../utils/response').badRequestResponse(res, 'tenantId is required');

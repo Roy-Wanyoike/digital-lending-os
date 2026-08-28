@@ -6,7 +6,7 @@
  */
 
 import { logger } from '../utils/logger';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { CreateCustomerInput, UpdateCustomerInput, RiskLevel } from '../types';
 
 export interface CustomerQueryParams {
@@ -186,7 +186,7 @@ export class CustomerService {
       where: { id },
       data: { 
         status: status as any,
-        notes: reason ? `${existingNotes => existingNotes || ''}\nStatus changed to ${status}: ${reason}`.trim() : undefined,
+        notes: reason ? `\nStatus changed to ${status}: ${reason}`.trim() : undefined,
       },
     });
   }
@@ -285,17 +285,17 @@ export class CustomerService {
     }
 
     // Calculate credit metrics
-    const activeLoans = customer.loans.filter(loan => 
+    const activeLoans = customer.loans.filter((loan: any) => 
       ['ACTIVE', 'IN_ARREARS', 'PENDING_DISBURSEMENT'].includes(loan.status)
     );
     
-    const totalOutstanding = activeLoans.reduce((sum, loan) => sum + loan.outstandingBalance, 0);
-    const totalBorrowed = customer.loans.reduce((sum, loan) => sum + loan.principal, 0);
-    const totalRepaid = customer.repayments.reduce((sum, repayment) => sum + repayment.amount, 0);
+    const totalOutstanding = activeLoans.reduce((sum: number, loan: any) => sum + (loan.outstandingBalance || 0), 0);
+    const totalBorrowed = customer.loans.reduce((sum: number, loan: any) => sum + (loan.principal || 0), 0);
+    const totalRepaid = customer.repayments.reduce((sum: number, repayment: any) => sum + (repayment.amount || 0), 0);
     
     // Calculate on-time payment rate
-    const completedRepayments = customer.repayments.filter(r => r.status === 'COMPLETED');
-    const onTimePayments = completedRepayments.filter(r => {
+    const completedRepayments = customer.repayments.filter((r: any) => r.status === 'COMPLETED');
+    const onTimePayments = completedRepayments.filter((r: any) => {
       if (!r.dueDate) return true;
       return r.paymentDate <= r.dueDate;
     });
@@ -304,7 +304,7 @@ export class CustomerService {
       : 100;
 
     // Calculate days in arrears across all active loans
-    const maxDaysInArrears = Math.max(...activeLoans.map(loan => loan.daysInArrears || 0), 0);
+    const maxDaysInArrears = Math.max(...activeLoans.map((loan: any) => loan.daysInArrears || 0), 0);
 
     return {
       customerId: customer.id,
@@ -314,7 +314,7 @@ export class CustomerService {
       // Loan Summary
       totalLoans: customer.loans.length,
       activeLoans: activeLoans.length,
-      completedLoans: customer.loans.filter(l => l.status === 'FULLY_PAID').length,
+      completedLoans: customer.loans.filter((l: any) => l.status === 'FULLY_PAID').length,
       
       // Financial Summary
       totalBorrowed,
@@ -329,7 +329,7 @@ export class CustomerService {
       daysInArrears: maxDaysInArrears,
       
       // Loan Details
-      loans: activeLoans.map(loan => ({
+      loans: activeLoans.map((loan: any) => ({
         id: loan.id,
         loanNumber: loan.loanNumber,
         principal: loan.principal,
@@ -452,7 +452,7 @@ export class CustomerService {
     }
 
     // Check for overdue loans
-    const hasOverdue = customer.loans.some(loan => loan.daysInArrears > 0);
+    const hasOverdue = customer.loans.some((loan: any) => loan.daysInArrears > 0);
     if (hasOverdue) {
       eligible = false;
       reasons.push('Has overdue loans');
@@ -460,7 +460,7 @@ export class CustomerService {
 
     // Calculate recommended amount based on income and existing debt
     const monthlyIncome = customer.incomeAmount || 0;
-    const existingDebt = customer.loans.reduce((sum, loan) => sum + loan.outstandingBalance, 0);
+    const existingDebt = customer.loans.reduce((sum: number, loan: any) => sum + (loan.outstandingBalance || 0), 0);
     const dtiRatio = monthlyIncome > 0 ? existingDebt / (monthlyIncome * 6) : 1; // 6 months income
     
     let maxRecommendedAmount = 50000; // Default

@@ -9,7 +9,7 @@
  */
 
 import { logger } from '../utils/logger';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { CreateApplicationInput, ApplicationStatus, ApplicationStep } from '../types';
 
 export interface ApplicationQueryParams {
@@ -257,7 +257,7 @@ export class ApplicationService {
       data: {
         currentStep: nextStep,
         stepHistory: JSON.stringify(stepHistory),
-        ...(nextStep === 'UNDER_REVIEW' && { status: 'UNDER_REVIEW', reviewedAt: new Date() }),
+        ...(nextStep === 'MANUAL_REVIEW' && { status: 'UNDER_REVIEW' as string, reviewedAt: new Date() }),
       },
     });
 

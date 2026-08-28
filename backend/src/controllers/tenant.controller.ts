@@ -16,6 +16,7 @@ import {
   forbiddenResponse,
   errorResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest, TenantPlan, TenantStatus } from '../types';
 
 export class TenantController {
@@ -25,8 +26,8 @@ export class TenantController {
    */
   async findAll(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 20;
+      const page = getQueryNumber(req.query, "page", 1) || 1;
+      const limit = getQueryNumber(req.query, "limit", 20) || 20;
       const status = req.query.status as TenantStatus | undefined;
       const plan = req.query.plan as TenantPlan | undefined;
       const search = req.query.search as string | undefined;
@@ -50,7 +51,7 @@ export class TenantController {
    */
   async findById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
 
       // Check access
       if (req.user?.role !== 'SUPER_ADMIN' && req.user?.tenantId !== id) {
@@ -96,7 +97,7 @@ export class TenantController {
    */
   async update(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
 
       // Check access
       if (req.user?.role !== 'SUPER_ADMIN' && req.user?.tenantId !== id) {
@@ -128,7 +129,7 @@ export class TenantController {
    */
   async deactivate(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
 
       await tenantService.deactivate(id);
 
@@ -150,7 +151,7 @@ export class TenantController {
    */
   async getUsageStats(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const stats = await tenantService.getUsageStats(id);
       return successResponse(res, stats);
     } catch (error) {

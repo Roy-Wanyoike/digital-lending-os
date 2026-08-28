@@ -5,13 +5,14 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { logger } from '../utils/logger';
 import {
   successResponse,
   badRequestResponse,
   errorResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest, DashboardStats } from '../types';
 
 export class DashboardController {
@@ -21,7 +22,7 @@ export class DashboardController {
    */
   async getStats(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');
@@ -137,14 +138,14 @@ export class DashboardController {
    */
   async getCharts(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
       const chartType = req.query.type as string | undefined;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');
       }
 
-      let chartData: Record<string, unknown> = {};
+      let chartData: unknown = {};
 
       switch (chartType) {
         case 'disbursement-trend':

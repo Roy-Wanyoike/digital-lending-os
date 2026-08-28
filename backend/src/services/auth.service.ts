@@ -10,7 +10,7 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { JWTPayload, UserRole } from '../types';
 
 export interface LoginResult {
@@ -78,7 +78,7 @@ export class AuthService {
     if (!isValidPassword) {
       // Increment failed attempts
       const failedAttempts = (user.failedLoginAttempts || 0) + 1;
-      const updateData: Record<string, unknown> = { failedLoginAttempts };
+      const updateData: Record<string, unknown> = { failedLoginAttempts: failedAttempts };
       
       if (failedAttempts >= config.auth.maxLoginAttempts) {
         const lockoutUntil = new Date(Date.now() + config.auth.lockoutDuration);
@@ -148,13 +148,13 @@ export class AuthService {
     };
 
     const accessToken = jwt.sign(payload, config.auth.jwtSecret, {
-      expiresIn: config.auth.jwtExpiresIn,
+      expiresIn: config.auth.jwtExpiresIn as any,
     });
 
     const refreshToken = jwt.sign(
       { userId, tokenVersion, type: 'refresh' },
       config.auth.refreshSecret,
-      { expiresIn: config.auth.refreshExpiresIn }
+      { expiresIn: config.auth.refreshExpiresIn as any }
     );
 
     return {
@@ -215,7 +215,7 @@ export class AuthService {
     };
 
     const newAccessToken = jwt.sign(newPayload, config.auth.jwtSecret, {
-      expiresIn: config.auth.jwtExpiresIn,
+      expiresIn: config.auth.jwtExpiresIn as any,
     });
 
     return {
@@ -378,7 +378,7 @@ export class AuthService {
     };
 
     return jwt.sign(payload, config.auth.jwtSecret, {
-      expiresIn: config.auth.jwtExpiresIn,
+      expiresIn: config.auth.jwtExpiresIn as any,
     });
   }
 
@@ -392,7 +392,7 @@ export class AuthService {
     return jwt.sign(
       { userId: user.userId, tokenVersion: user.tokenVersion || 0, type: 'refresh' },
       config.auth.refreshSecret,
-      { expiresIn: config.auth.refreshExpiresIn }
+      { expiresIn: config.auth.refreshExpiresIn as any }
     );
   }
 

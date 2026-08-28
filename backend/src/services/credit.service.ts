@@ -9,7 +9,7 @@
  */
 
 import { logger } from '../utils/logger';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { CreditAssessmentInput, CreditScoreResult, CreditFactor, EligibilityRule } from '../types';
 
 export class CreditService {
@@ -241,7 +241,7 @@ export class CreditService {
           passed = (customer.incomeAmount || 0) >= 15000;
           break;
         case 'rule-2': // DTI Ratio
-          const totalDebt = customer.loans.reduce((sum, l) => sum + l.outstandingBalance, 0);
+          const totalDebt = customer.loans.reduce((sum: number, l: any) => sum + (l.outstandingBalance || 0), 0);
           const monthlyIncome = (customer.incomeAmount || 0);
           passed = monthlyIncome > 0 ? (totalDebt / (monthlyIncome * 6)) <= 0.5 : false;
           break;
@@ -249,7 +249,7 @@ export class CreditService {
           passed = customer.loans.length < 3;
           break;
         case 'rule-4': // No Recent Defaults
-          const hasDefault = customer.loans.some(l => l.status === 'DEFAULTED');
+          const hasDefault = customer.loans.some((l: any) => l.status === 'DEFAULTED');
           passed = !hasDefault;
           break;
         case 'rule-5': // Age Requirement

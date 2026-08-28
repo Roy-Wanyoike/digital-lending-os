@@ -16,8 +16,6 @@
  * @module security
  */
 
-import crypto from 'crypto';
-
 // ============================================================
 // Constants & Configuration
 // ============================================================
@@ -695,38 +693,11 @@ export function unblockIP(ip: string): void {
 }
 
 // ============================================================
-// CSRF Protection
+// CSRF Protection (re-exported from security-crypto for backward compatibility)
+// NOTE: These functions require Node.js crypto and are NOT Edge Runtime compatible
 // ============================================================
 
-/**
- * Generate a CSRF token for state-changing operations.
- * In production, this should be cryptographically secure and
- * stored server-side with session binding.
- * 
- * @returns Random CSRF token
- */
-export function generateCSRFToken(): string {
-  return crypto.randomBytes(32).toString('hex');
-}
-
-/**
- * Verify a CSRF token against expected value.
- * 
- * @param token - Token from request
- * @param expectedToken - Expected token (from session)
- * @returns True if tokens match
- */
-export function verifyCSRFToken(token: string, expectedToken: string): boolean {
-  if (!token || !expectedToken) {
-    return false;
-  }
-  
-  // Use timing-safe comparison to prevent timing attacks
-  return crypto.timingSafeEqual(
-    Buffer.from(token),
-    Buffer.from(expectedToken)
-  );
-}
+export { generateCSRFToken, verifyCSRFToken } from './security-crypto';
 
 // ============================================================
 // Request Validation Helpers

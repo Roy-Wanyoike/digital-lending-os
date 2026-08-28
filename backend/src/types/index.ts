@@ -2,10 +2,13 @@
  * Type Definitions
  * 
  * Core type definitions for the Digital Lending OS backend.
+ * Note: We define types locally to avoid direct @prisma/client dependency issues.
  */
 
 import { Request } from 'express';
-import { User, Tenant, Customer, Loan, LoanApplication, Transaction, Repayment } from '@prisma/client';
+
+// Re-export Prisma-compatible types (defined locally to match schema)
+// These would normally come from @prisma/client after code generation
 
 // =============================================================================
 // AUTHENTICATION TYPES
@@ -49,16 +52,25 @@ export interface TenantContext {
   status: TenantStatus;
 }
 
-export type UserRole = 
-  | 'SUPER_ADMIN'
-  | 'TENANT_ADMIN'
-  | 'MANAGER'
-  | 'LOAN_OFFICER'
-  | 'COLLECTION_AGENT'
-  | 'FINANCE_OFFICER'
-  | 'STAFF'
-  | 'VIEWER'
-  | 'CUSTOMER';
+// User Role enum - matches Prisma schema UserRole
+export const UserRole = {
+  SUPER_ADMIN: 'SUPER_ADMIN' as const,
+  TENANT_ADMIN: 'TENANT_ADMIN' as const,
+  MANAGER: 'MANAGER' as const,
+  STAFF: 'STAFF' as const,
+  AGENT: 'AGENT' as const,
+  VIEWER: 'VIEWER' as const,
+  // Extended roles for application logic (mapped to schema roles)
+  LOAN_OFFICER: 'LOAN_OFFICER' as const,
+  COLLECTION_AGENT: 'COLLECTION_AGENT' as const,
+  FINANCE_OFFICER: 'FINANCE_OFFICER' as const,
+  CUSTOMER: 'CUSTOMER' as const,
+} as const;
+
+export type UserRole = typeof UserRole[keyof typeof UserRole];
+
+// All valid role values for validation
+export const VALID_USER_ROLES: readonly string[] = Object.values(UserRole);
 
 export type TenantPlan = 
   | 'STARTER'
@@ -66,12 +78,29 @@ export type TenantPlan =
   | 'ENTERPRISE'
   | 'CUSTOM';
 
+export const TenantPlan = {
+  STARTER: 'STARTER' as const,
+  PROFESSIONAL: 'PROFESSIONAL' as const,
+  ENTERPRISE: 'ENTERPRISE' as const,
+  CUSTOM: 'CUSTOM' as const,
+} as const;
+
 export type TenantStatus = 
   | 'ACTIVE'
   | 'SUSPENDED'
+  | 'TRIAL'
   | 'PENDING_ONBOARDING'
+  | 'TERMINATED'
   | 'PENDING_APPROVAL'
   | 'DEACTIVATED';
+
+export const TenantStatus = {
+  ACTIVE: 'ACTIVE' as const,
+  SUSPENDED: 'SUSPENDED' as const,
+  TRIAL: 'TRIAL' as const,
+  PENDING_ONBOARDING: 'PENDING_ONBOARDING' as const,
+  TERMINATED: 'TERMINATED' as const,
+} as const;
 
 // =============================================================================
 // CUSTOMER TYPES
@@ -129,20 +158,50 @@ export interface CreateLoanInput {
 export type LoanStatus = 
   | 'PENDING_DISBURSEMENT'
   | 'APPROVED'
+  | 'DISBURSED'
   | 'ACTIVE'
   | 'IN_ARREARS'
   | 'DEFAULTED'
+  | 'FULLY_PAID'
   | 'PAID_OFF'
   | 'WRITTEN_OFF'
   | 'CANCELLED'
   | 'RESTRUCTURED';
 
+export const LoanStatus = {
+  PENDING_DISBURSEMENT: 'PENDING_DISBURSEMENT' as const,
+  APPROVED: 'APPROVED' as const,
+  DISBURSED: 'DISBURSED' as const,
+  ACTIVE: 'ACTIVE' as const,
+  IN_ARREARS: 'IN_ARREARS' as const,
+  DEFAULTED: 'DEFAULTED' as const,
+  FULLY_PAID: 'FULLY_PAID' as const,
+  PAID_OFF: 'PAID_OFF' as const,
+  WRITTEN_OFF: 'WRITTEN_OFF' as const,
+  CANCELLED: 'CANCELLED' as const,
+  RESTRUCTURED: 'RESTRUCTURED' as const,
+} as const;
+
 export type ArrearsStatus = 
   | 'CURRENT'
+  | 'DAYS_1_7'
+  | 'DAYS_8_30'
+  | 'DAYS_31_60'
+  | 'DAYS_61_90'
+  | 'DAYS_91_PLUS'
   | '1_30_DAYS'
   | '31_60_DAYS'
   | '61_90_DAYS'
   | 'OVER_90_DAYS';
+
+export const ArrearsStatus = {
+  CURRENT: 'CURRENT' as const,
+  DAYS_1_7: 'DAYS_1_7' as const,
+  DAYS_8_30: 'DAYS_8_30' as const,
+  DAYS_31_60: 'DAYS_31_60' as const,
+  DAYS_61_90: 'DAYS_61_90' as const,
+  DAYS_91_PLUS: 'DAYS_91_PLUS' as const,
+} as const;
 
 export interface RepaymentScheduleItem {
   installmentNo: number;
@@ -214,11 +273,55 @@ export type ApplicationStatus =
   | 'SUBMITTED'
   | 'UNDER_REVIEW'
   | 'APPROVED'
+  | 'CONDITIONALLY_APPROVED'
   | 'REJECTED'
   | 'CANCELLED'
   | 'WITHDRAWN'
   | 'PENDING_DISBURSEMENT'
-  | 'DISBURSED';
+  | 'DISBURSED'
+  | 'DISBURSEMENT_FAILED';
+
+export const ApplicationStatus = {
+  DRAFT: 'DRAFT' as const,
+  SUBMITTED: 'SUBMITTED' as const,
+  UNDER_REVIEW: 'UNDER_REVIEW' as const,
+  APPROVED: 'APPROVED' as const,
+  CONDITIONALLY_APPROVED: 'CONDITIONALLY_APPROVED' as const,
+  REJECTED: 'REJECTED' as const,
+  CANCELLED: 'CANCELLED' as const,
+  WITHDRAWN: 'WITHDRAWN' as const,
+  PENDING_DISBURSEMENT: 'PENDING_DISBURSEMENT' as const,
+  DISBURSED: 'DISBURSED' as const,
+  DISBURSEMENT_FAILED: 'DISBURSEMENT_FAILED' as const,
+} as const;
+
+// Application Step enum - matches Prisma schema
+export type ApplicationStep = 
+  | 'SUBMISSION'
+  | 'KYC_VERIFICATION'
+  | 'CREDIT_ASSESSMENT'
+  | 'AFFORDABILITY_CHECK'
+  | 'MANUAL_REVIEW'
+  | 'MANAGER_APPROVAL'
+  | 'DOCUMENT_SIGNING'
+  | 'DISBURSEMENT_PREPARATION'
+  | 'DISBURSED'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export const ApplicationStep = {
+  SUBMISSION: 'SUBMISSION' as const,
+  KYC_VERIFICATION: 'KYC_VERIFICATION' as const,
+  CREDIT_ASSESSMENT: 'CREDIT_ASSESSMENT' as const,
+  AFFORDABILITY_CHECK: 'AFFORDABILITY_CHECK' as const,
+  MANUAL_REVIEW: 'MANUAL_REVIEW' as const,
+  MANAGER_APPROVAL: 'MANAGER_APPROVAL' as const,
+  DOCUMENT_SIGNING: 'DOCUMENT_SIGNING' as const,
+  DISBURSEMENT_PREPARATION: 'DISBURSEMENT_PREPARATION' as const,
+  DISBURSED: 'DISBURSED' as const,
+  COMPLETED: 'COMPLETED' as const,
+  CANCELLED: 'CANCELLED' as const,
+} as const;
 
 // =============================================================================
 // PAYMENT TYPES
@@ -337,6 +440,9 @@ export interface CreditScoreResult {
   recommendedInterestRate: number;
   factors: CreditFactor[];
   crbSummary?: CRBSummary;
+  decision?: 'APPROVE' | 'REJECT' | 'REVIEW';
+  assessedAt?: Date;
+  validUntil?: Date;
 }
 
 export interface CreditFactor {
@@ -430,6 +536,25 @@ export interface Incident {
   description: string;
   impact: string;
 }
+
+// =============================================================================
+// RISK TYPES
+// =============================================================================
+
+export type RiskLevel = 
+  | 'LOW'
+  | 'MEDIUM'
+  | 'HIGH'
+  | 'VERY_HIGH'
+  | 'CRITICAL';
+
+export const RiskLevel = {
+  LOW: 'LOW' as const,
+  MEDIUM: 'MEDIUM' as const,
+  HIGH: 'HIGH' as const,
+  VERY_HIGH: 'VERY_HIGH' as const,
+  CRITICAL: 'CRITICAL' as const,
+} as const;
 
 // =============================================================================
 // DASHBOARD TYPES

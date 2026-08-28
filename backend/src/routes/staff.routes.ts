@@ -6,7 +6,7 @@
 
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { authenticate, requireRoles, requireTenantAccess } from '../middleware/auth';
 import {
   successResponse,
@@ -17,6 +17,7 @@ import {
   badRequestResponse,
   forbiddenResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest, UserRole } from '../types';
 
 export const staffRoutes = Router();
@@ -30,11 +31,11 @@ staffRoutes.use(requireTenantAccess);
  */
 staffRoutes.get('/', async (req: AuthRequest, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const page = getQueryNumber(req.query, "page", 1) || 1;
+    const limit = getQueryNumber(req.query, "limit", 20) || 20;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
     const role = req.query.role as UserRole | undefined;
-    const status = req.query.status as string | undefined;
+    const status = getQueryString(req.query, "status") as string | undefined;
 
     if (!tenantId) {
       return badRequestResponse(res, 'tenantId is required');
@@ -150,7 +151,7 @@ staffRoutes.get('/workspace', async (req: AuthRequest, res) => {
       workspaceType,
       permissions: getRolePermissions(user.role as UserRole),
       features: getWorkspaceFeatures(workspaceType),
-      quickStats: await getQuickStats(user.tenantId!, user.role),
+      quickStats: await getQuickStats(user.tenantId!, user.role, req),
     });
   } catch (error) {
     console.error('Error fetching workspace:', error);
@@ -247,7 +248,7 @@ staffRoutes.post('/actions', requireRoles(['SUPER_ADMIN', 'TENANT_ADMIN']), asyn
 // =============================================================================
 
 function getRolePermissions(role: UserRole): string[] {
-  const permissions: Record<UserRole, string[]> = {
+  const permissions: Partial<Record<UserRole, string[]>> = {
     SUPER_ADMIN: ['*'],
     TENANT_ADMIN: [
       'tenants:manage', 'users:manage', 'customers:crud', 'loans:crud',
@@ -261,6 +262,7 @@ function getRolePermissions(role: UserRole): string[] {
     COLLECTION_AGENT: ['customers:view', 'collections:manage'],
     FINANCE_OFFICER: ['finance:manage', 'payments:process', 'reports:view'],
     STAFF: ['customers:view', 'loans:view_own'],
+    AGENT: ['customers:view', 'collections:manage'],
     VIEWER: ['view_only'],
     CUSTOMER: ['own_profile', 'own_loans', 'own_payments'],
   };
@@ -299,7 +301,7 @@ function getWorkspaceFeatures(workspaceType: string): string[] {
   return features[workspaceType] || [];
 }
 
-async function getQuickStats(tenantId: string, role: UserRole): Promise<Record<string, number>> {
+async function getQuickStats(tenantId: string, role: UserRole, req: any): Promise<Record<string, number>> {
   switch (role) {
     case 'COLLECTION_AGENT':
     case 'AGENT': {

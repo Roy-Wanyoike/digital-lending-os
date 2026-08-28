@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { authenticate, requireRoles, requireTenantAccess } from '../middleware/auth';
 import {
   successResponse,
@@ -14,6 +14,7 @@ import {
   paginatedResponse,
   forbiddenResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest, ApplicationStatus } from '../types';
 
 export const applicationRoutes = Router();
@@ -27,11 +28,11 @@ applicationRoutes.use(requireTenantAccess);
  */
 applicationRoutes.get('/', async (req: AuthRequest, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const page = getQueryNumber(req.query, "page", 1) || 1;
+    const limit = getQueryNumber(req.query, "limit", 20) || 20;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
     const status = req.query.status as ApplicationStatus | undefined;
-    const customerId = req.query.customerId as string | undefined;
+    const customerId = getQueryString(req.query, "customerId") as string | undefined;
 
     if (!tenantId) {
       return require('../utils/response').badRequestResponse(res, 'tenantId is required');
@@ -75,7 +76,7 @@ applicationRoutes.get('/', async (req: AuthRequest, res) => {
  */
 applicationRoutes.get('/:id', async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     const application = await db.loanApplication.findUnique({
       where: { id },
@@ -164,7 +165,7 @@ applicationRoutes.post('/', async (req: AuthRequest, res) => {
  */
 applicationRoutes.patch('/:id/review', requireRoles(['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER', 'LOAN_OFFICER']), async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { decision, notes, approvedAmount, interestRate, termDays } = req.body;
 
     if (!['APPROVED', 'REJECTED'].includes(decision)) {

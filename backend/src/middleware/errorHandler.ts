@@ -6,7 +6,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
-import { Prisma } from '@prisma/client';
+// Note: We use a dynamic import for Prisma to avoid issues when Prisma client is not generated
 import { logger } from '../utils/logger';
 import { ApiResponse, errorResponse, serverErrorResponse, validationErrorResponse } from '../utils/response';
 
@@ -16,12 +16,17 @@ export interface AppError extends Error {
   details?: unknown;
 }
 
-export function errorHandler(
+// Check if error looks like a Prisma known request error
+function isPrismaError(err: Error): err is Error & { code: string; meta?: Record<string, unknown> } {
+  return 'code' in err && typeof (err as any).code === 'string';
+}
+
+export async function errorHandler(
   err: AppError,
   req: Request,
   res: Response,
   _next: NextFunction
-): Response<ApiResponse> | void {
+): Promise<Response<ApiResponse> | void> {
   // Log the error
   logger.error('Error occurred:', {
     message: err.message,
@@ -31,11 +36,11 @@ export function errorHandler(
     path: req.path,
     method: req.method,
     ip: req.ip,
-    userId: (req as Record<string, unknown>).user?.id,
+    userId: (req as any)?.user?.id,
   });
 
-  // Prisma errors
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+  // Prisma errors - check by code pattern
+  if (isPrismaError(err) && err.code && err.code.startsWith('P')) {
     return handlePrismaError(err, res);
   }
 
@@ -72,7 +77,7 @@ export function errorHandler(
 }
 
 function handlePrismaError(
-  err: Prisma.PrismaClientKnownRequestError,
+  err: Error & { code: string; meta?: Record<string, unknown> },
   res: Response
 ): Response<ApiResponse> {
   switch (err.code) {

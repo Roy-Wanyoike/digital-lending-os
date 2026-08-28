@@ -13,6 +13,7 @@ import {
   badRequestResponse,
   errorResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest } from '../types';
 
 export class CreditController {
@@ -22,7 +23,7 @@ export class CreditController {
    */
   async getDashboard(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');
@@ -83,7 +84,7 @@ export class CreditController {
    */
   async updateRule(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
 
       const updatedRule = await creditService.updateRule(
         id,
@@ -119,7 +120,7 @@ export class CreditController {
    */
   async evaluateEligibility(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { customerId } = req.params;
+      const customerId = String(req.params.customerId);
       const { requestedAmount } = req.query;
 
       if (!requestedAmount) {

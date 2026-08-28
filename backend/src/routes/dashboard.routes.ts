@@ -5,12 +5,13 @@
  */
 
 import { Router } from 'express';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { authenticate, requireTenantAccess } from '../middleware/auth';
 import {
   successResponse,
   badRequestResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest, DashboardStats } from '../types';
 
 export const dashboardRoutes = Router();
@@ -24,7 +25,7 @@ dashboardRoutes.use(requireTenantAccess);
  */
 dashboardRoutes.get('/stats', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
     if (!tenantId) {
       return badRequestResponse(res, 'tenantId is required');
@@ -140,14 +141,14 @@ dashboardRoutes.get('/stats', async (req: AuthRequest, res) => {
  */
 dashboardRoutes.get('/charts', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
     const chartType = req.query.type as string | undefined; // disbursement-trend, loan-distribution, etc.
 
     if (!tenantId) {
       return badRequestResponse(res, 'tenantId is required');
     }
 
-    let chartData: Record<string, unknown> = {};
+    let chartData: unknown = {};
 
     switch (chartType) {
       case 'disbursement-trend':

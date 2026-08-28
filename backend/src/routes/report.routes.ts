@@ -5,13 +5,14 @@
  */
 
 import { Router } from 'express';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { authenticate, requireRoles, requireTenantAccess } from '../middleware/auth';
 import {
   successResponse,
   notFoundResponse,
   badRequestResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest } from '../types';
 
 export const reportRoutes = Router();
@@ -74,7 +75,7 @@ reportRoutes.get('/', (_req: AuthRequest, res) => {
  */
 reportRoutes.get('/portfolio', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
     const period = req.query.period as string || '30d';
 
     if (!tenantId) {
@@ -128,7 +129,7 @@ reportRoutes.get('/portfolio', async (req: AuthRequest, res) => {
  */
 reportRoutes.get('/customer', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
     const segmentBy = req.query.segmentBy as string | undefined;
 
     if (!tenantId) {
@@ -187,7 +188,7 @@ reportRoutes.get('/customer', async (req: AuthRequest, res) => {
  */
 reportRoutes.get('/financial', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
     const period = req.query.period as string || 'monthly';
 
     if (!tenantId) {
@@ -263,7 +264,7 @@ reportRoutes.get('/financial', async (req: AuthRequest, res) => {
  */
 reportRoutes.get('/operational', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
     if (!tenantId) {
       return badRequestResponse(res, 'tenantId is required');

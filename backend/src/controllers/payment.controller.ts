@@ -15,6 +15,7 @@ import {
   badRequestResponse,
   errorResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest } from '../types';
 
 export class PaymentController {
@@ -131,9 +132,9 @@ export class PaymentController {
    */
   async getHistory(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 20;
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const page = getQueryNumber(req.query, "page", 1) || 1;
+      const limit = getQueryNumber(req.query, "limit", 20) || 20;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
       const type = req.query.type as string | undefined;
       const startDate = req.query.startDate as string | undefined;
       const endDate = req.query.endDate as string | undefined;
@@ -164,7 +165,7 @@ export class PaymentController {
    */
   async getBalance(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');

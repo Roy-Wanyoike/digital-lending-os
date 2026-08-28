@@ -21,6 +21,7 @@ import { creditRoutes } from './credit.routes';
 import { providerRoutes } from './provider.routes';
 import { dashboardRoutes } from './dashboard.routes';
 import { staffRoutes } from './staff.routes';
+import { webhookRoutes } from './webhook.routes';
 
 export function setupRoutes(app: Application): void {
   // API version prefix
@@ -38,7 +39,7 @@ export function setupRoutes(app: Application): void {
   apiRouter.use('/auth', authRoutes);
 
   // Webhook callbacks (public - verified via signature)
-  apiRouter.use('/webhooks', require('../routes/webhook.routes').default);
+  apiRouter.use('/webhooks', webhookRoutes);
 
   // ===========================================================================
   // PROTECTED ROUTES (Authentication required)

@@ -16,6 +16,7 @@ import {
   badRequestResponse,
   errorResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest, LoanStatus } from '../types';
 
 export class LoanController {
@@ -25,11 +26,11 @@ export class LoanController {
    */
   async findAll(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 20;
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const page = getQueryNumber(req.query, "page", 1) || 1;
+      const limit = getQueryNumber(req.query, "limit", 20) || 20;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
       const status = req.query.status as LoanStatus | undefined;
-      const customerId = req.query.customerId as string | undefined;
+      const customerId = getQueryString(req.query, "customerId") as string | undefined;
       const arrearsStatus = req.query.arrearsStatus as string | undefined;
 
       if (!tenantId) {
@@ -63,7 +64,7 @@ export class LoanController {
    */
   async findById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
 
       const loan = await loanService.findById(id);
 
@@ -112,7 +113,7 @@ export class LoanController {
    */
   async updateStatus(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const { status, notes } = req.body;
 
       const updatedLoan = await loanService.updateStatus(
@@ -144,7 +145,7 @@ export class LoanController {
    */
   async approve(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const { approvedAmount, interestRate, termDays, notes } = req.body;
 
       const updatedLoan = await loanService.approve(id, {
@@ -177,7 +178,7 @@ export class LoanController {
    */
   async disburse(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const { referenceNumber } = req.body;
 
       if (!referenceNumber) {
@@ -204,7 +205,7 @@ export class LoanController {
    */
   async getStats(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');
@@ -224,7 +225,7 @@ export class LoanController {
    */
   async assignCollector(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const { collectorId } = req.body;
 
       if (!collectorId) {

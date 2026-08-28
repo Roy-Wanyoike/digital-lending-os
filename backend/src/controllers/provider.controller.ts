@@ -9,9 +9,11 @@ import { providerService } from '../services';
 import { logger } from '../utils/logger';
 import {
   successResponse,
+  createdResponse,
   notFoundResponse,
   errorResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest } from '../types';
 
 export class ProviderController {
@@ -36,7 +38,7 @@ export class ProviderController {
    */
   async getProviderById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
 
       const provider = await providerService.getProviderById(id);
 
@@ -73,9 +75,9 @@ export class ProviderController {
    */
   async getIncidents(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 20;
-      const status = req.query.status as string | undefined;
+      const page = getQueryNumber(req.query, "page", 1) || 1;
+      const limit = getQueryNumber(req.query, "limit", 20) || 20;
+      const status = getQueryString(req.query, "status") as string | undefined;
 
       const incidents = await providerService.getIncidents({ page, limit, status });
 
@@ -112,7 +114,7 @@ export class ProviderController {
    */
   async acknowledgeAlert(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { alertId } = req.params;
+      const alertId = String(req.params.alertId);
 
       if (!req.user?.id) {
         // This shouldn't happen due to auth middleware
@@ -157,7 +159,7 @@ export class ProviderController {
    */
   async resolveIncident(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { incidentId } = req.params;
+      const incidentId = String(req.params.incidentId);
       const { resolutionNotes } = req.body;
 
       await providerService.resolveIncident(incidentId, resolutionNotes);

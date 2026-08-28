@@ -188,7 +188,7 @@ export function requireTenantAccess(
  * Can be used in route handlers for fine-grained control
  */
 export function hasPermission(userRole: UserRole, requiredPermission: string): boolean {
-  const rolePermissions: Record<UserRole, string[]> = {
+  const rolePermissions: Partial<Record<UserRole, string[]>> = {
     SUPER_ADMIN: ['*'],
     TENANT_ADMIN: [
       'tenants:read', 'tenants:write',
@@ -232,6 +232,12 @@ export function hasPermission(userRole: UserRole, requiredPermission: string): b
     STAFF: [
       'customers:read',
       'loans:read',
+      'payments:read',
+    ],
+    AGENT: [
+      'customers:read',
+      'loans:read',
+      'collections:read', 'collections:write',
       'payments:read',
     ],
     VIEWER: [

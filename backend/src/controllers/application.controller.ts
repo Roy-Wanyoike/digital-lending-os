@@ -16,6 +16,7 @@ import {
   badRequestResponse,
   errorResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest, ApplicationStatus } from '../types';
 
 export class ApplicationController {
@@ -25,11 +26,11 @@ export class ApplicationController {
    */
   async findAll(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 20;
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
-      const status = req.query.status as ApplicationStatus | undefined;
-      const customerId = req.query.customerId as string | undefined;
+      const page = getQueryNumber(req.query, 'page', 1);
+      const limit = getQueryNumber(req.query, 'limit', 20);
+      const tenantId = getQueryString(req.query, 'tenantId') || req.user?.tenantId;
+      const status = getQueryString(req.query, 'status') as ApplicationStatus | undefined;
+      const customerId = getQueryString(req.query, 'customerId');
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');
@@ -56,7 +57,7 @@ export class ApplicationController {
    */
   async findById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
 
       const application = await applicationService.findById(id);
 
@@ -113,7 +114,7 @@ export class ApplicationController {
    */
   async review(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const { decision, notes, approvedAmount, interestRate, termDays } = req.body;
 
       if (!['APPROVED', 'REJECTED'].includes(decision)) {
@@ -148,7 +149,7 @@ export class ApplicationController {
    */
   async submit(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
 
       await applicationService.submit(id);
 
@@ -170,7 +171,7 @@ export class ApplicationController {
    */
   async cancel(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const { reason } = req.body;
 
       await applicationService.cancel(id, reason || 'Cancelled by user', req.user!.id);
@@ -193,7 +194,7 @@ export class ApplicationController {
    */
   async withdraw(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
 
       await applicationService.withdraw(id);
 
@@ -215,7 +216,7 @@ export class ApplicationController {
    */
   async getStats(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');

@@ -7,7 +7,7 @@
 
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { TenantPlan, TenantStatus } from '../types';
 
 export interface CreateTenantInput {

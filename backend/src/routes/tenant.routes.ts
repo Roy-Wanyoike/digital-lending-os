@@ -6,7 +6,8 @@
  */
 
 import { Router } from 'express';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
+import { config } from '../config';
 import { authenticate, requireRoles, requireTenantAccess } from '../middleware/auth';
 import {
   successResponse,
@@ -15,6 +16,7 @@ import {
   paginatedResponse,
   conflictResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { validate, createTenantSchema, paginationSchema } from '../middleware/validation';
 import { AuthRequest, TenantPlan, TenantStatus } from '../types';
 
@@ -29,8 +31,8 @@ tenantRoutes.use(authenticate);
  */
 tenantRoutes.get('/', async (req: AuthRequest, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
+    const page = getQueryNumber(req.query, "page", 1) || 1;
+    const limit = getQueryNumber(req.query, "limit", 20) || 20;
     const status = req.query.status as TenantStatus | undefined;
     const plan = req.query.plan as TenantPlan | undefined;
     const search = req.query.search as string | undefined;
@@ -94,7 +96,7 @@ tenantRoutes.get('/', async (req: AuthRequest, res) => {
  */
 tenantRoutes.get('/:id', async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     // Check access
     if (req.user?.role !== 'SUPER_ADMIN' && req.user?.tenantId !== id) {
@@ -142,7 +144,7 @@ tenantRoutes.post('/', requireRoles(['SUPER_ADMIN']), validate(createTenantSchem
     }
 
     // Calculate pricing based on plan
-    const planPricing = config.tenant.plans[body.plan] || config.tenant.plans.STARTER;
+    const planPricing = config.tenant.plans[body.plan as keyof typeof config.tenant.plans] || config.tenant.plans.STARTER;
 
     const tenant = await db.tenant.create({
       data: {
@@ -176,7 +178,7 @@ tenantRoutes.post('/', requireRoles(['SUPER_ADMIN']), validate(createTenantSchem
  */
 tenantRoutes.put('/:id', async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     // Check access
     if (req.user?.role !== 'SUPER_ADMIN' && req.user?.tenantId !== id) {
@@ -223,7 +225,7 @@ tenantRoutes.put('/:id', async (req: AuthRequest, res) => {
  */
 tenantRoutes.delete('/:id', requireRoles(['SUPER_ADMIN']), async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     const existingTenant = await db.tenant.findUnique({ where: { id } });
     if (!existingTenant) {

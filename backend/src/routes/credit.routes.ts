@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { authenticate, requireRoles, requireTenantAccess } from '../middleware/auth';
 import {
   successResponse,
@@ -14,6 +14,7 @@ import {
   paginatedResponse,
   badRequestResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest } from '../types';
 
 export const creditRoutes = Router();
@@ -27,7 +28,7 @@ creditRoutes.use(requireTenantAccess);
  */
 creditRoutes.get('/', async (req: AuthRequest, res) => {
   try {
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
 
     if (!tenantId) {
       return badRequestResponse(res, 'tenantId is required');
@@ -165,7 +166,7 @@ creditRoutes.get('/rules', async (_req: AuthRequest, res) => {
  */
 creditRoutes.put('/rules/:id', requireRoles(['SUPER_ADMIN', 'TENANT_ADMIN']), async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const updates = req.body;
 
     // In production: Update rule in database

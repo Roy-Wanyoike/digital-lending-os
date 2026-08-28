@@ -15,6 +15,7 @@ import {
   badRequestResponse,
   errorResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { AuthRequest } from '../types';
 
 export class CollectionController {
@@ -24,12 +25,12 @@ export class CollectionController {
    */
   async getDashboard(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
-      const status = req.query.status as string | undefined;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
+      const status = getQueryString(req.query, "status") as string | undefined;
       const daysRange = req.query.daysRange as string | undefined;
       const agentId = req.query.agentId as string | undefined;
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 20;
+      const page = getQueryNumber(req.query, "page", 1) || 1;
+      const limit = getQueryNumber(req.query, "limit", 20) || 20;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');
@@ -57,10 +58,10 @@ export class CollectionController {
    */
   async getCollectionLoans(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
       const agentId = req.query.agentId as string | undefined;
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 20;
+      const page = getQueryNumber(req.query, "page", 1) || 1;
+      const limit = getQueryNumber(req.query, "limit", 20) || 20;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');
@@ -145,8 +146,8 @@ export class CollectionController {
    */
   async getPromises(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
-      const status = req.query.status as string | undefined;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
+      const status = getQueryString(req.query, "status") as string | undefined;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');
@@ -167,7 +168,7 @@ export class CollectionController {
    */
   async updatePromiseStatus(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const { status } = req.body;
 
       if (!['KEPT', 'BROKEN'].includes(status)) {
@@ -189,7 +190,7 @@ export class CollectionController {
    */
   async getAgentStats(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
       const agentId = (req.query.agentId as string) || req.user?.id;
 
       if (!tenantId || !agentId) {

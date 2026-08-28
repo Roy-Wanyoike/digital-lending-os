@@ -111,9 +111,14 @@ export function errorResponse(
   const response: ApiResponse = {
     success: false,
     error,
-    ...(code && { code }),
-    ...(details && { meta: details as Record<string, unknown> }),
   };
+  
+  if (code) {
+    response.code = code;
+  }
+  if (details) {
+    response.meta = details as Record<string, unknown>;
+  }
 
   return res.status(statusCode).json(response);
 }

@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { authenticate, requireRoles, requireTenantAccess } from '../middleware/auth';
 import {
   successResponse,
@@ -15,6 +15,7 @@ import {
   forbiddenResponse,
   badRequestResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { validate, createLoanSchema, paginationSchema } from '../middleware/validation';
 import { AuthRequest, LoanStatus, ArrearsStatus } from '../types';
 
@@ -30,11 +31,11 @@ loanRoutes.use(requireTenantAccess);
  */
 loanRoutes.get('/', async (req: AuthRequest, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+    const page = getQueryNumber(req.query, "page", 1) || 1;
+    const limit = getQueryNumber(req.query, "limit", 20) || 20;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
     const status = req.query.status as LoanStatus | undefined;
-    const customerId = req.query.customerId as string | undefined;
+    const customerId = getQueryString(req.query, "customerId") as string | undefined;
     const arrearsStatus = req.query.arrearsStatus as ArrearsStatus | undefined;
 
     if (!tenantId) {
@@ -86,7 +87,7 @@ loanRoutes.get('/', async (req: AuthRequest, res) => {
  */
 loanRoutes.get('/:id', async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     const loan = await db.loan.findUnique({
       where: { id },
@@ -226,7 +227,7 @@ loanRoutes.post('/', requireRoles(['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER']), v
  */
 loanRoutes.patch('/:id/status', requireRoles(['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER']), async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { status, notes } = req.body;
 
     const validTransitions: Record<string, LoanStatus[]> = {

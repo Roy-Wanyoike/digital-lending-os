@@ -10,7 +10,7 @@
  */
 
 import { logger } from '../utils/logger';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { TransactionType } from '../types';
 
 export interface FinanceQueryParams {
@@ -162,7 +162,7 @@ export class FinanceService {
 
     // Calculate running balance for ledger view
     let runningBalance = 2400000; // Starting balance
-    const ledgerEntries = transactions.reverse().map((txn) => {
+    const ledgerEntries = transactions.reverse().map((txn: any) => {
       switch (txn.transactionType) {
         case 'DISBURSEMENT':
           runningBalance -= txn.amount;
@@ -458,7 +458,7 @@ export class FinanceService {
     let totalFeesCollected = 0;
     let totalPenalties = 0;
 
-    const formattedTransactions = transactions.map(txn => {
+    const formattedTransactions = transactions.map((txn: any) => {
       const isDebit = ['DISBURSEMENT', 'FEE_CHARGED', 'PENALTY_CHARGED'].includes(txn.transactionType);
       const isCredit = ['REPAYMENT_PRINCIPAL', 'REPAYMENT_INTEREST', 'FEE_COLLECTED', 'PENALTY_COLLECTED'].includes(txn.transactionType);
 

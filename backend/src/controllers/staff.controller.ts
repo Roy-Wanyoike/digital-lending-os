@@ -6,7 +6,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { logger } from '../utils/logger';
 import {
   successResponse,
@@ -16,8 +16,10 @@ import {
   conflictResponse,
   badRequestResponse,
   forbiddenResponse,
+  errorResponse,
 } from '../utils/response';
-import { AuthRequest, UserRole } from '../types';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
+import { AuthRequest, UserRole, VALID_USER_ROLES } from '../types';
 
 export class StaffController {
   /**
@@ -26,11 +28,11 @@ export class StaffController {
    */
   async findAll(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 20;
-      const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
+      const page = getQueryNumber(req.query, "page", 1) || 1;
+      const limit = getQueryNumber(req.query, "limit", 20) || 20;
+      const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
       const role = req.query.role as UserRole | undefined;
-      const status = req.query.status as string | undefined;
+      const status = getQueryString(req.query, "status") as string | undefined;
 
       if (!tenantId) {
         return badRequestResponse(res, 'tenantId is required');
@@ -141,7 +143,7 @@ export class StaffController {
         workspaceType,
         permissions: this.getRolePermissions(user.role as UserRole),
         features: this.getWorkspaceFeatures(workspaceType),
-        quickStats: await this.getQuickStats(user.tenantId!, user.role as UserRole),
+        quickStats: await this.getQuickStats(user.tenantId!, user.role as UserRole, req),
       });
     } catch (error) {
       logger.error('Error fetching workspace:', error);
@@ -189,8 +191,8 @@ export class StaffController {
           return successResponse(res, result, 'User activated successfully');
 
         case 'change_role':
-          if (!data.role || !Object.values(UserRole).includes(data.role)) {
-            return badRequestResponse(res, `Invalid role. Must be one of: ${Object.values(UserRole).join(', ')}`);
+          if (!data.role || !VALID_USER_ROLES.includes(data.role as string)) {
+            return badRequestResponse(res, `Invalid role. Must be one of: ${VALID_USER_ROLES.join(', ')}`);
           }
           
           if (data.role === 'SUPER_ADMIN' && req.user!.role !== 'SUPER_ADMIN') {
@@ -240,7 +242,7 @@ export class StaffController {
   // =============================================================================
 
   private getRolePermissions(role: UserRole): string[] {
-    const permissions: Record<UserRole, string[]> = {
+    const permissions: Partial<Record<UserRole, string[]>> = {
       SUPER_ADMIN: ['*'],
       TENANT_ADMIN: [
         'tenants:manage', 'users:manage', 'customers:crud', 'loans:crud',
@@ -254,6 +256,7 @@ export class StaffController {
       COLLECTION_AGENT: ['customers:view', 'collections:manage'],
       FINANCE_OFFICER: ['finance:manage', 'payments:process', 'reports:view'],
       STAFF: ['customers:view', 'loans:view'],
+      AGENT: ['customers:view', 'collections:manage'],
       VIEWER: ['view_only'],
       CUSTOMER: ['own_profile', 'own_loans', 'own_payments'],
     };
@@ -292,7 +295,7 @@ export class StaffController {
     return features[workspaceType] || [];
   }
 
-  private async getQuickStats(tenantId: string, role: UserRole): Promise<Record<string, number>> {
+  private async getQuickStats(tenantId: string, role: UserRole, req: AuthRequest): Promise<Record<string, number>> {
     switch (role) {
       case 'COLLECTION_AGENT':
       case 'AGENT': {

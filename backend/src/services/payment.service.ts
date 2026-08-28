@@ -11,7 +11,7 @@
 import crypto from 'crypto';
 import { config } from '../config';
 import { logger } from '../utils/logger';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { StkPushRequest, StkPushResponse, B2CRequest } from '../types';
 
 export class PaymentService {

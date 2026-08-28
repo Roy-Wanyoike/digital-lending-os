@@ -8,7 +8,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { config } from '../config';
 import {
   successResponse,
@@ -75,7 +75,7 @@ authRoutes.post('/login', async (req: AuthRequest, res) => {
     if (!isValidPassword) {
       // Increment failed attempts
       const failedAttempts = (user.failedLoginAttempts || 0) + 1;
-      const updateData: Record<string, unknown> = { failedLoginAttempts };
+      const updateData: Record<string, unknown> = { failedLoginAttempts: failedAttempts };
       
       if (failedAttempts >= config.auth.maxLoginAttempts) {
         const lockoutUntil = new Date(Date.now() + config.auth.lockoutDuration);
@@ -111,13 +111,13 @@ authRoutes.post('/login', async (req: AuthRequest, res) => {
     };
 
     const accessToken = jwt.sign(payload, config.auth.jwtSecret, {
-      expiresIn: config.auth.jwtExpiresIn,
+      expiresIn: config.auth.jwtExpiresIn as any,
     });
 
     const refreshToken = jwt.sign(
       { userId: user.id, tokenVersion: user.tokenVersion || 0, type: 'refresh' },
       config.auth.refreshSecret,
-      { expiresIn: config.auth.refreshExpiresIn }
+      { expiresIn: config.auth.refreshExpiresIn as any }
     );
 
     // Set refresh token as HTTP-only cookie
@@ -171,7 +171,7 @@ authRoutes.post('/logout', async (req: AuthRequest, res) => {
       path: '/api/v1/auth',
       httpOnly: true,
       secure: config.cookie.secure,
-      sameSite: config.cookie.sameSide,
+      sameSite: config.cookie.sameSite,
     });
 
     // If user is authenticated, increment token version to invalidate existing tokens
@@ -243,7 +243,7 @@ authRoutes.post('/refresh', async (req: AuthRequest, res) => {
     };
 
     const newAccessToken = jwt.sign(newPayload, config.auth.jwtSecret, {
-      expiresIn: config.auth.jwtExpiresIn,
+      expiresIn: config.auth.jwtExpiresIn as any,
     });
 
     return successResponse(res, {

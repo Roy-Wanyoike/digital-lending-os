@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express';
-import { db } from '../../prisma/client';
+import { db } from '../lib/db';
 import { authenticate, requireRoles, requireTenantAccess } from '../middleware/auth';
 import {
   successResponse,
@@ -15,6 +15,7 @@ import {
   conflictResponse,
   forbiddenResponse,
 } from '../utils/response';
+import { getQueryString, getQueryNumber } from '../utils/queryHelpers';
 import { validate, createCustomerSchema, paginationSchema } from '../middleware/validation';
 import { AuthRequest, UpdateCustomerInput } from '../types';
 
@@ -30,10 +31,10 @@ customerRoutes.use(requireTenantAccess);
  */
 customerRoutes.get('/', async (req: AuthRequest, res) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 20;
-    const tenantId = (req.query.tenantId as string) || req.user?.tenantId;
-    const status = req.query.status as string | undefined;
+    const page = getQueryNumber(req.query, "page", 1) || 1;
+    const limit = getQueryNumber(req.query, "limit", 20) || 20;
+    const tenantId = getQueryString(req.query, "tenantId") || req.user?.tenantId;
+    const status = getQueryString(req.query, "status") as string | undefined;
     const riskLevel = req.query.riskLevel as string | undefined;
     const search = req.query.search as string | undefined;
 
@@ -93,7 +94,7 @@ customerRoutes.get('/', async (req: AuthRequest, res) => {
  */
 customerRoutes.get('/:id', async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     const customer = await db.customer.findUnique({
       where: { id },
@@ -204,7 +205,7 @@ customerRoutes.post('/', validate(createCustomerSchema), async (req: AuthRequest
  */
 customerRoutes.put('/:id', async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const body: UpdateCustomerInput = req.body;
 
     const existingCustomer = await db.customer.findUnique({ where: { id } });
@@ -235,7 +236,7 @@ customerRoutes.put('/:id', async (req: AuthRequest, res) => {
  */
 customerRoutes.get('/:id/loans', async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     // Verify customer exists and belongs to tenant
     const customer = await db.customer.findUnique({ where: { id } });
@@ -273,7 +274,7 @@ customerRoutes.get('/:id/loans', async (req: AuthRequest, res) => {
  */
 customerRoutes.get('/:id/documents', async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     const customer = await db.customer.findUnique({
       where: { id },
