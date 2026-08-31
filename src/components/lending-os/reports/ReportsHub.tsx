@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -46,7 +46,11 @@ import {
   FileSpreadsheet,
   FileDown,
   RefreshCw,
-  Plus
+  Plus,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Eye
 } from 'lucide-react'
 
 // Import report components
@@ -77,6 +81,7 @@ interface RecentReport {
   status: 'ready' | 'generating' | 'failed'
   format: string
   size?: string
+  jobId?: string
 }
 
 interface ScheduledReport {
@@ -88,7 +93,21 @@ interface ScheduledReport {
   status: 'active' | 'paused'
 }
 
-// Mock Data
+interface ReportJob {
+  id: string
+  reportId: string
+  format: string
+  status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
+  requestedBy: string
+  createdAt: string
+  completedAt?: string
+  estimatedCompletion: string
+  downloadUrl?: string
+  error?: string
+  fileSize?: number
+}
+
+// Mock Data (used as fallback when API is unavailable)
 const reportCategories: ReportCategory[] = [
   {
     id: 'portfolio',
@@ -146,7 +165,7 @@ const reportCategories: ReportCategory[] = [
   }
 ]
 
-const recentReports: RecentReport[] = [
+const defaultRecentReports: RecentReport[] = [
   {
     id: '1',
     name: 'Monthly Portfolio Quality Report',
@@ -173,27 +192,10 @@ const recentReports: RecentReport[] = [
     status: 'ready',
     format: 'PDF',
     size: '3.1 MB'
-  },
-  {
-    id: '4',
-    name: 'CBK Monthly Returns - Dec 2025',
-    category: 'regulatory',
-    generatedAt: new Date(Date.now() - 259200000),
-    status: 'ready',
-    format: 'Excel',
-    size: '856 KB'
-  },
-  {
-    id: '5',
-    name: 'Financial Performance Summary',
-    category: 'financial',
-    generatedAt: new Date(),
-    status: 'generating',
-    format: 'PDF'
   }
 ]
 
-const scheduledReports: ScheduledReport[] = [
+const defaultScheduledReports: ScheduledReport[] = [
   {
     id: '1',
     name: 'Weekly Portfolio Summary',
@@ -209,22 +211,6 @@ const scheduledReports: ScheduledReport[] = [
     nextRun: new Date(Date.now() + 86400000 * 15),
     recipients: 3,
     status: 'active'
-  },
-  {
-    id: '3',
-    name: 'CBK Prudential Returns',
-    frequency: 'Monthly',
-    nextRun: new Date(Date.now() + 86400000 * 18),
-    recipients: 2,
-    status: 'active'
-  },
-  {
-    id: '4',
-    name: 'Daily Disbursement Report',
-    frequency: 'Daily',
-    nextRun: new Date(Date.now() + 3600000 * 8),
-    recipients: 8,
-    status: 'paused'
   }
 ]
 
@@ -242,6 +228,259 @@ export function ReportsHub({ tenantId = 'default' }: { tenantId?: string }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [showScheduler, setShowScheduler] = useState(false)
   const [activeTab, setActiveTab] = useState('hub')
+  
+  // API integration states
+  const [recentReports, setRecentReports] = useState<RecentReport[]>(defaultRecentReports)
+  const [scheduledReports, setScheduledReports] = useState<ScheduledReport[]>(defaultScheduledReports)
+  const [activeJobs, setActiveJobs] = useState<ReportJob[]>([])
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewData, setPreviewData] = useState<any>(null)
+  const [previewType, setPreviewType] = useState<string>('')
+  const [apiError, setApiError] = useState<string | null>(null)
+
+  // Fetch report history on mount
+  useEffect(() => {
+    fetchReportHistory()
+  }, [])
+
+  // Poll active jobs
+  useEffect(() => {
+    if (activeJobs.length > 0) {
+      const interval = setInterval(() => {
+        pollActiveJobs()
+      }, 3000)
+      return () => clearInterval(interval)
+    }
+  }, [activeJobs])
+
+  const fetchReportHistory = async () => {
+    try {
+      const response = await fetch('/api/reports/history')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.data?.history) {
+          // Transform API data to local format
+          const transformed: RecentReport[] = data.data.history.map((job: ReportJob) => ({
+            id: job.id,
+            name: `${job.reportId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`,
+            category: getReportCategory(job.reportId),
+            generatedAt: new Date(job.createdAt),
+            status: mapJobStatus(job.status) as any,
+            format: job.format === 'excel' ? 'Excel' : 'PDF',
+            jobId: job.id
+          }))
+          if (transformed.length > 0) {
+            setRecentReports(transformed.slice(0, 10))
+          }
+        }
+      }
+    } catch (error) {
+      console.log('Using mock data - API not available')
+    }
+  }
+
+  const pollActiveJobs = async () => {
+    for (const job of activeJobs) {
+      if (job.status === 'QUEUED' || job.status === 'PROCESSING') {
+        try {
+          const response = await fetch(`/api/reports/job/${job.id}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.success && data.data) {
+              updateJobStatus(data.data)
+            }
+          }
+        } catch (error) {
+          // Silent fail during polling
+        }
+      }
+    }
+  }
+
+  const updateJobStatus = (updatedJob: ReportJob) => {
+    setActiveJobs(prev => prev.map(job => 
+      job.id === updatedJob.id ? updatedJob : job
+    ))
+    
+    // Update recent reports list when completed
+    if (updatedJob.status === 'COMPLETED') {
+      setRecentReports(prev => [{
+        id: updatedJob.id,
+        name: `${updatedJob.reportId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`,
+        category: getReportCategory(updatedJob.reportId),
+        generatedAt: new Date(updatedJob.createdAt),
+        status: 'ready',
+        format: updatedJob.format === 'excel' ? 'Excel' : 'PDF',
+        jobId: updatedJob.id
+      }, ...prev.filter(r => r.id !== updatedJob.id)].slice(0, 10))
+      
+      setIsGenerating(false)
+    }
+  }
+
+  // Generate and export report
+  const handleGenerateReport = async (reportId: string, format: string = exportFormat) => {
+    setIsGenerating(true)
+    setApiError(null)
+
+    try {
+      const response = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reportId,
+          format,
+          parameters: {
+            tenantId,
+            period: dateRange
+          }
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate report')
+      }
+
+      const data = await response.json()
+      
+      if (data.success && data.data) {
+        setActiveJobs(prev => [...prev, data.data])
+        
+        // Start polling for completion
+        setTimeout(() => pollForCompletion(data.data.id), 2000)
+      }
+    } catch (error) {
+      setApiError('Failed to generate report. Please try again.')
+      setIsGenerating(false)
+    }
+  }
+
+  const pollForCompletion = async (jobId: string) => {
+    let attempts = 0
+    const maxAttempts = 20
+
+    const poll = async () => {
+      if (attempts >= maxAttempts) return
+      
+      try {
+        const response = await fetch(`/api/reports/job/${jobId}`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.data) {
+            updateJobStatus(data.data)
+            
+            if (data.data.status !== 'COMPLETED' && data.data.status !== 'FAILED') {
+              attempts++
+              setTimeout(poll, 2000)
+            }
+          }
+        }
+      } catch (error) {
+        attempts++
+        setTimeout(poll, 2000)
+      }
+    }
+
+    poll()
+  }
+
+  // Download generated report
+  const handleDownload = async (jobId: string, filename?: string) => {
+    try {
+      const response = await fetch(`/api/reports/download/${jobId}`)
+      
+      if (!response.ok) {
+        throw new Error('Download failed')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename || `report_${jobId}.${response.headers.get('content-type')?.includes('excel') ? 'xlsx' : 'pdf'}`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      setApiError('Failed to download report. The file may have expired.')
+    }
+  }
+
+  // Quick export with direct URL params
+  const handleQuickExport = async (reportType: string, format: string) => {
+    setIsGenerating(true)
+    
+    try {
+      const params = new URLSearchParams({
+        tenantId,
+        format,
+        ...(dateRange !== 'custom' && { period: dateRange })
+      })
+
+      const response = await fetch(`/api/reports/${reportType}?${params}`)
+      
+      if (!response.ok) {
+        throw new Error('Export failed')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${reportType}_report_${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'pdf'}`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      setApiError(`Failed to export ${reportType} report.`)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  // Preview report data
+  const handlePreview = async (reportType: string) => {
+    setShowPreview(true)
+    setPreviewType(reportType)
+    setPreviewData(null)
+
+    try {
+      const params = new URLSearchParams({
+        tenantId,
+        ...(dateRange !== 'custom' && { period: dateRange })
+      })
+
+      const response = await fetch(`/api/reports/${reportType}?${params}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+        setPreviewData(data.success ? data.data : data)
+      }
+    } catch (error) {
+      setPreviewData(null)
+      setApiError('Failed to load preview data')
+    }
+  }
+
+  // Helper functions
+  const getReportCategory = (reportId: string): string => {
+    if (reportId.includes('portfolio') || reportId.includes('par')) return 'portfolio'
+    if (reportId.includes('financial') || reportId.includes('revenue')) return 'financial'
+    if (reportId.includes('customer')) return 'customer'
+    if (reportId.includes('operational') || reportId.includes('application')) return 'operations'
+    return 'regulatory'
+  }
+
+  const mapJobStatus = (status: string): string => {
+    switch (status) {
+      case 'COMPLETED': return 'ready'
+      case 'FAILED': return 'failed'
+      default: return 'generating'
+    }
+  }
 
   const filteredCategories = selectedCategory === 'all' 
     ? reportCategories 
@@ -275,7 +514,7 @@ export function ReportsHub({ tenantId = 'default' }: { tenantId?: string }) {
             Reports & Analytics Hub
           </h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1 ml-14">
-            Comprehensive reporting suite for Kenya DCP operations
+            Comprehensive reporting suite with PDF/Excel export
           </p>
         </div>
 
@@ -306,7 +545,6 @@ export function ReportsHub({ tenantId = 'default' }: { tenantId?: string }) {
             <SelectContent>
               <SelectItem value="pdf">PDF</SelectItem>
               <SelectItem value="excel">Excel</SelectItem>
-              <SelectItem value="csv">CSV</SelectItem>
             </SelectContent>
           </Select>
 
@@ -330,6 +568,17 @@ export function ReportsHub({ tenantId = 'default' }: { tenantId?: string }) {
           </Dialog>
         </div>
       </div>
+
+      {/* Error Message */}
+      {apiError && (
+        <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700">
+          <XCircle className="w-5 h-5 shrink-0" />
+          <span>{apiError}</span>
+          <button onClick={() => setApiError(null)} className="ml-auto">
+            <XCircle className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Main Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -430,6 +679,52 @@ export function ReportsHub({ tenantId = 'default' }: { tenantId?: string }) {
             </Card>
           </div>
 
+          {/* Quick Export Actions */}
+          <Card className="border-dashed bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900 dark:to-gray-900">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h4 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Download className="w-4 h-4 text-emerald-600" />
+                    Quick Export
+                  </h4>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Generate and download reports instantly in your selected format
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleQuickExport('portfolio', exportFormat)}
+                    disabled={isGenerating}
+                  >
+                    {isGenerating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileDown className="w-4 h-4 mr-1" />}
+                    Portfolio
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleQuickExport('financial', exportFormat)}
+                    disabled={isGenerating}
+                  >
+                    {isGenerating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileDown className="w-4 h-4 mr-1" />}
+                    Financial
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleQuickExport('operational', exportFormat)}
+                    disabled={isGenerating}
+                  >
+                    {isGenerating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileDown className="w-4 h-4 mr-1" />}
+                    Operations
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Report Categories Grid */}
           <section>
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
@@ -475,8 +770,20 @@ export function ReportsHub({ tenantId = 'default' }: { tenantId?: string }) {
                         </Badge>
                       ))}
                     </div>
-                    <div className="mt-3 flex items-center text-xs text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="mt-3 flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity">
                       View reports <ChevronRight className="w-3 h-3 ml-1" />
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleQuickExport(
+                            category.id === 'risk' ? 'portfolio' : category.id,
+                            exportFormat
+                          )
+                        }}
+                        className="ml-auto p-1 hover:bg-emerald-100 dark:hover:bg-emerald-900 rounded"
+                      >
+                        <Download className="w-3 h-3" />
+                      </button>
                     </div>
                   </CardContent>
                 </Card>
@@ -494,58 +801,84 @@ export function ReportsHub({ tenantId = 'default' }: { tenantId?: string }) {
                     <Clock className="w-4 h-4 text-slate-500" />
                     Recently Generated
                   </CardTitle>
-                  <Button variant="ghost" size="sm" className="text-xs">
-                    View All
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" className="text-xs" onClick={fetchReportHistory}>
+                      <RefreshCw className="w-3 h-3 mr-1" />
+                      Refresh
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {filteredRecentReports.slice(0, 5).map((report) => (
-                    <div 
-                      key={report.id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`p-2 rounded-lg shrink-0 ${
-                          report.format === 'PDF' ? 'bg-red-100 text-red-600' :
-                          report.format === 'Excel' ? 'bg-green-100 text-green-600' :
-                          'bg-blue-100 text-blue-600'
-                        }`}>
-                          {report.format === 'PDF' ? <FileDown className="w-4 h-4" /> :
-                           report.format === 'Excel' ? <FileSpreadsheet className="w-4 h-4" /> :
-                           <FileText className="w-4 h-4" />}
+                  {filteredRecentReports.slice(0, 5).map((report) => {
+                    // Find matching active job
+                    const activeJob = activeJobs.find(j => j.id === report.jobId)
+                    
+                    return (
+                      <div 
+                        key={report.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`p-2 rounded-lg shrink-0 ${
+                            report.format === 'PDF' ? 'bg-red-100 text-red-600' :
+                            report.format === 'Excel' ? 'bg-green-100 text-green-600' :
+                            'bg-blue-100 text-blue-600'
+                          }`}>
+                            {report.format === 'PDF' ? <FileDown className="w-4 h-4" /> :
+                             report.format === 'Excel' ? <FileSpreadsheet className="w-4 h-4" /> :
+                             <FileText className="w-4 h-4" />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm text-slate-900 dark:text-white truncate">
+                              {report.name}
+                            </p>
+                            <p className="text-xs text-slate-500 flex items-center gap-2">
+                              <span>{formatDate(report.generatedAt)}</span>
+                              {report.size && <span>• {report.size}</span>}
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-sm text-slate-900 dark:text-white truncate">
-                            {report.name}
-                          </p>
-                          <p className="text-xs text-slate-500 flex items-center gap-2">
-                            <span>{formatDate(report.generatedAt)}</span>
-                            {report.size && <span>• {report.size}</span>}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {report.status === 'ready' && (
-                          <>
-                            <Badge variant="outline" className="text-xs border-emerald-500 text-emerald-600">
-                              Ready
+                        <div className="flex items-center gap-2 shrink-0">
+                          {(report.status === 'ready' || activeJob?.status === 'COMPLETED') && (
+                            <>
+                              <Badge variant="outline" className="text-xs border-emerald-500 text-emerald-600">
+                                Ready
+                              </Badge>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8"
+                                onClick={() => handleDownload(report.jobId || report.id)}
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                          {(report.status === 'generating' || ['QUEUED', 'PROCESSING'].includes(activeJob?.status || '')) && (
+                            <Badge variant="outline" className="text-xs border-amber-500 text-amber-600">
+                              <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                              Generating...
                             </Badge>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Download className="w-4 h-4" />
-                            </Button>
-                          </>
-                        )}
-                        {report.status === 'generating' && (
-                          <Badge variant="outline" className="text-xs border-amber-500 text-amber-600">
-                            <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                            Generating
-                          </Badge>
-                        )}
+                          )}
+                          {report.status === 'failed' && (
+                            <Badge variant="outline" className="text-xs border-red-500 text-red-600">
+                              Failed
+                            </Badge>
+                          )}
+                        </div>
                       </div>
+                    )
+                  })}
+                  
+                  {filteredRecentReports.length === 0 && (
+                    <div className="text-center py-8 text-slate-500">
+                      <FileText className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                      <p>No reports generated yet</p>
+                      <p className="text-sm">Use Quick Export or select a category above</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -629,14 +962,36 @@ export function ReportsHub({ tenantId = 'default' }: { tenantId?: string }) {
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {favoriteReports.map((name, index) => (
-                  <Button 
-                    key={index}
-                    variant="outline" 
-                    className="justify-start h-auto py-3 px-4"
-                  >
-                    <Star className="w-4 h-4 mr-2 text-amber-500 shrink-0" />
-                    <span className="truncate text-left">{name}</span>
-                  </Button>
+                  <div key={index} className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="justify-start h-auto py-3 px-4 flex-1"
+                      onClick={() => handlePreview(
+                        name.toLowerCase().includes('portfolio') ? 'portfolio' :
+                        name.toLowerCase().includes('par') ? 'portfolio' :
+                        name.toLowerCase().includes('customer') ? 'customer' :
+                        name.toLowerCase().includes('financial') ? 'financial' :
+                        name.toLowerCase().includes('cbk') ? 'operational' : 'portfolio'
+                      )}
+                    >
+                      <Star className="w-4 h-4 mr-2 text-amber-500 shrink-0" />
+                      <span className="truncate text-left">{name}</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon"
+                      className="shrink-0"
+                      onClick={() => handleGenerateReport(
+                        name.toLowerCase().includes('portfolio') ? 'portfolio-overview' :
+                        name.toLowerCase().includes('par') ? 'par-analysis' :
+                        name.toLowerCase().includes('customer') ? 'customer-overview' :
+                        name.toLowerCase().includes('financial') ? 'financial-pnl' :
+                        name.toLowerCase().includes('cbk') ? 'cbk-reporting' : 'portfolio-overview'
+                      )}
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                  </div>
                 ))}
               </div>
             </CardContent>
@@ -645,7 +1000,7 @@ export function ReportsHub({ tenantId = 'default' }: { tenantId?: string }) {
 
         {/* Portfolio Tab */}
         <TabsContent value="portfolio" className="mt-6">
-          <PortfolioQualityReport dateRange={dateRange} exportFormat={exportFormat} />
+          <PortfolioQualityReport dateRange={dateRange} exportFormat={exportFormat} onExport={() => handleQuickExport('portfolio', exportFormat)} />
         </TabsContent>
 
         {/* Disbursements Tab */}
@@ -660,12 +1015,12 @@ export function ReportsHub({ tenantId = 'default' }: { tenantId?: string }) {
 
         {/* Financial Tab */}
         <TabsContent value="financial" className="mt-6">
-          <FinancialPerformanceReport dateRange={dateRange} exportFormat={exportFormat} />
+          <FinancialPerformanceReport dateRange={dateRange} exportFormat={exportFormat} onExport={() => handleQuickExport('financial', exportFormat)} />
         </TabsContent>
 
         {/* Operations Tab */}
         <TabsContent value="operations" className="mt-6">
-          <OperationalMetricsReport dateRange={dateRange} exportFormat={exportFormat} />
+          <OperationalMetricsReport dateRange={dateRange} exportFormat={exportFormat} onExport={() => handleQuickExport('operational', exportFormat)} />
         </TabsContent>
 
         {/* Regulatory Tab */}
@@ -678,6 +1033,55 @@ export function ReportsHub({ tenantId = 'default' }: { tenantId?: string }) {
           <ReportScheduler />
         </TabsContent>
       </Tabs>
+
+      {/* Preview Dialog */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Report Preview - {previewType.charAt(0).toUpperCase() + previewType.slice(1)}
+            </DialogTitle>
+            <DialogDescription>
+              Preview of report data. Export to PDF or Excel for full formatting.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex gap-2 mb-4">
+            <Button 
+              onClick={() => {
+                handleQuickExport(previewType, 'pdf')
+                setShowPreview(false)
+              }}
+              disabled={isGenerating}
+            >
+              <FileDown className="w-4 h-4 mr-2" />
+              Export PDF
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => {
+                handleQuickExport(previewType, 'excel')
+                setShowPreview(false)
+              }}
+              disabled={isGenerating}
+            >
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Export Excel
+            </Button>
+          </div>
+
+          {previewData ? (
+            <pre className="bg-slate-100 dark:bg-slate-900 p-4 rounded-lg text-xs overflow-auto max-h-[60vh]">
+              {JSON.stringify(previewData, null, 2)}
+            </pre>
+          ) : (
+            <div className="flex items-center justify-center h-48">
+              <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

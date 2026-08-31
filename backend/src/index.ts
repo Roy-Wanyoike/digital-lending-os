@@ -20,7 +20,9 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
 import { config } from './config';
+import { swaggerSpec } from './config/swagger';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFound';
@@ -118,6 +120,30 @@ if (config.nodeEnv === 'development') {
 }
 
 // =============================================================================
+// SWAGGER API DOCUMENTATION
+// =============================================================================
+
+// Serve Swagger UI at /api-docs
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Digital Lending OS API Documentation',
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    filter: true,
+    tryItOutEnabled: true,
+  },
+}));
+
+// Serve raw OpenAPI JSON spec at /api-docs.json
+app.get('/api-docs.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
+logger.info('📚 Swagger UI available at /api-docs');
+
+// =============================================================================
 // HEALTH CHECK & ROOT ENDPOINTS
 // =============================================================================
 
@@ -129,7 +155,11 @@ app.get('/', (_req, res) => {
     status: 'operational',
     environment: config.nodeEnv,
     timestamp: new Date().toISOString(),
-    documentation: '/api/docs',
+    documentation: {
+      swaggerUi: '/api-docs',
+      openApiSpec: '/api-docs.json',
+      readme: '/api/docs',
+    },
     health: '/api/health',
   });
 });
@@ -262,9 +292,10 @@ app.listen(PORT, () => {
 ║   📊 Mode: ${config.isProduction ? 'Production' : 'Development'}                          ║
 ║                                                                ║
 ║   Available Endpoints:                                        ║
-║   • Health Check: http://localhost:${PORT}/api/health          ║
-║   • API Docs:     http://localhost:${PORT}/api/docs            ║
-║   • API Base:     http://localhost:${PORT}/api/v1              ║
+║   • Health Check:  http://localhost:${PORT}/api/health          ║
+║   • Swagger UI:    http://localhost:${PORT}/api-docs            ║
+║   • OpenAPI Spec:  http://localhost:${PORT}/api-docs.json       ║
+║   • API Base:      http://localhost:${PORT}/api/v1              ║
 ║                                                                ║
 ╚════════════════════════════════════════════════════════════════╝
   `);

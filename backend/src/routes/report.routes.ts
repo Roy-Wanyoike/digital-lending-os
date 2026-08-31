@@ -2,6 +2,9 @@
  * Reports & Analytics Routes
  * 
  * Report generation, scheduling, and data export endpoints.
+ * 
+ * @openapi
+ * tags: [Reports]
  */
 
 import { Router } from 'express';
@@ -25,8 +28,53 @@ reportRoutes.use(requireTenantAccess);
 // =============================================================================
 
 /**
- * GET /api/v1/reports
- * Get catalog of available reports
+ * @openapi
+ * /reports:
+ *   get:
+ *     summary: Get available reports catalog
+ *     description: Retrieve a list of all available reports with their categories and endpoints.
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Reports catalog retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reports:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           category:
+ *                             type: string
+ *                           endpoint:
+ *                             type: string
+ *                               format: uri
+ *                     categories:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                     totalReports:
+ *                       type: integer
  */
 reportRoutes.get('/', (_req: AuthRequest, res) => {
   const reports = [
@@ -70,8 +118,76 @@ reportRoutes.get('/', (_req: AuthRequest, res) => {
 // =============================================================================
 
 /**
- * GET /api/v1/reports/portfolio
- * Portfolio quality report with PAR analysis
+ * @openapi
+ * /reports/portfolio:
+ *   get:
+ *     summary: Generate portfolio quality report
+ *     description: |
+ *       Comprehensive portfolio analysis including:
+ *       - Total loans and active loans count
+ *       - Disbursed amount and outstanding balance
+ *       - PAR (Portfolio at Risk) analysis at 1, 30, and 90 days
+ *       - Average loan size metrics
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: tenantId
+ *         schema:
+ *           type: string
+ *         description: Tenant ID for the report
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [7d, 30d, 90d, 12m]
+ *           default: "30d"
+ *         description: Report period
+ *     responses:
+ *       200:
+ *         description: Portfolio report generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         totalLoans:
+ *                           type: integer
+ *                         activeLoans:
+ *                           type: integer
+ *                         totalDisbursed:
+ *                           type: number
+ *                         totalOutstanding:
+ *                           type: number
+ *                         averageLoanSize:
+ *                           type: number
+ *                     parAnalysis:
+ *                       type: object
+ *                       properties:
+ *                         par1:
+ *                           type: number
+ *                           description: PAR > 1 day (%)
+ *                         par30:
+ *                           type: number
+ *                           description: PAR > 30 days (%)
+ *                         par90:
+ *                           type: number
+ *                           description: PAR > 90 days (%)
+ *                     period:
+ *                       type: string
+ *                     generatedAt:
+ *                       type: string
+ *                       format: date-time
  */
 reportRoutes.get('/portfolio', async (req: AuthRequest, res) => {
   try {
@@ -124,8 +240,81 @@ reportRoutes.get('/portfolio', async (req: AuthRequest, res) => {
 // =============================================================================
 
 /**
- * GET /api/v1/reports/customer
- * Customer analytics and segmentation
+ * @openapi
+ * /reports/customer:
+ *   get:
+ *     summary: Generate customer analytics report
+ *     description: |
+ *       Customer segmentation and analytics including:
+ *       - Total customer count and growth rate
+ *       - Risk level distribution
+ *       - Geographic distribution by county
+ *       - New customer acquisition metrics
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: tenantId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Tenant ID for the report
+ *       - in: query
+ *         name: segmentBy
+ *         schema:
+ *           type: string
+ *           enum: [riskLevel, county, employmentStatus]
+ *         description: Segmentation criteria
+ *     responses:
+ *       200:
+ *         description: Customer report generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         totalCustomers:
+ *                           type: integer
+ *                         newCustomersThisMonth:
+ *                           type: integer
+ *                         growthRate:
+ *                           type: number
+ *                     segmentation:
+ *                       type: object
+ *                       properties:
+ *                         byRiskLevel:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               segment:
+ *                                 type: string
+ *                               count:
+ *                                 type: integer
+ *                               percentage:
+ *                                 type: number
+ *                         byGeography:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               county:
+ *                                 type: string
+ *                               count:
+ *                                 type: integer
+ *                     generatedAt:
+ *                       type: string
+ *                       format: date-time
  */
 reportRoutes.get('/customer', async (req: AuthRequest, res) => {
   try {
@@ -183,8 +372,70 @@ reportRoutes.get('/customer', async (req: AuthRequest, res) => {
 // =============================================================================
 
 /**
- * GET /api/v1/reports/financial
- * Financial performance report (P&L, revenue mix)
+ * @openapi
+ * /reports/financial:
+ *   get:
+ *     summary: Generate financial performance report
+ *     description: |
+ *       Financial P&L analysis including:
+ *       - Revenue breakdown (interest, fees, penalties)
+ *       - Cost analysis (operating costs, cost of funds, provisions)
+ *       - Key financial ratios (yield on portfolio, cost-to-income, NIM)
+ *       - Net profit calculation
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: tenantId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Tenant ID for the report
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [daily, weekly, monthly, quarterly, yearly]
+ *           default: "monthly"
+ *         description: Reporting period
+ *     responses:
+ *       200:
+ *         description: Financial report generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     profitLoss:
+ *                       type: object
+ *                       properties:
+ *                         revenue:
+ *                           type: object
+ *                         costs:
+ *                           type: object
+ *                         netProfit:
+ *                           type: number
+ *                     keyRatios:
+ *                       type: object
+ *                       properties:
+ *                         yieldOnPortfolio:
+*                            type: string
+ *                         costToIncome:
+ *                           type: string
+ *                         netInterestMargin:
+ *                           type: string
+ *                     period:
+ *                       type: string
+ *                     generatedAt:
+ *                       type: string
+ *                       format: date-time
  */
 reportRoutes.get('/financial', async (req: AuthRequest, res) => {
   try {
@@ -259,8 +510,73 @@ reportRoutes.get('/financial', async (req: AuthRequest, res) => {
 // =============================================================================
 
 /**
- * GET /api/v1/reports/operational
- * Operational metrics and staff performance
+ * @openapi
+ * /reports/operational:
+ *   get:
+ *     summary: Generate operational metrics report
+ *     description: |
+ *       Operational KPIs including:
+ *       - Application pipeline statistics
+ *       - Approval and rejection rates
+ *       - Average processing time
+ *       - Staff performance leaderboard
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: tenantId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Tenant ID for the report
+ *     responses:
+ *       200:
+ *         description: Operational report generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     applicationPipeline:
+ *                       type: object
+ *                       properties:
+ *                         totalApplications:
+ *                           type: integer
+ *                         approved:
+ *                           type: integer
+ *                         rejected:
+ *                           type: integer
+ *                         pending:
+ *                           type: integer
+ *                         approvalRate:
+ *                           type: number
+ *                         averageProcessingTimeHours:
+ *                           type: number
+ *                     staffPerformance:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           staffName:
+ *                             type: string
+ *                           role:
+ *                             type: string
+ *                           applicationsProcessed:
+ *                             type: integer
+ *                           approvalRate:
+ *                             type: number
+ *                           collectionRate:
+ *                             type: number
+ *                     generatedAt:
+ *                       type: string
+ *                       format: date-time
  */
 reportRoutes.get('/operational', async (req: AuthRequest, res) => {
   try {
@@ -305,8 +621,64 @@ reportRoutes.get('/operational', async (req: AuthRequest, res) => {
 // =============================================================================
 
 /**
- * POST /api/v1/reports/generate
- * Generate and queue a report for async generation
+ * @openapi
+ * /reports/generate:
+ *   post:
+ *     summary: Queue report for generation
+ *     description: |
+ *       Queue a report for async generation and download.
+ *       Supports PDF, Excel, and CSV output formats.
+ *       Returns a job ID that can be used to track progress.
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/GenerateReportRequest'
+ *     responses:
+ *       200:
+ *         description: Report generation queued successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       example: "job-1703123456789"
+ *                     reportId:
+ *                       type: string
+ *                     format:
+ *                       type: string
+ *                       enum: [pdf, excel, csv]
+ *                     status:
+ *                       type: string
+ *                       example: "QUEUED"
+ *                     requestedBy:
+ *                       type: string
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                     estimatedCompletion:
+ *                       type: string
+ *                       format: date-time
+ *                     downloadUrl:
+ *                       type: string
+ *                       format: uri
+ *                 message:
+ *                   type: string
+ *                   example: "Report generation queued successfully"
+ *       400:
+ *         description: Invalid request or unsupported format
  */
 reportRoutes.post('/generate', async (req: AuthRequest, res) => {
   try {

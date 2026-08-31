@@ -2,6 +2,9 @@
  * Loan Management Routes
  * 
  * Complete loan lifecycle: creation, disbursement, status updates, and queries.
+ * 
+ * @openapi
+ * tags: [Loans]
  */
 
 import { Router } from 'express';
@@ -26,8 +29,61 @@ loanRoutes.use(authenticate);
 loanRoutes.use(requireTenantAccess);
 
 /**
- * GET /api/v1/loans
- * List loans with filtering and pagination
+ * @openapi
+ * /loans:
+ *   get:
+ *     summary: List loans
+ *     description: |
+ *       Retrieve a paginated list of loans with filtering options.
+ *       Supports filtering by status, customer ID, and arrears status.
+ *       Customer role should use /customers/{id}/loans instead.
+ *     tags: [Loans]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           maximum: 100
+ *           default: 20
+ *       - in: query
+ *         name: tenantId
+ *         schema:
+ *           type: string
+ *         description: Filter by tenant ID
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [APPROVED, PENDING_DISBURSEMENT, ACTIVE, IN_ARREARS, PAID_OFF, DEFAULTED, RESTRUCTURED, WRITTEN_OFF, CANCELLED]
+ *         description: Filter by loan status
+ *       - in: query
+ *         name: customerId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Filter by customer ID
+ *       - in: query
+ *         name: arrearsStatus
+ *         schema:
+ *           type: string
+ *           enum: [CURRENT, 1_30_DAYS, 31_60_DAYS, 61_90_DAYS, OVER_90_DAYS]
+ *         description: Filter by arrears status
+ *     responses:
+ *       200:
+ *         description: List of loans retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PaginatedResponse'
+ *       403:
+ *         description: Forbidden - CUSTOMER role cannot access this endpoint directly
  */
 loanRoutes.get('/', async (req: AuthRequest, res) => {
   try {
@@ -82,8 +138,59 @@ loanRoutes.get('/', async (req: AuthRequest, res) => {
 });
 
 /**
- * GET /api/v1/loans/:id
- * Get loan by ID with full details including schedule
+ * @openapi
+ * /loans/{id}:
+ *   get:
+ *     summary: Get loan by ID
+ *     description: Retrieve detailed loan information including repayment schedule and history.
+ *     tags: [Loans]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Loan unique identifier
+ *     responses:
+ *       200:
+ *         description: Loan details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   allOf:
+ *                     - $ref: '#/components/schemas/Loan'
+ *                     - type: object
+ *                       properties:
+ *                         parsedRepaymentSchedule:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               installmentNo:
+ *                                 type: integer
+ *                               dueDate:
+ *                                 type: string
+ *                               principal:
+ *                                 type: number
+ *                               interest:
+ *                                 type: number
+ *                               total:
+ *                                 type: number
+ *                               status:
+ *                                 type: string
+ *       403:
+ *         description: Cannot access other tenant's loan
+ *       404:
+ *         description: Loan not found
  */
 loanRoutes.get('/:id', async (req: AuthRequest, res) => {
   try {
@@ -132,9 +239,45 @@ loanRoutes.get('/:id', async (req: AuthRequest, res) => {
 });
 
 /**
- * POST /api/v1/loans
- * Create new loan from approved application
- * Requires MANAGER or higher role
+ * @openapi
+ * /loans:
+ *   post:
+ *     summary: Create new loan
+ *     description: |
+ *       Create a new loan from an approved application.
+ *       Requires MANAGER or higher role.
+ *       Automatically generates loan number, calculates financials, and creates repayment schedule.
+ *     tags: [Loans]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateLoanRequest'
+ *     responses:
+ *       201:
+ *         description: Loan created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Loan'
+ *                 message:
+ *                   type: string
+ *                   example: "Loan created successfully"
+ *       400:
+ *         description: Invalid input or validation error
+ *       403:
+ *         description: Requires MANAGER or higher role
+ *       404:
+ *         description: Customer or product not found
  */
 loanRoutes.post('/', requireRoles(['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER']), validate(createLoanSchema), async (req: AuthRequest, res) => {
   try {
@@ -222,8 +365,56 @@ loanRoutes.post('/', requireRoles(['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER']), v
 });
 
 /**
- * PATCH /api/v1/loans/:id/status
- * Update loan status (disburse, activate, write off, etc.)
+ * @openapi
+ * /loans/{id}/status:
+ *   patch:
+ *     summary: Update loan status
+ *     description: |
+ *       Transition a loan to a new status.
+ *       Only valid state transitions are allowed:
+ *       - APPROVED → PENDING_DISBURSEMENT, CANCELLED
+ *       - PENDING_DISBURSEMENT → ACTIVE, CANCELLED
+ *       - ACTIVE → IN_ARREARS, PAID_OFF, RESTRUCTURED, DEFAULTED
+ *       - IN_ARREARS → ACTIVE, DEFAULTED, RESTRUCTURED, WRITTEN_OFF
+ *       - DEFAULTED → WRITTEN_OFF, RESTRUCTURED
+ *     tags: [Loans]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/UpdateLoanStatusRequest'
+ *     responses:
+ *       200:
+ *         description: Loan status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Loan'
+ *                 message:
+ *                   type: string
+ *                   example: "Loan status updated to ACTIVE"
+ *       400:
+ *         description: Invalid status transition
+ *       403:
+ *         description: Requires MANAGER or higher role
+ *       404:
+ *         description: Loan not found
  */
 loanRoutes.patch('/:id/status', requireRoles(['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER']), async (req: AuthRequest, res) => {
   try {

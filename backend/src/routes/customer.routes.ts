@@ -2,6 +2,9 @@
  * Customer Management Routes
  * 
  * CRUD operations for customer profiles, KYC data, and documents.
+ * 
+ * @openapi
+ * tags: [Customers]
  */
 
 import { Router } from 'express';
@@ -26,8 +29,58 @@ customerRoutes.use(authenticate);
 customerRoutes.use(requireTenantAccess);
 
 /**
- * GET /api/v1/customers
- * List customers with filtering and pagination
+ * @openapi
+ * /customers:
+ *   get:
+ *     summary: List customers
+ *     description: |
+ *       Retrieve a paginated list of customers with filtering options.
+ *       Supports search by name, phone, email, or national ID.
+ *       Customers cannot access this endpoint (use their specific endpoints instead).
+ *     tags: [Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           maximum: 100
+ *           default: 20
+ *       - in: query
+ *         name: tenantId
+ *         schema:
+ *           type: string
+ *         description: Filter by tenant ID
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [ACTIVE, INACTIVE, BLACKLISTED]
+ *       - in: query
+ *         name: riskLevel
+ *         schema:
+ *           type: string
+ *           enum: [LOW, MEDIUM, HIGH, CRITICAL]
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by first name, last name, phone, email, or national ID
+ *     responses:
+ *       200:
+ *         description: List of customers retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PaginatedResponse'
+ *       403:
+ *         description: Forbidden - CUSTOMER role cannot access this endpoint
  */
 customerRoutes.get('/', async (req: AuthRequest, res) => {
   try {
@@ -89,8 +142,39 @@ customerRoutes.get('/', async (req: AuthRequest, res) => {
 });
 
 /**
- * GET /api/v1/customers/:id
- * Get customer by ID with full profile
+ * @openapi
+ * /customers/{id}:
+ *   get:
+ *     summary: Get customer by ID
+ *     description: Retrieve detailed customer profile including recent loans, applications, and documents.
+ *     tags: [Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Customer unique identifier
+ *     responses:
+ *       200:
+ *         description: Customer details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Customer'
+ *       403:
+ *         description: Cannot access other tenant's customer
+ *       404:
+ *         description: Customer not found
  */
 customerRoutes.get('/:id', async (req: AuthRequest, res) => {
   try {
@@ -144,8 +228,40 @@ customerRoutes.get('/:id', async (req: AuthRequest, res) => {
 });
 
 /**
- * POST /api/v1/customers
- * Create new customer
+ * @openapi
+ * /customers:
+ *   post:
+ *     summary: Create new customer
+ *     description: Register a new customer in the system. Phone number must be unique within the tenant.
+ *     tags: [Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateCustomerRequest'
+ *     responses:
+ *       201:
+ *         description: Customer created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Customer'
+ *                 message:
+ *                   type: string
+ *                   example: "Customer created successfully"
+ *       400:
+ *         description: Invalid input data
+ *       409:
+ *         description: Phone number already exists for this tenant
  */
 customerRoutes.post('/', validate(createCustomerSchema), async (req: AuthRequest, res) => {
   try {
@@ -200,8 +316,82 @@ customerRoutes.post('/', validate(createCustomerSchema), async (req: AuthRequest
 });
 
 /**
- * PUT /api/v1/customers/:id
- * Update customer information
+ * @openapi
+ * /customers/{id}:
+ *   put:
+ *     summary: Update customer information
+ *     description: Update an existing customer's profile information. Only fields provided will be updated.
+ *     tags: [Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               phone:
+ *                 type: string
+ *               alternativePhone:
+ *                 type: string
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *               gender:
+ *                 type: string
+ *               employmentStatus:
+ *                 type: string
+ *               employerName:
+ *                 type: string
+ *               incomeAmount:
+ *                 type: number
+ *               county:
+ *                 type: string
+ *               city:
+ *                 type: string
+ *               mpesaPhone:
+ *                 type: string
+ *               riskLevel:
+ *                 type: string
+ *                 enum: [LOW, MEDIUM, HIGH, CRITICAL]
+ *               status:
+ *                 type: string
+ *                 enum: [ACTIVE, INACTIVE, BLACKLISTED]
+ *     responses:
+ *       200:
+ *         description: Customer updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Customer'
+ *                 message:
+ *                   type: string
+ *                   example: "Customer updated successfully"
+ *       403:
+ *         description: Cannot update customer from another tenant
+ *       404:
+ *         description: Customer not found
  */
 customerRoutes.put('/:id', async (req: AuthRequest, res) => {
   try {
@@ -231,8 +421,39 @@ customerRoutes.put('/:id', async (req: AuthRequest, res) => {
 });
 
 /**
- * GET /api/v1/customers/:id/loans
- * Get all loans for a specific customer
+ * @openapi
+ * /customers/{id}/loans:
+ *   get:
+ *     summary: Get customer's loans
+ *     description: Retrieve all loans associated with a specific customer including product info and repayment counts.
+ *     tags: [Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Customer ID
+ *     responses:
+ *       200:
+ *         description: Customer loans retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Loan'
+ *       404:
+ *         description: Customer not found
  */
 customerRoutes.get('/:id/loans', async (req: AuthRequest, res) => {
   try {
@@ -269,8 +490,49 @@ customerRoutes.get('/:id/loans', async (req: AuthRequest, res) => {
 });
 
 /**
- * GET /api/v1/customers/:id/documents
- * Get customer's KYC documents
+ * @openapi
+ * /customers/{id}/documents:
+ *   get:
+ *     summary: Get customer's KYC documents
+ *     description: Retrieve all uploaded KYC documents for a specific customer.
+ *     tags: [Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Customer ID
+ *     responses:
+ *       200:
+ *         description: Customer documents retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       documentType:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *                       uploadedAt:
+ *                         type: string
+ *                         format: date-time
+ *       404:
+ *         description: Customer not found
  */
 customerRoutes.get('/:id/documents', async (req: AuthRequest, res) => {
   try {

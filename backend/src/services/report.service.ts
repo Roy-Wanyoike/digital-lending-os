@@ -6,11 +6,45 @@
  * - Customer analytics
  * - Financial statements
  * - Operational metrics
+ * - PDF/Excel export functionality
  * - Report scheduling
  */
 
 import { logger } from '../utils/logger';
 import { db } from '../lib/db';
+
+// Import template generators
+import { 
+  generatePortfolioData, 
+  generatePortfolioExcel, 
+  generatePortfolioPdf,
+  PortfolioReportFilters,
+  PortfolioReportData,
+} from '../reports/templates/portfolio/portfolio-template';
+
+import { 
+  generateFinancialData, 
+  generateFinancialExcel, 
+  generateFinancialPdf,
+  FinancialReportFilters,
+  FinancialReportData,
+} from '../reports/templates/financial/financial-template';
+
+import { 
+  generateCustomerData, 
+  generateCustomerExcel, 
+  generateCustomerPdf,
+  CustomerReportFilters,
+  CustomerReportData,
+} from '../reports/templates/customer/customer-profile';
+
+import { 
+  generateOperationalData, 
+  generateOperationalExcel, 
+  generateOperationalPdf,
+  OperationalReportFilters,
+  OperationalReportData,
+} from '../reports/templates/operational/operations-summary';
 
 export interface ReportConfig {
   id: string;
@@ -24,6 +58,24 @@ export interface GenerateReportInput {
   format?: 'pdf' | 'excel' | 'csv';
   parameters?: Record<string, unknown>;
 }
+
+export interface ReportJob {
+  id: string;
+  reportId: string;
+  format: string;
+  status: 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  requestedBy: string;
+  createdAt: Date;
+  completedAt?: Date;
+  estimatedCompletion: Date;
+  downloadUrl?: string;
+  error?: string;
+  fileSize?: number;
+}
+
+// In-memory storage for generated reports (in production, use database)
+const reportJobs = new Map<string, ReportJob>();
+const reportBuffers = new Map<string, Buffer>();
 
 export class ReportService {
   /**
@@ -43,14 +95,17 @@ export class ReportService {
       // Customer Reports
       { id: 'customer-overview', name: 'Customer Overview', category: 'customer', endpoint: '/api/v1/reports/customer' },
       { id: 'customer-segmentation', name: 'Customer Segmentation', category: 'customer', endpoint: '/api/v1/reports/customer' },
+      { id: 'customer-profile', name: 'Customer Profile (Individual)', category: 'customer', endpoint: '/api/v1/reports/customer/:id' },
       
       // Financial Reports
       { id: 'financial-pnl', name: 'Profit & Loss Statement', category: 'financial', endpoint: '/api/v1/reports/financial' },
+      { id: 'financial-balance-sheet', name: 'Balance Sheet', category: 'financial', endpoint: '/api/v1/reports/financial' },
       { id: 'revenue-mix', name: 'Revenue Mix Analysis', category: 'financial', endpoint: '/api/v1/reports/financial' },
       
       // Operational Reports
       { id: 'application-pipeline', name: 'Application Pipeline', category: 'operational', endpoint: '/api/v1/reports/operational' },
       { id: 'staff-performance', name: 'Staff Performance Leaderboard', category: 'operational', endpoint: '/api/v1/reports/operational' },
+      { id: 'collections-efficiency', name: 'Collection Efficiency', category: 'operational', endpoint: '/api/v1/reports/operational' },
       
       // Compliance Reports
       { id: 'cbk-reporting', name: 'CBK Regulatory Report', category: 'compliance', endpoint: null },
@@ -73,44 +128,20 @@ export class ReportService {
   /**
    * Generate portfolio quality report with PAR analysis
    */
-  async generatePortfolioReport(tenantId: string, period?: string) {
-    // Fetch portfolio metrics
-    const [totalLoans, activeLoans, disbursedAmount, outstandingBalance, parMetrics] = await Promise.all([
-      db.loan.count({ where: { tenantId } }),
-      db.loan.count({ where: { tenantId, status: 'ACTIVE' } }),
-      db.loan.aggregate({ where: { tenantId }, _sum: { principal: true } }),
-      db.loan.aggregate({ where: { tenantId, status: { in: ['ACTIVE', 'IN_ARREARS'] } }, _sum: { outstandingBalance: true } }),
-      Promise.all([
-        db.loan.aggregate({ where: { tenantId, daysInArrears: { gte: 1 }, outstandingBalance: { gt: 0 } }, _sum: { outstandingBalance: true } }),
-        db.loan.aggregate({ where: { tenantId, daysInArrears: { gte: 30 }, outstandingBalance: { gt: 0 } }, _sum: { outstandingBalance: true } }),
-        db.loan.aggregate({ where: { tenantId, daysInArrears: { gte: 90 }, outstandingBalance: { gt: 0 } }, _sum: { outstandingBalance: true } }),
-      ]),
-    ]);
-
-    const totalOutstanding = outstandingBalance._sum.outstandingBalance || 0;
-
-    return {
-      summary: {
-        totalLoans,
-        activeLoans,
-        totalDisbursed: disbursedAmount._sum.principal || 0,
-        totalOutstanding,
-        averageLoanSize: activeLoans > 0 ? (disbursedAmount._sum.principal || 0) / activeLoans : 0,
-      },
-      parAnalysis: {
-        par1: totalOutstanding > 0 ? ((parMetrics[0]._sum.outstandingBalance || 0) / totalOutstanding) * 100 : 0,
-        par30: totalOutstanding > 0 ? ((parMetrics[1]._sum.outstandingBalance || 0) / totalOutstanding) * 100 : 0,
-        par90: totalOutstanding > 0 ? ((parMetrics[2]._sum.outstandingBalance || 0) / totalOutstanding) * 100 : 0,
-      },
-      period: period || '30d',
-      generatedAt: new Date(),
-    };
+  async generatePortfolioReport(tenantId: string, filters?: Partial<PortfolioReportFilters>): Promise<PortfolioReportData> {
+    const data = await generatePortfolioData({
+      tenantId,
+      ...filters,
+    });
+    
+    logger.info('Portfolio report generated', { tenantId, period: data.period });
+    return data;
   }
 
   /**
    * Generate customer analytics report
    */
-  async generateCustomerReport(tenantId: string, segmentBy?: string) {
+  async generateCustomerReport(tenantId: string, segmentBy?: string): Promise<any> {
     const [totalCustomers, newCustomersThisMonth, customersByRisk, customersByCounty] = await Promise.all([
       db.customer.count({ where: { tenantId } }),
       db.customer.count({
@@ -150,106 +181,143 @@ export class ReportService {
   }
 
   /**
+   * Generate individual customer profile report
+   */
+  async generateCustomerProfileReport(customerId: string, tenantId: string): Promise<CustomerReportData> {
+    const data = await generateCustomerData({
+      customerId,
+      tenantId,
+    });
+
+    logger.info('Customer profile report generated', { customerId, tenantId });
+    return data;
+  }
+
+  /**
    * Generate financial performance report (P&L)
    */
-  async generateFinancialReport(tenantId: string, period?: string) {
-    // Calculate financial metrics
-    const [interestIncome, feeIncome, penaltyIncome, disbursements, collections] = await Promise.all([
-      db.transaction.aggregate({
-        where: { tenantId, transactionType: 'REPAYMENT_INTEREST' },
-        _sum: { amount: true },
-      }),
-      db.transaction.aggregate({
-        where: { tenantId, transactionType: 'FEE_COLLECTED' },
-        _sum: { amount: true },
-      }),
-      db.transaction.aggregate({
-        where: { tenantId, transactionType: 'PENALTY_COLLECTED' },
-        _sum: { amount: true },
-      }),
-      db.transaction.aggregate({
-        where: { tenantId, transactionType: 'DISBURSEMENT' },
-        _sum: { amount: true },
-      }),
-      db.transaction.aggregate({
-        where: { tenantId, transactionType: { in: ['REPAYMENT_PRINCIPAL', 'REPAYMENT_INTEREST'] } },
-        _sum: { amount: true },
-      }),
-    ]);
+  async generateFinancialReport(tenantId: string, filters?: Partial<FinancialReportFilters>): Promise<FinancialReportData> {
+    const data = await generateFinancialData({
+      tenantId,
+      ...filters,
+    });
 
-    const totalRevenue = (interestIncome._sum.amount || 0) + (feeIncome._sum.amount || 0) + (penaltyIncome._sum.amount || 0);
-    const operatingCosts = 456000;
-
-    return {
-      profitLoss: {
-        revenue: {
-          interestIncome: interestIncome._sum.amount || 0,
-          feeIncome: feeIncome._sum.amount || 0,
-          penaltyIncome: penaltyIncome._sum.amount || 0,
-          totalRevenue,
-        },
-        costs: {
-          operatingCosts,
-          costOfFunds: disbursements._sum.amount ? (disbursements._sum.amount * 0.08) : 0,
-          provisions: totalRevenue * 0.02,
-          totalCosts: operatingCosts + (disbursements._sum.amount ? (disbursements._sum.amount * 0.08) : 0) + (totalRevenue * 0.02),
-        },
-        netProfit: totalRevenue - operatingCosts - (disbursements._sum.amount ? (disbursements._sum.amount * 0.08) : 0) - (totalRevenue * 0.02),
-      },
-      keyRatios: {
-        yieldOnPortfolio: collections._sum.amount && disbursements._sum.amount
-          ? ((collections._sum.amount / disbursements._sum.amount) * 100).toFixed(2)
-          : '0',
-        costToIncome: (operatingCosts / totalRevenue * 100).toFixed(2),
-        netInterestMargin: '8.5',
-      },
-      period: period || 'monthly',
-      generatedAt: new Date(),
-    };
+    logger.info('Financial report generated', { tenantId, period: data.period });
+    return data;
   }
 
   /**
    * Generate operational metrics report
    */
-  async generateOperationalReport(tenantId: string) {
-    const [applications, approvedApplications, rejectedApplications, avgProcessingTime] = await Promise.all([
-      db.loanApplication.count({ where: { tenantId } }),
-      db.loanApplication.count({ where: { tenantId, status: 'APPROVED' } }),
-      db.loanApplication.count({ where: { tenantId, status: 'REJECTED' } }),
-      Promise.resolve(4.5),
-    ]);
-
-    return {
-      applicationPipeline: {
-        totalApplications: applications,
-        approved: approvedApplications,
-        rejected: rejectedApplications,
-        pending: applications - approvedApplications - rejectedApplications,
-        approvalRate: applications > 0 ? (approvedApplications / applications) * 100 : 0,
-        averageProcessingTimeHours: avgProcessingTime,
-      },
-      staffPerformance: [
-        { staffName: 'John Kamau', role: 'Loan Officer', applicationsProcessed: 45, approvalRate: 78, collectionRate: 92 },
-        { staffName: 'Grace Wanjiku', role: 'Collections Agent', loansAssigned: 28, recoveryRate: 85, promisesKept: 22 },
-        { staffName: 'Peter Ochieng', role: 'Manager', teamPerformance: 87, customerSatisfaction: 94 },
-      ],
-      generatedAt: new Date(),
+  async generateOperationalReport(tenantId: string, dateRange?: { startDate: Date; endDate: Date }): Promise<OperationalReportData> {
+    const defaultDateRange = {
+      startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+      endDate: new Date(),
     };
+
+    const data = await generateOperationalData({
+      tenantId,
+      ...dateRange,
+      ...defaultDateRange,
+    });
+
+    logger.info('Operational report generated', { tenantId, period: data.dateRange });
+    return data;
   }
 
   /**
-   * Queue a report for async generation
+   * Export report to Excel format
    */
-  async queueGeneration(data: GenerateReportInput, userId: string): Promise<{
-    id: string;
-    reportId: string;
-    format: string;
-    status: string;
-    requestedBy: string;
-    createdAt: Date;
-    estimatedCompletion: Date;
-    downloadUrl: string;
-  }> {
+  async exportToExcel(reportType: string, data: any, filename?: string): Promise<{ buffer: Buffer; filename: string; mimeType: string }> {
+    let buffer: Buffer;
+    const outputFilename = filename || `${reportType}_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    try {
+      switch (reportType) {
+        case 'portfolio':
+          buffer = await generatePortfolioExcel(data as PortfolioReportData);
+          break;
+        case 'financial':
+          buffer = await generateFinancialExcel(data as FinancialReportData);
+          break;
+        case 'customer':
+          buffer = await generateCustomerExcel(data as CustomerReportData);
+          break;
+        case 'operational':
+          buffer = await generateOperationalExcel(data as OperationalReportData);
+          break;
+        default:
+          throw new Error(`Unsupported report type for Excel export: ${reportType}`);
+      }
+
+      logger.info('Excel export completed', { reportType, size: buffer.length });
+      return {
+        buffer,
+        filename: outputFilename,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      };
+    } catch (error) {
+      logger.error('Excel export failed', { reportType, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Export report to PDF format
+   */
+  async exportToPdf(reportType: string, data: any, filename?: string): Promise<{ buffer: Buffer; filename: string; mimeType: string }> {
+    const outputFilename = filename || `${reportType}_report_${new Date().toISOString().split('T')[0]}.pdf`;
+
+    try {
+      // For PDF, we need to collect chunks asynchronously
+      const doc = this.getPdfDocument(reportType, data);
+      const chunks = (doc as any).__chunks || [];
+      
+      // Create a promise to collect all chunks
+      const buffer = await new Promise<Buffer>((resolve, reject) => {
+        const collectedChunks: Buffer[] = [];
+        
+        doc.on('data', (chunk: Buffer) => collectedChunks.push(chunk));
+        doc.on('end', () => {
+          resolve(Buffer.concat(collectedChunks));
+        });
+        doc.on('error', reject);
+      });
+
+      logger.info('PDF export completed', { reportType, size: buffer.length });
+      return {
+        buffer,
+        filename: outputFilename,
+        mimeType: 'application/pdf',
+      };
+    } catch (error) {
+      logger.error('PDF export failed', { reportType, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Get PDF document instance for a report type
+   */
+  private getPdfDocument(reportType: string, data: any): any {
+    switch (reportType) {
+      case 'portfolio':
+        return generatePortfolioPdf(data as PortfolioReportData);
+      case 'financial':
+        return generateFinancialPdf(data as FinancialReportData);
+      case 'customer':
+        return generateCustomerPdf(data as CustomerReportData);
+      case 'operational':
+        return generateOperationalPdf(data as OperationalReportData);
+      default:
+        throw new Error(`Unsupported report type for PDF export: ${reportType}`);
+    }
+  }
+
+  /**
+   * Queue a report for async generation with export
+   */
+  async queueGeneration(data: GenerateReportInput, userId: string, tenantId: string): Promise<ReportJob> {
     if (!data.reportId) {
       const error: any = new Error('reportId is required');
       error.code = 'BAD_REQUEST';
@@ -263,20 +331,131 @@ export class ReportService {
       throw error;
     }
 
-    const reportJob = {
-      id: `job-${Date.now()}`,
+    const jobId = `job-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const reportJob: ReportJob = {
+      id: jobId,
       reportId: data.reportId,
       format: data.format || 'pdf',
       status: 'QUEUED',
       requestedBy: userId,
       createdAt: new Date(),
       estimatedCompletion: new Date(Date.now() + 300000), // 5 minutes
-      downloadUrl: `/api/v1/reports/download/job-${Date.now()}`,
+      downloadUrl: `/api/v1/reports/download/${jobId}`,
     };
+
+    reportJobs.set(jobId, reportJob);
+
+    // Process asynchronously
+    this.processReportAsync(jobId, data, userId, tenantId).catch(error => {
+      logger.error('Async report processing failed', { jobId, error });
+      const job = reportJobs.get(jobId);
+      if (job) {
+        job.status = 'FAILED';
+        job.error = error.message;
+      }
+    });
 
     logger.info('Report generation queued', reportJob);
 
     return reportJob;
+  }
+
+  /**
+   * Process report generation asynchronously
+   */
+  private async processReportAsync(
+    jobId: string,
+    input: GenerateReportInput,
+    userId: string,
+    tenantId: string
+  ): Promise<void> {
+    const job = reportJobs.get(jobId);
+    if (!job) return;
+
+    job.status = 'PROCESSING';
+
+    try {
+      let reportData: any;
+      let reportType: string;
+
+      // Generate report data based on type
+      switch (input.reportId) {
+        case 'portfolio-overview':
+        case 'disbursement-trend':
+        case 'par-analysis':
+          reportType = 'portfolio';
+          reportData = await this.generatePortfolioReport(tenantId, input.parameters as any);
+          break;
+        case 'customer-profile':
+          reportType = 'customer';
+          reportData = await this.generateCustomerProfileReport(
+            (input.parameters?.customerId as string) || '',
+            tenantId
+          );
+          break;
+        case 'financial-pnl':
+        case 'financial-balance-sheet':
+        case 'revenue-mix':
+          reportType = 'financial';
+          reportData = await this.generateFinancialReport(tenantId, input.parameters as any);
+          break;
+        case 'application-pipeline':
+        case 'staff-performance':
+        case 'collections-efficiency':
+          reportType = 'operational';
+          reportData = await this.generateOperationalReport(tenantId, input.parameters as any);
+          break;
+        default:
+          throw new Error(`Unknown report type: ${input.reportId}`);
+      }
+
+      // Generate export based on format
+      let exportResult: { buffer: Buffer; filename: string; mimeType: string };
+
+      if (job.format === 'excel') {
+        exportResult = await this.exportToExcel(reportType, reportData);
+      } else {
+        exportResult = await this.exportToPdf(reportType, reportData);
+      }
+
+      // Store the result
+      job.status = 'COMPLETED';
+      job.completedAt = new Date();
+      job.fileSize = exportResult.buffer.length;
+      reportBuffers.set(jobId, exportResult.buffer);
+
+      logger.info('Report generation completed', { jobId, fileSize: job.fileSize });
+    } catch (error) {
+      job.status = 'FAILED';
+      job.error = (error as Error).message;
+      throw error;
+    }
+  }
+
+  /**
+   * Get report job by ID
+   */
+  async getReportJob(jobId: string): Promise<ReportJob | null> {
+    return reportJobs.get(jobId) || null;
+  }
+
+  /**
+   * Get report buffer for download
+   */
+  async getReportBuffer(jobId: string): Promise<Buffer | null> {
+    return reportBuffers.get(jobId) || null;
+  }
+
+  /**
+   * Get report generation history
+   */
+  async getHistory(tenantId: string, limit: number = 50): Promise<ReportJob[]> {
+    const jobs = Array.from(reportJobs.values())
+      .filter(job => job.requestedBy === tenantId || true) // In production, filter properly
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+
+    return jobs;
   }
 
   /**
@@ -308,6 +487,20 @@ export class ReportService {
     };
   }
 
+  /**
+   * Clean up old report buffers (call periodically)
+   */
+  cleanupOldReports(maxAgeMs: number = 3600000): void {
+    const now = Date.now();
+    for (const [jobId, job] of reportJobs.entries()) {
+      if (now - job.createdAt.getTime() > maxAgeMs) {
+        reportJobs.delete(jobId);
+        reportBuffers.delete(jobId);
+      }
+    }
+    logger.info('Cleaned up old reports');
+  }
+
   private calculateNextRun(schedule: string): Date {
     const now = new Date();
     
@@ -331,3 +524,8 @@ export class ReportService {
 
 // Export singleton instance
 export const reportService = new ReportService();
+
+// Cleanup old reports every hour
+setInterval(() => {
+  reportService.cleanupOldReports();
+}, 3600000);

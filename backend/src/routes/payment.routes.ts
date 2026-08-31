@@ -2,6 +2,9 @@
  * Payment Processing Routes
  * 
  * M-Pesa STK Push, B2C disbursements, payment status queries.
+ * 
+ * @openapi
+ * tags: [Payments]
  */
 
 import { Router } from 'express';
@@ -29,8 +32,43 @@ paymentRoutes.use(requireTenantAccess);
 // =============================================================================
 
 /**
- * POST /api/v1/payments/stkpush/initiate
- * Initiate M-Pesa STK Push for loan repayment
+ * @openapi
+ * /payments/stkpush/initiate:
+ *   post:
+ *     summary: Initiate M-Pesa STK Push
+ *     description: |
+ *       Initiate an STK Push request to a customer's phone for loan repayment.
+ *       The customer will receive an M-Pesa prompt to enter their PIN.
+ *       Uses Safaricom Daraja API (simulated in development).
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/StkPushRequest'
+ *     responses:
+ *       201:
+ *         description: STK Push initiated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/StkPushResult'
+ *                 message:
+ *                   type: string
+ *                   example: "STK Push initiated successfully"
+ *       400:
+ *         description: Invalid input or validation error
+ *       404:
+ *         description: Loan not found (if loanId provided)
  */
 paymentRoutes.post('/stkpush/initiate', validate(stkPushSchema), async (req: AuthRequest, res) => {
   try {
@@ -85,8 +123,62 @@ paymentRoutes.post('/stkpush/initiate', validate(stkPushSchema), async (req: Aut
 });
 
 /**
- * GET /api/v1/payments/stkpush/status
- * Query STK Push status by checkout request ID
+ * @openapi
+ * /payments/stkpush/status:
+ *   get:
+ *     summary: Query STK Push status
+ *     description: Check the status of a previously initiated STK Push transaction using the checkout request ID.
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: checkoutRequestID
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Checkout request ID returned from STK Push initiation
+ *       - in: query
+ *         name: phone
+ *         schema:
+ *           type: string
+ *         description: Phone number used for the transaction (optional)
+ *     responses:
+ *       200:
+ *         description: STK Push status retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     checkoutRequestID:
+ *                       type: string
+ *                     responseCode:
+ *                       type: string
+ *                     resultDesc:
+ *                       type: string
+ *                     resultCode:
+ *                       type: string
+ *                     amount:
+ *                       type: number
+ *                     mpesaReceiptNumber:
+ *                       type: string
+ *                     transactionDate:
+ *                       type: string
+ *                       format: date-time
+ *                     phoneNumber:
+*                        type: string
+ *                     status:
+ *                       type: string
+ *                       enum: [Pending, Completed, Failed]
+ *       400:
+ *         description: checkoutRequestID is required
  */
 paymentRoutes.get('/stkpush/status', async (req: AuthRequest, res) => {
   try {
@@ -117,8 +209,42 @@ paymentRoutes.get('/stkpush/status', async (req: AuthRequest, res) => {
 });
 
 /**
- * POST /api/v1/payments/stkpush/callback
- * Webhook callback from Safaricom (public endpoint - verified via signature)
+ * @openapi
+ * /payments/stkpush/callback:
+ *   post:
+ *     summary: STK Push callback endpoint
+ *     description: |
+ *       Webhook callback from Safaricom for STK Push transactions.
+ *       This is a public endpoint - requests are verified via signature.
+ *       Always returns 200 to acknowledge receipt.
+ *     tags: [Payments]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               Body:
+ *                 type: object
+ *                 properties:
+ *                   stkCallback:
+ *                     type: object
+ *                     description: STK Callback data from Safaricom
+ *     responses:
+ *       200:
+ *         description: Callback acknowledged
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ResultCode:
+ *                   type: integer
+ *                   example: 0
+ *                 ResultDesc:
+ *                   type: string
+ *                   example: "Callback accepted"
  */
 paymentRoutes.post('/stkpush/callback', async (req, res) => {
   try {
@@ -170,8 +296,61 @@ paymentRoutes.post('/stkpush/callback', async (req, res) => {
 // =============================================================================
 
 /**
- * POST /api/v1/payments/disburse/b2c
- * Initiate B2C payment (disbursement to customer)
+ * @openapi
+ * /payments/disburse/b2c:
+ *   post:
+ *     summary: Initiate B2C disbursement
+ *     description: |
+ *       Send money from business account to customer's M-Pesa wallet.
+ *       Used for loan disbursements and other payouts.
+ *       Requires FINANCE_OFFICER or higher role.
+ *       Amount must be between KSh 10 and KSh 150,000.
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/B2CDisbursementRequest'
+ *     responses:
+ *       201:
+ *         description: B2C disbursement initiated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     success:
+ *                       type: boolean
+ *                     conversationID:
+ *                       type: string
+ *                     originatorConversationID:
+ *                       type: string
+ *                     responseCode:
+ *                       type: string
+ *                     responseDescription:
+ *                       type: string
+ *                     transactionID:
+ *                       type: string
+ *                     instructions:
+ *                       type: object
+ *                 message:
+ *                   type: string
+ *                   example: "B2C disbursement initiated"
+ *       400:
+ *         description: Invalid amount or missing fields
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Loan not found (if loanId provided)
  */
 paymentRoutes.post('/disburse/b2c', requireRoles(['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER', 'FINANCE_OFFICER']), async (req: AuthRequest, res) => {
   try {
@@ -216,8 +395,25 @@ paymentRoutes.post('/disburse/b2c', requireRoles(['SUPER_ADMIN', 'TENANT_ADMIN',
 });
 
 /**
- * POST /api/v1/payments/disburse/callback
- * B2C result callback from Safaricom
+ * @openapi
+ * /payments/disburse/callback:
+ *   post:
+ *     summary: B2C disbursement callback
+ *     description: Webhook callback from Safaricom for B2C transaction results. Always returns 200 to acknowledge receipt.
+ *     tags: [Payments]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               Body:
+ *                 type: object
+ *                 description: B2C Result callback data
+ *     responses:
+ *       200:
+ *         description: Callback acknowledged
  */
 paymentRoutes.post('/disburse/callback', async (req, res) => {
   try {
@@ -240,8 +436,56 @@ paymentRoutes.post('/disburse/callback', async (req, res) => {
 // =============================================================================
 
 /**
- * GET /api/v1/payments/history
- * Get payment/transaction history
+ * @openapi
+ * /payments/history:
+ *   get:
+ *     summary: Get payment history
+ *     description: Retrieve paginated list of transactions with optional filtering by type and date range.
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           maximum: 100
+ *           default: 20
+ *       - in: query
+ *         name: tenantId
+ *         schema:
+ *           type: string
+ *         description: Filter by tenant ID
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [DISBURSEMENT, REPAYMENT_PRINCIPAL, REPAYMENT_INTEREST, FEE_COLLECTED, PENALTY_COLLECTED]
+ *         description: Filter by transaction type
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Start of date range filter
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: End of date range filter
+ *     responses:
+ *       200:
+ *         description: Payment history retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PaginatedResponse'
  */
 paymentRoutes.get('/history', async (req: AuthRequest, res) => {
   try {
@@ -284,8 +528,53 @@ paymentRoutes.get('/history', async (req: AuthRequest, res) => {
 });
 
 /**
- * GET /api/v1/payments/balance
- * Get wallet/account balance
+ * @openapi
+ * /payments/balance:
+ *   get:
+ *     summary: Get wallet balance
+ *     description: Retrieve current wallet/account balance including total disbursed and collected amounts.
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: tenantId
+ *         schema:
+ *           type: string
+ *         description: Tenant ID for balance lookup
+ *     responses:
+ *       200:
+ *         description: Balance information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalBalance:
+ *                       type: number
+ *                       example: 2400000
+ *                     availableBalance:
+ *                       type: number
+ *                       example: 2200000
+ *                     currency:
+ *                       type: string
+ *                       example: "KES"
+ *                     lastUpdated:
+ *                       type: string
+ *                       format: date-time
+ *                     summary:
+ *                       type: object
+ *                       properties:
+ *                         totalDisbursed:
+ *                           type: number
+ *                         totalCollected:
+ *                           type: number
  */
 paymentRoutes.get('/balance', async (req: AuthRequest, res) => {
   try {

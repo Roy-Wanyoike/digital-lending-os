@@ -3,6 +3,9 @@
  * 
  * CRUD operations for Digital Credit Provider tenants.
  * Only SUPER_ADMIN can create/manage tenants.
+ * 
+ * @openapi
+ * tags: [Tenants]
  */
 
 import { Router } from 'express';
@@ -26,8 +29,64 @@ export const tenantRoutes = Router();
 tenantRoutes.use(authenticate);
 
 /**
- * GET /api/v1/tenants
- * List all tenants (SUPER_ADMIN sees all, others see their own)
+ * @openapi
+ * /tenants:
+ *   get:
+ *     summary: List all tenants
+ *     description: |
+ *       Retrieve a paginated list of tenants. 
+ *       - SUPER_ADMIN users see all tenants
+ *       - Other roles only see their own tenant
+ *     tags: [Tenants]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Number of items per page
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [ACTIVE, PENDING_ONBOARDING, SUSPENDED, DEACTIVATED]
+ *         description: Filter by tenant status
+ *       - in: query
+ *         name: plan
+ *         schema:
+ *           $ref: '#/components/schemas/Tenant/properties/plan'
+ *         description: Filter by subscription plan
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by name, slug, or company name
+ *     responses:
+ *       200:
+ *         description: List of tenants retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PaginatedResponse'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       403:
+ *         description: Forbidden - insufficient permissions
  */
 tenantRoutes.get('/', async (req: AuthRequest, res) => {
   try {
@@ -91,8 +150,41 @@ tenantRoutes.get('/', async (req: AuthRequest, res) => {
 });
 
 /**
- * GET /api/v1/tenants/:id
- * Get tenant by ID
+ * @openapi
+ * /tenants/{id}:
+ *   get:
+ *     summary: Get tenant by ID
+ *     description: Retrieve detailed information about a specific tenant including counts of related entities.
+ *     tags: [Tenants]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Tenant unique identifier
+ *     responses:
+ *       200:
+ *         description: Tenant details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Tenant'
+ *       404:
+ *         description: Tenant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 tenantRoutes.get('/:id', async (req: AuthRequest, res) => {
   try {
@@ -130,8 +222,51 @@ tenantRoutes.get('/:id', async (req: AuthRequest, res) => {
 });
 
 /**
- * POST /api/v1/tenants
- * Create new tenant (SUPER_ADMIN only)
+ * @openapi
+ * /tenants:
+ *   post:
+ *     summary: Create new tenant
+ *     description: |
+ *       Create a new Digital Credit Provider tenant.
+ *       Only SUPER_ADMIN role can create tenants.
+ *       New tenants start with PENDING_ONBOARDING status.
+ *     tags: [Tenants]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateTenantRequest'
+ *     responses:
+ *       201:
+ *         description: Tenant created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Tenant'
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant created successfully. Awaiting onboarding."
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - requires SUPER_ADMIN role
+ *       409:
+ *         description: Slug already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
  */
 tenantRoutes.post('/', requireRoles(['SUPER_ADMIN']), validate(createTenantSchema), async (req: AuthRequest, res) => {
   try {
@@ -173,8 +308,79 @@ tenantRoutes.post('/', requireRoles(['SUPER_ADMIN']), validate(createTenantSchem
 });
 
 /**
- * PUT /api/v1/tenants/:id
- * Update tenant (SUPER_ADMIN or TENANT_ADMIN of same tenant)
+ * @openapi
+ * /tenants/{id}:
+ *   put:
+ *     summary: Update tenant
+ *     description: |
+ *       Update tenant information.
+ *       - SUPER_ADMIN can update all fields including plan and status
+ *       - TENANT_ADMIN can only update their own tenant's basic info
+ *     tags: [Tenants]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               companyName:
+ *                 type: string
+ *               licenseNumber:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               physicalAddress:
+ *                 type: string
+ *               website:
+ *                 type: string
+ *                 format: uri
+ *               branding:
+ *                 type: object
+ *               config:
+ *                 type: object
+ *               plan:
+ *                 type: string
+ *                 enum: [STARTER, PROFESSIONAL, ENTERPRISE]
+ *                 description: Only SUPER_ADMIN can change this
+ *               status:
+ *                 type: string
+ *                 enum: [ACTIVE, PENDING_ONBOARDING, SUSPENDED, DEACTIVATED]
+ *                 description: Only SUPER_ADMIN can change this
+ *     responses:
+ *       200:
+ *         description: Tenant updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Tenant'
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant updated successfully"
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Tenant not found
  */
 tenantRoutes.put('/:id', async (req: AuthRequest, res) => {
   try {
@@ -220,8 +426,41 @@ tenantRoutes.put('/:id', async (req: AuthRequest, res) => {
 });
 
 /**
- * DELETE /api/v1/tenants/:id
- * Soft delete tenant (SUPER_ADMIN only)
+ * @openapi
+ * /tenants/{id}:
+ *   delete:
+ *     summary: Deactivate tenant
+ *     description: Soft delete a tenant by setting its status to DEACTIVATED. Only SUPER_ADMIN can perform this action.
+ *     tags: [Tenants]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Tenant deactivated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant deactivated successfully"
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - requires SUPER_ADMIN role
+ *       404:
+ *         description: Tenant not found
  */
 tenantRoutes.delete('/:id', requireRoles(['SUPER_ADMIN']), async (req: AuthRequest, res) => {
   try {
