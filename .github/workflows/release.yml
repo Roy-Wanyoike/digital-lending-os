@@ -1,0 +1,224 @@
+# Release Automation
+# Triggered on version tags to create GitHub releases and build Docker images
+
+name: Release Automation
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'           # Version tags (e.g., v1.0.0)
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'   # Release candidates (e.g., v1.0.0-rc.1)
+
+permissions:
+  contents: write
+  packages: write
+  deployments: write
+  security-events: write
+  id-token: write
+
+env:
+  NODE_VERSION: '20'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Job 1: Create GitHub Release
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    
+    outputs:
+      release_id: ${{ steps.create_release.outputs.release_id }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.version.outputs.version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag for comparison
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log ${PREVIOUS_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -20)
+          fi
+          
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "Generated changelog:"
+          echo "$CHANGELOG"
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ steps.version.outputs.version }}"
+          body: |
+            ## Digital Lending OS ${{ steps.version.outputs.version }}
+            
+            ### 📋 Changes in this release
+            
+            ${{ steps.changelog.outputs.changelog }}
+            
+            ---
+            
+            ### 🐳 Docker Images
+            
+            | Image | Tag |
+            |-------|-----|
+            | `ghcr.io/${{ env.IMAGE_NAME }}` | `${{ steps.version.outputs.version }}`, `latest` |
+            
+            ### 🔧 Installation
+            
+            \`\`\`bash
+            docker pull ghcr.io/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+            \`\`\`
+            
+            ### ✅ Verification
+            
+            | Checksum | Algorithm |
+            |----------|-----------|
+            | `${{ needs.build.outputs.sha256_digest }}` | SHA256 |
+            
+            ---
+            *This release was automatically generated.*
+          draft: false
+          prerelease: ${{ contains(github.ref, '-rc') }}
+          generate_release_notes: true
+
+  # Job 2: Build and Push Docker Image
+  docker:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: [release]
+    
+    outputs:
+      image_digest: ${{ outputs.digest }}
+      sha256_digest: ${{ steps.meta.outputs.bake-file }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ !contains(github.ref, '-rc') }}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ needs.release.outputs.version }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            COMMIT_SHA=${{ github.sha }}
+
+      - name: Output image digest
+        run: |
+          echo "Image digest: ${{ steps.build.outputs.digest }}"
+          echo "digest=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+
+      - name: Sign Docker image
+        if: success()
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.4'
+
+      - name: Sign the published Docker image
+        if: success()
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}
+
+  # Job 3: Security Scanning (Trivy)
+  security-scan:
+    name: Security Scan Container
+    runs-on: ubuntu-latest
+    needs: [docker]
+    
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'container-image'
+        continue-on-error: true
+
+  # Job 4: Notify on completion
+  notify:
+    name: Notify Release Complete
+    runs-on: ubuntu-latest
+    needs: [release, docker, security-scan]
+    if: always()
+    
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## 🎉 Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | \`${{ needs.release.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Release** | [View Release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.release.outputs.version }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Docker Image** | \`ghcr.io/${{ env.IMAGE_NAME }}:${{ needs.release.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Security Scan** | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '⚠️ Review Required' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull Command" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ env.IMAGE_NAME }}:${{ needs.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

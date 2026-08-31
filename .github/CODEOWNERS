@@ -1,0 +1,64 @@
+# Code Owners for Digital Lending OS
+# This file defines who needs to approve changes in specific areas
+# Format: <file-pattern> <owner(s)>
+# 
+# Documentation: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owners - notified on all PRs
+* @Roy-Wanyoike
+
+# CI/CD and GitHub Configuration
+.github/ @Roy-Wanyoike
+
+# Workflows specifically
+.github/workflows/ @Roy-Wanyoike
+
+# Dependabot configuration
+.github/dependabot.yml @Roy-Wanyoike
+
+# Root configuration files
+*.yml @Roy-Wanyoike
+*.yaml @Roy-Wanyoike
+Dockerfile* @Roy-Wanyoike
+docker-compose* @Roy-Wanyoike
+Caddyfile @Roy-Wanyoike
+
+# Frontend - Next.js application
+src/app/ @Roy-Wanyoike
+src/components/ @Roy-Wanyoike
+src/hooks/ @Roy-Wanyoike
+src/lib/ @Roy-Wanyoike
+public/ @Roy-Wanyoike
+*.config.* @Roy-Wanyoike
+tailwind.config* @Roy-Wanyoike
+next.config* @Roy-Wanyoike
+
+# Backend API
+backend/src/ @Roy-Wanyoike
+backend/prisma/ @Roy-Wanyoike
+backend/*.json @Roy-Wanyoike
+backend/tsconfig* @Roy-Wanyoike
+
+# Database schemas
+prisma/ @Roy-Wanyoike
+
+# Security and authentication files
+src/lib/auth* @Roy-Wanyoike
+src/lib/security* @Roy-Wanyoike
+src/middleware.ts @Roy-Wanyoike
+backend/src/middleware/ @Roy-Wanyoike
+
+# Environment configuration
+.env.example @Roy-Wanyoike
+backend/.env.example @Roy-Wanyoike
+
+# Documentation
+docs/ @Roy-Wanyoike
+README.md @Roy-Wanyoike
+LICENSE @Roy-Wanyoike
+
+# Tests (optional review)
+**/__tests__/ @Roy-Wanyoike
+**/*.test.* @Roy-Wanyoike
+**/*.spec.* @Roy-Wanyoike
+tests/ @Roy-Wanyoike

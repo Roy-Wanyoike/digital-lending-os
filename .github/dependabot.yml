@@ -1,0 +1,83 @@
+# Dependabot Configuration
+# Auto-update dependencies on a weekly schedule
+
+version: 2
+
+updates:
+  # Root package.json dependencies (Next.js frontend)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Africa/Nairobi"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "Roy-Wanyoike"
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    groups:
+      # Group all minor and patch updates together
+      production-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      development-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Backend package.json dependencies
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "Africa/Nairobi"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "Roy-Wanyoike"
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "deps(backend)"
+      include: "scope"
+    groups:
+      backend-production:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      backend-development:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "09:00"
+      timezone: "Africa/Nairobi"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "Roy-Wanyoike"
+    labels:
+      - "dependencies"
+      - "ci/cd"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
