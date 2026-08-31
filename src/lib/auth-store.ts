@@ -1,98 +1,134 @@
 // Digital Lending OS - Authentication Store
-// Zustand store for managing authentication state
+// Enhanced Zustand store with real JWT API integration
 
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { 
-  AuthSession, 
   User, 
-  Customer,
   Tenant, 
   PortalType, 
   LoginCredentials,
-  AbacAttributes,
-  PersistedAuthState,
   AuthResult
 } from './auth-types'
 import type { UserRole } from './auth-types'
-import { 
-  MOCK_TENANTS, 
-  DEMO_CREDENTIALS,
-  DEFAULT_ABAC_ATTRIBUTES,
-  SESSION_CONFIG,
-  ROLE_HIERARCHY
-} from './auth-types'
+
+// ============================================
+// API CONFIGURATION
+// ============================================
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1'
+
+// Backend port for gateway (if needed)
+const BACKEND_PORT = process.env.NEXT_PUBLIC_BACKEND_PORT || '4000'
+
+// ============================================
+// INTERFACES
+// ============================================
+
+interface ApiUser {
+  id: string
+  email: string
+  name: string | null
+  role: UserRole
+  tenantId: string | null
+  tenant?: {
+    id: string
+    name: string
+    slug: string
+    plan: string
+  } | null
+}
+
+interface LoginResponse {
+  user: ApiUser
+  accessToken: string
+  refreshToken: string
+  expiresIn: string
+}
+
+interface MeResponse {
+  id: string
+  email: string
+  name: string | null
+  role: UserRole
+  tenantId: string | null
+  tenant?: Tenant
+  // ... other user fields
+}
+
+interface AuthError {
+  code: string
+  message: string
+  details?: Record<string, unknown>
+}
 
 // ============================================
 // STORE INTERFACE
 // ============================================
 
-interface AuthStore {
+interface AuthState {
   // State
   isAuthenticated: boolean
   isLoading: boolean
   isCheckingSession: boolean
-  session: AuthSession | null
   error: string | null
   
-  // Extended state (for compatibility with existing components)
+  // User data
   user: User | null
-  customer: Customer | null
   tenant: Tenant | null
-  token: string | null
+  
+  // Tokens
+  accessToken: string | null
   refreshToken: string | null
+  
+  // Session info
   portalType: PortalType | null
   sessionExpiresAt: number | null
-  attributes: AbacAttributes
+  lastActivityAt: number | null
   
-  // Derived (computed via getters)
-  getCurrentUser: () => User | null
-  getCurrentTenant: () => Tenant | null
-  getCurrentPortal: () => PortalType
-  hasRole: (role: UserRole | UserRole[]) => boolean
-  hasMultiplePortals: () => boolean
-  hasPermission: (permission: string) => boolean
-
-  // Actions
-  login: (portal: PortalType, credentials: LoginCredentials) => Promise<AuthResult>
-  logout: () => void
-  clearError: () => void
-  checkSession: () => Promise<void>
-  refreshSession: () => Promise<boolean>
-  updateLastActivity: () => void
+  // Actions - Authentication
+  login: (email: string, password: string) => Promise<AuthResult>
+  loginWithPortal: (portal: PortalType, credentials: LoginCredentials) => Promise<AuthResult>
+  logout: () => Promise<void>
+  
+  // Actions - Token Management
+  refreshToken: () => Promise<boolean>
+  setTokens: (accessToken: string, refreshToken: string, expiresIn?: string) => void
+  clearTokens: () => void
+  
+  // Actions - User Data
+  fetchUser: () => Promise<void>
+  
+  // Actions - Session
+  checkSession: () => Promise<boolean>
+  initializeFromStorage: () => void
+  
+  // Actions - Password
+  changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>
+  forgotPassword: (email: string) => Promise<{ success: boolean; error?: string }>
+  resetPassword: (token: string, password: string) => Promise<{ success: boolean; error?: string }>
   
   // State setters
   setUser: (user: User | null) => void
-  setCustomer: (customer: Customer | null) => void
   setTenant: (tenant: Tenant | null) => void
   setPortalType: (portal: PortalType) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
-  updateAbacAttributes: (attributes: Partial<AbacAttributes>) => void
+  clearError: () => void
   
-  // Session timeout
-  getSessionTimeRemaining: () => number
-  isSessionExpiringSoon: (thresholdMs?: number) => boolean
+  // Computed/Getters (as methods)
+  hasRole: (role: UserRole | UserRole[]) => boolean
+  getAccessToken: () => string | null
 }
-
-// ============================================
-// CONSTANTS
-// ============================================
-
-const SESSION_DURATION = SESSION_CONFIG.ACCESS_TOKEN_LIFETIME
-const WARNING_THRESHOLD = SESSION_CONFIG.REFRESH_THRESHOLD
 
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
 
-function createAuthResult(
-  data: Partial<AuthResult> = {}
-): AuthResult {
+function createAuthResult(data: Partial<AuthResult> = {}): AuthResult {
   return {
     success: false,
     user: null,
-    customer: null,
     tenant: null,
     token: null,
     refreshToken: null,
@@ -101,404 +137,735 @@ function createAuthResult(
   }
 }
 
+/**
+ * Make authenticated API request with automatic token refresh
+ */
+async function authFetch<T>(
+  url: string,
+  options: RequestInit = {},
+  getToken: () => string | null,
+  onTokenRefresh: () => Promise<boolean>
+): Promise<{ data: T | null; error: AuthError | null }> {
+  const token = getToken()
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  }
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  try {
+    let response = await fetch(url, { ...options, headers })
+
+    // If unauthorized, try to refresh token
+    if (response.status === 401) {
+      const refreshed = await onTokenRefresh()
+      if (refreshed) {
+        const newToken = getToken()
+        if (newToken) {
+          headers['Authorization'] = `Bearer ${newToken}`
+          response = await fetch(url, { ...options, headers })
+        }
+      }
+    }
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      return {
+        data: null,
+        error: {
+          code: data.errorCode || 'UNKNOWN',
+          message: data.message || data.error || 'Request failed',
+          details: data.details,
+        },
+      }
+    }
+
+    return { data: data.data ?? data, error: null }
+  } catch (error) {
+    console.error('API request failed:', error)
+    return {
+      data: null,
+      error: {
+        code: 'NETWORK_ERROR',
+        message: error instanceof Error ? error.message : 'Network error occurred',
+      },
+    }
+  }
+}
+
+/**
+ * Convert API user to frontend User format
+ */
+function apiUserToUser(apiUser: ApiUser): User {
+  return {
+    id: apiUser.id,
+    email: apiUser.email,
+    name: apiUser.name || '',
+    role: apiUser.role,
+    tenantId: apiUser.tenantId || undefined,
+    tenantName: apiUser.tenant?.name,
+    isActive: true,
+  }
+}
+
+// ============================================
+// TOKEN REFRESH TIMER
+// ============================================
+
+let tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleTokenRefresh(
+  expiresIn: string, 
+  refreshFn: () => void,
+  bufferMs: number = 5 * 60 * 1000 // Refresh 5 minutes before expiry
+) {
+  // Clear existing timer
+  if (tokenRefreshTimer) {
+    clearTimeout(tokenRefreshTimer)
+  }
+
+  // Parse expiry time
+  let expiryMs: number
+  if (expiresIn.endsWith('m')) {
+    expiryMs = parseInt(expiresIn) * 60 * 1000
+  } else if (expiresIn.endsWith('h')) {
+    expiryMs = parseInt(expiresIn) * 60 * 60 * 1000
+  } else if (expiresIn.endsWith('d')) {
+    expiryMs = parseInt(expiresIn) * 24 * 60 * 60 * 1000
+  } else {
+    expiryMs = 15 * 60 * 1000 // Default to 15 minutes
+  }
+
+  // Schedule refresh (with buffer)
+  const refreshDelay = Math.max(0, expiryMs - bufferMs)
+  tokenRefreshTimer = setTimeout(refreshFn, refreshDelay)
+}
+
 // ============================================
 // STORE IMPLEMENTATION
 // ============================================
 
-export const useAuthStore = create<AuthStore>()(
+export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
       // Initial State
       isAuthenticated: false,
       isLoading: false,
       isCheckingSession: true,
-      session: null,
       error: null,
       
-      // Extended state
       user: null,
-      customer: null,
       tenant: null,
-      token: null,
+      accessToken: null,
       refreshToken: null,
       portalType: null,
       sessionExpiresAt: null,
-      attributes: { ...DEFAULT_ABAC_ATTRIBUTES },
+      lastActivityAt: null,
 
-      // Getters
-      getCurrentUser: () => get().session?.user ?? get().user,
-      
-      getCurrentTenant: () => get().session?.tenant ?? get().tenant,
-      
-      getCurrentPortal: () => get().session?.portal ?? get().portalType ?? 'customer',
-      
-      hasRole: (role: UserRole | UserRole[]) => {
-        const currentRole = get().session?.user?.role ?? get().user?.role
+      // ==========================================
+      // AUTHENTICATION ACTIONS
+      // ==========================================
+
+      /**
+       * Login with email and password
+       */
+      login: async (email: string, password: string): Promise<AuthResult> => {
+        set({ isLoading: true, error: null })
+
+        try {
+          const result = await authFetch<LoginResponse>(
+            `${API_BASE_URL}/auth/login`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ email, password }),
+            },
+            () => get().accessToken,
+            () => get().refreshToken()
+          )
+
+          if (result.error || !result.data) {
+            const errorMessage = result.error?.message === 'Invalid email or password' 
+              ? 'Invalid email or password' 
+              : (result.error?.message || 'Login failed')
+            
+            set({
+              isLoading: false,
+              error: errorMessage,
+              isAuthenticated: false,
+            })
+            
+            return createAuthResult({ error: errorMessage })
+          }
+
+          const { user: apiUser, accessToken, refreshToken, expiresIn } = result.data
+          const user = apiUserToUser(apiUser)
+
+          // Calculate session expiry
+          const now = Date.now()
+          let expiresAtMs: number
+          if (expiresIn.endsWith('m')) {
+            expiresAtMs = now + parseInt(expiresIn) * 60 * 1000
+          } else {
+            expiresAtMs = now + 15 * 60 * 1000
+          }
+
+          set({
+            isAuthenticated: true,
+            isLoading: false,
+            user,
+            tenant: apiUser.tenant || null,
+            accessToken,
+            refreshToken,
+            sessionExpiresAt: expiresAtMs,
+            lastActivityAt: now,
+            error: null,
+            isCheckingSession: false,
+          })
+
+          // Schedule auto-refresh
+          scheduleTokenRefresh(expiresIn, () => {
+            get().refreshToken()
+          })
+
+          return createAuthResult({
+            success: true,
+            user,
+            tenant: apiUser.tenant || null,
+            token: accessToken,
+            refreshToken,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Login failed'
+          set({
+            isLoading: false,
+            error: message,
+            isAuthenticated: false,
+          })
+          
+          return createAuthResult({ error: message })
+        }
+      },
+
+      /**
+       * Login with portal type and credentials
+       */
+      loginWithPortal: async (portal: PortalType, credentials: LoginCredentials): Promise<AuthResult> => {
+        set({ isLoading: true, error: null })
+
+        try {
+          // For admin/lender portals, use email/password login
+          if ((portal === 'admin' || portal === 'lender') && credentials.email && credentials.password) {
+            return get().login(credentials.email, credentials.password)
+          }
+
+          // For customer portal with phone/PIN (would need separate endpoint)
+          // For now, fall back to demo mode
+          await new Promise(resolve => setTimeout(resolve, 800))
+
+          // Demo mode for customer portal
+          if (portal === 'customer' && credentials.phone && credentials.pin) {
+            const user: User = {
+              id: `cust-${Date.now()}`,
+              email: `${credentials.phone}@customer.dlos`,
+              name: 'Customer User',
+              role: 'CUSTOMER',
+              phone: credentials.phone,
+              isActive: true,
+            }
+
+            const now = Date.now()
+            
+            set({
+              isAuthenticated: true,
+              isLoading: false,
+              user,
+              tenant: null,
+              token: `demo-token-${now}`,
+              refreshToken: `refresh-${now}`,
+              portalType: portal,
+              sessionExpiresAt: now + 30 * 60 * 1000,
+              lastActivityAt: now,
+              isCheckingSession: false,
+            })
+
+            return createAuthResult({
+              success: true,
+              user,
+              token: `demo-token-${now}`,
+              refreshToken: `refresh-${now}`,
+            })
+          }
+
+          throw new Error('Invalid credentials')
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Login failed'
+          set({
+            isLoading: false,
+            error: message,
+            isAuthenticated: false,
+            isCheckingSession: false,
+          })
+          
+          return createAuthResult({ error: message })
+        }
+      },
+
+      /**
+       * Logout and clear all auth state
+       */
+      logout: async (): Promise<void> => {
+        try {
+          // Call logout API to invalidate session
+          await fetch(`${API_BASE_URL}/auth/logout`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(get().accessToken ? { Authorization: `Bearer ${get().accessToken}` } : {}),
+            },
+            credentials: 'include', // Include cookies
+          }).catch(() => {
+            // Ignore errors during logout
+          })
+        } finally {
+          // Clear timer
+          if (tokenRefreshTimer) {
+            clearTimeout(tokenRefreshTimer)
+            tokenRefreshTimer = null
+          }
+
+          // Clear all state
+          set({
+            isAuthenticated: false,
+            user: null,
+            tenant: null,
+            accessToken: null,
+            refreshToken: null,
+            portalType: null,
+            sessionExpiresAt: null,
+            lastActivityAt: null,
+            error: null,
+            isCheckingSession: false,
+          })
+        }
+      },
+
+      // ==========================================
+      // TOKEN MANAGEMENT
+      // ==========================================
+
+      /**
+       * Refresh access token using refresh token
+       */
+      refreshToken: async (): Promise<boolean> => {
+        const currentRefreshToken = get().refreshToken
+        
+        if (!currentRefreshToken) {
+          return false
+        }
+
+        try {
+          const result = await authFetch<{
+            accessToken: string
+            refreshToken: string
+            expiresIn: string
+          }>(
+            `${API_BASE_URL}/auth/refresh`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ refreshToken: currentRefreshToken }),
+              credentials: 'include', // Include cookies for httpOnly refresh token
+            },
+            () => null, // Don't use access token for refresh
+            async () => false // Prevent infinite loop
+          )
+
+          if (result.error || !result.data) {
+            // Token refresh failed, need to re-login
+            console.warn('Token refresh failed:', result.error)
+            await get().logout()
+            return false
+          }
+
+          const { accessToken, refreshToken, expiresIn } = result.data
+          const now = Date.now()
+          
+          let expiresAtMs: number
+          if (expiresIn.endsWith('m')) {
+            expiresAtMs = now + parseInt(expiresIn) * 60 * 1000
+          } else {
+            expiresAtMs = now + 15 * 60 * 1000
+          }
+
+          set({
+            accessToken,
+            refreshToken: refreshToken || currentRefreshToken,
+            sessionExpiresAt: expiresAtMs,
+            lastActivityAt: now,
+          })
+
+          // Schedule next refresh
+          scheduleTokenRefresh(expiresIn, () => {
+            get().refreshToken()
+          })
+
+          return true
+        } catch (error) {
+          console.error('Token refresh error:', error)
+          return false
+        }
+      },
+
+      /**
+       * Set tokens in state
+       */
+      setTokens: (accessToken: string, refreshToken: string, expiresIn?: string): void => {
+        const now = Date.now()
+        
+        let expiresAtMs: number
+        if (expiresIn?.endsWith('m')) {
+          expiresAtMs = now + parseInt(expiresIn) * 60 * 1000
+        } else if (expiresIn?.endsWith('h')) {
+          expiresAtMs = now + parseInt(expiresIn) * 60 * 60 * 1000
+        } else {
+          expiresAtMs = now + 15 * 60 * 1000
+        }
+
+        set({
+          accessToken,
+          refreshToken,
+          sessionExpiresAt: expiresAtMs,
+          lastActivityAt: now,
+          isAuthenticated: true,
+        })
+
+        // Schedule auto-refresh
+        if (expiresIn) {
+          scheduleTokenRefresh(expiresIn, () => {
+            get().refreshToken()
+          })
+        }
+      },
+
+      /**
+       * Clear tokens from state
+       */
+      clearTokens: (): void => {
+        if (tokenRefreshTimer) {
+          clearTimeout(tokenRefreshTimer)
+          tokenRefreshTimer = null
+        }
+
+        set({
+          accessToken: null,
+          refreshToken: null,
+          sessionExpiresAt: null,
+          isAuthenticated: false,
+        })
+      },
+
+      // ==========================================
+      // USER DATA
+      // ==========================================
+
+      /**
+       * Fetch current user profile from API
+       */
+      fetchUser: async (): Promise<void> => {
+        const token = get().accessToken
+        if (!token) return
+
+        try {
+          const result = await authFetch<MeResponse>(
+            `${API_BASE_URL}/auth/me`,
+            { method: 'GET' },
+            () => token,
+            () => get().refreshToken()
+          )
+
+          if (result.error || !result.data) {
+            console.warn('Failed to fetch user:', result.error)
+            return
+          }
+
+          const userData = result.data
+          const user: User = {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name || '',
+            role: userData.role,
+            tenantId: userData.tenantId || undefined,
+            tenantName: userData.tenant?.name,
+            isActive: true,
+          }
+
+          set({ user, tenant: userData.tenant || null })
+        } catch (error) {
+          console.error('Failed to fetch user:', error)
+        }
+      },
+
+      // ==========================================
+      // SESSION MANAGEMENT
+      // ==========================================
+
+      /**
+       * Check if current session is valid
+       */
+      checkSession: async (): Promise<boolean> => {
+        set({ isCheckingSession: true })
+
+        const token = get().accessToken
+        const expiresAt = get().sessionExpiresAt
+
+        // No token means no session
+        if (!token) {
+          set({ isAuthenticated: false, isCheckingSession: false })
+          return false
+        }
+
+        // Check if token is expired
+        if (expiresAt && Date.now() >= expiresAt) {
+          // Try to refresh
+          const refreshed = await get().refreshToken()
+          if (!refreshed) {
+            set({ isAuthenticated: false, isCheckingSession: false })
+            return false
+          }
+        }
+
+        // Verify token by fetching user
+        try {
+          await get().fetchUser()
+          set({ isAuthenticated: true, isCheckingSession: false })
+          return true
+        } catch (error) {
+          set({ isAuthenticated: false, isCheckingSession: false })
+          return false
+        }
+      },
+
+      /**
+       * Initialize auth state from persisted storage
+       */
+      initializeFromStorage: (): void => {
+        const { accessToken, sessionExpiresAt } = get()
+
+        if (accessToken && sessionExpiresAt) {
+          if (Date.now() < sessionExpiresAt) {
+            set({ isAuthenticated: true, isCheckingSession: false })
+            
+            // Schedule refresh if needed
+            const timeUntilExpiry = sessionExpiresAt - Date.now()
+            if (timeUntilExpiry < 5 * 60 * 1000) { // Less than 5 minutes
+              get().refreshToken()
+            } else {
+              scheduleTokenRefresh(
+                `${Math.ceil(timeUntilExpiry / 60000)}m`,
+                () => get().refreshToken()
+              )
+            }
+          } else {
+            // Token expired, clear it
+            get().clearTokens()
+            set({ isCheckingSession: false })
+          }
+        } else {
+          set({ isCheckingSession: false, isAuthenticated: false })
+        }
+      },
+
+      // ==========================================
+      // PASSWORD MANAGEMENT
+      // ==========================================
+
+      /**
+       * Change password (authenticated)
+       */
+      changePassword: async (
+        currentPassword: string, 
+        newPassword: string
+      ): Promise<{ success: boolean; error?: string }> => {
+        const token = get().accessToken
+        if (!token) {
+          return { success: false, error: 'Not authenticated' }
+        }
+
+        try {
+          const result = await authFetch<void>(
+            `${API_BASE_URL}/auth/change-password`,
+            {
+              method: 'PUT',
+              body: JSON.stringify({ currentPassword, newPassword }),
+            },
+            () => token,
+            () => get().refreshToken()
+          )
+
+          if (result.error) {
+            return { success: false, error: result.error.message }
+          }
+
+          // After password change, server invalidates all sessions
+          // Logout the user
+          await get().logout()
+
+          return { success: true }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to change password'
+          return { success: false, error: message }
+        }
+      },
+
+      /**
+       * Initiate password reset
+       */
+      forgotPassword: async (email: string): Promise<{ success: boolean; error?: string }> => {
+        try {
+          const result = await authFetch<void>(
+            `${API_BASE_URL}/auth/forgot-password`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ email }),
+            },
+            () => null,
+            async () => false
+          )
+
+          if (result.error) {
+            return { success: false, error: result.error.message }
+          }
+
+          return { success: true }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to send reset email'
+          return { success: false, error: message }
+        }
+      },
+
+      /**
+       * Complete password reset with token
+       */
+      resetPassword: async (
+        token: string, 
+        password: string
+      ): Promise<{ success: boolean; error?: string }> => {
+        try {
+          const result = await authFetch<void>(
+            `${API_BASE_URL}/auth/reset-password`,
+            {
+              method: 'POST',
+              body: JSON.stringify({ token, password }),
+            },
+            () => null,
+            async () => false
+          )
+
+          if (result.error) {
+            return { success: false, error: result.error.message }
+          }
+
+          return { success: true }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Failed to reset password'
+          return { success: false, error: message }
+        }
+      },
+
+      // ==========================================
+      // STATE SETTERS
+      // ==========================================
+
+      setUser: (user: User | null) => set({ user }),
+      setTenant: (tenant: Tenant | null) => set({ tenant }),
+      setPortalType: (portal: PortalType) => set({ portalType: portal }),
+      setLoading: (loading: boolean) => set({ isLoading: loading }),
+      setError: (error: string | null) => set({ error }),
+      clearError: () => set({ error: null }),
+
+      // ==========================================
+      // COMPUTED GETTERS
+      // ==========================================
+
+      hasRole: (role: UserRole | UserRole[]): boolean => {
+        const currentRole = get().user?.role
         if (!currentRole) return false
         
         if (Array.isArray(role)) {
           return role.includes(currentRole)
         }
         
-        // Check role hierarchy - if requested role is lower or equal
-        const currentLevel = ROLE_HIERARCHY[currentRole] ?? 0
-        const requiredLevel = ROLE_HIERARCHY[role] ?? 0
-        return currentLevel >= requiredLevel
-      },
-      
-      hasMultiplePortals: () => {
-        const user = get().session?.user ?? get().user
-        if (!user) return false
-        return ['SUPER_ADMIN', 'TENANT_ADMIN'].includes(user.role)
-      },
-      
-      hasPermission: (permission: string) => {
-        const user = get().session?.user ?? get().user
-        if (!user) return false
-        
-        // Super admins have all permissions
-        if (user.role === 'SUPER_ADMIN') return true
-        
-        // Check specific permissions based on role
-        const rolePermissions: Record<UserRole, string[]> = {
-          SUPER_ADMIN: ['*'],
-          TENANT_ADMIN: [
-            'tenant:*', 'customer:*', 'loan:*', 'application:*',
-            'repayment:*', 'staff:*', 'reports:view', 'settings:*'
-          ],
-          MANAGER: [
-            'customer:read', 'customer:create', 'customer:update',
-            'loan:read', 'loan:approve', 'loan:disburse',
-            'application:read', 'application:approve',
-            'reports:view'
-          ],
-          TENANT_STAFF: [
-            'customer:read', 'customer:create',
-            'loan:read', 'application:read',
-            'repayment:read'
-          ],
-          TENANT_AGENT: [
-            'customer:read', 'customer:create',
-            'loan:read'
-          ],
-          CUSTOMER: [
-            'own:profile:read', 'own:profile:update',
-            'own:loans:read', 'own:repayments:read'
-          ]
+        // Role hierarchy check
+        const roleHierarchy: Record<UserRole, number> = {
+          CUSTOMER: 0,
+          TENANT_AGENT: 1,
+          STAFF: 2,
+          MANAGER: 3,
+          TENANT_ADMIN: 4,
+          SUPER_ADMIN: 5,
         }
         
-        const permissions = rolePermissions[user.role] || []
-        
-        // Check for wildcard permission
-        if (permissions.includes('*')) return true
-        
-        // Check for resource wildcard
-        const [resource] = permission.split(':')
-        if (permissions.includes(`${resource}:*`)) return true
-        
-        // Check exact permission
-        return permissions.includes(permission)
+        return (roleHierarchy[currentRole] || 0) >= (roleHierarchy[role] || 0)
       },
 
-      // Actions
-      login: async (portal: PortalType, credentials: LoginCredentials): Promise<AuthResult> => {
-        set({ isLoading: true, error: null })
-        
-        try {
-          // Simulate API call delay
-          await new Promise(resolve => setTimeout(resolve, 800))
-          
-          let user: User
-          let tenant: Tenant | undefined
-          let customer: Customer | undefined
-          
-          if (portal === 'admin') {
-            // Super Admin login
-            if (!credentials.email || !credentials.password) {
-              throw new Error('Email and password are required')
-            }
-            
-            // Accept any email/password for demo or validate against demo creds
-            const isValidDemo = 
-              credentials.email === DEMO_CREDENTIALS.superAdmin.email && 
-              credentials.password === DEMO_CREDENTIALS.superAdmin.password
-            
-            if (isValidDemo || (credentials.email && credentials.password)) {
-              user = {
-                id: 'sa-001',
-                email: credentials.email!,
-                name: isValidDemo ? DEMO_CREDENTIALS.superAdmin.name : 
-                  credentials.email!.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                role: 'SUPER_ADMIN',
-                avatarUrl: undefined,
-                isActive: true,
-                permissions: ['*']
-              }
-            } else {
-              throw new Error('Invalid email or password')
-            }
-          } else if (portal === 'lender') {
-            // DCP Staff login - requires tenant selection
-            if (!credentials.tenantSlug) {
-              throw new Error('Please select your organization')
-            }
-            
-            tenant = MOCK_TENANTS.find(t => t.slug === credentials.tenantSlug)
-            
-            if (!tenant) {
-              throw new Error('Organization not found')
-            }
-            
-            if (!credentials.email || !credentials.password) {
-              throw new Error('Email and password are required')
-            }
-            
-            const isAdmin = credentials.email.toLowerCase().includes('admin')
-            user = {
-              id: `staff-${Date.now()}`,
-              email: credentials.email,
-              name: credentials.email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-              role: isAdmin ? 'TENANT_ADMIN' : 'TENANT_STAFF',
-              tenantId: tenant.id,
-              tenantName: tenant.name,
-              avatarUrl: undefined,
-              isActive: true,
-              department: isAdmin ? 'Management' : 'Operations'
-            }
-          } else if (portal === 'customer') {
-            // Customer login with phone/PIN
-            if (!credentials.phone || !credentials.pin) {
-              throw new Error('Phone number and PIN are required')
-            }
-            
-            // Validate phone format (basic)
-            const phoneRegex = /^(\+254|0)?[7]\d{8}$/
-            const cleanPhone = credentials.phone.replace(/[\s-]/g, '')
-            if (!phoneRegex.test(cleanPhone)) {
-              throw new Error('Invalid phone number format. Use +2547XX XXX XXX format')
-            }
-            
-            const formattedPhone = cleanPhone.startsWith('+254') ? cleanPhone : `+254${cleanPhone.slice(-9)}`
-            
-            user = {
-              id: `cust-${Date.now()}`,
-              email: `${formattedPhone}@customer.dlos`,
-              name: DEMO_CREDENTIALS.customer.name,
-              role: 'CUSTOMER',
-              phone: formattedPhone,
-              avatarUrl: undefined,
-              isActive: true
-            }
-            
-            customer = {
-              id: `cust-${Date.now()}`,
-              phone: formattedPhone,
-              name: DEMO_CREDENTIALS.customer.name,
-              kycStatus: 'verified' as const,
-              creditScore: 650
-            }
-          } else {
-            throw new Error(`Login not supported for portal: ${portal}`)
-          }
-
-          // Create session
-          const now = Date.now()
-          const accessToken = `demo-token-${now}-${Math.random().toString(36).slice(2)}`
-          const session: AuthSession = {
-            user,
-            customer: customer ?? null,
-            tenant: tenant ?? null,
-            portal,
-            accessToken,
-            refreshToken: `refresh-${now}`,
-            expiresAt: now + SESSION_DURATION,
-            lastActivity: now
-          }
-
-          set({
-            isAuthenticated: true,
-            isLoading: false,
-            session,
-            user,
-            customer: customer ?? null,
-            tenant: tenant ?? null,
-            token: accessToken,
-            refreshToken: `refresh-${now}`,
-            portalType: portal,
-            sessionExpiresAt: now + SESSION_DURATION,
-            error: null,
-            isCheckingSession: false,
-            attributes: {
-              ...DEFAULT_ABAC_ATTRIBUTES,
-              userId: user.id,
-              role: user.role,
-              tenantId: user.tenantId ?? tenant?.id ?? null,
-              portal,
-              canApproveLoans: ['SUPER_ADMIN', 'TENANT_ADMIN', 'MANAGER'].includes(user.role),
-              canManageStaff: ['SUPER_ADMIN', 'TENANT_ADMIN'].includes(user.role),
-              canAccessSensitiveData: ['SUPER_ADMIN', 'TENANT_ADMIN'].includes(user.role),
-              canWriteOffLoans: ['SUPER_ADMIN', 'TENANT_ADMIN'].includes(user.role),
-              loanApprovalLimit: user.role === 'SUPER_ADMIN' ? 10000000 :
-                               user.role === 'TENANT_ADMIN' ? 5000000 :
-                               user.role === 'MANAGER' ? 1000000 : 0
-            },
-            lastAuthAction: 'login'
-          })
-
-          return createAuthResult({
-            success: true,
-            user,
-            customer: customer ?? null,
-            tenant: tenant ?? null,
-            token: accessToken,
-            refreshToken: `refresh-${now}`
-          })
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Login failed'
-          set({
-            isAuthenticated: false,
-            isLoading: false,
-            error: message,
-            isCheckingSession: false,
-            lastAuthAction: 'login_failed'
-          })
-          return createAuthResult({ error: message })
-        }
-      },
-
-      logout: () => {
-        set({
-          isAuthenticated: false,
-          session: null,
-          user: null,
-          customer: null,
-          tenant: null,
-          token: null,
-          refreshToken: null,
-          portalType: null,
-          sessionExpiresAt: null,
-          error: null,
-          isCheckingSession: false,
-          attributes: { ...DEFAULT_ABAC_ATTRIBUTES },
-          lastAuthAction: 'logout'
-        })
-      },
-
-      clearError: () => {
-        set({ error: null })
-      },
-
-      checkSession: async () => {
-        set({ isCheckingSession: true })
-        
-        // Simulate session check
-        await new Promise(resolve => setTimeout(resolve, 300))
-        
-        const session = get().session
-        if (session) {
-          const now = Date.now()
-          if (now >= session.expiresAt) {
-            // Session expired
-            get().logout()
-          } else {
-            set({ 
-              isAuthenticated: true, 
-              isCheckingSession: false 
-            })
-          }
-        } else {
-          set({ 
-            isAuthenticated: false, 
-            isCheckingSession: false 
-          })
-        }
-      },
-
-      refreshSession: async (): Promise<boolean> => {
-        const session = get().session
-        if (!session) return false
-        
-        // Simulate token refresh
-        await new Promise(resolve => setTimeout(resolve, 200))
-        
-        const now = Date.now()
-        const accessToken = `demo-token-${now}-${Math.random().toString(36).slice(2)}`
-        const updatedSession: AuthSession = {
-          ...session,
-          accessToken,
-          refreshToken: `refresh-${now}`,
-          expiresAt: now + SESSION_DURATION,
-          lastActivity: now
-        }
-        
-        set({ 
-          session: updatedSession,
-          token: accessToken,
-          refreshToken: `refresh-${now}`,
-          sessionExpiresAt: now + SESSION_DURATION
-        })
-        return true
-      },
-
-      updateLastActivity: () => {
-        const session = get().session
-        if (session) {
-          const updatedSession = { ...session, lastActivity: Date.now() }
-          set({ session: updatedSession })
-        }
-      },
-
-      // State setters
-      setUser: (user: User | null) => set({ user }),
-      setCustomer: (customer: Customer | null) => set({ customer }),
-      setTenant: (tenant: Tenant | null) => set({ tenant }),
-      setPortalType: (portal: PortalType) => set({ portalType: portal }),
-      setLoading: (loading: boolean) => set({ isLoading: loading }),
-      setError: (error: string | null) => set({ error }),
-      updateAbacAttributes: (attributes: Partial<AbacAttributes>) => {
-        set(state => ({
-          attributes: { ...state.attributes, ...attributes }
-        }))
-      },
-
-      getSessionTimeRemaining: () => {
-        const session = get().session
-        if (!session) return 0
-        return Math.max(0, session.expiresAt - Date.now())
-      },
-
-      isSessionExpiringSoon: (thresholdMs: number = WARNING_THRESHOLD) => {
-        return get().getSessionTimeRemaining() <= thresholdMs
-      }
+      getAccessToken: (): string | null => get().accessToken,
     }),
     {
-      name: 'digital-lending-os-auth',
+      name: 'digital-lending-os-auth-v2',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
+        // Only persist these fields to localStorage
         isAuthenticated: state.isAuthenticated,
         user: state.user,
-        customer: state.customer,
         tenant: state.tenant,
-        token: state.token,
+        accessToken: state.accessToken,
         refreshToken: state.refreshToken,
         portalType: state.portalType,
         sessionExpiresAt: state.sessionExpiresAt,
-        attributes: state.attributes
       }),
-      version: 1
+      version: 2,
+      
+      // Migration from v1 if needed
+      migrate: (persisted: unknown, version: number) => {
+        if (version < 2) {
+          // Migrate old format to new format
+          const oldState = persisted as any
+          return {
+            ...oldState,
+            // Add new fields with defaults
+            lastActivityAt: null,
+          }
+        }
+        return persisted as any
+      },
     }
   )
 )
 
-// Export convenience hooks
+// ============================================
+// CONVENIENCE HOOKS
+// ============================================
+
 export function useIsAuthenticated() {
   return useAuthStore(state => state.isAuthenticated)
 }
 
 export function useCurrentUser() {
-  return useAuthStore(state => state.getCurrentUser())
+  return useAuthStore(state => state.user)
 }
 
 export function useCurrentPortal() {
-  return useAuthStore(state => state.getCurrentPortal())
+  return useAuthStore(state => state.portalType || 'customer')
+}
+
+export function useAuthLoading() {
+  return useAuthStore(state => state.isLoading || state.isCheckingSession)
+}
+
+export function useAuthError() {
+  return useAuthStore(state => state.error)
 }

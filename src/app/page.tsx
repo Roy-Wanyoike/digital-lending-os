@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { LoginPage, EmailLoginForm } from '@/components/lending-os/LoginScreen'
+import { useAuthStore, useIsAuthenticated, useCurrentUser, useAuthLoading } from '@/lib/auth-store'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -26,7 +28,11 @@ import {
   BarChart3,
   Users,
   Phone,
-  Target
+  Target,
+  LogOut,
+  Settings,
+  Key,
+  RefreshCw
 } from 'lucide-react'
 
 // Import all customer portal components
@@ -63,7 +69,70 @@ import { ReportsHub } from '@/components/lending-os/reports'
 
 export default function CustomerPortalPage() {
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [authInitialized, setAuthInitialized] = useState(false)
+  
+  // Auth state
+  const isAuthenticated = useIsAuthenticated()
+  const currentUser = useCurrentUser()
+  const isLoading = useAuthLoading()
+  const logout = useAuthStore(state => state.logout)
+  const checkSession = useAuthStore(state => state.checkSession)
+  const initializeFromStorage = useAuthStore(state => state.initializeFromStorage)
 
+  // Compute whether to show login screen based on auth state
+  const shouldShowLogin = authInitialized && !isLoading && !isAuthenticated
+
+  // Initialize auth on mount
+  useEffect(() => {
+    initializeFromStorage()
+    
+    // Check if session is valid
+    const initAuth = async () => {
+      await checkSession()
+      setAuthInitialized(true)
+    }
+    initAuth()
+  }, [])
+
+  // Handle login success
+  const handleLoginSuccess = () => {
+    // The auth store will update isAuthenticated, which will automatically hide the login
+  }
+
+  // Handle logout
+  const handleLogout = async () => {
+    await logout()
+  }
+
+  // Loading state during initialization
+  if (isLoading && !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl shadow-lg animate-pulse">
+            <Shield className="w-8 h-8 text-white" />
+          </div>
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            <span>Initializing authentication...</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show Login Screen if not authenticated
+  if (shouldShowLogin) {
+    return (
+      <div className="min-h-screen">
+        <LoginPage 
+          defaultPortal="customer"
+        />
+      </div>
+    )
+  }
+
+  // Main Dashboard for authenticated users
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white dark:from-slate-950 dark:to-slate-900">
       {/* Header */}
@@ -85,13 +154,34 @@ export default function CustomerPortalPage() {
             </div>
             
             <div className="flex items-center gap-3">
+              {/* User Info */}
+              {currentUser && (
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-full">
+                  <User className="w-4 h-4 text-slate-500" />
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {currentUser.name || currentUser.email}
+                  </span>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {currentUser.role}
+                  </Badge>
+                </div>
+              )}
+              
               <Badge variant="outline" className="border-emerald-300 text-emerald-700 dark:border-emerald-600 dark:text-emerald-400">
                 <Sparkles className="h-3 w-3 mr-1" />
                 Enhanced Portal v2.0
               </Badge>
-              <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">
-                Demo Mode
-              </Badge>
+              
+              {/* Logout Button */}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleLogout}
+                className="text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+              >
+                <LogOut className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">Logout</span>
+              </Button>
             </div>
           </div>
         </div>
@@ -99,12 +189,12 @@ export default function CustomerPortalPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Feature Highlights */}
+        {/* Welcome Banner */}
         <div className="mb-8 p-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-2xl text-white shadow-xl shadow-emerald-500/20">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
             <div>
               <h2 className="text-2xl md:text-3xl font-bold mb-2">
-                🎉 Welcome to Your Enhanced Customer Portal!
+                👋 Welcome back, {currentUser?.name || 'Valued Customer'}!
               </h2>
               <p className="text-emerald-100 max-w-2xl">
                 Experience our completely redesigned self-service platform with enhanced loan applications, 
@@ -126,6 +216,29 @@ export default function CustomerPortalPage() {
                 <span className="text-sm">Real-time Updates</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Auth Status Indicator */}
+        <div className="mb-6 flex items-center justify-between p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 rounded-xl">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+              Authenticated Session Active
+            </span>
+          </div>
+          <div className="flex items-center gap-4 text-xs text-slate-500">
+            <span className="flex items-center gap-1">
+              <Key className="w-3 h-3" />
+              JWT Token
+            </span>
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-1 text-red-500 hover:text-red-700 transition-colors"
+            >
+              <LogOut className="w-3 h-3" />
+              End Session
+            </button>
           </div>
         </div>
 
@@ -394,63 +507,39 @@ export default function CustomerPortalPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               <EndpointCard 
                 method="POST" 
-                path="/api/customer/applications" 
-                description="Submit loan application"
+                path="/api/v1/auth/login" 
+                description="User login with JWT tokens"
+                color="green"
+              />
+              <EndpointCard 
+                method="POST" 
+                path="/api/v1/auth/register" 
+                description="Create new user account"
                 color="green"
               />
               <EndpointCard 
                 method="GET" 
-                path="/api/customer/applications" 
-                description="Get application history"
+                path="/api/v1/auth/me" 
+                description="Get current user profile"
                 color="blue"
               />
               <EndpointCard 
                 method="POST" 
-                path="/api/customer/payments" 
-                description="Initiate payment"
-                color="green"
-              />
-              <EndpointCard 
-                method="GET" 
-                path="/api/customer/payments" 
-                description="Payment history"
-                color="blue"
-              />
-              <EndpointCard 
-                method="GET" 
-                path="/api/customer/notifications" 
-                description="Get notifications"
-                color="blue"
-              />
-              <EndpointCard 
-                method="PUT" 
-                path="/api/customer/notifications" 
-                description="Mark as read"
+                path="/api/v1/auth/refresh" 
+                description="Refresh access token"
                 color="yellow"
               />
               <EndpointCard 
-                method="GET" 
-                path="/api/customer/profile" 
-                description="Get profile"
-                color="blue"
-              />
-              <EndpointCard 
                 method="PUT" 
-                path="/api/customer/profile" 
-                description="Update profile"
+                path="/api/v1/auth/change-password" 
+                description="Change user password"
                 color="yellow"
-              />
-              <EndpointCard 
-                method="GET" 
-                path="/api/customer/documents" 
-                description="Get documents"
-                color="blue"
               />
               <EndpointCard 
                 method="POST" 
-                path="/api/customer/documents" 
-                description="Upload document"
-                color="green"
+                path="/api/v1/auth/logout" 
+                description="Invalidate session"
+                color="red"
               />
             </div>
           </CardContent>
@@ -466,6 +555,10 @@ export default function CustomerPortalPage() {
               <Shield className="h-4 w-4 text-emerald-500" />
               Built with Next.js 16 • TypeScript • shadcn/ui • Tailwind CSS 4
               <ArrowRight className="h-4 w-4" />
+            </p>
+            <p className="flex items-center justify-center gap-2 text-xs">
+              <Key className="h-3 w-3 text-emerald-400" />
+              JWT Authentication • Secure Sessions • Encrypted Data
             </p>
           </div>
         </footer>

@@ -82,29 +82,39 @@ enum TenantPlan {
 
 model User {
   id                  String   @id @default(cuid())
-  tenantId            String
-  email               String
+  tenantId            String?
+  email               String   @unique
   passwordHash        String?  // For local auth; can be null if using SSO
   name                String
   role                UserRole @default(STAFF)
   
   // Profile
   avatar              String?
-  phone               String?
+  phone               String?  @unique
   lastLoginAt         DateTime?
   isActive            Boolean  @default(true)
+  
+  // Security & Authentication
+  tokenVersion        Int      @default(0)       // For token revocation
+  failedLoginAttempts Int      @default(0)       // For lockout tracking
+  lockedUntil         DateTime?                  // Account lockout expiry
+  passwordChangedAt   DateTime?                  // Password change timestamp
+  emailVerified       Boolean  @default(false)   // Email verification status
+  metadata            String?  @default("{}")    // JSON for reset tokens etc.
   
   // Timestamps
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   
   // Relations
-  tenant              Tenant    @relation(fields: [tenantId], references: [id])
+  tenant              Tenant?   @relation(fields: [tenantId], references: [id])
+  sessions            Session[]
   auditLogs           AuditLog[]
   
-  @@unique([tenantId, email])
   @@index([tenantId])
+  @@index([email])
   @@index([role])
+  @@index([phone])
 }
 
 enum UserRole {
@@ -831,6 +841,37 @@ enum NotificationStatus {
   FAILED
   CANCELLED
   SCHEDULED
+}
+
+// ============================================
+// SESSIONS (for JWT session tracking)
+// ============================================
+
+model Session {
+  id                  String   @id @default(cuid())
+  userId              String
+  
+  // Token Info
+  tokenHash           String                     // Hashed refresh token for lookup
+  ipAddress           String?
+  userAgent           String?
+  
+  // Status
+  isActive            Boolean  @default(true)
+  
+  // Timestamps
+  expiresAt           DateTime
+  lastActivityAt      DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  // Relations
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([isActive])
+  @@index([expiresAt])
 }
 
 // ============================================
