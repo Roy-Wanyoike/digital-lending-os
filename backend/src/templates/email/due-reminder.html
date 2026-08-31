@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Reminder - {tenant_name}</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #ea580c, #c2410c); padding: 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; }
+        .reminder-icon { font-size: 48px; margin-bottom: 10px; }
+        .content { padding: 30px; }
+        .alert-box { background: #fff7ed; border: 1px solid #fed7aa; border-left: 4px solid #ea580c; padding: 20px; border-radius: 4px; margin: 20px 0; }
+        .due-amount { font-size: 32px; color: #ea580c; font-weight: bold; text-align: center; margin: 15px 0; }
+        .details-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+        .details-row:last-child { border-bottom: none; }
+        .label { color: #6b7280; font-size: 14px; }
+        .value { font-weight: 600; color: #111827; }
+        .action-buttons { display: flex; gap: 10px; margin: 25px 0; justify-content: center; }
+        .btn-primary { display: inline-block; background: #ea580c; color: white; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: 600; }
+        .btn-secondary { display: inline-block; background: #f3f4f6; color: #374151; padding: 12px 25px; text-decoration: none; border-radius: 6px; font-weight: 600; }
+        .footer { background: #f3f4f6; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="reminder-icon">&#128276;</div>
+            <h1>Payment Reminder</h1>
+        </div>
+        <div class="content">
+            <p>Dear {customer_name},</p>
+            
+            <div class="alert-box">
+                <p style="margin: 0; text-align: center; color: #9a3412;"><strong>This is a friendly reminder that you have an upcoming payment due.</strong></p>
+            </div>
+
+            <div class="due-amount">KES {amount}</div>
+            
+            <div style="background: #f9fafb; padding: 20px; border-radius: 8px;">
+                <div class="details-row">
+                    <span class="label">Loan Number</span>
+                    <span class="value">{loan_number}</span>
+                </div>
+                <div class="details-row">
+                    <span class="label">Due Date</span>
+                    <span class="value">{due_date}</span>
+                </div>
+                <div class="details-row">
+                    <span class="label">Days Until Due</span>
+                    <span class="value">{days_until_due} days</span>
+                </div>
+            </div>
+
+            <div class="action-buttons">
+                <a href="{payment_url}" class="btn-primary">Pay Now</a>
+                <a href="{portal_url}" class="btn-secondary">View Loan Details</a>
+            </div>
+
+            <p style="font-size: 14px; color: #6b7280;">Please ensure timely payment to avoid any late fees and maintain a good credit standing. If you have already made this payment, please disregard this reminder.</p>
+        </div>
+        <div class="footer">
+            <p>{tenant_name} | Need help? Contact {support_email} or call {support_phone}</p>
+        </div>
+    </div>
+</body>
+</html>

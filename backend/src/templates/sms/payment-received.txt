@@ -1,0 +1,1 @@
+Dear {customer_name}, we have received your payment of KES {amount} for Loan {loan_number}. New balance: KES {balance}. Thank you!

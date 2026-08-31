@@ -22,6 +22,7 @@ import { providerRoutes } from './provider.routes';
 import { dashboardRoutes } from './dashboard.routes';
 import { staffRoutes } from './staff.routes';
 import { webhookRoutes } from './webhook.routes';
+import { notificationRoutes } from './notification.routes';
 
 export function setupRoutes(app: Application): void {
   // API version prefix
@@ -83,6 +84,9 @@ export function setupRoutes(app: Application): void {
 
   // Staff management
   apiRouter.use('/staff', staffRoutes);
+
+  // Notifications
+  apiRouter.use('/notifications', notificationRoutes);
 
   // Mount all API routes under versioned path
   app.use(`/api/${apiVersion}`, apiRouter);

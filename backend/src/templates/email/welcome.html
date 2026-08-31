@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to {tenant_name}</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #7c3aed, #6d28d9); padding: 40px 30px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 28px; }
+        .header p { color: rgba(255,255,255,0.9); margin: 10px 0 0 0; }
+        .content { padding: 40px 30px; }
+        .welcome-text { font-size: 18px; color: #7c3aed; font-weight: 600; }
+        .features { display: flex; gap: 15px; margin: 25px 0; }
+        .feature { flex: 1; background: #f9fafb; padding: 20px; border-radius: 8px; text-align: center; }
+        .feature-icon { font-size: 32px; margin-bottom: 10px; }
+        .feature-title { font-weight: 600; color: #374151; margin-bottom: 5px; }
+        .feature-desc { font-size: 13px; color: #6b7280; }
+        .cta-box { background: linear-gradient(135deg, #f3e8ff, #ede9fe); padding: 25px; border-radius: 8px; text-align: center; margin: 25px 0; }
+        .btn { display: inline-block; background: #7c3aed; color: white; padding: 14px 35px; text-decoration: none; border-radius: 6px; font-weight: 600; margin-top: 10px; }
+        .steps { margin: 25px 0; }
+        .step { display: flex; align-items: flex-start; margin-bottom: 15px; }
+        .step-number { background: #7c3aed; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 15px; flex-shrink: 0; }
+        .step-text { padding-top: 3px; }
+        .footer { background: #f3f4f6; padding: 25px; text-align: center; font-size: 13px; color: #6b7280; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome to {tenant_name}!</h1>
+            <p>Your journey to financial freedom starts here</p>
+        </div>
+        <div class="content">
+            <p class="welcome-text">Dear {customer_name},</p>
+            <p>We're thrilled to have you join {tenant_name}! Your account has been successfully created and you're now ready to access our range of financial services.</p>
+            
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon">&#128176;</div>
+                    <div class="feature-title">Quick Loans</div>
+                    <div class="feature-desc">Apply and get approved in minutes</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">&#128202;</div>
+                    <div class="feature-title">Track Everything</div>
+                    <div class="feature-desc">Monitor loans & payments easily</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">&#128274;</div>
+                    <div class="feature-title">Secure & Safe</div>
+                    <div class="feature-desc">Bank-grade security for your data</div>
+                </div>
+            </div>
+
+            <div class="cta-box">
+                <p style="margin: 0; font-weight: 600; color: #5b21b6;">Ready to get started?</p>
+                <a href="{portal_url}" class="btn">Access Your Account</a>
+            </div>
+
+            <h3 style="color: #374151; font-size: 16px;">Getting Started is Easy:</h3>
+            <div class="steps">
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <div class="step-text"><strong>Complete Your Profile</strong> - Add your personal details and KYC documents</div>
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <div class="step-text"><strong>Apply for a Loan</strong> - Choose from our flexible loan products</div>
+                </div>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <div class="step-text"><strong>Get Funded</strong> - Receive funds directly to your account</div>
+                </div>
+            </div>
+
+            <p>If you have any questions or need assistance, our support team is here to help!</p>
+        </div>
+        <div class="footer">
+            <p><strong>{tenant_name}</strong></p>
+            <p>Email: {support_email} | Phone: {support_phone}</p>
+            <p style="margin-top: 10px;">This email was sent to {customer_email}. You received this because you created an account with us.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -6,6 +6,7 @@
  * - B2C disbursements
  * - Payment status tracking
  * - Transaction recording
+ * - Callback processing
  */
 
 import crypto from 'crypto';
@@ -14,11 +15,116 @@ import { logger } from '../utils/logger';
 import { db } from '../lib/db';
 import { StkPushRequest, StkPushResponse, B2CRequest } from '../types';
 
+// Import M-Pesa utilities
+import {
+  getTimestamp,
+  generatePassword,
+  formatPhoneNumber,
+  isValidMpesaPhone,
+  maskPhoneNumber,
+  generateCheckoutRequestID,
+  generateMpesaReceiptNumber,
+  generateTransactionRef,
+  validateAmount,
+  getResultCodeInfo,
+  validateStkCallback,
+  validateB2CCallback,
+  defaultMpesaConfig,
+} from '../lib/mpesa';
+
+// =============================================================================
+// TYPES & INTERFACES
+// =============================================================================
+
+/** Payment record structure for database storage */
+export interface PaymentRecord {
+  id: string;
+  checkoutRequestID?: string;
+  merchantRequestID?: string;
+  transactionType: 'STK_PUSH' | 'B2C' | 'C2B' | 'MANUAL';
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'TIMEOUT';
+  phone: string;
+  amount: number;
+  currency: string;
+  mpesaReceiptNumber?: string;
+  resultCode?: number;
+  resultDesc?: string;
+  loanId?: string;
+  customerId?: string;
+  tenantId: string;
+  accountReference?: string;
+  transactionDesc?: string;
+  initiatedAt: Date;
+  completedAt?: Date;
+  callbackData?: Record<string, unknown>;
+}
+
+/** STK Push status response */
+export interface PaymentStatus {
+  checkoutRequestID: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'timeout';
+  resultCode?: number;
+  resultDesc?: string;
+  amount?: number;
+  mpesaReceiptNumber?: string;
+  phoneNumber?: string;
+  transactionDate?: string;
+}
+
+/** Disbursement result */
+export interface Disbursement {
+  success: boolean;
+  conversationID: string;
+  originatorConversationID: string;
+  responseCode: string;
+  responseDescription: string;
+  transactionID: string;
+  disbursedAmount: number;
+  recipientPhone: string;
+}
+
+/** In-memory store for pending transactions (for demo/sandbox mode) */
+const pendingTransactions = new Map<string, {
+  initiatedAt: Date;
+  request: { phone: string; amount: number };
+  loanId?: string;
+  accountId?: string;
+  tenantId?: string;
+}>();
+
+// =============================================================================
+// PAYMENT SERVICE CLASS
+// =============================================================================
+
 export class PaymentService {
+  
   /**
    * Initiate M-Pesa STK Push
+   * 
+   * Sends a payment prompt to customer's phone via M-Pesa.
+   * Customer must enter their PIN to complete the transaction.
+   * 
+   * @param data - STK Push request data
+   * @returns Promise resolving to STK Push response with CheckoutRequestID
    */
   async initiateStkPush(data: StkPushRequest): Promise<StkPushResponse> {
+    // Validate and format phone number
+    const formattedPhone = formatPhoneNumber(data.phone);
+    
+    if (!isValidMpesaPhone(formattedPhone)) {
+      const error: any = new Error('Invalid M-Pesa phone number. Must be a Kenyan Safaricom number.');
+      error.code = 'INVALID_PHONE';
+      throw error;
+    }
+    
+    // Validate amount
+    const amountValidation = validateAmount(data.amount, 'STK_PUSH');
+    if (!amountValidation.isValid) {
+      const error: any = new Error(amountValidation.error);
+      error.code = 'INVALID_AMOUNT';
+      throw error;
+    }
+
     // Verify loan exists if provided
     if (data.loanId) {
       const loan = await db.loan.findUnique({ where: { id: data.loanId } });
@@ -29,20 +135,72 @@ export class PaymentService {
       }
     }
 
-    // Generate unique request IDs
-    const checkoutRequestID = this.generateRequestId();
-    const merchantRequestID = this.generateRequestId();
+    // Generate unique request IDs and timestamp
+    const checkoutRequestID = generateCheckoutRequestID();
+    const merchantRequestID = generateCheckoutRequestID();
+    const timestamp = getTimestamp();
 
-    // In production: Call Safaricom Daraja API here
-    // For now, simulate successful initiation
-    
+    // Generate password for API authentication
+    const password = generatePassword(
+      defaultMpesaConfig.shortCode,
+      defaultMpesaConfig.passkey,
+      timestamp
+    );
+
     logger.info('STK Push initiated', {
-      phone: data.phone,
+      phone: maskPhoneNumber(formattedPhone),
       amount: data.amount,
       checkoutRequestID,
+      merchantRequestID,
       loanId: data.loanId,
+      accountReference: data.accountReference,
     });
 
+    // In production: Call Safaricom Daraja API here
+    // const accessToken = await getAccessToken(
+    //   defaultMpesaConfig.consumerKey,
+    //   defaultMpesaConfig.consumerSecret,
+    //   defaultMpesaConfig.environment
+    // );
+    //
+    // const stkPushResponse = await fetch(
+    //   `https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest`,
+    //   {
+    //     method: 'POST',
+    //     headers: {
+    //       Authorization: `Bearer ${accessToken}`,
+    //       'Content-Type': 'application/json',
+    //     },
+    //     body: JSON.stringify({
+    //       BusinessShortCode: defaultMpesaConfig.shortCode,
+    //       Password: password,
+    //       Timestamp: timestamp,
+    //       TransactionType: 'CustomerPayBillOnline',
+    //       Amount: Math.round(data.amount),
+    //       PartyA: formattedPhone,
+    //       PartyB: defaultMpesaConfig.shortCode,
+    //       PhoneNumber: formattedPhone,
+    //       CallBackURL: `${defaultMpesaConfig.callbackBaseUrl}/stkpush/callback`,
+    //       AccountReference: data.accountReference || `PAY-${Date.now()}`,
+    //       TransactionDesc: data.transactionDesc || `Payment of KSh ${data.amount.toLocaleString()}`,
+    //     }),
+    //   }
+    // );
+    //
+    // const result = await stkPushResponse.json();
+
+    // Store pending transaction in memory (for sandbox/demo)
+    pendingTransactions.set(checkoutRequestID, {
+      initiatedAt: new Date(),
+      request: {
+        phone: formattedPhone,
+        amount: data.amount,
+      },
+      loanId: data.loanId,
+      accountId: data.accountId,
+    });
+
+    // Simulate successful initiation (sandbox mode)
     return {
       success: true,
       checkoutRequestID,
@@ -54,34 +212,90 @@ export class PaymentService {
   }
 
   /**
-   * Query STK Push status
+   * Query STK Push Status
+   * 
+   * Check the current status of a pending STK Push transaction.
+   * In production, this calls the Safaricom API query endpoint.
+   * 
+   * @param checkoutRequestID - The CheckoutRequestID returned from initiateStkPush
+   * @param phone - Optional phone number for verification
+   * @returns Promise resolving to current payment status
    */
-  async queryStkStatus(checkoutRequestID: string, phone?: string) {
-    // In production: Query Safaricom API for actual status
-    const mockStatus = {
-      checkoutRequestID,
-      responseCode: '0',
-      resultDesc: 'The service request is processed successfully.',
-      resultCode: '0',
-      amount: 1500.00,
-      mpesaReceiptNumber: 'QLE3M7L1YP',
-      transactionDate: new Date().toISOString(),
-      phoneNumber: phone || '254712345678',
-      status: 'Completed',
-    };
+  async queryStkStatus(checkoutRequestID: string, phone?: string): Promise<PaymentStatus> {
+    // Check in-memory store first (sandbox)
+    const pendingTx = pendingTransactions.get(checkoutRequestID);
+    
+    if (!pendingTx) {
+      // Transaction not found - might have been processed or expired
+      return {
+        checkoutRequestID,
+        status: 'failed',
+        resultCode: -1,
+        resultDesc: 'Transaction not found or expired',
+      };
+    }
 
-    return mockStatus;
+    // In production: Query Safaricom API for actual status
+    // const accessToken = await getAccessToken(...);
+    // const queryResponse = await fetch(
+    //   `https://api.safaricom.co.ke/mpesa/stkpushquery/v1/query`,
+    //   {
+    //     method: 'POST',
+    //     headers: {
+    //       Authorization: `Bearer ${accessToken}`,
+    //       'Content-Type': 'application/json',
+    //     },
+    //     body: JSON.stringify({
+    //       BusinessShortCode: defaultMpesaConfig.shortCode,
+    //       Password: password,
+    //       Timestamp: timestamp,
+    //       CheckoutRequestID: checkoutRequestID,
+    //     }),
+    //   }
+    // );
+
+    // For sandbox/demo: simulate a successful completion after some time
+    const timeSinceInitiation = Date.now() - pendingTx.initiatedAt.getTime();
+    
+    // Simulate completion after 30 seconds (for demo purposes)
+    if (timeSinceInitiation > 30000) {
+      return {
+        checkoutRequestID,
+        status: 'completed',
+        resultCode: 0,
+        resultDesc: 'The service request is processed successfully.',
+        amount: pendingTx.request.amount,
+        mpesaReceiptNumber: generateMpesaReceiptNumber(),
+        phoneNumber: pendingTx.request.phone,
+        transactionDate: getTimestamp(),
+      };
+    }
+
+    // Still pending
+    return {
+      checkoutRequestID,
+      status: 'pending',
+      amount: pendingTx.request.amount,
+      phoneNumber: pendingTx.request.phone,
+    };
   }
 
   /**
-   * Process STK Push callback (from Safaricom)
+   * Process STK Push Callback
+   * 
+   * Handle incoming callback from Safaricom after customer action.
+   * Updates transaction status and creates repayment records on success.
+   * 
+   * @param callbackData - Raw callback body from Safaricom
+   * @returns Promise resolving to created/updated payment record
    */
-  async processStkCallback(callbackData: any): Promise<void> {
-    const { Body } = callbackData;
+  async processCallback(callbackData: unknown): Promise<PaymentRecord> {
+    // Validate callback structure
+    const validation = validateStkCallback(callbackData);
     
-    if (!Body?.stkCallback) {
-      logger.warn('Invalid STK Push callback format');
-      return;
+    if (!validation.valid) {
+      logger.warn('Invalid STK Push callback format', { errors: validation.errors });
+      throw new Error(`Invalid callback: ${validation.errors.join(', ')}`);
     }
 
     const {
@@ -90,57 +304,130 @@ export class PaymentService {
       ResultCode,
       ResultDesc,
       CallbackMetadata,
-    } = Body.stkCallback;
+    } = validation.data!;
 
-    if (ResultCode === '0') {
-      // Success - extract metadata and process payment
-      const amount = CallbackMetadata?.Item?.find(
-        (i: Record<string, unknown>) => i.Name === 'Amount'
-      )?.Value;
-      
-      const mpesaReceipt = CallbackMetadata?.Item?.find(
-        (i: Record<string, unknown>) => i.Name === 'MpesaReceiptNumber'
-      )?.Value;
-      
-      const phone = CallbackMetadata?.Item?.find(
-        (i: Record<string, unknown>) => i.Name === 'PhoneNumber'
-      )?.Value;
+    // Get original transaction details
+    const pendingTx = pendingTransactions.get(CheckoutRequestID);
+    
+    if (!pendingTx) {
+      logger.warn('Unknown CheckoutRequestID received', { CheckoutRequestID });
+      // Still acknowledge - M-Pesa may retry or this could be a late callback
+    }
 
-      const transactionDate = CallbackMetadata?.Item?.find(
-        (i: Record<string, unknown>) => i.Name === 'TransactionDate'
-      )?.Value;
+    // Extract metadata for successful transactions
+    let amount: number | undefined;
+    let mpesaReceipt: string | undefined;
+    let phoneNumber: string | undefined;
+    let transactionDate: string | undefined;
+
+    if (ResultCode === 0 && CallbackMetadata?.Item) {
+      amount = CallbackMetadata.Item.find(i => i.Name === 'Amount')?.Value as number;
+      mpesaReceipt = CallbackMetadata.Item.find(i => i.Name === 'MpesaReceiptNumber')?.Value as string;
+      phoneNumber = CallbackMetadata.Item.find(i => i.Name === 'PhoneNumber')?.Value as string;
+      transactionDate = CallbackMetadata.Item.find(i => i.Name === 'TransactionDate')?.Value as string;
 
       logger.info('STK Push payment successful', {
         CheckoutRequestID,
         amount,
         receiptNumber: mpesaReceipt,
-        phone,
+        phone: maskPhoneNumber(phoneNumber || ''),
+        date: transactionDate,
       });
-
-      // TODO: Create repayment record, update loan balance, send confirmation SMS
-
     } else {
+      // Get user-friendly error message
+      const resultCodeInfo = getResultCodeInfo(ResultCode);
+      
       logger.info('STK Push payment failed', {
         ResultCode,
         ResultDesc,
         CheckoutRequestID,
+        userMessage: resultCodeInfo.userMessage,
       });
     }
+
+    // Create payment record
+    const paymentRecord: PaymentRecord = {
+      id: generateTransactionRef(),
+      checkoutRequestID: CheckoutRequestID,
+      merchantRequestID: MerchantRequestID,
+      transactionType: 'STK_PUSH',
+      status: ResultCode === 0 ? 'COMPLETED' : 'FAILED',
+      phone: phoneNumber || pendingTx?.request.phone || '',
+      amount: amount || pendingTx?.request.amount || 0,
+      currency: 'KES',
+      mpesaReceiptNumber: mpesaReceipt,
+      resultCode: ResultCode,
+      resultDesc: ResultDesc,
+      loanId: pendingTx?.loanId,
+      tenantId: pendingTx?.tenantId || 'default',
+      accountReference: pendingTx?.accountId,
+      initiatedAt: pendingTx?.initiatedAt || new Date(),
+      completedAt: new Date(),
+      callbackData: callbackData as Record<string, unknown>,
+    };
+
+    // If successful, process repayment
+    if (ResultCode === 0 && pendingTx?.loanId && amount) {
+      try {
+        await this.processRepayment({
+          loanId: pendingTx.loanId,
+          amount: amount,
+          paymentMethod: 'MPESA_STK_PUSH',
+          referenceNumber: mpesaReceipt,
+          paidBy: phoneNumber,
+          tenantId: pendingTx.tenantId || 'default',
+        });
+        
+        logger.info('Repayment created from STK Push callback', {
+          loanId: pendingTx.loanId,
+          amount,
+          receiptNumber: mpesaReceipt,
+        });
+      } catch (repaymentError) {
+        logger.error('Failed to create repayment from callback', {
+          error: repaymentError,
+          loanId: pendingTx.loanId,
+          CheckoutRequestID,
+        });
+        // Don't throw - we've already received the payment
+      }
+    }
+
+    // Remove from pending (processed)
+    if (CheckoutRequestID) {
+      pendingTransactions.delete(CheckoutRequestID);
+    }
+
+    // TODO: In production, save payment record to database
+    // await db.payment.create({ data: paymentRecord });
+
+    return paymentRecord;
   }
 
   /**
-   * Initiate B2C payment (disbursement to customer)
+   * Initiate B2C Payment (Disbursement to Customer)
+   * 
+   * Send money from business account to customer's M-Pesa.
+   * Used for loan disbursements, refunds, etc.
+   * 
+   * @param data - B2C request data
+   * @param tenantId - Tenant ID for authorization
+   * @returns Promise resolving to B2C initiation result
    */
-  async initiateB2C(data: B2CRequest, tenantId: string): Promise<any> {
-    if (!data.phone || !data.amount) {
-      const error: any = new Error('Phone and amount are required');
-      error.code = 'BAD_REQUEST';
+  async initiateB2C(data: B2CRequest, tenantId: string): Promise<Disbursement> {
+    // Validate and format phone
+    const formattedPhone = formatPhoneNumber(data.phone);
+    
+    if (!isValidMpesaPhone(formattedPhone)) {
+      const error: any = new Error('Invalid M-Pesa phone number');
+      error.code = 'INVALID_PHONE';
       throw error;
     }
 
-    // Validate amount range
-    if (data.amount < 10 || data.amount > 150000) {
-      const error: any = new Error('Amount must be between KSh 10 and KSh 150,000');
+    // Validate amount
+    const amountValidation = validateAmount(data.amount, 'B2C');
+    if (!amountValidation.isValid) {
+      const error: any = new Error(amountValidation.error);
       error.code = 'INVALID_AMOUNT';
       throw error;
     }
@@ -155,58 +442,221 @@ export class PaymentService {
       }
     }
 
-    // In production: Call Safaricom B2C API
-    const b2cResult = {
-      success: true,
-      conversationID: this.generateRequestId(),
-      originatorConversationID: this.generateRequestId(),
-      responseCode: '0',
-      responseDescription: 'Acceptance for success',
-      transactionID: this.generateRequestId(),
-    };
+    // Generate IDs
+    const conversationID = generateCheckoutRequestID();
+    const originatorConversationID = generateCheckoutRequestID();
+    const transactionID = generateMpesaReceiptNumber();
 
     logger.info('B2C disbursement initiated', {
-      phone: data.phone,
+      phone: maskPhoneNumber(formattedPhone),
       amount: data.amount,
+      commandID: data.commandID || 'BusinessPayment',
+      occasion: data.occasion,
       loanId: data.loanId,
       tenantId,
     });
 
-    return b2cResult;
+    // In production: Call Safaricom B2C API
+    // const securityCredential = generateSecurityCredential(defaultMpesaConfig.initiatorPassword);
+    // const b2cResponse = await fetch(
+    //   `https://api.safaricom.co.ke/mpesa/b2c/v1/paymentrequest`,
+    //   {
+    //     method: 'POST',
+    //     headers: {
+    //       Authorization: `Bearer ${accessToken}`,
+    //       'Content-Type': 'application/json',
+    //     },
+    //     body: JSON.stringify({
+    //       InitiatorName: defaultMpesaConfig.initiatorName,
+    //       SecurityCredential: securityCredential,
+    //       CommandID: data.commandID || 'BusinessPayment',
+    //       Amount: Math.round(data.amount),
+    //       PartyA: defaultMpesaConfig.shortCode,
+    //       PartyB: formattedPhone,
+    //       Remarks: data.remarks || 'B2C Payment',
+    //       QueueTimeOutURL: `${defaultMpesaConfig.callbackBaseUrl}/disburse/queue-timeout`,
+    //       ResultURL: `${defaultMpesaConfig.callbackBaseUrl}/disburse/callback`,
+    //       Occasion: data.occasion || '',
+    //     }),
+    //   }
+    // );
+
+    // Simulate successful initiation (sandbox mode)
+    return {
+      success: true,
+      conversationID,
+      originatorConversationID,
+      responseCode: '0',
+      responseDescription: 'Acceptance for success',
+      transactionID,
+      disbursedAmount: data.amount,
+      recipientPhone: formattedPhone,
+    };
   }
 
   /**
-   * Process B2C callback (from Safaricom)
+   * Process B2C Result Callback
+   * 
+   * Handle incoming B2C result from Safaricom.
+   * Updates loan status on successful disbursement.
+   * 
+   * @param callbackData - Raw callback body from Safaricom
+   * @returns Promise resolving when processing is complete
    */
-  async processB2CCallback(callbackData: any): Promise<void> {
-    const { Result } = callbackData;
+  async processB2CCallback(callbackData: unknown): Promise<void> {
+    // Validate callback structure
+    const validation = validateB2CCallback(callbackData);
+    
+    if (!validation.valid) {
+      logger.warn('Invalid B2C callback format', { errors: validation.errors });
+      return;
+    }
+
+    const { Result } = validation.data!;
     
     logger.info('B2C Callback received', {
-      ResultType: Result?.ResultType,
-      TransactionID: Result?.TransactionID,
-      ResultCode: Result?.ResultCode,
-      ResultDesc: Result?.ResultDesc,
+      ResultType: Result.ResultType,
+      ConversationID: Result.ConversationID,
+      TransactionID: Result.TransactionID,
+      ResultCode: Result.ResultCode,
+      ResultDesc: Result.ResultDesc,
+      Amount: Result.TransactionAmount,
+      Recipient: Result.CreditPartyPublicName,
     });
 
-    if (Result?.ResultCode === 0) {
+    if (Result.ResultCode === 0) {
       // Disbursement successful
-      // TODO: Update loan status to ACTIVE, create disbursement transaction
+      // Update loan status to ACTIVE/DISBURSED
+      // Create disbursement transaction record
       
       logger.info('B2C disbursement successful', {
         TransactionID: Result.TransactionID,
-        Amount: Result?.TransactionDetails?.TransactionAmount,
+        Amount: Result.TransactionAmount,
+        Recipient: Result.CreditPartyPublicName,
       });
+
+      // TODO: Update loan status in database
+      // if (associatedLoanId) {
+      //   await db.loan.update({
+      //     where: { id: associatedLoanId },
+      //     data: {
+      //       status: 'ACTIVE',
+      //       disbursedAt: new Date(),
+      //       disbursementTransactionId: Result.TransactionID,
+      //     },
+      //   });
+      // }
+
+      // TODO: Create transaction record
+      // await db.transaction.create({
+      //   data: {
+      //     type: 'DISBURSEMENT',
+      //     amount: parseFloat(Result.TransactionAmount),
+      //     externalRef: Result.TransactionID,
+      //     // ... other fields
+      //   },
+      // });
+
     } else {
       // Disbursement failed
+      const resultCodeInfo = getResultCodeInfo(Result.ResultCode);
+      
       logger.warn('B2C disbursement failed', {
         TransactionID: Result.TransactionID,
         ResultCode: Result.ResultCode,
+        Reason: Result.ResultDesc || Result.TransactionReason,
+        UserMessage: resultCodeInfo.userMessage,
       });
+
+      // TODO: Update loan status to DISBURSEMENT_FAILED
+      // Notify relevant staff about failure
     }
   }
 
   /**
-   * Get payment/transaction history
+   * Disburse Funds to Customer
+   * 
+   * Complete method for disbursing a loan to a customer's M-Pesa.
+   * Validates loan status and initiates B2C transfer.
+   * 
+   * @param loanId - The loan ID to disburse
+   * @param phone - Customer's M-Pesa phone number
+   * @param amount - Optional amount (defaults to approved amount)
+   * @returns Promise resolving to disbursement result
+   */
+  async disburseToCustomer(
+    loanId: string,
+    phone: string,
+    amount?: number
+  ): Promise<Disbursement> {
+    // Get loan details
+    const loan = await db.loan.findUnique({
+      where: { id: loanId },
+      include: { customer: true },
+    });
+
+    if (!loan) {
+      const error: any = new Error('Loan not found');
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+
+    // Validate loan status
+    if (!['APPROVED', 'PENDING_DISBURSEMENT'].includes(loan.status)) {
+      const error: any = new Error(
+        `Loan is not ready for disbursement. Current status: ${loan.status}`
+      );
+      error.code = 'INVALID_STATUS';
+      throw error;
+    }
+
+    const disbursedAmount = amount || loan.approvedAmount;
+    const recipientPhone = phone || loan.customer.mpesaPhone || loan.customer.phone;
+
+    // Format phone number
+    const formattedPhone = formatPhoneNumber(recipientPhone);
+
+    if (!isValidMpesaPhone(formattedPhone)) {
+      const error: any = new Error(
+        'Invalid customer phone number. Cannot disburse without valid M-Pesa number.'
+      );
+      error.code = 'INVALID_PHONE';
+      throw error;
+    }
+
+    // Initiate B2C payment
+    const b2cResult = await this.initiateB2C({
+      phone: formattedPhone,
+      amount: disbursedAmount,
+      occasion: 'Loan Disbursement',
+      remarks: `Loan ${loan.loanNumber} disbursement`,
+      commandID: 'BusinessPayment',
+      loanId,
+    }, loan.tenantId);
+
+    logger.info('Disbursement to customer initiated', {
+      loanId,
+      loanNumber: loan.loanNumber,
+      phone: maskPhoneNumber(formattedPhone),
+      amount: disbursedAmount,
+      conversationID: b2cResult.conversationID,
+    });
+
+    return {
+      ...b2cResult,
+      disbursedAmount,
+      recipientPhone: formattedPhone,
+    };
+  }
+
+  /**
+   * Get Payment History
+   * 
+   * Retrieve paginated list of payment transactions.
+   * Supports filtering by type, date range, etc.
+   * 
+   * @param params - Query parameters
+   * @returns Promise resolving to paginated payment records
    */
   async getHistory(params: {
     tenantId: string;
@@ -215,12 +665,25 @@ export class PaymentService {
     type?: string;
     startDate?: Date;
     endDate?: Date;
+    loanId?: string;
+    customerId?: string;
   }) {
-    const { tenantId, page = 1, limit = 20, type, startDate, endDate } = params;
+    const {
+      tenantId,
+      page = 1,
+      limit = 20,
+      type,
+      startDate,
+      endDate,
+      loanId,
+      customerId,
+    } = params;
 
     const where: Record<string, unknown> = { tenantId };
     
     if (type) where.transactionType = type;
+    if (loanId) where.loanId = loanId;
+    if (customerId) where.customerId = customerId;
     if (startDate && endDate) {
       where.occurredAt = { gte: startDate, lte: endDate };
     }
@@ -237,12 +700,22 @@ export class PaymentService {
 
     return {
       items: transactions,
-      pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
     };
   }
 
   /**
-   * Get wallet/account balance
+   * Get Account Balance
+   * 
+   * Calculate wallet/account balance based on transactions.
+   * 
+   * @param tenantId - Tenant ID to calculate balance for
+   * @returns Promise resolving to balance information
    */
   async getBalance(tenantId: string) {
     const [totalDisbursed, totalCollected] = await Promise.all([
@@ -253,32 +726,43 @@ export class PaymentService {
       db.transaction.aggregate({
         where: {
           tenantId,
-          transactionType: { in: ['REPAYMENT_PRINCIPAL', 'REPAYMENT_INTEREST', 'FEE_COLLECTED'] },
+          transactionType: {
+            in: ['REPAYMENT_PRINCIPAL', 'REPAYMENT_INTEREST', 'FEE_COLLECTED'],
+          },
         },
         _sum: { amount: true },
       }),
     ]);
 
+    const disbursed = totalDisbursed._sum.amount || 0;
+    const collected = totalCollected._sum.amount || 0;
+
     return {
-      totalBalance: 2400000 + (totalCollected._sum.amount || 0) - (totalDisbursed._sum.amount || 0),
+      totalBalance: 2400000 + collected - disbursed,
       availableBalance: 2200000,
       currency: 'KES',
       lastUpdated: new Date(),
       summary: {
-        totalDisbursed: totalDisbursed._sum.amount || 0,
-        totalCollected: totalCollected._sum.amount || 0,
+        totalDisbursed: disbursed,
+        totalCollected: collected,
+        netPosition: collected - disbursed,
       },
     };
   }
 
   /**
-   * Get payment/repayment history for a specific loan
+   * Get Payment History for Specific Loan
    * 
-   * @param loanId - The loan ID to get payment history for
-   * @param params - Optional pagination parameters
-   * @returns Array of repayments with pagination info
+   * Retrieve all repayments made against a specific loan.
+   * 
+   * @param loanId - Loan ID to get history for
+   * @param params - Pagination parameters
+   * @returns Promise resolving to repayment records with pagination
    */
-  async getPaymentHistory(loanId: string, params?: { page?: number; limit?: number }) {
+  async getPaymentHistory(
+    loanId: string,
+    params?: { page?: number; limit?: number }
+  ) {
     const { page = 1, limit = 50 } = params || {};
 
     // Verify loan exists
@@ -311,78 +795,19 @@ export class PaymentService {
   }
 
   /**
-   * Disburse funds to a customer's M-Pesa or bank account
+   * Record Manual Payment
    * 
-   * @param loanId - The loan ID to disburse
-   * @param phone - Customer's phone number for M-Pesa disbursement
-   * @param amount - Amount to disburse (defaults to loan's approved amount)
-   * @returns Disbursement result with transaction details
-   */
-  async disburseToCustomer(loanId: string, phone: string, amount?: number): Promise<{
-    success: boolean;
-    conversationID: string;
-    originatorConversationID: string;
-    responseCode: string;
-    responseDescription: string;
-    transactionID: string;
-    disbursedAmount: number;
-    recipientPhone: string;
-  }> {
-    // Get loan details
-    const loan = await db.loan.findUnique({
-      where: { id: loanId },
-      include: { customer: true },
-    });
-
-    if (!loan) {
-      const error: any = new Error('Loan not found');
-      error.code = 'NOT_FOUND';
-      throw error;
-    }
-
-    if (!['APPROVED', 'PENDING_DISBURSEMENT'].includes(loan.status)) {
-      const error: any = new Error(`Loan is not ready for disbursement. Current status: ${loan.status}`);
-      error.code = 'INVALID_STATUS';
-      throw error;
-    }
-
-    const disbursedAmount = amount || loan.approvedAmount;
-
-    // Initiate B2C payment via M-Pesa
-    const b2cResult = await this.initiateB2C({
-      phone: phone || loan.customer.mpesaPhone || loan.customer.phone,
-      amount: disbursedAmount,
-      occasion: 'Loan Disbursement',
-      remarks: `Loan ${loan.loanNumber} disbursement`,
-      commandID: 'BusinessPayment',
-      loanId,
-    }, loan.tenantId);
-
-    logger.info('Disbursement to customer initiated', {
-      loanId,
-      phone,
-      amount: disbursedAmount,
-      conversationID: b2cResult.conversationID,
-    });
-
-    return {
-      ...b2cResult,
-      disbursedAmount,
-      recipientPhone: phone,
-    };
-  }
-
-  /**
-   * Record a manual payment against a loan
+   * Manually record a payment against a loan (e.g., bank transfer, cash).
    * 
-   * @param loanId - The loan ID to record payment for
+   * @param loanId - Loan ID to record payment for
    * @param amount - Payment amount
-   * @param reference - External reference number (e.g., M-Pesa code)
-   * @returns Created repayment record
+   * @param reference - External reference number
+   * @param options - Additional options
+   * @returns Promise resolving to created repayment record
    */
   async recordPayment(
-    loanId: string, 
-    amount: number, 
+    loanId: string,
+    amount: number,
     reference?: string,
     options?: {
       paymentMethod?: string;
@@ -408,7 +833,16 @@ export class PaymentService {
   }
 
   /**
-   * Process repayment and update loan balance
+   * Process Repayment
+   * 
+   * Core logic for processing a repayment:
+   * - Creates repayment record
+   * - Updates loan balances
+   * - Creates double-entry accounting transactions
+   * - Handles full payoff scenario
+   * 
+   * @param data - Repayment processing data
+   * @returns Promise resolving to created repayment record
    */
   async processRepayment(data: {
     loanId: string;
@@ -472,7 +906,7 @@ export class PaymentService {
       },
     });
 
-    // Create transaction records
+    // Create double-entry transaction records
     if (principalPayment > 0) {
       await this.createTransaction({
         tenantId: data.tenantId,
@@ -500,14 +934,23 @@ export class PaymentService {
     logger.info('Repayment processed', {
       loanId: data.loanId,
       amount: paymentAmount,
+      principalPortion: principalPayment,
+      interestPortion: interestPayment,
       referenceNumber: data.referenceNumber,
+      remainingBalance: Math.max(0, newOutstandingBalance),
+      fullyPaid: isFullyPaid,
     });
 
     return repayment;
   }
 
   /**
-   * Create a transaction record
+   * Create Accounting Transaction Record
+   * 
+   * Internal method for creating double-entry bookkeeping records.
+   * 
+   * @param data - Transaction data
+   * @returns Promise resolving to created transaction
    */
   private async createTransaction(data: {
     tenantId: string;
@@ -521,7 +964,7 @@ export class PaymentService {
     return db.transaction.create({
       data: {
         tenantId: data.tenantId,
-        referenceNumber: `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+        referenceNumber: generateTransactionRef(),
         transactionType: data.type as any,
         entityType: data.entityType as any,
         entityId: data.entityId,
@@ -534,6 +977,7 @@ export class PaymentService {
     });
   }
 
+  /** Map transaction types to debit accounts */
   private getDebitAccount(transactionType: string): string {
     const accounts: Record<string, string> = {
       DISBURSEMENT: 'Loans_Receivable',
@@ -545,6 +989,7 @@ export class PaymentService {
     return accounts[transactionType] || 'Suspense_Account';
   }
 
+  /** Map transaction types to credit accounts */
   private getCreditAccount(transactionType: string): string {
     const accounts: Record<string, string> = {
       DISBURSEMENT: 'Cash_At_Bank',
@@ -557,10 +1002,40 @@ export class PaymentService {
   }
 
   /**
-   * Generate unique request ID
+   * Get Pending Transactions Count
+   * 
+   * Returns count of currently pending STK Push transactions.
+   * Useful for monitoring and dashboard displays.
    */
-  private generateRequestId(): string {
-    return `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  getPendingCount(): number {
+    return pendingTransactions.size;
+  }
+
+  /**
+   * Cleanup Expired Pending Transactions
+   * 
+   * Removes transactions that have been pending longer than specified duration.
+   * Should be called periodically (e.g., cron job).
+   * 
+   * @param maxAgeMs - Maximum age in milliseconds (default: 30 minutes)
+   * @returns Number of cleaned up transactions
+   */
+  cleanupExpiredTransactions(maxAgeMs: number = 30 * 60 * 1000): number {
+    let cleaned = 0;
+    const now = Date.now();
+    
+    for (const [id, tx] of pendingTransactions.entries()) {
+      if (now - tx.initiatedAt.getTime() > maxAgeMs) {
+        pendingTransactions.delete(id);
+        cleaned++;
+      }
+    }
+    
+    if (cleaned > 0) {
+      logger.info(`Cleaned up ${cleaned} expired pending transactions`);
+    }
+    
+    return cleaned;
   }
 }
 

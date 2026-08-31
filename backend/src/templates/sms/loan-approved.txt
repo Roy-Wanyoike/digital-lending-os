@@ -1,0 +1,1 @@
+Dear {customer_name}, your loan of KES {amount} has been approved. Loan Number: {loan_number}. Funds will be disbursed to your account shortly. Thank you for choosing {tenant_name}.

@@ -1,0 +1,1 @@
+{"title": "New Notification", "body": "You have a new notification from {tenant_name}", "icon": "notification_icon.png", "badge": "notification_badge.png", "data": {"type": "{notification_type}", "id": "{notification_id}", "url": "{action_url}"}, "actions": [{"title": "View", "action": "view"}, {"title": "Dismiss", "action": "dismiss"}], "priority": "normal", "sound": "default"}

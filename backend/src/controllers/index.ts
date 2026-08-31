@@ -18,6 +18,7 @@ export { reportController } from './report.controller';
 export { dashboardController } from './dashboard.controller';
 export { staffController } from './staff.controller';
 export { webhookController } from './webhook.controller';
+export { notificationController } from './notification.controller';
 
 // Re-export types
 export type { AuthController } from './auth.controller';
@@ -34,3 +35,4 @@ export type { ReportController } from './report.controller';
 export type { DashboardController } from './dashboard.controller';
 export type { StaffController } from './staff.controller';
 export type { WebhookController } from './webhook.controller';
+export type { NotificationController } from './notification.controller';

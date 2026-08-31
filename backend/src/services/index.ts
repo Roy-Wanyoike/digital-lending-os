@@ -16,6 +16,7 @@ export { creditService } from './credit.service';
 export { providerService } from './provider.service';
 export { reportService } from './report.service';
 export { notificationService } from './notification.service';
+export { templateService } from './template.service';
 
 // Re-export types
 export type { AuthService } from './auth.service';
@@ -30,3 +31,4 @@ export type { CreditService } from './credit.service';
 export type { ProviderService } from './provider.service';
 export type { ReportService } from './report.service';
 export type { NotificationService } from './notification.service';
+export type { TemplateService, Template, RenderResult } from './template.service';

@@ -1,0 +1,1 @@
+Good news {customer_name}! KES {amount} has been disbursed to your account for Loan {loan_number}. Check your M-Pesa or bank account. Thank you for choosing {tenant_name}.

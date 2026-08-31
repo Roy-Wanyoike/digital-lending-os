@@ -1,0 +1,1 @@
+Dear {customer_name}, this is a reminder that your loan installment of KES {amount} is due on {due_date}. Loan Number: {loan_number}. Please pay on time to avoid penalties. Contact us if you have any questions.

@@ -1,0 +1,1 @@
+URGENT: Dear {customer_name}, your Loan {loan_number} is {days_overdue} days overdue. Outstanding balance: KES {balance}. Please pay immediately to avoid additional charges. Contact us at {support_phone} to arrange payment.
