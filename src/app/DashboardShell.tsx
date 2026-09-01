@@ -49,6 +49,7 @@ const ReferralTab = D(() => import('@/components/dashboard/ReferralTab').then(m 
 const MatchingTab = D(() => import('@/components/dashboard/MatchingTab').then(m => ({ default: m.MatchingTab })))
 const CollectionsTab = D(() => import('@/components/dashboard/CollectionsTab').then(m => ({ default: m.CollectionsTab })))
 const ComplianceTab = D(() => import('@/components/dashboard/ComplianceTab').then(m => ({ default: m.ComplianceTab })))
+const DigitalTwinTab = D(() => import('@/components/dashboard/DigitalTwinTab').then(m => ({ default: m.DigitalTwinTab })))
 
 // ─── Tab component map ───────────────────────────────────────────
 const TAB_COMPONENTS: Record<string, React.ComponentType> = {
@@ -64,6 +65,7 @@ const TAB_COMPONENTS: Record<string, React.ComponentType> = {
   'matching': MatchingTab,
   'collections': CollectionsTab,
   'compliance': ComplianceTab,
+  'digital-twin': DigitalTwinTab,
 }
 
 // ─── Shell component ─────────────────────────────────────────────

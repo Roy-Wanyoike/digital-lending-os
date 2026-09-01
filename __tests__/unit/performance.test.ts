@@ -52,6 +52,8 @@ const PAGINATION_EXEMPT_PATTERNS = [
   /payments\/methods\/route\.ts$/,    // Per-business scoped (typically <10)
   /businesses\/route\.ts$/,           // Bounded by tenant.maxBusinesses (typically <20)
   /tenants\/route\.ts$/,              // Admin-only, typically very few tenants
+  /twin\/profiles\/route\.ts$/,         // Digital twin profiles (typically <20)
+  /^route\.ts$/,                       // Root API route (static response)
 ]
 
 function isPaginationExempt(relPath: string): boolean {

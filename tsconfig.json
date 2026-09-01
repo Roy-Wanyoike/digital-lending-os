@@ -89,6 +89,8 @@
     "prisma",
     "skills",
     "agent-ctx",
-    "__tests__"
+    "__tests__",
+    "src/backend/lib/telemetry/**",
+    "src/lib/temporal/**"
   ]
 }

@@ -72,7 +72,7 @@ export function DigitalTwinTab() {
 
   const predData = selectedTwin?.predictions?.map(p => ({
     metric: p.predictionType?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-    predicted: formatCurrency(p.predictedValue),
+    predicted: formatCurrency(p.predictedValue ?? 0),
     confidence: Math.round((p.confidence ?? 0) * 100),
   })) || []
 

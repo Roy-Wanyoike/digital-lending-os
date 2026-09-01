@@ -48,7 +48,7 @@ function PaymentMethodLabel(method: string) {
 
 export default function DepositsPage() {
   const [page, setPage] = useState(1);
-  const { data: response, loading, error, refetch: refetchDeposits } = useApi<{ data: Deposit[]; meta?: { page: number; limit: number; total: number; pages: number } }>('/api/deposits?page=1&limit=20');
+  const { data: response, loading, error, refetch: refetchDeposits } = useApi<{ data: Deposit[]; meta?: { page: number; limit: number; total: number; pages: number } }>(`/api/deposits?page=${page}&limit=20`);
   const { data: wallets, refetch: refetchWallets } = useApi<Array<{ id: string; currency: string }>>('/api/wallets');
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ walletId: '', amount: '', method: 'manual', description: '' });

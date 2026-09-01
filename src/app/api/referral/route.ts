@@ -118,7 +118,8 @@ async function getHandler(request: NextRequest) {
     })
   } catch (error: any) {
     if (error instanceof AuthError) {
-      }
+      return unauthorized(error.message)
+    }
     console.error('Referral GET error:', error)
     return error('Failed to fetch referral info')
   }
@@ -170,7 +171,8 @@ async function postHandler(request: NextRequest) {
     })
   } catch (error: any) {
     if (error instanceof AuthError) {
-      }
+      return unauthorized(error.message)
+    }
     console.error('Referral POST error:', error)
     return error('Failed to validate referral code')
   }

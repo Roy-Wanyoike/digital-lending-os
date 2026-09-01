@@ -1,5 +1,5 @@
 {
-  "name": "nextjs_tailwind_shadcn_ts",
+  "name": "youngsend",
   "version": "0.2.1",
   "private": true,
   "scripts": {
@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.config.integration.ts",
-    "db:push": "prisma db push --accept-data-loss",
+    "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset"

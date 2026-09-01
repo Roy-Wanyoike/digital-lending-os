@@ -1,45 +1,20 @@
 import { describe, it, expect } from 'vitest'
+import {
+  getTrustScoreColor, getRiskColor, getRiskBg, getTrustScoreBg,
+  formatCurrency, formatCurrencyCompact, getStatusColor, truncate,
+  getCountryFlag, abbreviateNumber, ROLE_TABS,
+} from '@/frontend/lib/formatters'
+
+// NAV_ITEMS IDs are not functions, so we keep the hardcoded list
+const NAV_ITEMS_IDS = [
+  'overview', 'trust-graph', 'escrow', 'payments', 'passport',
+  'payment-links', 'wallet', 'referral', 'fraud', 'matching',
+  'collections', 'compliance',
+]
 
 // Sprint fixes unit tests - 28 tests across 4 groups
-// Pure-function re-implementations (no .tsx imports to avoid UI deps)
 
-// --- 1. Dark Mode Color Helpers (re-implemented from dashboard-helpers.tsx) ---
-
-function safeNum(score: unknown): number {
-  return typeof score === 'number' && isFinite(score) ? score : 0
-}
-
-function getTrustScoreColor(score: number | undefined | null): string {
-  const s = safeNum(score)
-  if (s >= 80) return 'text-emerald-600 dark:text-emerald-400'
-  if (s >= 60) return 'text-amber-600 dark:text-amber-400'
-  if (s >= 40) return 'text-orange-600 dark:text-orange-400'
-  return 'text-red-600 dark:text-red-400'
-}
-
-function getRiskColor(score: number | undefined | null): string {
-  const s = safeNum(score)
-  if (s >= 80) return 'text-red-600 dark:text-red-400'
-  if (s >= 60) return 'text-orange-600 dark:text-orange-400'
-  if (s >= 40) return 'text-amber-600 dark:text-amber-400'
-  return 'text-emerald-600 dark:text-emerald-400'
-}
-
-function getRiskBg(score: number | undefined | null): string {
-  const s = safeNum(score)
-  if (s >= 80) return 'bg-red-500 dark:bg-red-600'
-  if (s >= 60) return 'bg-orange-500 dark:bg-orange-600'
-  if (s >= 40) return 'bg-amber-500 dark:bg-amber-600'
-  return 'bg-emerald-500 dark:bg-emerald-600'
-}
-
-function getTrustScoreBg(score: number | undefined | null): string {
-  const s = safeNum(score)
-  if (s >= 80) return 'bg-emerald-500 dark:bg-emerald-600'
-  if (s >= 60) return 'bg-amber-500 dark:bg-amber-600'
-  if (s >= 40) return 'bg-orange-500 dark:bg-orange-600'
-  return 'bg-red-500 dark:bg-red-600'
-}
+// --- 1. Dark Mode Color Helpers ---
 
 describe('Dark Mode Color Helpers', () => {
   describe('getTrustScoreColor', () => {
@@ -192,31 +167,16 @@ describe('Financial Rate Limiting - isFinancialMutation', () => {
 
 // --- 3. Digital Twin Removal ---
 
-const NAV_ITEMS_IDS = [
+const NAV_ITEMS_IDS_STUB = [
   'overview', 'trust-graph', 'escrow', 'payments', 'passport',
   'payment-links', 'wallet', 'referral', 'fraud', 'matching',
   'collections', 'compliance',
 ]
-
-const ROLE_TABS_ADMIN = [
-  'overview', 'trust-graph', 'escrow', 'payments', 'passport',
-  'payment-links', 'wallet', 'referral', 'fraud', 'matching',
-  'collections', 'compliance',
-]
-
-interface Business {
-  id: string; name: string; legalName?: string; registrationNo?: string;
-  taxId?: string; country: string; city?: string;
-  industry?: string; website?: string; employeeCount?: number;
-  annualRevenue?: number; description?: string; logoUrl?: string;
-  status: string; verifiedAt?: string; createdAt: string; updatedAt: string;
-  passport?: { credentialLevel?: string; kycStatus?: string; amlStatus?: string; riskRating?: string } | null
-  trustScore?: { overallScore?: number } | null
-}
+const ROLE_TABS_ADMIN = ROLE_TABS.admin
 
 describe('Digital Twin Removal', () => {
   it('NAV_ITEMS does not contain digital-twin', () => {
-    expect(NAV_ITEMS_IDS).not.toContain('digital-twin')
+    expect(NAV_ITEMS_IDS_STUB).not.toContain('digital-twin')
   })
 
   it('ROLE_TABS.admin does not contain digital-twin', () => {
@@ -224,84 +184,15 @@ describe('Digital Twin Removal', () => {
   })
 
   it('TwinProfile is not referenced in nav/tabs config', () => {
-    const allKeys = new Set([...NAV_ITEMS_IDS, ...ROLE_TABS_ADMIN])
+    const allKeys = new Set([...NAV_ITEMS_IDS_STUB, ...ROLE_TABS_ADMIN])
     expect(allKeys.has('twin-profile')).toBe(false)
     expect(allKeys.has('digital-twin')).toBe(false)
   })
-
-  it('Business type does not have digitalTwin field', () => {
-    const biz: Business = {
-      id: '1', name: 'Test', country: 'US', status: 'active',
-      createdAt: '2024-01-01', updatedAt: '2024-01-01',
-    }
-    expect(biz).toBeDefined()
-    expect('digitalTwin' in biz).toBe(false)
-  })
 })
 
-// --- 4. Dashboard Helpers - Edge Cases (re-implemented) ---
-
-function formatCurrency(value: number, currency = 'USD'): string {
-  const safe = typeof value === 'number' && isFinite(value) ? value : 0
-  if (currency === 'JPY') {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(safe)
-  }
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(safe)
-}
-
-function formatCurrencyCompact(value: number, currency = 'USD'): string {
-  const safe = typeof value === 'number' && isFinite(value) ? value : 0
-  if (currency === 'JPY' || safe >= 1000000) {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0, notation: 'compact' }).format(safe)
-  }
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(safe)
-}
-
-function getStatusColor(status: string): string {
-  const s = status?.toLowerCase()?.replace(/[\s_-]/g, '') || ''
-  if (['completed', 'paid', 'clear', 'resolved', 'engaged'].includes(s))
-    return 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800'
-  if (['failed', 'disputed', 'critical', 'alert', 'confirmed', 'declined', 'overdue'].includes(s))
-    return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800'
-  if (['active', 'inescrow', 'processing', 'sent', 'investigating', 'interested', 'potential_match'].includes(s))
-    return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800'
-  if (['pending', 'funded'].includes(s))
-    return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800'
-  return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/50 dark:text-slate-400 dark:border-slate-700'
-}
-
-function truncate(str: string, len: number): string {
-  if (!str) return ''
-  return str.length > len ? str.slice(0, len) + '...' : str
-}
+// --- 4. Dashboard Helpers - Edge Cases ---
 
 const FALLBACK_FLAG = '\u{1F310}' // globe emoji
-
-function getCountryFlag(country: string): string {
-  const nameMap: Record<string, string> = {
-    'Nigeria': '\u{1F1F3}\u{1F1EC}', 'Kenya': '\u{1F1F0}\u{1F1EA}', 'Ghana': '\u{1F1EC}\u{1F1ED}', 'Uganda': '\u{1F1FA}\u{1F1EC}',
-    'Tanzania': '\u{1F1F9}\u{1F1FF}', 'Rwanda': '\u{1F1F7}\u{1F1FC}', 'South Africa': '\u{1F1FF}\u{1F1E6}',
-    'United States': '\u{1F1FA}\u{1F1F8}', 'United Kingdom': '\u{1F1EC}\u{1F1E7}', 'Germany': '\u{1F1E9}\u{1F1EA}',
-    'Brazil': '\u{1F1E7}\u{1F1F7}', 'Mexico': '\u{1F1F2}\u{1F1FD}', 'Japan': '\u{1F1EF}\u{1F1F5}', 'China': '\u{1F1E8}\u{1F1F3}',
-    'India': '\u{1F1EE}\u{1F1F3}', 'Canada': '\u{1F1E8}\u{1F1E6}', 'Australia': '\u{1F1E6}\u{1F1FA}', 'UAE': '\u{1F1E6}\u{1F1EA}',
-    'Singapore': '\u{1F1F8}\u{1F1EC}', 'France': '\u{1F1EB}\u{1F1F7}', 'Netherlands': '\u{1F1F3}\u{1F1F1}',
-  }
-  const CURRENCY_FLAGS: Record<string, string> = {
-    USD: '\u{1F1FA}\u{1F1F8}', EUR: '\u{1F1EA}\u{1F1FA}', GBP: '\u{1F1EC}\u{1F1E7}', NGN: '\u{1F1F3}\u{1F1EC}', KES: '\u{1F1F0}\u{1F1EA}',
-    GHS: '\u{1F1EC}\u{1F1ED}', UGX: '\u{1F1FA}\u{1F1EC}', TZS: '\u{1F1F9}\u{1F1FF}', RWF: '\u{1F1F7}\u{1F1FC}', BRL: '\u{1F1E7}\u{1F1F7}',
-    MXN: '\u{1F1F2}\u{1F1FD}', ZAR: '\u{1F1FF}\u{1F1E6}', JPY: '\u{1F1EF}\u{1F1F5}', CNY: '\u{1F1E8}\u{1F1F3}', INR: '\u{1F1EE}\u{1F1F3}',
-    CAD: '\u{1F1E8}\u{1F1E6}', AUD: '\u{1F1E6}\u{1F1FA}', CHF: '\u{1F1E8}\u{1F1ED}', AED: '\u{1F1E6}\u{1F1EA}', SGD: '\u{1F1F8}\u{1F1EC}',
-  }
-  if (nameMap[country]) return nameMap[country]
-  return CURRENCY_FLAGS[country] || FALLBACK_FLAG
-}
-
-function abbreviateNumber(value: number): string {
-  const safe = typeof value === 'number' && isFinite(value) ? value : 0
-  if (safe >= 1000000) return '$' + (safe / 1000000).toFixed(1) + 'M'
-  if (safe >= 1000) return '$' + (safe / 1000).toFixed(safe >= 10000 ? 1 : 0) + 'K'
-  return safe.toString()
-}
 
 describe('Dashboard Helpers - Edge Cases', () => {
   it('formatCurrency with NaN returns $0.00', () => {

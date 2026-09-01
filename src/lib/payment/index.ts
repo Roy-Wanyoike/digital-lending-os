@@ -43,7 +43,7 @@ function getFlutterwave() {
   return _flutterwave
 }
 
-const providerMap: Record<PaymentProviderCode, () => PaymentProvider> = {
+const providerMap: Record<PaymentProviderCode, () => PaymentProvider | null> = {
   stripe: getStripe,
   paystack: getPaystack,
   intasend: getIntaSend,
@@ -55,6 +55,7 @@ export const providerRegistry = {
     const factory = providerMap[code]
     if (!factory) return null
     const provider = factory()
+    if (!provider) return null
     return provider.isActive ? provider : null
   },
 

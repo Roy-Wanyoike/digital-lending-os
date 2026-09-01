@@ -12,6 +12,15 @@ import {
 export function ComplianceTab() {
   const { data: rules, loading: rLoading, error: rulesError, refetch: refetchRules } = useApi<ComplianceRule[]>('/api/compliance/rules')
   const { data: screenings, loading: sLoading, error: screeningsError, refetch: refetchScreenings } = useApi<Screening[]>('/api/compliance/screenings?limit=20')
+  const { data: businesses } = useApi<Array<{ id: string; name: string }>>('/api/businesses?limit=200')
+
+  // Build business name lookup map
+  const businessMap = new Map<string, string>()
+  if (Array.isArray(businesses)) {
+    for (const b of businesses) {
+      businessMap.set(b.id, b.name)
+    }
+  }
 
   // Rules endpoint requires admin/auditor; degrade gracefully for other roles
   const rulesAccessDenied = rulesError && rulesError.includes('403')
@@ -112,7 +121,7 @@ export function ComplianceTab() {
                 )}
                 {allScreenings.map(s => (
                   <TableRow key={s.id} className="even:bg-muted/50">
-                    <TableCell className="max-w-[120px] truncate">{s.businessId ? s.businessId.slice(0, 8) + '...' : '—'}</TableCell>
+                    <TableCell className="max-w-[120px] truncate">{s.businessId ? (businessMap.get(s.businessId) || s.businessId.slice(0, 8) + '...') : '—'}</TableCell>
                     <TableCell className="text-sm">{s.screeningType}</TableCell>
                     <TableCell><Badge variant="secondary" className={`text-xs ${screeningResultColor(s.result)}`}>{s.result}</Badge></TableCell>
                     <TableCell><Badge variant={getStatusBadgeVariant(s.riskLevel)} className={getStatusColor(s.riskLevel)}>{s.riskLevel}</Badge></TableCell>

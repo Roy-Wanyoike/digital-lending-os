@@ -177,6 +177,28 @@ export interface Screening {
   matchedLists?: string | null; createdAt: string; updatedAt: string
 }
 
+export interface TwinProfile {
+  id: string
+  healthScore?: number | null
+  cashFlowHealth?: number | null
+  creditWorthiness?: number | null
+  liquidityScore?: number | null
+  growthTrajectory?: string | null
+  riskAppetite?: string | null
+  business?: { name: string } | null
+  metrics?: Array<{
+    periodDate?: string | null
+    revenue?: number | null
+    expenses?: number | null
+    netIncome?: number | null
+  }> | null
+  predictions?: Array<{
+    predictionType?: string | null
+    predictedValue?: number | null
+    confidence?: number | null
+  }> | null
+}
+
 // ─── Navigation Config ─────────────────────────────────────────────────────
 
 export const ROLE_LABELS: Record<Role, string> = {

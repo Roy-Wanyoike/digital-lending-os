@@ -79,25 +79,39 @@ export default function ConversionPage() {
     try {
       setQuoteLoading(true);
       setQuote(null);
-      const res = await fetch('/api/wallets/convert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fromWalletId, toWalletId, fromAmount: parseFloat(amount) }),
-      });
-      if (!res.ok) {
-        const d = await res.json();
-        throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || 'Failed to get quote');
+
+      // Fetch rates (read-only) instead of executing conversion
+      const ratesRes = await fetch('/api/wallets/rates');
+      if (!ratesRes.ok) {
+        const d = await ratesRes.json();
+        throw new Error(typeof d.error === 'string' ? d.error : d.error?.message || 'Failed to get exchange rates');
       }
-      const json = await res.json();
-      // The convert endpoint returns { data: conversionRecord }
-      const data = json.data || json;
+      const ratesJson = await ratesRes.json();
+      const ratesData = ratesJson.data || ratesJson;
+      const fiatRates = ratesData.fiatRates || {};
+
+      const fromCurrency = fromWallet!.currency;
+      const toCurrency = toWallet!.currency;
+      const fromAmount = parseFloat(amount);
+
+      // Look up rate
+      const ratePair = fiatRates[fromCurrency]?.[toCurrency];
+      if (!ratePair) {
+        throw new Error(`No exchange rate available for ${fromCurrency} → ${toCurrency}`);
+      }
+
+      const convertedAmount = fromAmount * ratePair;
+      const feePercent = ratesData.conversionFeePercent || 0.5;
+      const fee = convertedAmount * (feePercent / 100);
+      const netAmount = convertedAmount - fee;
+
       setQuote({
-        from: { walletId: fromWalletId, currency: fromWallet!.currency, amount: parseFloat(amount) },
-        to: { walletId: toWalletId, currency: toWallet!.currency, amount: data.netAmount || data.toAmount },
-        rate: data.exchangeRate || 0,
-        fee: data.feeAmount || 0,
-        convertedAmount: data.toAmount || 0,
-        finalAmount: data.netAmount || 0,
+        from: { walletId: fromWalletId, currency: fromCurrency, amount: fromAmount },
+        to: { walletId: toWalletId, currency: toCurrency, amount: netAmount },
+        rate: ratePair,
+        fee,
+        convertedAmount,
+        finalAmount: netAmount,
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to get quote');

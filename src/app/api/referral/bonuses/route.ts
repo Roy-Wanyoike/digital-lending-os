@@ -66,7 +66,8 @@ async function getHandler(request: NextRequest) {
     })
   } catch (error: any) {
     if (error instanceof AuthError) {
-      }
+      return unauthorized(error.message)
+    }
     console.error('Referral bonuses GET error:', error)
     return error('Failed to fetch referral bonuses')
   }

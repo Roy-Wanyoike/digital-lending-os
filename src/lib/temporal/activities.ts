@@ -94,7 +94,7 @@ export async function releaseMilestone(escrowId: string, milestoneSequence: numb
       throw new Error(`Cannot release milestone from escrow in status '${escrow.status}'`)
     }
 
-    const milestone = escrow.milestones.find((m) => m.sequence === milestoneSequence)
+    const milestone = escrow.milestones.find((m: { sequence: number; status: string }) => m.sequence === milestoneSequence)
     if (!milestone) {
       throw new Error(`Milestone ${milestoneSequence} not found on escrow ${escrowId}`)
     }

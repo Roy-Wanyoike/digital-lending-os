@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
-import { requireAuth, AuthError } from '@/lib/auth/api-helpers';
-
+import { requireAuth } from '@/lib/auth/api-helpers';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { created, notFound, withErrorHandler } from '@/backend/lib/api-response';
+
 const riskFactorPool = [
   'High accounts receivable aging',
   'Currency exposure in 3 markets',
@@ -69,77 +70,59 @@ async function postHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const user = await requireAuth(request);
-    const { id } = await params;
+  const user = await requireAuth(request);
+  const { id } = await params;
 
-    // Verify twin exists and belongs to tenant
-    const twin = await db.financialDigitalTwin.findUnique({
-      where: { id },
-      include: { business: { select: { tenantId: true } } },
-    });
+  // Verify twin exists and belongs to tenant
+  const twin = await db.financialDigitalTwin.findUnique({
+    where: { id },
+    include: { business: { select: { tenantId: true } } },
+  });
 
-    if (!twin) {
-      return NextResponse.json(
-        { error: 'Digital twin not found' },
-        { status: 404 }
-      );
-    }
-    if (twin.business.tenantId !== user.tenantId) {
-      return NextResponse.json(
-        { error: 'Digital twin not found' },
-        { status: 404 }
-      );
-    }
-
-    // Determine snapshot type: event_driven if recent snapshot exists within 24h, otherwise daily
-    const recentSnapshot = await db.financialSnapshot.findFirst({
-      where: {
-        twinId: id,
-        createdAt: {
-          gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        },
-      },
-    });
-
-    const snapshotType = recentSnapshot ? 'event_driven' : 'daily';
-
-    const riskFactors = pickRandom(riskFactorPool, 3);
-    const opportunities = pickRandom(opportunityPool, 3);
-
-    const aiSummary = generateAISummary(
-      twin.healthScore,
-      twin.cashFlowHealth,
-      twin.creditWorthiness,
-      twin.liquidityScore,
-      twin.growthTrajectory,
-      riskFactors,
-      opportunities
-    );
-
-    const snapshot = await db.financialSnapshot.create({
-      data: {
-        twinId: id,
-        snapshotType,
-        healthScore: twin.healthScore,
-        cashFlowHealth: twin.cashFlowHealth,
-        creditWorthiness: twin.creditWorthiness,
-        liquidityScore: twin.liquidityScore,
-        topRiskFactors: JSON.stringify(riskFactors),
-        topOpportunities: JSON.stringify(opportunities),
-        aiSummary,
-      },
-    });
-
-    return NextResponse.json(snapshot, { status: 201 });
-  } catch (error) {
-    console.error('Error generating snapshot:', error);
-    if (error instanceof AuthError) return NextResponse.json({ error: error.message }, { status: error.status });
-    return NextResponse.json(
-      { error: 'Failed to generate snapshot' },
-      { status: 500 }
-    );
+  if (!twin || twin.business.tenantId !== user.tenantId) {
+    return notFound('Digital twin not found');
   }
+
+  // Determine snapshot type: event_driven if recent snapshot exists within 24h, otherwise daily
+  const recentSnapshot = await db.financialSnapshot.findFirst({
+    where: {
+      twinId: id,
+      createdAt: {
+        gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      },
+    },
+  });
+
+  const snapshotType = recentSnapshot ? 'event_driven' : 'daily';
+
+  const riskFactors = pickRandom(riskFactorPool, 3);
+  const opportunities = pickRandom(opportunityPool, 3);
+
+  const aiSummary = generateAISummary(
+    twin.healthScore,
+    twin.cashFlowHealth,
+    twin.creditWorthiness,
+    twin.liquidityScore,
+    twin.growthTrajectory,
+    riskFactors,
+    opportunities
+  );
+
+  const snapshot = await db.financialSnapshot.create({
+    data: {
+      twinId: id,
+      snapshotType,
+      healthScore: twin.healthScore,
+      cashFlowHealth: twin.cashFlowHealth,
+      creditWorthiness: twin.creditWorthiness,
+      liquidityScore: twin.liquidityScore,
+      topRiskFactors: JSON.stringify(riskFactors),
+      topOpportunities: JSON.stringify(opportunities),
+      aiSummary,
+    },
+  });
+
+  return created(snapshot);
 }
 
-export const POST = withApiTelemetry(postHandler, '/api/twin/profiles/[id]/snapshot');
+export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/twin/profiles/[id]/snapshot');

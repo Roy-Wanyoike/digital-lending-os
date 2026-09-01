@@ -10,7 +10,7 @@ export {
   type Role, type NavItem, type DashboardStats, type Business, type EscrowTransaction,
   type PaymentIntent, type ExchangeRate, type PaymentMethod, type Verification,
   type PaymentLink, type WalletData, type FraudAlert, type FraudRule,
-  type MatchingRecord, type CollectionRecord, type ComplianceRule, type Screening,
+  type MatchingRecord, type CollectionRecord, type ComplianceRule, type Screening, type TwinProfile,
   ROLE_LABELS, ROLE_TABS,
   formatCurrency, formatCurrencyCompact, abbreviateNumber, formatDate, getCountryFlag,
   getStatusBadgeVariant, getStatusColor, getTrustScoreColor, getTrustScoreBg,

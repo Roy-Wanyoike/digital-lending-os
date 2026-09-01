@@ -49,7 +49,7 @@ function PaymentMethodLabel(method: string) {
 
 export default function WithdrawalsPage() {
   const [page, setPage] = useState(1);
-  const { data: response, loading, error, refetch: refetchWithdrawals } = useApi<{ data: Withdrawal[]; meta?: { page: number; limit: number; total: number; pages: number } }>('/api/withdrawals?page=1&limit=20');
+  const { data: response, loading, error, refetch: refetchWithdrawals } = useApi<{ data: Withdrawal[]; meta?: { page: number; limit: number; total: number; pages: number } }>(`/api/withdrawals?page=${page}&limit=20`);
   const { data: wallets, refetch: refetchWallets } = useApi<Array<{ id: string; currency: string; balance: number }>>('/api/wallets');
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ walletId: '', amount: '', method: 'bank_transfer', destination: '', description: '' });
