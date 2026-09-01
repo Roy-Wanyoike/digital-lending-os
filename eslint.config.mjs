@@ -8,8 +8,9 @@ const __dirname = dirname(__filename);
 
 const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   rules: {
+    // Progressively re-enabled lint rules (plan: tighten to 'error' in a follow-up PR)
     // TypeScript rules
-    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-explicit-any": "warn",
     "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-non-null-assertion": "off",
     "@typescript-eslint/ban-ts-comment": "off",
@@ -17,7 +18,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "@typescript-eslint/no-unused-disable-directive": "off",
     
     // React rules
-    "react-hooks/exhaustive-deps": "off",
+    "react-hooks/exhaustive-deps": "off", // TODO: re-enable in follow-up PR
     "react-hooks/purity": "off",
     "react/no-unescaped-entities": "off",
     "react/display-name": "off",
@@ -29,18 +30,18 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "@next/next/no-html-link-for-pages": "off",
     
     // General JavaScript rules
-    "prefer-const": "off",
-    "no-unused-vars": "off",
-    "no-console": "off",
-    "no-debugger": "off",
-    "no-empty": "off",
+    "prefer-const": "warn",
+    "no-unused-vars": "warn",
+    "no-console": ["warn", { allow: ["warn", "error"] }],
+    "no-debugger": "error",
+    "no-empty": "warn",
     "no-irregular-whitespace": "off",
     "no-case-declarations": "off",
-    "no-fallthrough": "off",
+    "no-fallthrough": "off", // TODO: re-enable in follow-up PR
     "no-mixed-spaces-and-tabs": "off",
     "no-redeclare": "off",
     "no-undef": "off",
-    "no-unreachable": "off",
+    "no-unreachable": "off", // TODO: re-enable in follow-up PR
     "no-useless-escape": "off",
   },
 }, {

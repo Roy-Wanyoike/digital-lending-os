@@ -136,7 +136,7 @@ describe('Middleware — Rate limiter', () => {
       headers: {
         'User-Agent': 'GoodBot/1.0',
         'x-forwarded-for': '10.0.0.1',
-        'Authorization': 'Bearer test',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     })
 
@@ -152,7 +152,7 @@ describe('Middleware — Rate limiter', () => {
       headers: {
         'User-Agent': 'GoodBot/1.0',
         'x-forwarded-for': '10.0.0.2',
-        'Authorization': 'Bearer test',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     })
 
@@ -167,7 +167,7 @@ describe('Middleware — Rate limiter', () => {
       headers: {
         'User-Agent': 'GoodBot/1.0',
         'x-forwarded-for': '10.0.0.99',
-        'Authorization': 'Bearer test',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     })
 
@@ -187,7 +187,7 @@ describe('Middleware — Rate limiter', () => {
       headers: {
         'User-Agent': 'GoodBot/1.0',
         'x-forwarded-for': '10.0.0.100',
-        'Authorization': 'Bearer test',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     })
 
@@ -211,7 +211,7 @@ describe('Middleware — Rate limiter', () => {
       headers: {
         'User-Agent': 'GoodBot/1.0',
         'x-forwarded-for': '10.0.0.200',
-        'Authorization': 'Bearer test',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     })
 
@@ -227,7 +227,7 @@ describe('Middleware — Rate limiter', () => {
       headers: {
         'User-Agent': 'GoodBot/1.0',
         'x-forwarded-for': '10.0.0.201',
-        'Authorization': 'Bearer test',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     })
 
@@ -246,7 +246,7 @@ describe('Middleware — Rate limiter', () => {
       headers: {
         'User-Agent': 'GoodBot/1.0',
         'x-forwarded-for': '10.0.0.202',
-        'Authorization': 'Bearer test',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     })
 
@@ -258,12 +258,12 @@ describe('Middleware — Rate limiter', () => {
     const headers1 = {
       'User-Agent': 'GoodBot/1.0',
       'x-forwarded-for': '10.0.0.50',
-      'Authorization': 'Bearer test',
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
     }
     const headers2 = {
       'User-Agent': 'GoodBot/1.0',
       'x-forwarded-for': '10.0.0.51',
-      'Authorization': 'Bearer test',
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
     }
 
     // Exhaust IP1
@@ -308,7 +308,7 @@ describe('Middleware — Bot protection', () => {
         headers: {
           'User-Agent': ua,
           'x-forwarded-for': '10.0.0.3',
-          'Authorization': 'Bearer test',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
         },
       }))
       expect(res.status).toBe(403)
@@ -320,7 +320,7 @@ describe('Middleware — Bot protection', () => {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
         'x-forwarded-for': '10.0.0.4',
-        'Authorization': 'Bearer test',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     }))
     expect(res.status).toBe(200)
@@ -339,7 +339,7 @@ describe('Middleware — Bot protection', () => {
       headers: {
         'User-Agent': 'curl/7.88.0',
         'x-forwarded-for': '10.0.0.6',
-        'Authorization': 'Bearer test',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     }))
     expect(res.headers.get('x-bot-blocked')).toBe('true')
@@ -373,7 +373,7 @@ describe('Middleware — Security headers', () => {
     const csp = res.headers.get('content-security-policy')
     expect(csp).toBeTruthy()
     expect(csp).toContain("default-src 'self'")
-    expect(csp).toContain("script-src 'self' 'unsafe-inline'")
+    expect(csp).toMatch(/script-src.*nonce-[a-f0-9]+.*strict-dynamic/)
     expect(csp).toContain("object-src 'none'")
     expect(csp).toContain("form-action 'self'")
     expect(csp).toContain('https://*.stripe.com')
@@ -461,7 +461,7 @@ describe('Middleware — Financial mutation detection', () => {
         headers: {
           'User-Agent': 'GoodBot/1.0',
           'x-forwarded-for': '10.0.1.1',
-          'Authorization': 'Bearer test',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
         },
       }))
       expect(res.headers.get('x-ratelimit-limit')).toBe('10')
@@ -482,7 +482,7 @@ describe('Middleware — Financial mutation detection', () => {
         headers: {
           'User-Agent': 'GoodBot/1.0',
           'x-forwarded-for': '10.0.1.2',
-          'Authorization': 'Bearer test',
+          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
         },
       }))
       expect(res.headers.get('x-ratelimit-limit')).toBe('10')
@@ -495,7 +495,7 @@ describe('Middleware — Financial mutation detection', () => {
       headers: {
         'User-Agent': 'GoodBot/1.0',
         'x-forwarded-for': '10.0.1.3',
-        'Authorization': 'Bearer test',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     }))
     expect(res.headers.get('x-ratelimit-limit')).toBe('100')
@@ -507,7 +507,7 @@ describe('Middleware — Financial mutation detection', () => {
       headers: {
         'User-Agent': 'GoodBot/1.0',
         'x-forwarded-for': '10.0.1.4',
-        'Authorization': 'Bearer test',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     }))
     expect(res.headers.get('x-ratelimit-limit')).toBe('100')
@@ -558,7 +558,7 @@ describe('Middleware — Auth guard', () => {
       headers: {
         'User-Agent': 'GoodBot/1.0',
         'x-forwarded-for': '10.0.2.3',
-        'Authorization': 'Bearer test-token',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U',
       },
     }))
     expect(res.status).toBe(200)

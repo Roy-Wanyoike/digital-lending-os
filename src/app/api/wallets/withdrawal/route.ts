@@ -163,12 +163,16 @@ async function postHandler(request: NextRequest) {
     void processWithdrawal({ walletId: data.walletId, withdrawalId: withdrawal.id, withdrawalRef, amount: data.amount, currency: wallet.currency, tenantId: user.tenantId });
 
     // ── Publish Kafka event ────────────────────────────────
+    // A background worker (Temporal workflow or Kafka consumer) should listen
+    // for 'wallet.withdrawal.created' events on the 'wallet.events.wallet_withdrawn' topic
+    // to execute the payout with the payment provider, update status, and
+    // emit a 'wallet.withdrawal.completed' event for downstream consumers.
     try {
       const { publishEvent } = await import('@/backend/lib/event-publisher')
       await publishEvent({
         topic: 'wallet.events.wallet_withdrawn',
         key: withdrawal.id,
-        event: { eventType: 'wallet.withdrawal.created', withdrawalId: withdrawal.id, walletId: data.walletId, amount: withdrawal.amount, currency: withdrawal.currency, tenantId: user.tenantId, timestamp: new Date().toISOString() },
+        event: { eventType: 'wallet.withdrawal.created', withdrawalId: withdrawal.id, withdrawalRef, walletId: data.walletId, amount: withdrawal.amount, currency: withdrawal.currency, paymentMethod: withdrawal.paymentMethod, provider: withdrawal.provider, feeAmount: withdrawal.feeAmount, netAmount: withdrawal.netAmount, status: withdrawal.status, tenantId: user.tenantId, timestamp: new Date().toISOString() },
       })
     } catch (e) { console.error('Event publish failed:', e) }
 

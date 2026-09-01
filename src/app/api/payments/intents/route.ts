@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { z } from "zod";
-import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
+import { getApiUser, requireAuth } from "@/lib/auth/api-helpers";
 import { processPayment } from "@/backend/services/temporal-bridge";
 import { withPaymentIdempotency, recordPaymentTransition } from "@/backend/lib/payment/route-helpers";
+import { getProvidersForCountry, getProvidersForCurrency, calculateFee, getProviderConfig, getActiveProviderConfigs } from "@/backend/lib/payment/config";
+import type { PaymentProviderCode } from "@/backend/lib/payment/types";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { badRequest, conflict, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
@@ -49,32 +51,44 @@ const createIntentSchema = z.object({
   sourceAmount: z.number().positive("Source amount must be positive"),
   sourceCurrency: z.string().min(1, "Source currency is required"),
   targetCurrency: z.string().min(1, "Target currency is required"),
+  paymentMethod: z.string().min(1, "Payment method is required"),
+  provider: z.string().optional(),
 });
 
-// ── Mock exchange rates ─────────────────────────────────────
-const MOCK_RATES: Record<string, number> = {
-  "USD-EUR": 0.92,
-  "EUR-USD": 1.087,
-  "USD-GBP": 0.79,
-  "GBP-USD": 1.266,
-  "USD-CNY": 7.24,
-  "CNY-USD": 0.138,
-  "USD-JPY": 149.5,
-  "JPY-USD": 0.00669,
-  "EUR-GBP": 0.858,
-  "GBP-EUR": 1.166,
-};
+// ── Provider resolution helper ────────────────────────────────
+function resolveProvider(country: string, currency: string, preferredProvider?: string): { provider: PaymentProviderCode; reason: string } {
+  // If caller explicitly requested a provider, validate it's active and supports the currency
+  if (preferredProvider) {
+    const code = preferredProvider as PaymentProviderCode;
+    const config = getProviderConfig(code);
+    if (config && config.supportedCurrencies.includes(currency.toUpperCase())) {
+      return { provider: code, reason: 'explicit_request' };
+    }
+  }
 
-function getMockRate(from: string, to: string): number {
-  if (from === to) return 1.0;
-  const key = `${from}-${to}`;
-  if (MOCK_RATES[key]) return MOCK_RATES[key];
-  const fromUsd = MOCK_RATES[`${from}-USD`] ?? 1.0;
-  const usdTo = MOCK_RATES[`USD-${to}`] ?? 1.0;
-  return fromUsd * usdTo;
+  // Try to find a provider that supports both the country and currency
+  const countryProviders = getProvidersForCountry(country);
+  for (const code of countryProviders) {
+    const config = getProviderConfig(code);
+    if (config && config.supportedCurrencies.includes(currency.toUpperCase())) {
+      return { provider: code, reason: 'country_currency_match' };
+    }
+  }
+
+  // Fall back to any provider that supports the currency
+  const currencyProviders = getProvidersForCurrency(currency);
+  if (currencyProviders.length > 0) {
+    return { provider: currencyProviders[0], reason: 'currency_fallback' };
+  }
+
+  // Last resort: try any active provider
+  const active = getActiveProviderConfigs();
+  if (active.length > 0) {
+    return { provider: active[0].code, reason: 'active_fallback' };
+  }
+
+  return { provider: 'stripe' as PaymentProviderCode, reason: 'hardcoded_fallback' };
 }
-
-const PROVIDERS = ["wise", "stripe", "paypal", "local_bank"] as const;
 
 function generateIntentRef(): string {
   const now = new Date();
@@ -171,26 +185,61 @@ async function createPaymentIntent(request: NextRequest, _ctx?: { params?: Promi
 
     // Verify both businesses belong to tenant
     const [fromBiz, toBiz] = await Promise.all([
-      db.business.findUnique({ where: { id: data.fromBusinessId }, select: { tenantId: true } }),
+      db.business.findUnique({ where: { id: data.fromBusinessId }, select: { tenantId: true, country: true } }),
       db.business.findUnique({ where: { id: data.toBusinessId }, select: { tenantId: true } }),
     ]);
     if (!fromBiz || fromBiz.tenantId !== user.tenantId || !toBiz || toBiz.tenantId !== user.tenantId) {
       return notFound("Business not found");
     }
 
-    const exchangeRate = getMockRate(data.sourceCurrency, data.targetCurrency);
+    // ── FX rate from database ──────────────────────────────────
+    let exchangeRate: number;
+    if (data.sourceCurrency === data.targetCurrency) {
+      exchangeRate = 1.0;
+    } else {
+      const rateRecord = await db.currencyRate.findFirst({
+        where: {
+          fromCurrency: data.sourceCurrency,
+          toCurrency: data.targetCurrency,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!rateRecord) {
+        return validationError(
+          `No exchange rate configured for ${data.sourceCurrency} → ${data.targetCurrency}. Please configure rates via /api/payments/rates first.`,
+          { fromCurrency: data.sourceCurrency, toCurrency: data.targetCurrency },
+        );
+      }
+      exchangeRate = rateRecord.rate;
+    }
+
     const targetAmount = parseFloat(
       (data.sourceAmount * exchangeRate).toFixed(2)
     );
-    const estimatedFee = parseFloat(
-      (data.sourceAmount * 0.015).toFixed(2)
+
+    // ── Provider resolution via payment config ───────────────
+    const senderCountry = fromBiz.country || '';
+    const { provider: routingProvider, reason: providerReason } = resolveProvider(
+      senderCountry,
+      data.sourceCurrency,
+      data.provider,
     );
-    const routingProvider =
-      PROVIDERS[Math.floor(Math.random() * PROVIDERS.length)];
-    const routingScore = parseFloat(
-      (0.7 + Math.random() * 0.29).toFixed(2)
-    );
-    const estimatedTime = Math.floor(Math.random() * 60) + 5;
+
+    // ── Fee calculation via provider config ──────────────────
+    const feeBreakdown = calculateFee(data.sourceAmount, routingProvider, data.sourceCurrency);
+    const estimatedFee = feeBreakdown.totalFee;
+
+    // Deterministic routing score based on match quality
+    const routingScoreMap: Record<string, number> = {
+      explicit_request: 0.98,
+      country_currency_match: 0.95,
+      currency_fallback: 0.80,
+      active_fallback: 0.60,
+      hardcoded_fallback: 0.40,
+    };
+    const routingScore = routingScoreMap[providerReason] ?? 0.50;
+    const estimatedTime = providerReason === 'country_currency_match' || providerReason === 'explicit_request' ? 5 : 30;
 
     const intent = await db.paymentIntent.create({
       data: {
@@ -206,6 +255,7 @@ async function createPaymentIntent(request: NextRequest, _ctx?: { params?: Promi
         routingProvider,
         routingScore,
         estimatedTime,
+        paymentMethod: data.paymentMethod,
         status: "created",
       },
     });

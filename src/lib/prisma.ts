@@ -1,9 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+// Consolidated: this module re-exports the canonical Prisma client from ./db.
+// Both `import { prisma } from '@/lib/prisma'` and `import { db } from '@/lib/db'`
+// now resolve to the exact same singleton instance (with query logging enabled).
+export { db as prisma } from './db'
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;

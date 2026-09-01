@@ -224,33 +224,46 @@ describe('GET /api/currency', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    mockGetApiUser.mockResolvedValue(mockUser)
     const mod = await import('@/app/api/currency/route')
     GET = mod.GET
   })
 
-  it('returns 200 with exchange rate data from fetch fallback', async () => {
-    mockFetch.mockResolvedValue({
-      json: () => Promise.resolve({ data: { USD_NGN: 1550.5, USD_KES: 153.2 } }),
-    })
-
+  it('returns 200 with currency metadata (code, name, symbol)', async () => {
     const req = createNextRequest('http://localhost:3000/api/currency')
     const res = await GET(req, { params: Promise.resolve({}) })
     expect(res.status).toBe(200)
 
     const body = await res.json()
-    expect(body.data).toBeDefined()
-    expect(body.data.USD_NGN).toBe(1550.5)
+    expect(Array.isArray(body.data)).toBe(true)
+    expect(body.data.length).toBeGreaterThan(0)
+
+    // Each entry should have code, name, symbol
+    const first = body.data[0]
+    expect(first).toHaveProperty('code')
+    expect(first).toHaveProperty('name')
+    expect(first).toHaveProperty('symbol')
+
+    // Spot-check a known currency
+    const usd = body.data.find((c: any) => c.code === 'USD')
+    expect(usd).toBeDefined()
+    expect(usd.name).toBe('US Dollar')
+    expect(usd.symbol).toBe('$')
+
+    // Meta should include total count
+    expect(body.meta).toBeDefined()
+    expect(body.meta.total).toBe(body.data.length)
   })
 
-  it('returns error when fetch fails', async () => {
-    mockFetch.mockRejectedValue(new Error('Network error'))
+  it('returns 401 when not authenticated', async () => {
+    mockGetApiUser.mockResolvedValue(null)
 
     const req = createNextRequest('http://localhost:3000/api/currency')
     const res = await GET(req, { params: Promise.resolve({}) })
-    expect(res.status).toBe(500)
+    expect(res.status).toBe(401)
 
     const body = await res.json()
-    expect(body.error.message).toBe('Failed to fetch exchange rates')
+    expect(body.error.code).toBe('UNAUTHORIZED')
   })
 })
 

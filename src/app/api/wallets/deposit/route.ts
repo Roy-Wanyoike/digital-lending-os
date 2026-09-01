@@ -222,14 +222,51 @@ async function postHandler(request: NextRequest) {
     }
 
     // ── Publish Kafka event ────────────────────────────────
+    // A background worker (Temporal workflow or Kafka consumer) should listen
+    // for 'wallet.deposit.created' events on the 'wallet.events.wallet_deposited' topic
+    // to call the payment provider and move the deposit from pending → completed.
     try {
       const { publishEvent } = await import('@/backend/lib/event-publisher')
       await publishEvent({
         topic: 'wallet.events.wallet_deposited',
         key: deposit.id,
-        event: { eventType: 'wallet.deposit.created', depositId: deposit.id, walletId: data.walletId, amount: deposit.amount, currency: deposit.currency, tenantId: user.tenantId, timestamp: new Date().toISOString() },
+        event: { eventType: 'wallet.deposit.created', depositId: deposit.id, depositRef, walletId: data.walletId, amount: deposit.amount, currency: deposit.currency, paymentMethod: deposit.paymentMethod, provider: deposit.provider, status: deposit.status, tenantId: user.tenantId, timestamp: new Date().toISOString() },
       })
     } catch (e) { console.error('Event publish failed:', e) }
+
+    // ── Publish wallet.deposit.completed event when auto-completed ──
+    // For non-demo deposits, the background worker above would emit this event
+    // after confirming the deposit with the payment provider.
+    if (isAutoComplete) {
+      try {
+        const { publishEvent } = await import('@/backend/lib/event-publisher')
+        // Fetch the wallet transaction and updated wallet for the completed event payload
+        const [completedTx, updatedWallet] = await Promise.all([
+          db.walletTransaction.findFirst({ where: { referenceType: 'deposit', referenceId: deposit.id }, orderBy: { createdAt: 'desc' } }),
+          db.wallet.findUnique({ where: { id: data.walletId } }),
+        ])
+        await publishEvent({
+          topic: 'wallet.events.wallet_deposit_completed',
+          key: deposit.id,
+          event: {
+            eventType: 'wallet.deposit.completed',
+            depositId: deposit.id,
+            depositRef,
+            walletId: data.walletId,
+            amount: deposit.amount,
+            currency: deposit.currency,
+            paymentMethod: deposit.paymentMethod,
+            provider: deposit.provider,
+            status: 'completed',
+            completedAt: deposit.completedAt?.toISOString(),
+            tenantId: user.tenantId,
+            timestamp: new Date().toISOString(),
+            wallet: updatedWallet ? { id: updatedWallet.id, currency: updatedWallet.currency, balance: updatedWallet.balance, availableBalance: updatedWallet.availableBalance } : undefined,
+            transaction: completedTx ? { id: completedTx.id, txRef: completedTx.txRef, type: completedTx.type, amount: completedTx.amount, balanceBefore: completedTx.balanceBefore, balanceAfter: completedTx.balanceAfter, status: completedTx.status } : undefined,
+          },
+        })
+      } catch (e) { console.error('wallet.deposit.completed event publish failed:', e) }
+    }
 
   // ─── Audit trail ────────────────────────────────
     try {

@@ -250,6 +250,7 @@ model ComplianceDocument {
   status     String    @default("pending") // pending, approved, rejected, expired
   uploadedAt DateTime  @default(now())
   expiresAt  DateTime?
+  metadata   String? // JSON: history log, screening refs, etc.
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 

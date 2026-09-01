@@ -1,18 +1,42 @@
 import { NextRequest } from "next/server";
-import { db } from "@/lib/db";
-import { getApiUser } from "@/lib/auth/api-helpers";
-import { ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
+import { z } from "zod";
+import {
+  ok,
+  created,
+  badRequest,
+  unauthorized,
+  withErrorHandler,
+} from "@/backend/lib/api-response";
+import { getApiUser, requireAdmin } from "@/lib/auth/api-helpers";
+import { withApiTelemetry } from "@/backend/lib/telemetry/api-wrapper";
 
-import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+// ── Types ─────────────────────────────────────────────────────────────────
 
-// Lazy-load cache manager — graceful fallback if Redis/OTel not installed
+interface StoredRate {
+  fromCurrency: string;
+  toCurrency: string;
+  rate: number;
+  expiresAt: Date;
+  updatedAt: Date;
+  updatedBy: string;
+}
+
+// ── In-memory rate store ──────────────────────────────────────────────────
+//
+// Keyed by `${fromCurrency}-${toCurrency}` (both uppercased).
+// Admins populate this via POST. The GET handler only reads from here.
+
+const rateStore = new Map<string, StoredRate>();
+
+// ── Lazy-loaded cache manager ─────────────────────────────────────────────
+
 let _cacheManager: any = undefined;
 let _cacheAttempted = false;
 async function getCache() {
   if (_cacheAttempted) return _cacheManager;
   _cacheAttempted = true;
   try {
-    const mod = await import('@/backend/lib/cache/cache-manager');
+    const mod = await import("@/backend/lib/cache/cache-manager");
     _cacheManager = mod.default;
   } catch {
     _cacheManager = undefined;
@@ -20,39 +44,64 @@ async function getCache() {
   return _cacheManager;
 }
 
-// ── Hardcoded popular rates ────────────────────────────────
-const POPULAR_RATES: { from: string; to: string; rate: number }[] = [
-  { from: "USD", to: "EUR", rate: 0.92 },
-  { from: "USD", to: "GBP", rate: 0.79 },
-  { from: "USD", to: "CNY", rate: 7.24 },
-  { from: "USD", to: "JPY", rate: 149.5 },
-  { from: "EUR", to: "GBP", rate: 0.858 },
-];
+// ── Zod schemas ───────────────────────────────────────────────────────────
 
-const ALL_RATES: Record<string, number> = {
-  "USD-EUR": 0.92,
-  "EUR-USD": 1.087,
-  "USD-GBP": 0.79,
-  "GBP-USD": 1.266,
-  "USD-CNY": 7.24,
-  "CNY-USD": 0.138,
-  "USD-JPY": 149.5,
-  "JPY-USD": 0.00669,
-  "EUR-GBP": 0.858,
-  "GBP-EUR": 1.166,
-  "EUR-CNY": 7.87,
-  "CNY-EUR": 0.127,
-  "GBP-CNY": 9.17,
-  "CNY-GBP": 0.109,
-  "EUR-JPY": 162.5,
-  "JPY-EUR": 0.00615,
-  "GBP-JPY": 189.3,
-  "JPY-GBP": 0.00528,
-  "CNY-JPY": 20.65,
-  "JPY-CNY": 0.0484,
-};
+const CURRENCY_CODE_RE = /^[A-Z]{3}$/;
 
-// ── GET: Get exchange rates ─────────────────────────────────
+const upsertRateSchema = z.object({
+  fromCurrency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(CURRENCY_CODE_RE, "fromCurrency must be a 3-letter ISO 4217 code"),
+  toCurrency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(CURRENCY_CODE_RE, "toCurrency must be a 3-letter ISO 4217 code"),
+  rate: z
+    .number({ message: "rate must be a number" })
+    .positive("rate must be greater than 0"),
+  expiresAt: z
+    .string()
+    .datetime({ message: "expiresAt must be a valid ISO 8601 datetime" })
+    .transform((v) => new Date(v)),
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function rateKey(from: string, to: string) {
+  return `${from}-${to}`;
+}
+
+/** Return non-expired entries as plain objects (no Date refs in JSON). */
+function listActiveRates(): {
+  fromCurrency: string;
+  toCurrency: string;
+  rate: number;
+  expiresAt: string;
+  updatedAt: string;
+}[] {
+  const now = Date.now();
+  const results: StoredRate[] = [];
+
+  for (const entry of Array.from(rateStore.values())) {
+    if (entry.expiresAt.getTime() > now) {
+      results.push(entry);
+    }
+  }
+
+  return results.map((r) => ({
+    fromCurrency: r.fromCurrency,
+    toCurrency: r.toCurrency,
+    rate: r.rate,
+    expiresAt: r.expiresAt.toISOString(),
+    updatedAt: r.updatedAt.toISOString(),
+  }));
+}
+
+// ── GET: Read rates from the in-memory store ──────────────────────────────
+
 const getHandler = withErrorHandler(async (request: NextRequest) => {
   const user = await getApiUser(request);
   if (!user) return unauthorized();
@@ -62,72 +111,98 @@ const getHandler = withErrorHandler(async (request: NextRequest) => {
   const to = searchParams.get("to")?.toUpperCase();
 
   const cacheManager = await getCache();
-  const cacheKey = `payment-rates:${from || 'all'}:${to || 'all'}`;
+  const cacheKey = `payment-rates:${from || "all"}:${to || "all"}`;
 
   const fetchRates = async () => {
-    let rates: { from: string; to: string; rate: number }[] = [];
-
-    if (from && to) {
-      if (from === to) {
-        rates = [{ from, to, rate: 1.0 }];
-      } else {
-        const key = `${from}-${to}`;
-        const rate = ALL_RATES[key];
-        if (rate) {
-          rates = [{ from, to, rate }];
-        } else {
-          // Try to compute via USD
-          const fromUsd = ALL_RATES[`${from}-USD`] ?? 1.0;
-          const usdTo = ALL_RATES[`USD-${to}`] ?? 1.0;
-          const computed = parseFloat((fromUsd * usdTo).toFixed(6));
-          rates = [{ from, to, rate: computed }];
-        }
-      }
-    } else {
-      // Return popular rates
-      rates = POPULAR_RATES;
-    }
-
-    // Upsert currency rates into the database for querying
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24h expiry
 
-    for (const r of rates) {
-      await db.currencyRate.upsert({
-        where: {
-          fromCurrency_toCurrency_provider_createdAt: {
-            fromCurrency: r.from,
-            toCurrency: r.to,
-            provider: "mock",
-            createdAt: now,
-          },
-        },
-        create: {
-          fromCurrency: r.from,
-          toCurrency: r.to,
-          rate: r.rate,
-          provider: "mock",
-          source: "internal_rates",
-          expiresAt,
-        },
-        update: {
-          rate: r.rate,
-          expiresAt,
-        },
-      });
+    // Same-currency shortcut
+    if (from && to && from === to) {
+      return {
+        rates: [{ fromCurrency: from, toCurrency: to, rate: 1.0, expiresAt: now.toISOString(), updatedAt: now.toISOString() }],
+        timestamp: now.toISOString(),
+      };
     }
 
-    return { rates, timestamp: now.toISOString(), expiresAt: expiresAt.toISOString() };
+    // Specific pair lookup
+    if (from && to) {
+      const key = rateKey(from, to);
+      const stored = rateStore.get(key);
+
+      if (stored && stored.expiresAt.getTime() > Date.now()) {
+        return {
+          rates: [
+            {
+              fromCurrency: stored.fromCurrency,
+              toCurrency: stored.toCurrency,
+              rate: stored.rate,
+              expiresAt: stored.expiresAt.toISOString(),
+              updatedAt: stored.updatedAt.toISOString(),
+            },
+          ],
+          timestamp: now.toISOString(),
+        };
+      }
+
+      // No stored (or expired) rate for this pair
+      return { rates: [], timestamp: now.toISOString() };
+    }
+
+    // No filters — return all active rates
+    const rates = listActiveRates();
+    return { rates, timestamp: now.toISOString() };
   };
 
   const cached = cacheManager
     ? await cacheManager.getOrSet(cacheKey, fetchRates, { ttl: 300_000 })
     : await fetchRates();
 
-  return ok(cached.rates, {
-    timestamp: cached.timestamp,
-    expiresAt: cached.expiresAt,
+  return ok(cached.rates, { timestamp: cached.timestamp });
+});
+
+// ── POST: Admin-only rate upsert ──────────────────────────────────────────
+
+const postHandler = withErrorHandler(async (request: NextRequest) => {
+  const user = await requireAdmin(request);
+
+  const body = await request.json();
+  const parsed = upsertRateSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return badRequest("Validation failed", parsed.error.issues.map((i) => ({
+      field: i.path.join("."),
+      message: i.message,
+    })));
+  }
+
+  const { fromCurrency, toCurrency, rate, expiresAt } = parsed.data;
+  const key = rateKey(fromCurrency, toCurrency);
+  const now = new Date();
+
+  // Reject rates that are already expired at creation time
+  if (expiresAt.getTime() <= Date.now()) {
+    return badRequest("expiresAt must be in the future");
+  }
+
+  rateStore.set(key, {
+    fromCurrency,
+    toCurrency,
+    rate,
+    expiresAt,
+    updatedAt: now,
+    updatedBy: user.id,
+  });
+
+  return created({
+    fromCurrency,
+    toCurrency,
+    rate,
+    expiresAt: expiresAt.toISOString(),
+    updatedAt: now.toISOString(),
   });
 });
 
-export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/payments/rates');
+// ── Exports ───────────────────────────────────────────────────────────────
+
+export const GET = withApiTelemetry(withErrorHandler(getHandler), "/api/payments/rates");
+export const POST = withApiTelemetry(withErrorHandler(postHandler), "/api/payments/rates");

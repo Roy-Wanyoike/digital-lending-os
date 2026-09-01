@@ -33,13 +33,82 @@ function generateTxRef(): string {
   return `ESC-${dateStr}-${rand}`;
 }
 
-function computeRiskScore(): { score: number; level: string } {
-  const score = Math.floor(Math.random() * 101);
+async function computeRiskScore(params: {
+  buyerId: string;
+  sellerId: string;
+  amount: number;
+}): Promise<{ score: number; level: string }> {
+  let risk = 50;
+
+  // Fetch buyer and seller trust scores and countries in parallel
+  const [buyer, seller] = await Promise.all([
+    db.business.findUnique({
+      where: { id: params.buyerId },
+      select: { country: true, trustScore: { select: { overallScore: true } } },
+    }),
+    db.business.findUnique({
+      where: { id: params.sellerId },
+      select: { country: true, trustScore: { select: { overallScore: true } } },
+    }),
+  ]);
+
+  const buyerTrust = buyer?.trustScore?.overallScore ?? 50;
+  const sellerTrust = seller?.trustScore?.overallScore ?? 50;
+
+  // Buyer trust (lower trust = higher risk)
+  if (buyerTrust > 80) risk -= 15;
+  else if (buyerTrust > 60) risk -= 8;
+  else risk += 5;
+
+  // Seller trust (lower trust = higher risk)
+  if (sellerTrust > 80) risk -= 15;
+  else if (sellerTrust > 60) risk -= 8;
+  else risk += 5;
+
+  // Transaction amount (higher amount = higher risk)
+  if (params.amount > 10000) risk += 10;
+  else if (params.amount > 5000) risk += 5;
+  else if (params.amount > 1000) risk += 2;
+
+  // Previous transactions between the two parties (new relationship = higher risk)
+  const prevTxCount = await db.escrowTransaction.count({
+    where: {
+      OR: [
+        { buyerId: params.buyerId, sellerId: params.sellerId },
+        { buyerId: params.sellerId, sellerId: params.buyerId },
+      ],
+    },
+  });
+  if (prevTxCount > 0) risk -= 10;
+  else risk += 5;
+
+  // Country risk (different countries = higher risk)
+  if (buyer?.country && seller?.country && buyer.country !== seller.country) {
+    risk += 5;
+  }
+
+  // Dispute history (past disputes for either party = higher risk)
+  const disputeCount = await db.dispute.count({
+    where: {
+      OR: [
+        { escrow: { buyerId: params.buyerId } },
+        { escrow: { sellerId: params.buyerId } },
+        { escrow: { buyerId: params.sellerId } },
+        { escrow: { sellerId: params.sellerId } },
+      ],
+    },
+  });
+  if (disputeCount > 0) risk += 8;
+
+  // Clamp to 0-100
+  risk = Math.max(0, Math.min(100, risk));
+
   let level: string;
-  if (score < 30) level = "low";
-  else if (score < 70) level = "medium";
+  if (risk < 30) level = "low";
+  else if (risk < 70) level = "medium";
   else level = "high";
-  return { score, level };
+
+  return { score: risk, level };
 }
 
 // ── GET: List escrow transactions ────────────────────────────
@@ -153,7 +222,11 @@ async function postHandler(request: NextRequest) {
       return notFound('Seller business not found');
     }
 
-    const { score, level } = computeRiskScore();
+    const { score, level } = await computeRiskScore({
+      buyerId: data.buyerId,
+      sellerId: data.sellerId,
+      amount: data.amount,
+    });
     const txRef = generateTxRef();
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);

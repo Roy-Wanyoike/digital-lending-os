@@ -6,6 +6,7 @@ import { ok, created, badRequest, unauthorized, withErrorHandler } from '@/backe
 import { depositCreateSchema, paginationSchema } from '@/backend/lib/validation/schemas';
 import { getLogger } from '@/backend/lib/telemetry/logger';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { publishEvent } from '@/backend/lib/event-publisher';
 
 const log = getLogger().withContext({ route: '/api/deposits' });
 
@@ -82,5 +83,37 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
   });
 
   log.info('Deposit created', { depositId: deposit.id, walletId: data.walletId, amount: data.amount });
+
+  // ── Publish deposit.created event for background processing ──
+  // A background worker (Temporal workflow or Kafka consumer) should listen
+  // for this event on the 'deposit.events.deposit_created' topic to:
+  //   1. Call the payment provider to confirm/complete the deposit
+  //   2. Update deposit status to 'completed' or 'failed'
+  //   3. Credit the wallet balance and create a WalletTransaction
+  //   4. Emit a 'deposit.completed' event for downstream consumers
+  try {
+    await publishEvent({
+      topic: 'deposit.events.deposit_created',
+      key: deposit.id,
+      event: {
+        eventType: 'deposit.created',
+        depositId: deposit.id,
+        depositRef: deposit.depositRef,
+        walletId: deposit.walletId,
+        amount: deposit.amount,
+        currency: deposit.currency,
+        paymentMethod: deposit.paymentMethod,
+        provider: deposit.provider,
+        bankName: deposit.bankName,
+        notes: deposit.notes,
+        status: deposit.status,
+        tenantId: user.tenantId,
+        createdAt: deposit.createdAt.toISOString(),
+      },
+    });
+  } catch (e) {
+    log.error('Failed to publish deposit.created event', { depositId: deposit.id, error: e });
+  }
+
   return created(deposit);
 });

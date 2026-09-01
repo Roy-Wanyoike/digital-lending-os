@@ -7,8 +7,87 @@ import { ok, created, badRequest, unauthorized, notFound, withErrorHandler } fro
 import { logAudit } from '@/lib/audit-logger';
 import { getLogger } from '@/backend/lib/telemetry/logger';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import { calculateFee } from '@/backend/lib/payment/config';
+import type { PaymentProviderCode } from '@/backend/lib/payment/types';
 
 const log = getLogger().withContext({ route: '/api/withdrawals' });
+
+// ─── Withdrawal Fee Calculation ──────────────────────────
+// Tiered fee structure used when no provider-specific config applies.
+//   Amount < $100:    2%  (min $1)
+//   $100 – $1,000:   1.5% (min $2)
+//   Amount > $1,000:  1%  (min $5)
+
+interface WithdrawalFeeBreakdown {
+  feePercent: number;
+  feeAmount: number;
+  minFeeApplied: boolean;
+}
+
+function calculateWithdrawalFee(amount: number): WithdrawalFeeBreakdown {
+  let feePercent: number;
+  let minFee: number;
+
+  if (amount < 100) {
+    feePercent = 2;
+    minFee = 1;
+  } else if (amount <= 1000) {
+    feePercent = 1.5;
+    minFee = 2;
+  } else {
+    feePercent = 1;
+    minFee = 5;
+  }
+
+  const rawFee = Math.round(amount * (feePercent / 100) * 100) / 100;
+  const feeAmount = Math.max(minFee, rawFee);
+  const minFeeApplied = rawFee < minFee;
+
+  return { feePercent, feeAmount, minFeeApplied };
+}
+
+/**
+ * Resolves the withdrawal fee. If a recognised provider is supplied the
+ * provider's own fee table (calculateFee) is used; otherwise the built-in
+ * tiered withdrawal fee structure applies.
+ */
+function resolveWithdrawalFee(
+  amount: number,
+  provider: string | undefined,
+  currency: string,
+): { feeAmount: number; netAmount: number; breakdown: Record<string, unknown> } {
+  // Known provider codes from the payment config
+  const knownProviders: PaymentProviderCode[] = ['stripe', 'paystack', 'intasend', 'flutterwave', 'paya'];
+
+  if (provider && knownProviders.includes(provider as PaymentProviderCode)) {
+    const result = calculateFee(amount, provider as PaymentProviderCode, currency);
+    return {
+      feeAmount: result.totalFee,
+      netAmount: result.netAmount,
+      breakdown: {
+        source: 'provider',
+        provider: result.provider,
+        providerName: result.providerName,
+        percentFee: result.percentFee,
+        fixedFee: result.fixedFee,
+        totalFee: result.totalFee,
+      },
+    };
+  }
+
+  const tiered = calculateWithdrawalFee(amount);
+  const feeAmount = tiered.feeAmount;
+  const netAmount = Math.round((amount - feeAmount) * 100) / 100;
+  return {
+    feeAmount,
+    netAmount: Math.max(0, netAmount),
+    breakdown: {
+      source: 'tiered',
+      feePercent: tiered.feePercent,
+      minFeeApplied: tiered.minFeeApplied,
+    },
+  };
+}
 
 const withdrawalCreateSchema = z.object({
   walletId: z.string().min(1, 'Wallet ID is required'),
@@ -87,8 +166,8 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
 
   if (!wallet) return notFound('Wallet not found');
 
-  const feeAmount = 0; // fee calculation handled elsewhere if needed
-  const netAmount = amount - feeAmount;
+  // ── Calculate fee ───────────────────────────────────────────
+  const { feeAmount, netAmount, breakdown } = resolveWithdrawalFee(amount, provider, wallet.currency);
 
   const withdrawal = await db.withdrawal.create({
     data: {
@@ -118,8 +197,18 @@ export const POST = withErrorHandler(async (request: NextRequest) => {
     currency: wallet.currency,
     paymentMethod,
     tenantId: user.tenantId,
+    feeAmount,
+    netAmount,
+    feeSource: (breakdown.source as string),
   });
 
-  log.info('Withdrawal created', { withdrawalId: withdrawal.id, walletId, amount });
-  return created(withdrawal);
+  log.info('Withdrawal created', { withdrawalId: withdrawal.id, walletId, amount, feeAmount, netAmount });
+
+  return created({
+    ...withdrawal,
+    feeBreakdown: breakdown,
+    baseAmount: amount,
+    feeAmount,
+    netAmount,
+  });
 });

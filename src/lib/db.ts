@@ -1,3 +1,5 @@
+// Canonical Prisma client singleton for the YoungSend project.
+// All database access should go through this instance (or via the re-export in ./prisma.ts).
 import { PrismaClient } from '@prisma/client'
 
 const globalForPrisma = globalThis as unknown as {

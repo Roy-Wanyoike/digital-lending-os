@@ -5,6 +5,76 @@ import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { collectionListCache } from '@/backend/lib/response-cache';
 import { conflict, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+
+// ─── Types ───────────────────────────────────────────────────────────────
+
+type StrategyTier = 'friendly_reminder' | 'formal_notice' | 'demand_letter' | 'escalation' | 'final_notice'
+type StrategyChannel = 'email' | 'sms' | 'whatsapp' | 'letter' | 'all'
+type StrategyPriority = 'low' | 'medium' | 'high' | 'critical'
+
+interface CollectionStrategy {
+  name: string
+  channel: StrategyChannel
+  priority: StrategyPriority
+  messageTemplate: string
+  estimatedSuccessRate: number
+}
+
+// ─── Strategy tier definitions ────────────────────────────────────────────
+
+const TIERS: StrategyTier[] = ['friendly_reminder', 'formal_notice', 'demand_letter', 'escalation', 'final_notice']
+
+const STRATEGY_CONFIGS: Record<StrategyTier, {
+  name: string
+  channel: StrategyChannel
+  priority: StrategyPriority
+  baseSuccessRate: number
+  messageTemplate: string
+}> = {
+  friendly_reminder: {
+    name: 'Friendly Reminder',
+    channel: 'email',
+    priority: 'low',
+    baseSuccessRate: 0.92,
+    messageTemplate:
+      'Hi {{debtorName}}, this is a gentle reminder that invoice {{invoiceRef}} for {{amount}} {{currency}} is now overdue by {{daysOverdue}} days. We understand things can slip — please settle at your earliest convenience. Thank you for your continued partnership.',
+  },
+  formal_notice: {
+    name: 'Formal Notice',
+    channel: 'email',
+    priority: 'medium',
+    baseSuccessRate: 0.78,
+    messageTemplate:
+      'Dear {{debtorName}}, our records indicate that invoice {{invoiceRef}} for {{amount}} {{currency}} is now {{daysOverdue}} days past its due date. Please arrange payment within 5 business days to avoid further escalation. If you have already made this payment, kindly share the payment reference so we can update our records.',
+  },
+  demand_letter: {
+    name: 'Demand Letter',
+    channel: 'all',
+    priority: 'high',
+    baseSuccessRate: 0.58,
+    messageTemplate:
+      '{{debtorName}} — FINAL DEMAND. Invoice {{invoiceRef}} in the amount of {{amount}} {{currency}} is now {{daysOverdue}} days overdue. This is our third and final written notice before we escalate this matter. Please remit the full outstanding balance within 7 days or contact us immediately to discuss a payment arrangement. Failure to respond may result in further collection action.',
+  },
+  escalation: {
+    name: 'Escalation Protocol',
+    channel: 'all',
+    priority: 'high',
+    baseSuccessRate: 0.40,
+    messageTemplate:
+      'NOTICE OF ESCALATION — {{debtorName}}. The outstanding balance of {{amount}} {{currency}} on invoice {{invoiceRef}} ({{daysOverdue}} days overdue) has been referred for escalated collection. This may include engagement with a third-party collection agency or legal proceedings. To resolve this before further action, please contact our collections department within 48 hours.',
+  },
+  final_notice: {
+    name: 'Final Notice',
+    channel: 'letter',
+    priority: 'critical',
+    baseSuccessRate: 0.22,
+    messageTemplate:
+      'FINAL LEGAL NOTICE — {{debtorName}}. Despite repeated reminders, invoice {{invoiceRef}} for {{amount}} {{currency}} remains unpaid at {{daysOverdue}} days overdue. We are now preparing to initiate formal recovery proceedings. This is your last opportunity to settle this matter amicably. Please remit payment in full within 5 business days or expect legal action without further notice.',
+  },
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────
+
 function generateCaseRef(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   let result = 'COL-'
@@ -14,13 +84,112 @@ function generateCaseRef(): string {
   return result
 }
 
-const MOCK_STRATEGIES = [
-  'Start with a friendly email reminder, escalate to WhatsApp if no response within 5 days, then formal demand letter at 30 days overdue.',
-  'Immediate phone contact recommended given the high outstanding amount. Follow up with formal written notice and consider payment plan negotiation.',
-  'Multi-channel approach: send SMS reminder first, follow with email containing payment link, then schedule direct call. Offer early payment discount if paid within 7 days.',
-  'AI analysis suggests this debtor typically pays within 48 hours of a direct message. Prioritize WhatsApp contact and include a flexible payment schedule option.',
-  'Given the relationship history, recommend a collaborative approach. Send invoice reconciliation summary and offer to discuss payment terms adjustment.',
-]
+/**
+ * Compute the base strategy tier from the invoice due date.
+ * Falls back to the provided agingBucket when no invoice is available.
+ */
+function getBaseTier(invoice: { dueDate?: Date | null } | null, agingBucket: string): number {
+  if (invoice?.dueDate) {
+    const daysOverdue = Math.max(
+      0,
+      Math.floor((Date.now() - invoice.dueDate.getTime()) / (1000 * 60 * 60 * 24)),
+    )
+    if (daysOverdue <= 7) return 0
+    if (daysOverdue <= 30) return 1
+    if (daysOverdue <= 60) return 2
+    if (daysOverdue <= 90) return 3
+    return 4
+  }
+  // Map agingBucket conservatively
+  switch (agingBucket) {
+    case 'current': return 0
+    case '1-30': return 1
+    case '31-60': return 2
+    case '61-90': return 3
+    case '90+': return 4
+    default: return 0
+  }
+}
+
+/**
+ * Evaluate whether the debtor has a good payment history (≥70% of recent
+ * invoices paid on time). Fetches up to 10 most-recently-paid invoices.
+ */
+async function hasGoodPaymentHistory(debtorId: string): Promise<boolean> {
+  const recentPaid = await db.invoice.findMany({
+    where: {
+      receiverId: debtorId,
+      status: 'paid',
+      paidAt: { not: null },
+      dueDate: { not: null },
+    },
+    select: { paidAt: true, dueDate: true },
+    take: 10,
+    orderBy: { paidAt: 'desc' },
+  })
+  if (recentPaid.length === 0) return false
+  const onTimeCount = recentPaid.filter((inv: { paidAt: Date | null; dueDate: Date | null }) => inv.paidAt! <= inv.dueDate!).length
+  return onTimeCount / recentPaid.length >= 0.7
+}
+
+/**
+ * Compute estimated success rate based on tier, amount, and payment history.
+ */
+function computeSuccessRate(
+  baseRate: number,
+  outstandingAmount: number,
+  goodHistory: boolean,
+): number {
+  let rate = baseRate
+  // Good payment history bonus
+  if (goodHistory) rate += 0.08
+  // High-value penalty: $10k threshold, -2% per additional $5k, capped at -15%
+  if (outstandingAmount > 10_000) {
+    const penalty = Math.min(0.15, (Math.floor((outstandingAmount - 10_000) / 5_000) + 1) * 0.02)
+    rate -= penalty
+  }
+  return Math.round(Math.max(0.05, Math.min(0.98, rate)) * 100) / 100
+}
+
+/**
+ * Deterministically select a collection strategy based on invoice age,
+ * debtor payment history, and invoice amount.
+ */
+async function selectStrategy(opts: {
+  invoiceId?: string | null
+  debtorId: string
+  outstandingAmount: number
+  agingBucket: string
+}): Promise<string> {
+  let invoice: { dueDate?: Date | null } | null = null
+  if (opts.invoiceId) {
+    invoice = await db.invoice.findUnique({
+      where: { id: opts.invoiceId },
+      select: { dueDate: true },
+    })
+  }
+
+  let tier = getBaseTier(invoice, opts.agingBucket)
+
+  // Adjustments run concurrently
+  const [goodHistory] = await Promise.all([hasGoodPaymentHistory(opts.debtorId)])
+
+  if (goodHistory) tier = Math.max(0, tier - 1)  // start one tier lower
+  if (opts.outstandingAmount > 10_000) tier = Math.min(4, tier + 1)  // escalate one tier
+
+  const tierKey = TIERS[tier]
+  const config = STRATEGY_CONFIGS[tierKey]
+
+  const strategy: CollectionStrategy = {
+    name: config.name,
+    channel: config.channel,
+    priority: config.priority,
+    messageTemplate: config.messageTemplate,
+    estimatedSuccessRate: computeSuccessRate(config.baseSuccessRate, opts.outstandingAmount, goodHistory),
+  }
+
+  return JSON.stringify(strategy)
+}
 
 const createCollectionSchema = z.object({
   invoiceId: z.string().optional(),
@@ -140,7 +309,12 @@ async function postHandler(request: NextRequest) {
       exists = await db.collectionCase.findUnique({ where: { caseRef } })
     }
 
-    const aiStrategy = MOCK_STRATEGIES[Math.floor(Math.random() * MOCK_STRATEGIES.length)]
+    const aiStrategy = await selectStrategy({
+      invoiceId: data.invoiceId,
+      debtorId: data.debtorId,
+      outstandingAmount: data.outstandingAmount,
+      agingBucket: data.agingBucket,
+    })
 
     const collectionCase = await db.collectionCase.create({
       data: {

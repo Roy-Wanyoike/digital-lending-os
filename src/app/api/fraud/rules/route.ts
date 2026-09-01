@@ -19,6 +19,43 @@ async function getCache() {
   return _cacheManager
 }
 
+// ---------------------------------------------------------------------------
+// Tenant-scoping workaround for FraudRule
+// ---------------------------------------------------------------------------
+// FraudRule lacks a dedicated `tenantId` column. A proper migration adding
+// `tenantId String` (with an index) and back-filling existing rows is
+// tracked in ADR-008. Until that migration ships, we embed the tenantId
+// inside the `condition` JSON blob under the reserved key `_tenantId`.
+//
+// In POST: we inject `_tenantId` into the parsed condition before persisting.
+// In GET:  we fetch candidates from the DB and filter in-memory by
+//            matching `condition._tenantId === user.tenantId`.
+//
+// NOTE: in-memory filtering means DB-level pagination is not precise.
+// We paginate the *filtered* result set to keep API semantics consistent.
+// This is acceptable at current scale; the migration will enable native
+// WHERE-clause filtering.
+// ---------------------------------------------------------------------------
+
+const TENANT_KEY = '_tenantId'
+
+/** Extract _tenantId from a rule's condition JSON string. Returns undefined if absent/malformed. */
+function extractTenantId(conditionStr: string): string | undefined {
+  try {
+    const obj = JSON.parse(conditionStr)
+    return typeof obj === 'object' && obj !== null && typeof obj[TENANT_KEY] === 'string'
+      ? obj[TENANT_KEY]
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Inject _tenantId into a parsed condition object and return the serialised string. */
+function injectTenantId(conditionObj: Record<string, unknown>, tenantId: string): string {
+  return JSON.stringify({ ...conditionObj, [TENANT_KEY]: tenantId })
+}
+
 const createFraudRuleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
@@ -41,27 +78,44 @@ async function getHandler(request: NextRequest) {
       where.isActive = isActive === 'true'
     }
 
-    // NOTE: FraudRule has no tenantId column. Rules are system-wide.
-    // This is a known limitation — see ADR-008 for migration plan.
-    // Cache is tenant-keyed to avoid cross-tenant cache poisoning.
-
+    // Fetch all candidates matching non-tenant filters (pagination applied post-filter).
     const cacheManager = await getCache()
-    const fetchRules = () => db.fraudRule.findMany({
+    const cacheKey = `fraud:rules:${user.tenantId}:all`
+
+    const fetchAllRules = () => db.fraudRule.findMany({
       where,
-      skip: (page - 1) * limit,
-      take: limit,
       orderBy: { createdAt: 'desc' },
     })
-    const fetchCount = () => db.fraudRule.count({ where })
 
-    const [rules, total] = cacheManager
-      ? await Promise.all([
-          cacheManager.getOrSet(`fraud:rules:${user.tenantId}:page:${page}:limit:${limit}`, fetchRules, { ttl: 5 * 60_000 }),
-          fetchCount(),
-        ])
-      : await Promise.all([fetchRules(), fetchCount()])
+    const allRules: any[] = cacheManager
+      ? await cacheManager.getOrSet(cacheKey, fetchAllRules, { ttl: 5 * 60_000 })
+      : await fetchAllRules()
 
-    return ok(rules, {
+    // Tenant-scope filter: only return rules whose condition JSON contains
+    // _tenantId matching the requesting user's tenant.
+    // Rules that predate this workaround (no _tenantId) are excluded for
+    // safety — they must be re-saved with the correct tenant assignment.
+    const tenantRules = allRules.filter((rule: any) => extractTenantId(rule.condition) === user.tenantId)
+
+    // Paginate the filtered result set
+    const total = tenantRules.length
+    const paginatedRules = tenantRules.slice((page - 1) * limit, page * limit)
+
+    // Strip the internal _tenantId key from condition before returning to
+    // callers — it is an implementation detail, not part of the rule schema.
+    const sanitisedRules = paginatedRules.map((rule: any) => {
+      let cleanCondition = rule.condition
+      try {
+        const obj = JSON.parse(rule.condition)
+        if (obj && typeof obj === 'object' && TENANT_KEY in obj) {
+          const { [TENANT_KEY]: _, ...rest } = obj
+          cleanCondition = JSON.stringify(rest)
+        }
+      } catch { /* return as-is if parsing fails */ }
+      return { ...rule, condition: cleanCondition }
+    })
+
+    return ok(sanitisedRules, {
       pagination: {
         page,
         limit,
@@ -88,31 +142,51 @@ async function postHandler(request: NextRequest) {
     const data = parsed.data
 
     // Validate condition is valid JSON
-    let parsedCondition: unknown
+    let parsedCondition: Record<string, unknown>
     try {
-      parsedCondition = JSON.parse(data.condition)
+      const raw = JSON.parse(data.condition)
+      if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+        return badRequest('Condition must be a JSON object')
+      }
+      parsedCondition = raw as Record<string, unknown>
     } catch {
       return badRequest('Condition must be a valid JSON string')
     }
 
-    // Basic structural validation on the parsed condition
-    if (typeof parsedCondition !== 'object' || parsedCondition === null || Array.isArray(parsedCondition)) {
-      return badRequest('Condition must be a JSON object')
-    }
+    // Embed tenantId into the condition JSON blob.
+    // TODO: Once the schema migration adds a dedicated `tenantId` column
+    //       (see ADR-008), move this to a first-class field and remove the
+    //       JSON-embedding workaround.
+    const scopedCondition = injectTenantId(parsedCondition, user.tenantId)
 
-    // NOTE: FraudRule has no tenantId column. This is a known limitation — see ADR-008.
     const rule = await db.fraudRule.create({
       data: {
         name: data.name,
         description: data.description,
-        condition: data.condition,
+        condition: scopedCondition,
         action: data.action,
         severity: data.severity,
         isActive: true,
       },
     })
 
-    return created(rule)
+    // Invalidate cached rule list for this tenant so the new rule is visible
+    const cacheManager = await getCache()
+    if (cacheManager) {
+      try { await cacheManager.delete(`fraud:rules:${user.tenantId}:all`) } catch { /* best-effort */ }
+    }
+
+    // Strip _tenantId from the response — callers should not see it
+    let cleanCondition = rule.condition
+    try {
+      const obj = JSON.parse(rule.condition)
+      if (obj && typeof obj === 'object' && TENANT_KEY in obj) {
+        const { [TENANT_KEY]: _, ...rest } = obj
+        cleanCondition = JSON.stringify(rest)
+      }
+    } catch { /* return as-is */ }
+
+    return created({ ...rule, condition: cleanCondition })
   } catch (error: any) {
     console.error('Error creating fraud rule:', error)
     return error('Failed to create fraud rule')

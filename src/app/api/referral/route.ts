@@ -3,8 +3,10 @@ import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError,  } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
-import { badRequest, error, notFound, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
-const BONUS_AMOUNT = 100.00
+import { badRequest, conflict, created, error, notFound, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
+
+const BONUS_RATE = 0.05       // 5% of referee's first deposit
+const BONUS_CAP = 100.00      // Maximum bonus amount in USD
 const BONUS_CURRENCY = 'USD'
 
 // Generate a short, unique referral code
@@ -15,6 +17,16 @@ function generateReferralCode(): string {
     code += chars.charAt(Math.floor(Math.random() * chars.length))
   }
   return code
+}
+
+/** Generate a unique bonus reference */
+function generateBonusRef(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let ref = 'BNS'
+  for (let i = 0; i < 9; i++) {
+    ref += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return ref
 }
 
 // GET /api/referral — Get current user's referral info
@@ -33,6 +45,7 @@ async function getHandler(request: NextRequest) {
         referredBy: true,
         name: true,
         email: true,
+        tenantId: true,
       },
     })
 
@@ -70,7 +83,7 @@ async function getHandler(request: NextRequest) {
       take: 50,
     })
 
-    const totalBonusEarned = bonuses.reduce((sum: any, b: any) => sum + b.bonusAmount, 0)
+    const totalBonusEarned = bonuses.reduce((sum: number, b: any) => sum + Number(b.bonusAmount), 0)
     const activeBonusCount = bonuses.filter((b: any) => b.status === 'credited').length
 
     // Get recent referrals (accounts that used this user's code, same tenant)
@@ -87,14 +100,18 @@ async function getHandler(request: NextRequest) {
     })
 
     // Check if the current user was referred by someone
-    let referrerInfo: { name: string; email: string } | null = null
+    let referrerInfo: { name: string; email: string; referralCode: string } | null = null
     if (account.referredBy) {
       const referrer = await db.account.findUnique({
         where: { id: account.referredBy },
-        select: { name: true, email: true },
+        select: { name: true, email: true, referralCode: true },
       })
       if (referrer) {
-        referrerInfo = { name: referrer.name, email: referrer.email }
+        referrerInfo = {
+          name: referrer.name,
+          email: referrer.email,
+          referralCode: referrer.referralCode || 'N/A',
+        }
       }
     }
 
@@ -105,7 +122,8 @@ async function getHandler(request: NextRequest) {
     return ok({
       referralCode,
       referralLink,
-      bonusAmount: BONUS_AMOUNT,
+      bonusRate: BONUS_RATE,
+      bonusCap: BONUS_CAP,
       bonusCurrency: BONUS_CURRENCY,
       stats: {
         totalReferred,
@@ -125,27 +143,31 @@ async function getHandler(request: NextRequest) {
   }
 }
 
-// POST /api/referral — Resolve a referral code (used during registration)
-// Body: { referralCode: string }
-// Returns: referrer info if code is valid
+// POST /api/referral — Redeem a referral code
+// Body: { code: string } or { referralCode: string }
+// Sets referredBy on the account and creates a pending ReferralBonus
 async function postHandler(request: NextRequest) {
   try {
     const user = await requireAuth(request)
 
     const body = await request.json()
-    const { referralCode } = body
+    const code = body.code || body.referralCode
 
-    if (!referralCode) {
+    if (!code) {
       return badRequest('Referral code is required')
     }
 
+    const normalizedCode = code.trim().toUpperCase()
+
+    // 1. Validate the referral code exists and belongs to an active tenant
     const referrer = await db.account.findUnique({
-      where: { referralCode: referralCode.toUpperCase() },
+      where: { referralCode: normalizedCode },
       select: {
         id: true,
         name: true,
         email: true,
         isActive: true,
+        tenantId: true,
       },
     })
 
@@ -154,27 +176,110 @@ async function postHandler(request: NextRequest) {
     }
 
     if (!referrer.isActive) {
-    return error('This referral code is no longer active', 410, 'GONE')
+      return error('This referral code is no longer active', 410, 'GONE')
     }
 
-    return ok({
-      valid: true,
+    // 2. Check the user hasn't already used a referral
+    const currentUser = await db.account.findUnique({
+      where: { id: user.id },
+      select: { id: true, referredBy: true, tenantId: true },
+    })
+
+    if (!currentUser) {
+      return notFound('Account not found')
+    }
+
+    if (currentUser.referredBy) {
+      return conflict('You have already used a referral code')
+    }
+
+    // 3. Prevent self-referral
+    if (referrer.id === user.id) {
+      return badRequest('You cannot use your own referral code')
+    }
+
+    // 4. Create the referral link (set referredBy) and a pending bonus in a transaction
+    const result = await db.$transaction(async (tx: any) => {
+      // Set the referredBy on the current user's account
+      const updatedAccount = await tx.account.update({
+        where: { id: user.id },
+        data: { referredBy: referrer.id },
+        select: { id: true, referredBy: true },
+      })
+
+      // Try to find the referee's wallet (via their business)
+      let walletId = 'pending'
+      if (currentUser.tenantId) {
+        const wallet = await tx.wallet.findFirst({
+          where: {
+            business: {
+              tenantId: currentUser.tenantId,
+            },
+          },
+          select: { id: true },
+        })
+        if (wallet) {
+          walletId = wallet.id
+        }
+      }
+
+      // Create a pending ReferralBonus
+      // Amount will be calculated (5% of first deposit, capped at $100) when the deposit is completed
+      const bonusRef = generateBonusRef()
+      // Ensure uniqueness
+      let uniqueBonusRef = bonusRef
+      let bonusUnique = false
+      while (!bonusUnique) {
+        const existingBonus = await tx.referralBonus.findUnique({ where: { bonusRef: uniqueBonusRef } })
+        if (!existingBonus) {
+          bonusUnique = true
+        } else {
+          uniqueBonusRef = generateBonusRef()
+        }
+      }
+
+      const bonus = await tx.referralBonus.create({
+        data: {
+          bonusRef: uniqueBonusRef,
+          referrerId: referrer.id,
+          refereeId: user.id,
+          depositId: 'pending',
+          walletId,
+          bonusAmount: 0,
+          bonusCurrency: BONUS_CURRENCY,
+          status: 'pending',
+        },
+      })
+
+      return { account: updatedAccount, bonus }
+    })
+
+    return created({
+      redeemed: true,
+      referralCode: normalizedCode,
       referrer: {
         id: referrer.id,
         name: referrer.name,
       },
       bonus: {
-        amount: BONUS_AMOUNT,
+        id: result.bonus.id,
+        bonusRef: result.bonus.bonusRef,
+        status: 'pending',
+        amount: 0,
         currency: BONUS_CURRENCY,
-        condition: 'You will receive $100 credited to your wallet when you make your first deposit.',
+        condition: `You will receive ${BONUS_RATE * 100}% of your first deposit as a bonus, capped at $${BONUS_CAP.toFixed(2)}.`,
       },
     })
   } catch (error: any) {
     if (error instanceof AuthError) {
       return unauthorized(error.message)
     }
+    // Handle Prisma unique constraint violations (race condition on referredBy)
+    if (error?.code === 'P2002') {
+      return conflict('You have already used a referral code')
+    }
     console.error('Referral POST error:', error)
-    return error('Failed to validate referral code')
+    return error('Failed to redeem referral code')
   }
 }
 

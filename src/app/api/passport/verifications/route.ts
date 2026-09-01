@@ -1,9 +1,15 @@
 import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
+import { logAudit } from '@/backend/lib/audit-logger'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
-import { created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+
+const documentTypeEnum = z.enum(['id_card', 'passport', 'business_registration', 'tax_certificate', 'proof_of_address'] as const, {
+  message: 'documentType must be one of: id_card, passport, business_registration, tax_certificate, proof_of_address',
+})
+
 const createVerificationSchema = z.object({
   businessId: z.string().min(1, 'businessId is required'),
   type: z.enum(['identity', 'business_registration', 'tax', 'bank_account', 'address'] as const, {
@@ -12,7 +18,26 @@ const createVerificationSchema = z.object({
   method: z.enum(['document', 'api', 'manual', 'third_party'] as const, {
     message: 'Method must be one of: document, api, manual, third_party',
   }),
+  documentType: documentTypeEnum.optional(),
+  documentUrl: z.string().url('documentUrl must be a valid URL').optional(),
+  documentNumber: z.string().min(1, 'documentNumber is required').optional(),
   metadata: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.method === 'document') {
+    if (!data.documentType) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'documentType is required when method is "document"', path: ['documentType'] })
+    }
+    if (!data.documentUrl) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'documentUrl is required when method is "document"', path: ['documentUrl'] })
+    }
+    if (!data.documentNumber) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'documentNumber is required when method is "document"', path: ['documentNumber'] })
+    }
+  } else {
+    if (data.documentType || data.documentUrl || data.documentNumber) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Document fields (documentType, documentUrl, documentNumber) are only allowed when method is "document"' })
+    }
+  }
 })
 
 async function getHandler(request: NextRequest) {
@@ -68,7 +93,7 @@ async function postHandler(request: NextRequest) {
       return validationError(parsed.error.issues.map(i => i.message).join(', '))
     }
 
-    const { businessId, type, method, metadata } = parsed.data
+    const { businessId, type, method, documentType, documentUrl, documentNumber, metadata } = parsed.data
 
     // Check business exists and belongs to tenant
     const business = await db.business.findUnique({
@@ -98,12 +123,33 @@ async function postHandler(request: NextRequest) {
       }
     }
 
+    // Build the metadata payload: merge any caller-supplied metadata with document info
+    let mergedMetadata: Record<string, unknown> = {}
+    if (metadata) {
+      try {
+        mergedMetadata = JSON.parse(metadata)
+      } catch {
+        return badRequest('metadata must be a valid JSON string')
+      }
+    }
+
+    if (method === 'document' && documentType && documentUrl && documentNumber) {
+      mergedMetadata.document = {
+        type: documentType,
+        url: documentUrl,
+        number: documentNumber,
+      }
+    }
+
     const verification = await db.verification.create({
       data: {
         businessId,
         type,
         method,
-        metadata,
+        status: 'pending_review',
+        metadata: Object.keys(mergedMetadata).length > 0
+          ? JSON.stringify(mergedMetadata)
+          : undefined,
       },
       include: {
         business: {
@@ -112,9 +158,28 @@ async function postHandler(request: NextRequest) {
       },
     })
 
+    // Audit log entry
+    logAudit(
+      'verification.create',
+      user.id,
+      `Verification created for business ${business.name} (${businessId}), type=${type}, method=${method}`,
+      {
+        verificationId: verification.id,
+        businessId,
+        type,
+        method,
+        documentType: method === 'document' ? documentType : undefined,
+        documentNumber: method === 'document' ? documentNumber : undefined,
+        status: verification.status,
+      },
+    )
+
     return created(verification)
-  } catch (error: any) {
-    console.error('Error creating verification:', error)
+  } catch (err: any) {
+    if (err instanceof AuthError) {
+      return unauthorized(err.message)
+    }
+    console.error('Error creating verification:', err)
     return error('Failed to create verification')
   }
 }
