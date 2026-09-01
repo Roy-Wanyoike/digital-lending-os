@@ -4,7 +4,7 @@
  * @description Export all overlay components
  */
 
-// Existing overlay components (from legacy file)
+// Existing overlay components
 export { Modal } from './overlay-legacy';
 export type { ModalProps } from './overlay-legacy';
 

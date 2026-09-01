@@ -43,7 +43,7 @@ export type {
   SpinnerVariant,
 } from './LoadingSpinner';
 
-// Existing feedback components (re-export from legacy file)
+// Existing feedback components (re-export from original file)
 export {
   Alert,
   EmptyState,
