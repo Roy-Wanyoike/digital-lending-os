@@ -39,13 +39,41 @@ export type {
   AIServiceConfig
 } from './types';
 
-// Services
-export { RoyAIService, getRoyAIService } from './services/openai-service';
+// Services (new unified service)
+export { 
+  RoyAIService, 
+  getRoyAIService, 
+  resetRoyAIService,
+  MockAIService,
+  ResponseFormatter as ServiceResponseFormatter,
+  AIServiceConfig 
+} from './service';
+
+// Legacy Services (for backward compatibility)
+export { RoyAIService as LegacyRoyAIService, getRoyAIService as getLegacyService } from './services/openai-service';
 export { PromptEngineering } from './services/prompt-engineering';
 export { ResponseFormatter } from './services/response-formatter';
 
 // Components
 export { ChatInterface } from './components/ChatInterface';
+
+// Prompts & Templates (new unified prompts)
+export {
+  SYSTEM_PROMPT,
+  EFFECT_GENERATION_TEMPLATE,
+  COMPONENT_GENERATION_TEMPLATE,
+  PATTERN_GENERATION_TEMPLATE,
+  EXPLANATION_TEMPLATE,
+  IMPROVEMENT_TEMPLATE,
+  PROMPT_TEMPLATES,
+  PromptTemplate,
+  FewShotExample,
+  PromptContext,
+  getPromptTemplate,
+  getTemplatesByContext,
+  renderTemplate,
+  buildPrompt
+} from './prompts';
 
 // Prompts (for advanced usage)
 export { effectPrompts, effectGenerationPrompt, animationPrompt, hoverEffectPrompt, loadingEffectPrompt } from './prompts/effect-generator';
