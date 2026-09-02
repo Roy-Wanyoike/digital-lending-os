@@ -7,9 +7,8 @@ import {
 
 // NAV_ITEMS IDs are not functions, so we keep the hardcoded list
 const NAV_ITEMS_IDS = [
-  'overview', 'trust-graph', 'escrow', 'payments', 'passport',
-  'payment-links', 'wallet', 'referral', 'fraud', 'matching',
-  'collections', 'compliance',
+  'overview', 'borrowers', 'loans', 'disbursements', 'repayments',
+  'collections', 'credit-scoring', 'fraud', 'compliance', 'wallet',
 ]
 
 // Sprint fixes unit tests - 28 tests across 4 groups
@@ -168,25 +167,25 @@ describe('Financial Rate Limiting - isFinancialMutation', () => {
 // --- 3. Digital Twin Removal ---
 
 const NAV_ITEMS_IDS_STUB = [
-  'overview', 'trust-graph', 'escrow', 'payments', 'passport',
-  'digital-twin', 'payment-links', 'wallet', 'referral', 'fraud', 'matching',
-  'collections', 'compliance',
+  'overview', 'borrowers', 'loans', 'disbursements', 'repayments',
+  'collections', 'credit-scoring', 'fraud', 'compliance', 'wallet',
 ]
 const ROLE_TABS_ADMIN = ROLE_TABS.admin
 
-describe('Digital Twin Removal', () => {
-  it('NAV_ITEMS contains digital-twin entry', () => {
-    expect(NAV_ITEMS_IDS_STUB).toContain('digital-twin')
+describe('Lending Navigation Config', () => {
+  it('NAV_ITEMS contains credit-scoring entry', () => {
+    expect(NAV_ITEMS_IDS_STUB).toContain('credit-scoring')
   })
 
-  it('ROLE_TABS.admin contains digital-twin for admin users', () => {
-    expect(ROLE_TABS_ADMIN).toContain('digital-twin')
+  it('ROLE_TABS.admin contains credit-scoring for admin users', () => {
+    expect(ROLE_TABS_ADMIN).toContain('credit-scoring')
   })
 
-  it('digital-twin is present in nav/tabs config but twin-profile is not', () => {
-    const allKeys = new Set([...NAV_ITEMS_IDS_STUB, ...ROLE_TABS_ADMIN])
-    expect(allKeys.has('twin-profile')).toBe(false)
-    expect(allKeys.has('digital-twin')).toBe(true)
+  it('admin tabs include all lending core tabs', () => {
+    const expected = ['borrowers', 'loans', 'disbursements', 'repayments', 'credit-scoring']
+    for (const tab of expected) {
+      expect(ROLE_TABS_ADMIN).toContain(tab)
+    }
   })
 })
 

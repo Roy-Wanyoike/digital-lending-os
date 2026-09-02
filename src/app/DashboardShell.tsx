@@ -38,34 +38,28 @@ const D = (importFn: () => Promise<{ default: React.ComponentType }>) =>
   dynamic(importFn, { loading: () => <TabSkeleton />, ssr: false })
 
 const OverviewTab = D(() => import('@/components/dashboard/OverviewTab').then(m => ({ default: m.OverviewTab })))
-const TrustGraphTab = D(() => import('@/components/dashboard/TrustGraphTab').then(m => ({ default: m.TrustGraphTab })))
-const EscrowTab = D(() => import('@/components/dashboard/EscrowTab').then(m => ({ default: m.EscrowTab })))
-const PaymentsTab = D(() => import('@/components/dashboard/PaymentsTab').then(m => ({ default: m.PaymentsTab })))
-const PassportTab = D(() => import('@/components/dashboard/PassportTab').then(m => ({ default: m.PassportTab })))
-const PaymentLinksTab = D(() => import('@/components/dashboard/PaymentLinksTab').then(m => ({ default: m.PaymentLinksTab })))
-const WalletTab = D(() => import('@/components/dashboard/WalletTab').then(m => ({ default: m.WalletTab })))
-const FraudTab = D(() => import('@/components/dashboard/FraudTab').then(m => ({ default: m.FraudTab })))
-const ReferralTab = D(() => import('@/components/dashboard/ReferralTab').then(m => ({ default: m.ReferralTab })))
-const MatchingTab = D(() => import('@/components/dashboard/MatchingTab').then(m => ({ default: m.MatchingTab })))
+const BorrowersTab = D(() => import('@/frontend/components/dashboard/BorrowersTab').then(m => ({ default: m.BorrowersTab })))
+const LoansTab = D(() => import('@/frontend/components/dashboard/LoansTab').then(m => ({ default: m.LoansTab })))
+const DisbursementsTab = D(() => import('@/frontend/components/dashboard/DisbursementsTab').then(m => ({ default: m.DisbursementsTab })))
+const RepaymentsTab = D(() => import('@/frontend/components/dashboard/RepaymentsTab').then(m => ({ default: m.RepaymentsTab })))
 const CollectionsTab = D(() => import('@/components/dashboard/CollectionsTab').then(m => ({ default: m.CollectionsTab })))
+const CreditScoringTab = D(() => import('@/frontend/components/dashboard/CreditScoringTab').then(m => ({ default: m.CreditScoringTab })))
+const FraudTab = D(() => import('@/components/dashboard/FraudTab').then(m => ({ default: m.FraudTab })))
 const ComplianceTab = D(() => import('@/components/dashboard/ComplianceTab').then(m => ({ default: m.ComplianceTab })))
-const DigitalTwinTab = D(() => import('@/components/dashboard/DigitalTwinTab').then(m => ({ default: m.DigitalTwinTab })))
+const WalletTab = D(() => import('@/components/dashboard/WalletTab').then(m => ({ default: m.WalletTab })))
 
 // ─── Tab component map ───────────────────────────────────────────
 const TAB_COMPONENTS: Record<string, React.ComponentType> = {
   'overview': OverviewTab,
-  'trust-graph': TrustGraphTab,
-  'escrow': EscrowTab,
-  'payments': PaymentsTab,
-  'passport': PassportTab,
-  'payment-links': PaymentLinksTab,
-  'wallet': WalletTab,
-  'referral': ReferralTab,
-  'fraud': FraudTab,
-  'matching': MatchingTab,
+  'borrowers': BorrowersTab,
+  'loans': LoansTab,
+  'disbursements': DisbursementsTab,
+  'repayments': RepaymentsTab,
   'collections': CollectionsTab,
+  'credit-scoring': CreditScoringTab,
+  'fraud': FraudTab,
   'compliance': ComplianceTab,
-  'digital-twin': DigitalTwinTab,
+  'wallet': WalletTab,
 }
 
 // ─── Shell component ─────────────────────────────────────────────

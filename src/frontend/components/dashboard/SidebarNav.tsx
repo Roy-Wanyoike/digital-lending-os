@@ -10,17 +10,15 @@ import { prefetchUrl } from '@/hooks/use-api'
 // Only the most commonly-needed URL per tab — keeps hover lightweight.
 const TAB_PREFETCH_URLS: Record<string, string[]> = {
   'overview': ['/api/dashboard/stats'],
-  'trust-graph': ['/api/trust/relationships'],
-  'escrow': ['/api/escrow/transactions?limit=50'],
-  'payments': ['/api/payments/intents?limit=15'],
-  'passport': ['/api/businesses?limit=50', '/api/passport/verifications?limit=15'],
-  'payment-links': ['/api/payment-links?limit=50'],
-  'wallet': ['/api/businesses?limit=50', '/api/wallets/rates'],
-  'referral': ['/api/referral'],
-  'fraud': ['/api/fraud/alerts?limit=20', '/api/fraud/rules'],
-  'matching': ['/api/matching?limit=20'],
+  'borrowers': ['/api/businesses?limit=50'],
+  'loans': [],
+  'disbursements': [],
+  'repayments': [],
   'collections': ['/api/collections?limit=20'],
+  'credit-scoring': [],
+  'fraud': ['/api/fraud/alerts?limit=20', '/api/fraud/rules'],
   'compliance': ['/api/compliance/rules', '/api/compliance/screenings?limit=20'],
+  'wallet': ['/api/businesses?limit=50', '/api/wallets/rates'],
 }
 
 export function SidebarNav({ visibleTabs, activeTab, onTabChange }: { visibleTabs: string[], activeTab: string, onTabChange: (id: string) => void }) {

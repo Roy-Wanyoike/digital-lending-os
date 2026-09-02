@@ -546,15 +546,15 @@ describe('Constants', () => {
     expect(FRAUD_STATUSES).toEqual(['Open', 'Investigating', 'Confirmed', 'Resolved'])
   })
 
-  it('ROLE_LABELS covers all 5 roles', () => {
-    const roles = ['admin', 'buyer', 'seller', 'auditor', 'viewer']
+  it('ROLE_LABELS covers all 6 roles', () => {
+    const roles = ['admin', 'credit_officer', 'collections_officer', 'compliance_officer', 'underwriter', 'viewer']
     for (const role of roles) {
       expect(ROLE_LABELS[role as keyof typeof ROLE_LABELS]).toBeTruthy()
     }
   })
 
   it('ROLE_TABS has tabs for all roles', () => {
-    const roles = ['admin', 'buyer', 'seller', 'auditor', 'viewer'] as const
+    const roles = ['admin', 'credit_officer', 'collections_officer', 'compliance_officer', 'underwriter', 'viewer'] as const
     for (const role of roles) {
       expect(ROLE_TABS[role].length).toBeGreaterThan(0)
       expect(ROLE_TABS[role]).toContain('overview')
@@ -563,7 +563,7 @@ describe('Constants', () => {
 
   it('admin has the most tabs', () => {
     const adminTabCount = ROLE_TABS.admin.length
-    for (const role of ['buyer', 'seller', 'auditor', 'viewer'] as const) {
+    for (const role of ['credit_officer', 'collections_officer', 'compliance_officer', 'underwriter', 'viewer'] as const) {
       expect(ROLE_TABS[role].length).toBeLessThanOrEqual(adminTabCount)
     }
   })
