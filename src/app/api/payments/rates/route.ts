@@ -9,6 +9,7 @@ import {
 } from "@/backend/lib/api-response";
 import { getApiUser, requireAdmin } from "@/lib/auth/api-helpers";
 import { withApiTelemetry } from "@/backend/lib/telemetry/api-wrapper";
+import { db } from "@/lib/db";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -21,12 +22,15 @@ interface StoredRate {
   updatedBy: string;
 }
 
-// ── In-memory rate store ──────────────────────────────────────────────────
+// ── In-memory rate store (L1 cache) ──────────────────────────────────────
 //
 // Keyed by `${fromCurrency}-${toCurrency}` (both uppercased).
-// Admins populate this via POST. The GET handler only reads from here.
+// Acts as an L1 cache; the CurrencyRate DB table is the source of truth.
+// Populated from DB on first read via ensureRatesLoaded().
 
 const rateStore = new Map<string, StoredRate>();
+const RATE_PROVIDER = "manual";
+let _ratesLoadedFromDb = false;
 
 // ── Lazy-loaded cache manager ─────────────────────────────────────────────
 
@@ -74,6 +78,43 @@ function rateKey(from: string, to: string) {
   return `${from}-${to}`;
 }
 
+/**
+ * Ensure the in-memory L1 cache is populated from the CurrencyRate table.
+ * Called once on the first GET request. If the DB has no rates, the cache
+ * stays empty (matching the previous in-memory-only default behaviour).
+ */
+async function ensureRatesLoaded() {
+  if (_ratesLoadedFromDb) return;
+  _ratesLoadedFromDb = true;
+
+  try {
+    // Fetch all rates for our provider; use the most recent per pair.
+    const rows = await db.currencyRate.findMany({
+      where: { provider: RATE_PROVIDER },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // Deduplicate: keep only the latest row per pair.
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const key = rateKey(row.fromCurrency, row.toCurrency);
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      rateStore.set(key, {
+        fromCurrency: row.fromCurrency,
+        toCurrency: row.toCurrency,
+        rate: row.rate,
+        expiresAt: row.expiresAt,
+        updatedAt: row.createdAt,
+        updatedBy: RATE_PROVIDER,
+      });
+    }
+  } catch {
+    // DB not available yet (e.g. migrations pending) — fall back to empty cache.
+  }
+}
+
 /** Return non-expired entries as plain objects (no Date refs in JSON). */
 function listActiveRates(): {
   fromCurrency: string;
@@ -100,11 +141,14 @@ function listActiveRates(): {
   }));
 }
 
-// ── GET: Read rates from the in-memory store ──────────────────────────────
+// ── GET: Read rates (DB-backed with in-memory L1 cache) ───────────────────
 
 const getHandler = withErrorHandler(async (request: NextRequest) => {
   const user = await getApiUser(request);
   if (!user) return unauthorized();
+
+  // Populate L1 cache from DB on first request
+  await ensureRatesLoaded();
 
   const { searchParams } = new URL(request.url);
   const from = searchParams.get("from")?.toUpperCase();
@@ -184,6 +228,17 @@ const postHandler = withErrorHandler(async (request: NextRequest) => {
     return badRequest("expiresAt must be in the future");
   }
 
+  // Persist to CurrencyRate table (source of truth).
+  // The unique constraint includes createdAt, so we delete stale rows
+  // for this pair+provider first, then insert a fresh row (upsert semantics).
+  await db.currencyRate.deleteMany({
+    where: { fromCurrency, toCurrency, provider: RATE_PROVIDER },
+  });
+  await db.currencyRate.create({
+    data: { fromCurrency, toCurrency, rate, expiresAt, provider: RATE_PROVIDER },
+  });
+
+  // Update L1 cache
   rateStore.set(key, {
     fromCurrency,
     toCurrency,
