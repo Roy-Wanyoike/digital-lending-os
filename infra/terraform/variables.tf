@@ -3,31 +3,50 @@
 variable "project_id" {
   description = "GCP Project ID"
   type        = string
-  default     = "youngsend-prod"
 }
 
 variable "region" {
   description = "GCP Region"
   type        = string
-  default     = "europe-west1"
+}
+
+variable "zone" {
+  description = "GCP primary zone (used for zonal resources)"
+  type        = string
 }
 
 variable "zones" {
   description = "GCP Zones for node pools"
   type        = list(string)
-  default     = ["europe-west1-b", "europe-west1-c", "europe-west1-d"]
+  default     = []
+}
+
+variable "environment" {
+  description = "Deployment environment (dev, staging, prod)"
+  type        = string
 }
 
 variable "cluster_name" {
   description = "GKE Cluster name"
   type        = string
-  default     = "youngsend-prod"
 }
 
 variable "kubernetes_version" {
   description = "Kubernetes version"
   type        = string
   default     = "1.29"
+}
+
+variable "node_count" {
+  description = "Default initial node count per node pool"
+  type        = number
+  default     = 3
+}
+
+variable "machine_type" {
+  description = "Default machine type for node pools"
+  type        = string
+  default     = "e2-highcpu-4"
 }
 
 variable "subnet_cidr" {
@@ -60,15 +79,45 @@ variable "authorized_networks" {
 variable "node_service_account" {
   description = "Service account for GKE nodes"
   type        = string
-  default     = "youngsend-gke-nodes@youngsend-prod.iam.gserviceaccount.com"
+}
+
+# ─────────────────────────────────────────────────────────────────
+# Database variables
+# ─────────────────────────────────────────────────────────────────
+
+variable "db_name" {
+  description = "Cloud SQL database name"
+  type        = string
+  default     = "youngsend"
+}
+
+variable "db_user" {
+  description = "Cloud SQL database user"
+  type        = string
+  default     = "youngsend"
 }
 
 variable "db_password" {
   description = "Cloud SQL PostgreSQL password (use Secrets Manager in prod)"
   type        = string
   sensitive   = true
-  default     = "CHANGE_ME_IN_PRODUCTION"
 }
+
+variable "db_tier" {
+  description = "Cloud SQL instance tier"
+  type        = string
+  default     = "db-custom-4-16384"
+}
+
+variable "db_disk_size" {
+  description = "Cloud SQL disk size in GB"
+  type        = number
+  default     = 100
+}
+
+# ─────────────────────────────────────────────────────────────────
+# Redis variables
+# ─────────────────────────────────────────────────────────────────
 
 variable "redis_memory_size_gb" {
   description = "Memorystore Redis memory size in GB"
@@ -79,5 +128,4 @@ variable "redis_memory_size_gb" {
 variable "redis_failover_region" {
   description = "Redis HA failover region"
   type        = string
-  default     = "europe-west2"
 }

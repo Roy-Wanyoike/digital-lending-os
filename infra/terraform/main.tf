@@ -193,8 +193,8 @@ resource "google_sql_database_instance" "postgresql" {
   region           = var.region
   database_version = "POSTGRES_16"
   settings {
-    tier              = "db-custom-4-16384"
-    disk_size         = 100
+    tier              = var.db_tier
+    disk_size         = var.db_disk_size
     disk_type         = "PD_SSD"
     availability_type = "REGIONAL"
     backup_configuration {
@@ -232,17 +232,20 @@ resource "google_sql_database_instance" "postgresql" {
     }
   }
   deletion_protection = true
-  depends_on = [google_project_service.required_apis]
+  depends_on = [
+    google_project_service.required_apis,
+    google_service_networking_connection.private_service_access,
+  ]
 }
 
 resource "google_sql_database" "youngsend" {
-  name     = "youngsend"
+  name     = var.db_name
   project  = var.project_id
   instance = google_sql_database_instance.postgresql.name
 }
 
 resource "google_sql_user" "youngsend" {
-  name     = "youngsend"
+  name     = var.db_user
   project  = var.project_id
   instance = google_sql_database_instance.postgresql.name
   password = var.db_password
@@ -276,7 +279,10 @@ resource "google_redis_instance" "youngsend" {
     persistence_mode    = "RDB"
     rdb_snapshot_period = "TWENTY_FOUR_HOURS"
   }
-  depends_on = [google_project_service.required_apis]
+  depends_on = [
+    google_project_service.required_apis,
+    google_service_networking_connection.private_service_access,
+  ]
 }
 
 resource "google_service_account" "cloudsql_proxy" {
@@ -292,13 +298,205 @@ resource "google_project_iam_member" "cloudsql_client" {
 }
 
 resource "google_compute_global_address" "youngsend_ingress" {
-  name    = "youngsend-prod-ip"
+  name    = "${var.cluster_name}-ingress-ip"
   project = var.project_id
 }
 
 resource "google_compute_ssl_policy" "youngsend" {
-  name    = "youngsend-ssl-policy"
-  project = var.project_id
-  profile = "MODERN"
+  name             = "${var.cluster_name}-ssl-policy"
+  project          = var.project_id
+  profile          = "MODERN"
   min_tls_version = "1.2"
+}
+
+# ─────────────────────────────────────────────────────────────────
+# VPC Service Networking — required for Cloud SQL & Redis private IP
+# ─────────────────────────────────────────────────────────────────
+
+resource "google_compute_global_address" "private_service_access" {
+  name          = "${var.project_id}-private-sa"
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = 16
+  network       = google_compute_network.main.id
+  project       = var.project_id
+}
+
+resource "google_service_networking_connection" "private_service_access" {
+  network                 = google_compute_network.main.id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.private_service_access.name]
+  depends_on              = [google_project_service.required_apis]
+}
+
+# ─────────────────────────────────────────────────────────────────
+# IAM Service Account for the application workload
+# ─────────────────────────────────────────────────────────────────
+
+resource "google_service_account" "app" {
+  account_id   = "${var.cluster_name}-app"
+  project      = var.project_id
+  display_name = "YoungSend Application Service Account"
+  description  = "Service account for the YoungSend application pods via Workload Identity"
+}
+
+resource "google_project_iam_member" "app_log_writer" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.app.email}"
+}
+
+resource "google_project_iam_member" "app_secret_accessor" {
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.app.email}"
+}
+
+resource "google_project_iam_member" "app_cloudsql_client" {
+  project = var.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.app.email}"
+}
+
+resource "google_project_iam_member" "app_storage_object_viewer" {
+  project = var.project_id
+  role    = "roles/storage.objectViewer"
+  member  = "serviceAccount:${google_service_account.app.email}"
+}
+
+# ─────────────────────────────────────────────────────────────────
+# Workload Identity — bind K8s SA to GCP SA
+# ─────────────────────────────────────────────────────────────────
+
+resource "google_service_account_iam_member" "workload_identity_binding" {
+  service_account_id = google_service_account.app.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[youngsend/youngsend-app]"
+}
+
+# ─────────────────────────────────────────────────────────────────
+# Cloud Storage bucket for application logs / exports
+# ─────────────────────────────────────────────────────────────────
+
+resource "google_storage_bucket" "logs" {
+  name          = "${var.project_id}-${var.environment}-logs"
+  project       = var.project_id
+  location      = var.region
+  force_destroy = false
+
+  uniform_bucket_level_access = true
+
+  versioning {
+    enabled = true
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 90
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 30
+    }
+    action {
+      type = "SetStorageClass"
+      storage_class = "COLDLINE"
+    }
+  }
+}
+
+resource "google_storage_bucket_iam_member" "logs_writer" {
+  bucket = google_storage_bucket.logs.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.app.email}"
+}
+
+# ─────────────────────────────────────────────────────────────────
+# Secret Manager — secret references for the application
+# ─────────────────────────────────────────────────────────────────
+
+resource "google_secret_manager_secret" "db_password" {
+  secret_id = "youngsend-db-password"
+  project   = var.project_id
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+}
+
+resource "google_secret_manager_secret_version" "db_password" {
+  secret      = google_secret_manager_secret.db_password.id
+  secret_data = var.db_password
+}
+
+resource "google_secret_manager_secret" "app_secret_key" {
+  secret_id = "youngsend-app-secret-key"
+  project   = var.project_id
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+}
+
+resource "google_secret_manager_secret" "stripe_webhook_secret" {
+  secret_id = "youngsend-stripe-webhook-secret"
+  project   = var.project_id
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+}
+
+resource "google_secret_manager_secret" "jwt_secret" {
+  secret_id = "youngsend-jwt-secret"
+  project   = var.project_id
+
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+}
+
+# ─────────────────────────────────────────────────────────────────
+# Cloud NAT — egress internet access for private GKE nodes
+# ─────────────────────────────────────────────────────────────────
+
+resource "google_compute_router" "nat" {
+  name    = "${var.project_id}-nat-router"
+  project = var.project_id
+  region  = var.region
+  network = google_compute_network.main.id
+}
+
+resource "google_compute_router_nat" "nat" {
+  name                               = "${var.project_id}-nat"
+  project                           = var.project_id
+  router                             = google_compute_router.nat.name
+  region                             = var.region
+  nat_ip_allocate_option             = "AUTO_ONLY"
+  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+  log_config {
+    enable = true
+    filter = "ERRORS_ONLY"
+  }
 }
