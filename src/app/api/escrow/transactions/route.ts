@@ -11,6 +11,7 @@ import { escrowListCache } from '@/backend/lib/response-cache';
 import { badRequest, created, error, forbidden, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 import { evaluateTransactionForFraud } from '@/backend/middleware/fraud-check';
 import { generateTxRef } from '@/backend/lib/utils';
+import { computeRiskScore } from '@/backend/lib/escrow';
 // ── Zod Schemas ──────────────────────────────────────────────
 const milestoneSchema = z.object({
   title: z.string().min(1, "Milestone title is required"),
@@ -25,85 +26,6 @@ const createEscrowSchema = z.object({
   description: z.string().optional(),
   milestones: z.array(milestoneSchema).optional(),
 });
-
-// ── Helpers ──────────────────────────────────────────────────
-async function computeRiskScore(params: {
-  buyerId: string;
-  sellerId: string;
-  amount: number;
-}): Promise<{ score: number; level: string }> {
-  let risk = 50;
-
-  // Fetch buyer and seller trust scores and countries in parallel
-  const [buyer, seller] = await Promise.all([
-    db.business.findUnique({
-      where: { id: params.buyerId },
-      select: { country: true, trustScore: { select: { overallScore: true } } },
-    }),
-    db.business.findUnique({
-      where: { id: params.sellerId },
-      select: { country: true, trustScore: { select: { overallScore: true } } },
-    }),
-  ]);
-
-  const buyerTrust = buyer?.trustScore?.overallScore ?? 50;
-  const sellerTrust = seller?.trustScore?.overallScore ?? 50;
-
-  // Buyer trust (lower trust = higher risk)
-  if (buyerTrust > 80) risk -= 15;
-  else if (buyerTrust > 60) risk -= 8;
-  else risk += 5;
-
-  // Seller trust (lower trust = higher risk)
-  if (sellerTrust > 80) risk -= 15;
-  else if (sellerTrust > 60) risk -= 8;
-  else risk += 5;
-
-  // Transaction amount (higher amount = higher risk)
-  if (params.amount > 10000) risk += 10;
-  else if (params.amount > 5000) risk += 5;
-  else if (params.amount > 1000) risk += 2;
-
-  // Previous transactions between the two parties (new relationship = higher risk)
-  const prevTxCount = await db.escrowTransaction.count({
-    where: {
-      OR: [
-        { buyerId: params.buyerId, sellerId: params.sellerId },
-        { buyerId: params.sellerId, sellerId: params.buyerId },
-      ],
-    },
-  });
-  if (prevTxCount > 0) risk -= 10;
-  else risk += 5;
-
-  // Country risk (different countries = higher risk)
-  if (buyer?.country && seller?.country && buyer.country !== seller.country) {
-    risk += 5;
-  }
-
-  // Dispute history (past disputes for either party = higher risk)
-  const disputeCount = await db.dispute.count({
-    where: {
-      OR: [
-        { escrow: { buyerId: params.buyerId } },
-        { escrow: { sellerId: params.buyerId } },
-        { escrow: { buyerId: params.sellerId } },
-        { escrow: { sellerId: params.sellerId } },
-      ],
-    },
-  });
-  if (disputeCount > 0) risk += 8;
-
-  // Clamp to 0-100
-  risk = Math.max(0, Math.min(100, risk));
-
-  let level: string;
-  if (risk < 30) level = "low";
-  else if (risk < 70) level = "medium";
-  else level = "high";
-
-  return { score: risk, level };
-}
 
 // ── GET: List escrow transactions ────────────────────────────
 async function getHandler(request: NextRequest) {
@@ -232,6 +154,7 @@ async function postHandler(request: NextRequest) {
       buyerId: data.buyerId,
       sellerId: data.sellerId,
       amount: data.amount,
+      currency: data.currency,
     });
     const txRef = generateTxRef();
     const now = new Date();
