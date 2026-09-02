@@ -99,51 +99,55 @@ async function postHandler(request: NextRequest) {
       return notFound('Reviewed business not found')
     }
 
-    // Create the review
-    const review = await db.review.create({
-      data: {
-        fromBusinessId,
-        toBusinessId,
-        rating,
-        comment,
-        escrowId,
-        paymentRating,
-        deliveryRating,
-        qualityRating,
-        communicationRating,
-      },
-    })
-
-    // Ensure TrustScore exists for the reviewed business
-    let trustScore = await db.trustScore.findUnique({
-      where: { businessId: toBusinessId },
-    })
-
-    if (!trustScore) {
-      trustScore = await db.trustScore.create({
-        data: { businessId: toBusinessId },
+    // Atomically create the review and update trust score in a single transaction
+    const review = await db.$transaction(async (tx) => {
+      const createdReview = await tx.review.create({
+        data: {
+          fromBusinessId,
+          toBusinessId,
+          rating,
+          comment,
+          escrowId,
+          paymentRating,
+          deliveryRating,
+          qualityRating,
+          communicationRating,
+        },
       })
-    }
 
-    // Create a ReputationEvent for the review
-    const scoreImpact = (rating - 3) * 2
-    await db.reputationEvent.create({
-      data: {
-        trustScoreId: trustScore.id,
-        eventType: 'review_received',
-        scoreImpact,
-        description: `Received ${rating}-star review from ${fromBusiness.name}`,
-        sourceId: review.id,
-      },
-    })
+      // Ensure TrustScore exists for the reviewed business
+      let trustScore = await tx.trustScore.findUnique({
+        where: { businessId: toBusinessId },
+      })
 
-    // Update trust score totals
-    await db.trustScore.update({
-      where: { id: trustScore.id },
-      data: {
-        totalReviews: { increment: 1 },
-        lastCalculated: new Date(),
-      },
+      if (!trustScore) {
+        trustScore = await tx.trustScore.create({
+          data: { businessId: toBusinessId },
+        })
+      }
+
+      // Create a ReputationEvent for the review
+      const scoreImpact = (rating - 3) * 2
+      await tx.reputationEvent.create({
+        data: {
+          trustScoreId: trustScore.id,
+          eventType: 'review_received',
+          scoreImpact,
+          description: `Received ${rating}-star review from ${fromBusiness.name}`,
+          sourceId: createdReview.id,
+        },
+      })
+
+      // Update trust score totals
+      await tx.trustScore.update({
+        where: { id: trustScore.id },
+        data: {
+          totalReviews: { increment: 1 },
+          lastCalculated: new Date(),
+        },
+      })
+
+      return createdReview
     })
 
     return created(review)
