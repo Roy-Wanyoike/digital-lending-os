@@ -14,6 +14,7 @@ import {
   unauthorized,
   withErrorHandler,
 } from '@/backend/lib/api-response';
+import { computePeriodEnd } from '@/backend/lib/billing/helpers';
 
 const log = getLogger().withContext({ route: '/api/subscriptions' });
 
@@ -53,28 +54,21 @@ const subscriptionCreateSchema = z.object({
 
 type SubscriptionCreateInput = z.infer<typeof subscriptionCreateSchema>;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────
+// ─── PATCH Validation Schema ───────────────────────────────────────────
 
-/**
- * Computes the period end date from a start date and billing cycle.
- * Uses a cloned date to avoid mutating the original.
- */
-function computePeriodEnd(billingCycle: BillingCycle, start: Date): Date {
-  const end = new Date(start.getTime());
-  switch (billingCycle) {
-    case 'yearly':
-      end.setFullYear(end.getFullYear() + 1);
-      break;
-    case 'quarterly':
-      end.setMonth(end.getMonth() + 3);
-      break;
-    case 'monthly':
-    default:
-      end.setMonth(end.getMonth() + 1);
-      break;
-  }
-  return end;
-}
+const subscriptionPatchSchema = z.object({
+  subscriptionId: idParamSchema,
+  action: z.enum(['cancel', 'pause', 'resume', 'change_plan'], {
+    message: 'action must be one of: cancel, pause, resume, change_plan',
+  }),
+  // For change_plan
+  planName: z.enum(VALID_SUBSCRIPTION_PLANS).optional(),
+  amount: z.number().min(0, 'Amount must be non-negative').max(999_999_999).optional(),
+  // For cancel
+  reason: z.string().max(500, 'Reason is too long').trim().optional(),
+});
+
+type SubscriptionPatchInput = z.infer<typeof subscriptionPatchSchema>;
 
 // ─── GET Handler ─────────────────────────────────────────────────────────
 
@@ -207,8 +201,131 @@ async function postHandler(req: NextRequest) {
   return created(subscription);
 }
 
+// ─── PATCH Handler ───────────────────────────────────────────────────────
+
+async function patchHandler(req: NextRequest) {
+  const user = await requireAuth(req);
+  if (user.role !== 'admin') return forbidden();
+
+  const body = await req.json();
+  const parsed = subscriptionPatchSchema.safeParse(body);
+  if (!parsed.success) {
+    return badRequest(
+      'Validation failed',
+      parsed.error.issues.map(i => ({ field: i.path.join('.'), message: i.message })),
+    );
+  }
+
+  const data: SubscriptionPatchInput = parsed.data;
+
+  // Verify subscription belongs to a business in the tenant
+  const subscription = await db.subscription.findFirst({
+    where: { id: data.subscriptionId },
+    include: { business: { select: { tenantId: true } } },
+  });
+  if (!subscription) return notFound('Subscription not found');
+  if (subscription.business.tenantId !== user.tenantId) return forbidden();
+
+  const now = new Date();
+
+  switch (data.action) {
+    case 'cancel': {
+      if (subscription.status === 'cancelled') {
+        return badRequest('Subscription is already cancelled');
+      }
+      const updated = await db.subscription.update({
+        where: { id: data.subscriptionId },
+        data: {
+          status: 'cancelled',
+          cancelledAt: now,
+          cancellationReason: data.reason || null,
+        },
+      });
+      log.info('Subscription cancelled', {
+        subscriptionId: data.subscriptionId,
+        reason: data.reason,
+        tenantId: user.tenantId,
+      });
+      return ok(updated);
+    }
+
+    case 'pause': {
+      if (subscription.status !== 'active') {
+        return badRequest('Only active subscriptions can be paused');
+      }
+      const updated = await db.subscription.update({
+        where: { id: data.subscriptionId },
+        data: { status: 'paused' },
+      });
+      log.info('Subscription paused', {
+        subscriptionId: data.subscriptionId,
+        tenantId: user.tenantId,
+      });
+      return ok(updated);
+    }
+
+    case 'resume': {
+      if (subscription.status !== 'paused') {
+        return badRequest('Only paused subscriptions can be resumed');
+      }
+      const newPeriodEnd = computePeriodEnd(
+        subscription.interval as BillingCycle,
+        now,
+      );
+      const updated = await db.subscription.update({
+        where: { id: data.subscriptionId },
+        data: {
+          status: 'active',
+          currentPeriodStart: now,
+          currentPeriodEnd: newPeriodEnd,
+        },
+      });
+      log.info('Subscription resumed', {
+        subscriptionId: data.subscriptionId,
+        newPeriodEnd: newPeriodEnd.toISOString(),
+        tenantId: user.tenantId,
+      });
+      return ok(updated);
+    }
+
+    case 'change_plan': {
+      if (!data.planName) {
+        return badRequest('planName is required for change_plan action');
+      }
+      if (subscription.status === 'cancelled') {
+        return badRequest('Cannot change plan on a cancelled subscription');
+      }
+      const newAmount = data.amount ?? subscription.amount;
+      const newPeriodEnd = computePeriodEnd(
+        subscription.interval as BillingCycle,
+        now,
+      );
+      const updated = await db.subscription.update({
+        where: { id: data.subscriptionId },
+        data: {
+          planName: data.planName,
+          amount: newAmount,
+          currentPeriodStart: now,
+          currentPeriodEnd: newPeriodEnd,
+        },
+      });
+      log.info('Subscription plan changed', {
+        subscriptionId: data.subscriptionId,
+        oldPlan: subscription.planName,
+        newPlan: data.planName,
+        newAmount,
+        tenantId: user.tenantId,
+      });
+      return ok(updated);
+    }
+  }
+}
+
 // ─── Route Exports ───────────────────────────────────────────────────────
 
 export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/subscriptions');
 
 export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/subscriptions');
+
+export const PATCH = withApiTelemetry(withErrorHandler(patchHandler), '/api/subscriptions');
+
