@@ -73,6 +73,24 @@ mini-services/
 .vercel/
 .turbo/
 
+# === Platform-Internal (NOT part of YoungSend) ===
+skills/
+upload/
+worklog.md
+bun.lock
+
+# === One-off Script Artifacts ===
+scripts/*.pdf
+scripts/*.py
+scripts/cover*.html
+scripts/paya-*.json
+scripts/final_report*
+scripts/youngsend_*
+scripts/gen_report*
+scripts/generate-*
+scripts/qa-*
+
 # === Misc ===
 .tenv/
 *.pid
+examples/

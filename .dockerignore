@@ -1,56 +1,58 @@
 # Dependencies
-node_modules
+node_modules/
 
-# Next.js build output
-.next
+# Build output
+.next/
+out/
+standalone/
 
-# Git
-.git
-.gitignore
-
-# Environment — keep .env for build-time vars, ignore local overrides
+# Environment files
+.env
 .env.local
 .env.*.local
 
-# Documentation
-*.md
-
-# IDEs
-.vscode
-.idea
-
-# Test / coverage
-coverage
-dist
-
-# SQLite databases
+# Database files
 db/*.db
+db/*.db-shm
+db/*.db-wal
+prisma/*.db
+
+# Test & coverage
+__tests__/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+
+# Platform-internal (NOT part of YoungSend)
+skills/
+.zscripts/
+agent-ctx/
+upload/
+
+# Scripts artifacts (one-off reports, PDFs, JSON dumps)
+scripts/*.pdf
+scripts/*.py
+scripts/cover*.html
+scripts/paya-*.json
+scripts/final_report*
+scripts/youngsend_*
+scripts/gen_report*
+scripts/generate-*
+scripts/qa-*
 
 # Misc
+.git/
 *.log
-npm-debug.log*
-.DS_Store
-Thumbs.db
-
-# Docker files (avoid recursive copy)
-Dockerfile
-docker-compose*.yml
-.dockerignore
-
-# Download artifacts
-download/
-
-# Scripts
-scripts/
-
-# Infrastructure manifests (not needed at runtime)
-infra/
-
-# Test files
-__tests__/
-*.test.ts
-*.test.tsx
-vitest.config*.ts
-
-# Lock file for other runtimes
+*.bak
+test.txt
+worklog.md
 bun.lock
+mini-services/
+download/
+tool-results/
+examples/
+.DS_Store
