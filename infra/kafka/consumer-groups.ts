@@ -1,5 +1,5 @@
 /**
- * Youngsend Kafka Consumer Group Configurations
+ * Digital Lending OS Kafka Consumer Group Configurations
  *
  * Defines all consumer groups with:
  * - Group ID

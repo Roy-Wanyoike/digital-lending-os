@@ -1,8 +1,8 @@
-# Youngsend Kafka Event-Driven Architecture
+# Digital Lending OS Kafka Event-Driven Architecture
 
 ## Overview
 
-Youngsend's Kafka backbone provides a loosely coupled, eventually consistent event fabric connecting
+Digital Lending OS's Kafka backbone provides a loosely coupled, eventually consistent event fabric connecting
 all microservice domains — payments, wallets, escrow, trust scoring, fraud detection, compliance/KYC,
 notifications, and audit logging. Events are the single source of truth for state mutations; every
 write to a domain service publishes an immutable event to Kafka that other services consume.
@@ -130,7 +130,7 @@ No global ordering is attempted — consumers must be idempotent and handle out-
 
 ### Approach
 
-Youngsend uses **Kafka's idempotent producer + transactional API** for domains requiring strict exactly-once:
+Digital Lending OS uses **Kafka's idempotent producer + transactional API** for domains requiring strict exactly-once:
 
 1. **Idempotent Producer** (`enable.idempotence=true`): Prevents duplicate messages on producer retries.
 2. **Transactional Consumers-Producers**: For saga orchestrators that consume from one topic and produce to another atomically.

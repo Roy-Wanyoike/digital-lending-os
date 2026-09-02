@@ -1,7 +1,7 @@
 {
   "index_templates": [
     {
-      "name": "youngsend-payments-template",
+      "name": "dlo-payments-template",
       "index_patterns": ["payments*"],
       "template": {
         "settings": {
@@ -121,7 +121,7 @@
       "composed_of": []
     },
     {
-      "name": "youngsend-transactions-template",
+      "name": "dlo-transactions-template",
       "index_patterns": ["transactions*"],
       "template": {
         "settings": {
@@ -194,7 +194,7 @@
       "composed_of": []
     },
     {
-      "name": "youngsend-businesses-template",
+      "name": "dlo-businesses-template",
       "index_patterns": ["businesses*"],
       "template": {
         "settings": {
@@ -291,7 +291,7 @@
       "composed_of": []
     },
     {
-      "name": "youngsend-users-template",
+      "name": "dlo-users-template",
       "index_patterns": ["users*"],
       "template": {
         "settings": {
@@ -378,7 +378,7 @@
       "composed_of": []
     },
     {
-      "name": "youngsend-audit-logs-template",
+      "name": "dlo-audit-logs-template",
       "index_patterns": ["audit-logs*"],
       "template": {
         "settings": {

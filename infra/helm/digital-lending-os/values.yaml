@@ -1,11 +1,11 @@
-# Default values for youngsend.
+# Default values for digital-lending-os.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
 replicaCount: 2
 
 image:
-  repository: ghcr.io/youngsend/youngsend
+  repository: ghcr.io/roy-wanyoike/digital-lending-os
   pullPolicy: IfNotPresent
   tag: latest
 
@@ -56,14 +56,14 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
-    - host: youngsend.space-z.ai
+    - host: digitallendingos.co.ke
       paths:
         - path: /
           pathType: Prefix
   tls: []
-  #  - secretName: youngsend-tls
+  #  - secretName: digital-lending-os-tls
   #    hosts:
-  #      - youngsend.space-z.ai
+  #      - digitallendingos.co.ke
 
 resources:
   requests:
@@ -112,12 +112,12 @@ config:
   KAFKA_BROKERS: kafka:9092
   OPENSEARCH_URL: https://opensearch:9200
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-  OTEL_SERVICE_NAME: youngsend-api
+  OTEL_SERVICE_NAME: digital-lending-os-api
 
 # Secrets (sensitive — populated per-environment)
 secrets: {}
 # Example:
-#  DATABASE_POSTGRESQL_URL: postgresql://user:pass@postgres:5432/youngsend
+#  DATABASE_POSTGRESQL_URL: postgresql://user:pass@postgres:5432/digital_lending_os
 #  NEXTAUTH_SECRET: your-nextauth-secret
 #  OPENSEARCH_USERNAME: admin
 #  OPENSEARCH_PASSWORD: your-opensearch-password

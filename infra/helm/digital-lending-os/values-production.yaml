@@ -1,10 +1,10 @@
 # Production environment values
-# Usage: helm install youngsend ./infra/helm/youngsend -f values-production.yaml
+# Usage: helm install digital-lending-os ./infra/helm/digital-lending-os -f values-production.yaml
 
 replicaCount: 3
 
 image:
-  repository: ghcr.io/youngsend/youngsend
+  repository: ghcr.io/roy-wanyoike/digital-lending-os
   pullPolicy: IfNotPresent
   tag: "0.2.1"
 
@@ -54,16 +54,16 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
     nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "https://youngsend.space-z.ai"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://digitallendingos.co.ke"
   hosts:
-    - host: youngsend.space-z.ai
+    - host: digitallendingos.co.ke
       paths:
         - path: /
           pathType: Prefix
   tls:
-    - secretName: youngsend-tls
+    - secretName: digital-lending-os-tls
       hosts:
-        - youngsend.space-z.ai
+        - digitallendingos.co.ke
 
 config:
   DB_PROVIDER: postgresql
@@ -75,11 +75,11 @@ config:
   KAFKA_BROKERS: kafka:9092
   OPENSEARCH_URL: https://opensearch:9200
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-  OTEL_SERVICE_NAME: youngsend-api
+  OTEL_SERVICE_NAME: digital-lending-os-api
 
 secrets: {}
 # IMPORTANT: Set these via --set or sealed secrets
-#  DATABASE_POSTGRESQL_URL: postgresql://user:pass@postgres:5432/youngsend
+#  DATABASE_POSTGRESQL_URL: postgresql://user:pass@postgres:5432/digital_lending_os
 #  NEXTAUTH_SECRET: production-secret
 #  OPENSEARCH_USERNAME: admin
 #  OPENSEARCH_PASSWORD: production-password

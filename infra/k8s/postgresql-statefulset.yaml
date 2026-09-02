@@ -1,13 +1,13 @@
-# Youngsend PostgreSQL StatefulSet with Patroni (1 primary + 2 replicas)
+# Digital Lending OS PostgreSQL StatefulSet with Patroni (1 primary + 2 replicas)
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: youngsend-postgresql-headless
-  namespace: youngsend-prod
+  name: digital-lending-os-postgresql-headless
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-postgresql
+    app.kubernetes.io/name: digital-lending-os-postgresql
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -19,15 +19,15 @@ spec:
       port: 8008
       targetPort: patroni
   selector:
-    app.kubernetes.io/name: youngsend-postgresql
+    app.kubernetes.io/name: digital-lending-os-postgresql
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: youngsend-postgresql-primary
-  namespace: youngsend-prod
+  name: digital-lending-os-postgresql-primary
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-postgresql
+    app.kubernetes.io/name: digital-lending-os-postgresql
     role: primary
 spec:
   type: ClusterIP
@@ -36,16 +36,16 @@ spec:
       port: 5432
       targetPort: postgresql
   selector:
-    app.kubernetes.io/name: youngsend-postgresql
+    app.kubernetes.io/name: digital-lending-os-postgresql
     role: primary
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: youngsend-postgresql-replica
-  namespace: youngsend-prod
+  name: digital-lending-os-postgresql-replica
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-postgresql
+    app.kubernetes.io/name: digital-lending-os-postgresql
     role: replica
 spec:
   type: ClusterIP
@@ -54,27 +54,27 @@ spec:
       port: 5432
       targetPort: postgresql
   selector:
-    app.kubernetes.io/name: youngsend-postgresql
+    app.kubernetes.io/name: digital-lending-os-postgresql
     role: replica
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: youngsend-postgresql
-  namespace: youngsend-prod
+  name: digital-lending-os-postgresql
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-postgresql
+    app.kubernetes.io/name: digital-lending-os-postgresql
     app.kubernetes.io/component: database
 spec:
-  serviceName: youngsend-postgresql-headless
+  serviceName: digital-lending-os-postgresql-headless
   replicas: 3
   selector:
     matchLabels:
-      app.kubernetes.io/name: youngsend-postgresql
+      app.kubernetes.io/name: digital-lending-os-postgresql
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: youngsend-postgresql
+        app.kubernetes.io/name: digital-lending-os-postgresql
         app.kubernetes.io/component: database
       annotations:
         prometheus.io/scrape: "true"
@@ -87,7 +87,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchLabels:
-                  app.kubernetes.io/name: youngsend-postgresql
+                  app.kubernetes.io/name: digital-lending-os-postgresql
               topologyKey: kubernetes.io/hostname
       terminationGracePeriodSeconds: 60
       initContainers:
@@ -114,13 +114,13 @@ spec:
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
             - name: POSTGRES_DB
-              value: youngsend
+              value: digital-lending-os
             - name: POSTGRES_USER
-              value: youngsend
+              value: digital-lending-os
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: youngsend-secrets
+                  name: digital-lending-os-secrets
                   key: DATABASE_PASSWORD
             - name: POD_NAME
               valueFrom:
@@ -131,7 +131,7 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP
             - name: PATRONI_SCOPE
-              value: youngsend-pg-cluster
+              value: digital-lending-os-pg-cluster
             - name: PATRONI_NAME
               valueFrom:
                 fieldRef:
@@ -149,7 +149,7 @@ spec:
             - name: PATRONI_REPLICATION_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: youngsend-secrets
+                  name: digital-lending-os-secrets
                   key: DATABASE_PASSWORD
           command:
             - patroni
@@ -201,10 +201,10 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: patroni-config
-  namespace: youngsend-prod
+  namespace: digital-lending-os-prod
 data:
   patroni.yml: |
-    scope: youngsend-pg-cluster
+    scope: digital-lending-os-pg-cluster
     name: {{ PATRONI_NAME }}
     restapi:
       listen: 0.0.0.0:8008
@@ -239,7 +239,7 @@ data:
         log_lock_waits: "on"
         log_statement: ddl
     etcd3:
-      hosts: http://youngsend-etcd:2379
+      hosts: http://digital-lending-os-etcd:2379
     bootstrap:
       dcs:
         ttl: 30

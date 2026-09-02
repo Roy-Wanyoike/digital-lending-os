@@ -1,7 +1,7 @@
 {
-  "uid": "youngsend-overview",
-  "title": "Youngsend Platform Overview",
-  "tags": ["youngsend", "overview"],
+  "uid": "digital-lending-os-overview",
+  "title": "Digital Lending OS Platform Overview",
+  "tags": ["digital-lending-os", "overview"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -42,7 +42,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(youngsend_request_duration_count{deployment_environment=~\"$environment\"}[$__rate_interval])) by (method, status)",
+          "expr": "sum(rate(dlo_request_duration_count{deployment_environment=~\"$environment\"}[$__rate_interval])) by (method, status)",
           "legendFormat": "{{method}} {{status}}",
           "refId": "A"
         }
@@ -73,13 +73,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(youngsend_request_duration_count{deployment_environment=~\"$environment\", status=~\"5..\"}[$__rate_interval])) / sum(rate(youngsend_request_duration_count{deployment_environment=~\"$environment\"}[$__rate_interval])) * 100",
+          "expr": "sum(rate(dlo_request_duration_count{deployment_environment=~\"$environment\", status=~\"5..\"}[$__rate_interval])) / sum(rate(dlo_request_duration_count{deployment_environment=~\"$environment\"}[$__rate_interval])) * 100",
           "legendFormat": "5xx Error Rate",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(youngsend_request_duration_count{deployment_environment=~\"$environment\", status=~\"4..\"}[$__rate_interval])) / sum(rate(youngsend_request_duration_count{deployment_environment=~\"$environment\"}[$__rate_interval])) * 100",
+          "expr": "sum(rate(dlo_request_duration_count{deployment_environment=~\"$environment\", status=~\"4..\"}[$__rate_interval])) / sum(rate(dlo_request_duration_count{deployment_environment=~\"$environment\"}[$__rate_interval])) * 100",
           "legendFormat": "4xx Error Rate",
           "refId": "B"
         }
@@ -118,19 +118,19 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.50, sum(rate(youngsend_request_duration_bucket{deployment_environment=~\"$environment\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(dlo_request_duration_bucket{deployment_environment=~\"$environment\"}[$__rate_interval])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.95, sum(rate(youngsend_request_duration_bucket{deployment_environment=~\"$environment\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(dlo_request_duration_bucket{deployment_environment=~\"$environment\"}[$__rate_interval])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.99, sum(rate(youngsend_request_duration_bucket{deployment_environment=~\"$environment\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(dlo_request_duration_bucket{deployment_environment=~\"$environment\"}[$__rate_interval])) by (le))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -171,7 +171,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(increase(youngsend_payment_total{deployment_environment=~\"$environment\"}[$__rate_interval])) by (provider)",
+          "expr": "sum(increase(dlo_payment_total{deployment_environment=~\"$environment\"}[$__rate_interval])) by (provider)",
           "legendFormat": "{{provider}}",
           "refId": "A"
         }
@@ -202,7 +202,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(youngsend_active_sessions{deployment_environment=~\"$environment\"})",
+          "expr": "sum(dlo_active_sessions{deployment_environment=~\"$environment\"})",
           "refId": "A"
         }
       ],
@@ -234,7 +234,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "avg(youngsend_cache_hit_ratio{deployment_environment=~\"$environment\"}) by (cache_type)",
+          "expr": "avg(dlo_cache_hit_ratio{deployment_environment=~\"$environment\"}) by (cache_type)",
           "legendFormat": "{{cache_type}}",
           "refId": "A"
         }
@@ -270,7 +270,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "youngsend_kafka_consumer_lag{deployment_environment=~\"$environment\"}",
+          "expr": "dlo_kafka_consumer_lag{deployment_environment=~\"$environment\"}",
           "legendFormat": "{{topic}} / {{consumer_group}}",
           "refId": "A"
         }
@@ -369,7 +369,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(increase(youngsend_fraud_alerts{deployment_environment=~\"$environment\"}[$__rate_interval])) by (severity)",
+          "expr": "sum(increase(dlo_fraud_alerts{deployment_environment=~\"$environment\"}[$__rate_interval])) by (severity)",
           "legendFormat": "{{severity}}",
           "refId": "A"
         }
@@ -403,7 +403,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "topk(10, sum(rate(youngsend_request_duration_count{deployment_environment=~\"$environment\"}[$__rate_interval])) by (route))",
+          "expr": "topk(10, sum(rate(dlo_request_duration_count{deployment_environment=~\"$environment\"}[$__rate_interval])) by (route))",
           "legendFormat": "{{route}}",
           "refId": "A"
         }

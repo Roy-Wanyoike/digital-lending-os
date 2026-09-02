@@ -1,4 +1,4 @@
-# Youngsend Edge Architecture — Cloudflare
+# Digital Lending OS Edge Architecture — Cloudflare
 
 ## Edge Architecture Diagram
 
@@ -10,7 +10,7 @@
                                                    ▼
                            ┌──────────────────────────────────────────────────┐
                            │           Cloudflare DNS (Global Anycast)         │
-                           │     youngsend.com → Cloudflare Edge Network      │
+                           │     digital-lending-os.com → Cloudflare Edge Network      │
                            └───────────────────────┬──────────────────────────┘
                                                    │
               ┌────────────────────────────────────┼────────────────────────────┐
@@ -18,7 +18,7 @@
               ▼                                    ▼                            ▼
     ┌──────────────────┐              ┌──────────────────┐          ┌──────────────────┐
     │  Edge Worker      │              │  Cache Rules      │          │  Page Shield       │
-    │  (youngsend-edge) │              │  (cache-rules)   │          │  (page-shield)    │
+    │  (digital-lending-os-edge) │              │  (cache-rules)   │          │  (page-shield)    │
     │                   │              │                   │          │                   │
     │  ┌─────────────┐  │              │  L1: CDN Cache   │          │  • CSP headers    │
     │  │ 1. Geo Block│  │              │  ├ Static: 1yr   │          │  • Inline script  │
@@ -97,7 +97,7 @@
 
 ## Cache Tier Strategy
 
-Youngsend uses a **three-tier cache hierarchy** to minimize origin hits and provide sub-millisecond response times:
+Digital Lending OS uses a **three-tier cache hierarchy** to minimize origin hits and provide sub-millisecond response times:
 
 ### L1: Cloudflare CDN (Global Edge)
 
@@ -157,7 +157,7 @@ curl -X POST "https://api.cloudflare.com/client/v4/zones/{zone}/purge_tags" \
 # Purge specific API response
 curl -X POST "https://api.cloudflare.com/client/v4/zones/{zone}/purge_url" \
   -H "Authorization: Bearer $CF_TOKEN" \
-  -d '{"urls":["https://youngsend.com/api/currency?base=NGN"]}'
+  -d '{"urls":["https://digital-lending-os.com/api/currency?base=NGN"]}'
 ```
 
 ### By Prefix (Wildcard)
@@ -166,7 +166,7 @@ curl -X POST "https://api.cloudflare.com/client/v4/zones/{zone}/purge_url" \
 # Purge all payment-related caches
 curl -X POST "https://api.cloudflare.com/client/v4/zones/{zone}/purge_url" \
   -H "Authorization: Bearer $CF_TOKEN" \
-  -d '{"prefix":"https://youngsend.com/api/dashboard/"}'
+  -d '{"prefix":"https://digital-lending-os.com/api/dashboard/"}'
 ```
 
 ### Redis Pub/Sub Invalidation (L2)
@@ -308,7 +308,7 @@ wrangler tail --env production
 
 ## Monitoring & Observability
 
-- **Workers Analytics**: Available via Cloudflare dashboard under Workers > youngsend-edge > Analytics
+- **Workers Analytics**: Available via Cloudflare dashboard under Workers > digital-lending-os-edge > Analytics
 - **Logs**: Forward to OTel Collector via Cloudflare Logpush → Grafana Loki
 - **KV Metrics**: Available via Cloudflare API (`/storage/kv/namespaces/{id}/metrics`)
 - **Cache Analytics**: Cloudflare dashboard > Caching > Cache Rules
@@ -329,4 +329,4 @@ wrangler tail --env production
 | `X-AB-Experiment` | Semicolon-delimited experiment assignments |
 | `X-AB-{name}` | Per-experiment variant assignment |
 | `X-Edge-Processing-Time` | Worker processing time in ms |
-| `X-Edge-Worker` | Worker name (`youngsend-edge`) |
+| `X-Edge-Worker` | Worker name (`digital-lending-os-edge`) |

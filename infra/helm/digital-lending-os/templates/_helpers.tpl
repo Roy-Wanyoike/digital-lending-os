@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "youngsend.name" -}}
+{{- define "digital-lending-os.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "youngsend.fullname" -}}
+{{- define "digital-lending-os.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,16 +26,16 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "youngsend.chart" -}}
+{{- define "digital-lending-os.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels — applied to every resource.
 */}}
-{{- define "youngsend.labels" -}}
-helm.sh/chart: {{ include "youngsend.chart" . }}
-{{ include "youngsend.selectorLabels" . }}
+{{- define "digital-lending-os.labels" -}}
+helm.sh/chart: {{ include "digital-lending-os.chart" . }}
+{{ include "digital-lending-os.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -45,17 +45,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels — used in matchLabels and pod template labels.
 */}}
-{{- define "youngsend.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "youngsend.name" . }}
+{{- define "digital-lending-os.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "digital-lending-os.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Service account name.
 */}}
-{{- define "youngsend.serviceAccountName" -}}
+{{- define "digital-lending-os.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "youngsend.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "digital-lending-os.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}

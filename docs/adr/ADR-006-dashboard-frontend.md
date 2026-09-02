@@ -8,7 +8,7 @@
 
 ## Context
 
-The Youngsend dashboard consists of 13 tabs loaded lazily inside `DashboardShell.tsx`. Prior to this ADR, several architectural issues existed:
+The Digital Lending OS dashboard consists of 13 tabs loaded lazily inside `DashboardShell.tsx`. Prior to this ADR, several architectural issues existed:
 
 1. **Monolithic `dashboard-helpers.tsx`** (528 lines): Mixed data-fetching logic (`useApi`), React UI components (`KPICard`, `LoadingSkeleton`, `ErrorState`, `Toast`), type definitions (20+ interfaces), constants, and helper functions. The `'use client'` directive forced everything client-side.
 

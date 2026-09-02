@@ -1,14 +1,14 @@
-# Youngsend Kafka 3-broker + 3-node Zookeeper StatefulSet
+# Digital Lending OS Kafka 3-broker + 3-node Zookeeper StatefulSet
 
 ---
 # Zookeeper Service
 apiVersion: v1
 kind: Service
 metadata:
-  name: youngsend-zookeeper-headless
-  namespace: youngsend-prod
+  name: digital-lending-os-zookeeper-headless
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-zookeeper
+    app.kubernetes.io/name: digital-lending-os-zookeeper
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -23,15 +23,15 @@ spec:
       port: 2888
       targetPort: leader
   selector:
-    app.kubernetes.io/name: youngsend-zookeeper
+    app.kubernetes.io/name: digital-lending-os-zookeeper
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: youngsend-zookeeper
-  namespace: youngsend-prod
+  name: digital-lending-os-zookeeper
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-zookeeper
+    app.kubernetes.io/name: digital-lending-os-zookeeper
 spec:
   type: ClusterIP
   ports:
@@ -39,27 +39,27 @@ spec:
       port: 2181
       targetPort: client
   selector:
-    app.kubernetes.io/name: youngsend-zookeeper
+    app.kubernetes.io/name: digital-lending-os-zookeeper
 ---
 # Zookeeper StatefulSet
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: youngsend-zookeeper
-  namespace: youngsend-prod
+  name: digital-lending-os-zookeeper
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-zookeeper
+    app.kubernetes.io/name: digital-lending-os-zookeeper
     app.kubernetes.io/component: coordination
 spec:
-  serviceName: youngsend-zookeeper-headless
+  serviceName: digital-lending-os-zookeeper-headless
   replicas: 3
   selector:
     matchLabels:
-      app.kubernetes.io/name: youngsend-zookeeper
+      app.kubernetes.io/name: digital-lending-os-zookeeper
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: youngsend-zookeeper
+        app.kubernetes.io/name: digital-lending-os-zookeeper
         app.kubernetes.io/component: coordination
     spec:
       affinity:
@@ -67,7 +67,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchLabels:
-                  app.kubernetes.io/name: youngsend-zookeeper
+                  app.kubernetes.io/name: digital-lending-os-zookeeper
               topologyKey: kubernetes.io/hostname
       securityContext:
         fsGroup: 1000
@@ -152,10 +152,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: youngsend-kafka-headless
-  namespace: youngsend-prod
+  name: digital-lending-os-kafka-headless
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-kafka
+    app.kubernetes.io/name: digital-lending-os-kafka
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -167,16 +167,16 @@ spec:
       port: 9093
       targetPort: controller
   selector:
-    app.kubernetes.io/name: youngsend-kafka
+    app.kubernetes.io/name: digital-lending-os-kafka
 ---
 # Kafka Service
 apiVersion: v1
 kind: Service
 metadata:
-  name: youngsend-kafka-bootstrap
-  namespace: youngsend-prod
+  name: digital-lending-os-kafka-bootstrap
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-kafka
+    app.kubernetes.io/name: digital-lending-os-kafka
 spec:
   type: ClusterIP
   ports:
@@ -184,27 +184,27 @@ spec:
       port: 9092
       targetPort: broker
   selector:
-    app.kubernetes.io/name: youngsend-kafka
+    app.kubernetes.io/name: digital-lending-os-kafka
 ---
 # Kafka StatefulSet
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: youngsend-kafka
-  namespace: youngsend-prod
+  name: digital-lending-os-kafka
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-kafka
+    app.kubernetes.io/name: digital-lending-os-kafka
     app.kubernetes.io/component: messaging
 spec:
-  serviceName: youngsend-kafka-headless
+  serviceName: digital-lending-os-kafka-headless
   replicas: 3
   selector:
     matchLabels:
-      app.kubernetes.io/name: youngsend-kafka
+      app.kubernetes.io/name: digital-lending-os-kafka
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: youngsend-kafka
+        app.kubernetes.io/name: digital-lending-os-kafka
         app.kubernetes.io/component: messaging
       annotations:
         prometheus.io/scrape: "true"
@@ -215,7 +215,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchLabels:
-                  app.kubernetes.io/name: youngsend-kafka
+                  app.kubernetes.io/name: digital-lending-os-kafka
               topologyKey: kubernetes.io/hostname
       securityContext:
         fsGroup: 1000
@@ -228,7 +228,7 @@ spec:
             - -c
             - |
               for i in 0 1 2; do
-                until echo ruok | nc youngsend-zookeeper-${i}.youngsend-zookeeper-headless.youngsend-prod.svc.cluster.local 2181 | grep imok; do
+                until echo ruok | nc digital-lending-os-zookeeper-${i}.digital-lending-os-zookeeper-headless.digital-lending-os-prod.svc.cluster.local 2181 | grep imok; do
                   echo "Waiting for zookeeper-${i}..."
                   sleep 2
                 done
@@ -256,15 +256,15 @@ spec:
             - name: KAFKA_PROCESS_ROLES
               value: "broker,controller"
             - name: CLUSTER_ID
-              value: "youngsend-kafka-cluster-001"
+              value: "digital-lending-os-kafka-cluster-001"
             - name: KAFKA_LISTENERS
               value: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
             - name: KAFKA_ADVERTISED_LISTENERS
-              value: "PLAINTEXT://$(hostname).youngsend-kafka-headless.youngsend-prod.svc.cluster.local:9092"
+              value: "PLAINTEXT://$(hostname).digital-lending-os-kafka-headless.digital-lending-os-prod.svc.cluster.local:9092"
             - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
               value: "PLAINTEXT:PLAINTEXT,CONTROLLER:CONTROLLER"
             - name: KAFKA_CONTROLLER_QUORUM_VOTERS
-              value: "0@youngsend-kafka-0.youngsend-kafka-headless.youngsend-prod.svc.cluster.local:9093,1@youngsend-kafka-1.youngsend-kafka-headless.youngsend-prod.svc.cluster.local:9093,2@youngsend-kafka-2.youngsend-kafka-headless.youngsend-prod.svc.cluster.local:9093"
+              value: "0@digital-lending-os-kafka-0.digital-lending-os-kafka-headless.digital-lending-os-prod.svc.cluster.local:9093,1@digital-lending-os-kafka-1.digital-lending-os-kafka-headless.digital-lending-os-prod.svc.cluster.local:9093,2@digital-lending-os-kafka-2.digital-lending-os-kafka-headless.digital-lending-os-prod.svc.cluster.local:9093"
             - name: KAFKA_CONTROLLER_LISTENER_NAMES
               value: "CONTROLLER"
             - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
@@ -296,7 +296,7 @@ spec:
             - name: KAFKA_JMX_HOSTNAME
               value: "localhost"
             - name: KAFKA_ZOOKEEPER_CONNECT
-              value: "youngsend-zookeeper-0.youngsend-zookeeper-headless.youngsend-prod.svc.cluster.local:2181,youngsend-zookeeper-1.youngsend-zookeeper-headless.youngsend-prod.svc.cluster.local:2181,youngsend-zookeeper-2.youngsend-zookeeper-headless.youngsend-prod.svc.cluster.local:2181"
+              value: "digital-lending-os-zookeeper-0.digital-lending-os-zookeeper-headless.digital-lending-os-prod.svc.cluster.local:2181,digital-lending-os-zookeeper-1.digital-lending-os-zookeeper-headless.digital-lending-os-prod.svc.cluster.local:2181,digital-lending-os-zookeeper-2.digital-lending-os-zookeeper-headless.digital-lending-os-prod.svc.cluster.local:2181"
           volumeMounts:
             - name: kafka-data
               mountPath: /var/lib/kafka/data

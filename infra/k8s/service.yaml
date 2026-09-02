@@ -1,13 +1,13 @@
-# Youngsend Service — ClusterIP exposing port 80 → container port 3000
+# Digital Lending OS Service — ClusterIP exposing port 80 → container port 3000
 apiVersion: v1
 kind: Service
 metadata:
-  name: youngsend-svc
-  namespace: youngsend
+  name: digital-lending-os-svc
+  namespace: digital-lending-os
   labels:
-    app: youngsend
-    app.kubernetes.io/name: youngsend
-    app.kubernetes.io/part-of: youngsend
+    app: digital-lending-os
+    app.kubernetes.io/name: digital-lending-os
+    app.kubernetes.io/part-of: digital-lending-os
 spec:
   type: ClusterIP
   ports:
@@ -16,4 +16,4 @@ spec:
       targetPort: 3000
       protocol: TCP
   selector:
-    app: youngsend
+    app: digital-lending-os

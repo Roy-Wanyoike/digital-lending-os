@@ -1,8 +1,8 @@
-# ─── Youngsend Edge Worker — Wrangler Configuration ──────────────
+# ─── Digital Lending OS Edge Worker — Wrangler Configuration ──────────────
 # Deploy with: cd infra/cloudflare && npx wrangler deploy --env production
 # Local dev:    cd infra/cloudflare && npx wrangler dev --env staging
 
-name = "youngsend-edge"
+name = "dlo-edge"
 main = "worker/src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
@@ -22,19 +22,19 @@ preview_id = "YOUR_PREVIEW_RATE_LIMIT_KV_ID"
 
 [vars]
 ENVIRONMENT = "production"
-ORIGIN_URL = "https://youngsend.space-z.ai"
-ALLOWED_ORIGINS = "https://youngsend.space-z.ai,https://www.youngsend.space-z.ai"
+ORIGIN_URL = "https://digitallendingos.co.ke"
+ALLOWED_ORIGINS = "https://digitallendingos.co.ke,https://www.digitallendingos.co.ke"
 ALLOWED_COUNTRIES = ""  # Empty = allow all. Set e.g. "US,GB,KE,NG,UG,TZ" to restrict.
 LOG_LEVEL = "info"
 
 # ─── Environment: Staging ──────────────────────────────────────
 [env.staging]
-name = "youngsend-edge-staging"
+name = "dlo-edge-staging"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
-ORIGIN_URL = "https://staging.youngsend.space-z.ai"
-ALLOWED_ORIGINS = "https://staging.youngsend.space-z.ai"
+ORIGIN_URL = "https://staging.digitallendingos.co.ke"
+ALLOWED_ORIGINS = "https://staging.digitallendingos.co.ke"
 ALLOWED_COUNTRIES = ""
 LOG_LEVEL = "debug"
 
@@ -43,23 +43,23 @@ binding = "RATE_LIMIT_KV"
 id = "YOUR_STAGING_RATE_LIMIT_KV_ID"
 
 [env.staging.routes]
-pattern = "staging.youngsend.space-z.ai/*"
+pattern = "staging.digitallendingos.co.ke/*"
 zone_id = "YOUR_STAGING_ZONE_ID"
 
 # ─── Environment: Production ────────────────────────────────────
 [env.production]
-name = "youngsend-edge-production"
+name = "dlo-edge-production"
 
 [[env.production.kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id = "YOUR_PRODUCTION_RATE_LIMIT_KV_ID"
 
 [env.production.routes]
-pattern = "youngsend.space-z.ai/*"
+pattern = "digitallendingos.co.ke/*"
 zone_id = "YOUR_PRODUCTION_ZONE_ID"
 
 [env.production.routes]
-pattern = "www.youngsend.space-z.ai/*"
+pattern = "www.digitallendingos.co.ke/*"
 zone_id = "YOUR_PRODUCTION_ZONE_ID"
 
 # ─── Secrets (set via `wrangler secret put <NAME>`)

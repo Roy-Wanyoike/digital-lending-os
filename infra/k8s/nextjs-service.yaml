@@ -1,12 +1,12 @@
-# Youngsend Next.js Service and Ingress
+# Digital Lending OS Next.js Service and Ingress
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: youngsend-nextjs
-  namespace: youngsend-prod
+  name: digital-lending-os-nextjs
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-nextjs
+    app.kubernetes.io/name: digital-lending-os-nextjs
     app.kubernetes.io/component: frontend
 spec:
   type: ClusterIP
@@ -20,79 +20,79 @@ spec:
       targetPort: http
       protocol: TCP
   selector:
-    app.kubernetes.io/name: youngsend-nextjs
+    app.kubernetes.io/name: digital-lending-os-nextjs
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: youngsend-ingress
-  namespace: youngsend-prod
+  name: digital-lending-os-ingress
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend
+    app.kubernetes.io/name: digital-lending-os
   annotations:
     kubernetes.io/ingress.class: gce
-    kubernetes.io/ingress.global-static-ip-name: youngsend-prod-ip
-    networking.gke.io/managed-certificates: youngsend-prod-cert
-    networking.gke.io/v1beta1.FrontendConfig: youngsend-frontend-config
+    kubernetes.io/ingress.global-static-ip-name: digital-lending-os-prod-ip
+    networking.gke.io/managed-certificates: digital-lending-os-prod-cert
+    networking.gke.io/v1beta1.FrontendConfig: digital-lending-os-frontend-config
 spec:
   tls:
     - hosts:
-        - youngsend.io
-        - www.youngsend.io
-      secretName: youngsend-tls
+        - digital-lending-os.io
+        - www.digital-lending-os.io
+      secretName: digital-lending-os-tls
   rules:
-    - host: youngsend.io
+    - host: digital-lending-os.io
       http:
         paths:
           - path: /api
             pathType: Prefix
             backend:
               service:
-                name: youngsend-nextjs
+                name: digital-lending-os-nextjs
                 port:
                   number: 3000
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: youngsend-nextjs
+                name: digital-lending-os-nextjs
                 port:
                   number: 3000
-    - host: www.youngsend.io
+    - host: www.digital-lending-os.io
       http:
         paths:
           - path: /api
             pathType: Prefix
             backend:
               service:
-                name: youngsend-nextjs
+                name: digital-lending-os-nextjs
                 port:
                   number: 3000
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: youngsend-nextjs
+                name: digital-lending-os-nextjs
                 port:
                   number: 3000
 ---
 apiVersion: networking.gke.io/v1
 kind: ManagedCertificate
 metadata:
-  name: youngsend-prod-cert
-  namespace: youngsend-prod
+  name: digital-lending-os-prod-cert
+  namespace: digital-lending-os-prod
 spec:
   domains:
-    - youngsend.io
-    - www.youngsend.io
+    - digital-lending-os.io
+    - www.digital-lending-os.io
 ---
 apiVersion: networking.gke.io/v1beta1
 kind: FrontendConfig
 metadata:
-  name: youngsend-frontend-config
-  namespace: youngsend-prod
+  name: digital-lending-os-frontend-config
+  namespace: digital-lending-os-prod
 spec:
-  sslPolicy: youngsend-ssl-policy
+  sslPolicy: digital-lending-os-ssl-policy
   redirectToHttps:
     enabled: true
   defaultTimeoutSeconds: 30

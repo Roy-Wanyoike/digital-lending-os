@@ -1,4 +1,4 @@
-# Youngsend Cloud-Native Architecture Design Document
+# Digital Lending OS Cloud-Native Architecture Design Document
 
 > **Version:** 1.0.0
 > **Last Updated:** 2025-01
@@ -27,7 +27,7 @@
 
 ### 1.1 Vision
 
-Youngsend is a multi-tenant B2B fintech platform providing escrow-based payments, digital wallets, trust scoring, and compliance services across emerging markets (Nigeria, Kenya, South Africa, and broader Africa). This architecture redesign transforms the platform from a monolithic SQLite-backed application into a fully cloud-native, event-driven system capable of serving **100 million users** with **near-zero downtime** (target: 99.99% availability).
+Digital Lending OS is a multi-tenant B2B fintech platform providing escrow-based payments, digital wallets, trust scoring, and compliance services across emerging markets (Nigeria, Kenya, South Africa, and broader Africa). This architecture redesign transforms the platform from a monolithic SQLite-backed application into a fully cloud-native, event-driven system capable of serving **100 million users** with **near-zero downtime** (target: 99.99% availability).
 
 The redesign leverages React Server Components (RSC) and Next.js App Router as the Backend-for-Frontend (BFF), Kafka as the event backbone, PostgreSQL as the primary relational store, and Cloudflare's global edge network for CDN caching, bot protection, and JWT validation. Every domain is modeled as a bounded context with its own Kafka topic namespace, enabling independent scaling and deployment.
 
@@ -59,7 +59,7 @@ The redesign leverages React Server Components (RSC) and Next.js App Router as t
 
 ### 1.4 Business Context
 
-Youngsend serves B2B clients (businesses and marketplaces) that need escrow-protected payments, multi-currency wallets, and trust verification for counterparties. The platform manages the full lifecycle: payment initiation through 5 provider integrations (Stripe, Paystack, Flutterwave, IntaSend, Paya), wallet operations (deposits, withdrawals, currency conversion), escrow transactions (create, fund, release, dispute, refund), and compliance (KYC, AML screening, fraud detection). Each tenant operates in complete isolation enforced at both the application and database layers via PostgreSQL Row Level Security (RLS).
+Digital Lending OS serves B2B clients (businesses and marketplaces) that need escrow-protected payments, multi-currency wallets, and trust verification for counterparties. The platform manages the full lifecycle: payment initiation through 5 provider integrations (Stripe, Paystack, Flutterwave, IntaSend, Paya), wallet operations (deposits, withdrawals, currency conversion), escrow transactions (create, fund, release, dispute, refund), and compliance (KYC, AML screening, fraud detection). Each tenant operates in complete isolation enforced at both the application and database layers via PostgreSQL Row Level Security (RLS).
 
 ---
 
@@ -67,7 +67,7 @@ Youngsend serves B2B clients (businesses and marketplaces) that need escrow-prot
 
 ### 2.1 High-Level Architecture: 3-Tier Design
 
-Youngsend follows a strict 3-tier architecture that separates concerns across the Edge, Application, and Data layers. This separation enables independent scaling, fault isolation, and clear operational boundaries.
+Digital Lending OS follows a strict 3-tier architecture that separates concerns across the Edge, Application, and Data layers. This separation enables independent scaling, fault isolation, and clear operational boundaries.
 
 ```
 ┌═══════════════════════════════════════════════════════════════════════════════┐
@@ -191,7 +191,7 @@ User (Browser)
 
 ### 2.3 Service Decomposition Strategy
 
-Youngsend adopts a **pragmatic monolith-first** approach with Kafka event boundaries. The current implementation uses Next.js App Router as a monolithic BFF that handles all API routes and server component rendering. However, all internal communication follows bounded-context patterns — each domain publishes events to its own Kafka topic namespace, enabling future extraction into independent microservices without architectural changes.
+Digital Lending OS adopts a **pragmatic monolith-first** approach with Kafka event boundaries. The current implementation uses Next.js App Router as a monolithic BFF that handles all API routes and server component rendering. However, all internal communication follows bounded-context patterns — each domain publishes events to its own Kafka topic namespace, enabling future extraction into independent microservices without architectural changes.
 
 The extraction path is:
 1. **Phase 1 (Current):** Monolithic Next.js BFF + Kafka event backbone
@@ -424,7 +424,7 @@ IDLE → INITIATED → PROCESSING → COMPLETED
 **Tech Stack:**
 - Kafka consumer (audit.events.* + aggregated domain events, EOS Tier 3)
 - OpenSearch (analytics indices with date_histogram aggregations)
-- Grafana dashboards (youngsend-overview, payments-overview)
+- Grafana dashboards (digital-lending-os-overview, payments-overview)
 - Prometheus + Alertmanager (real-time alerting on operational metrics)
 
 **Scaling Strategy:** Analytics queries run against OpenSearch aggregations (pre-computed) rather than raw PostgreSQL data. Read-heavy analytics workloads target the async PostgreSQL replica to avoid impacting OLTP performance.
@@ -629,7 +629,7 @@ SET LOCAL app.tenant_id = 'clx...';
 
 ### 5.1 Design Principles
 
-Youngsend's event-driven architecture is built on four core principles:
+Digital Lending OS's event-driven architecture is built on four core principles:
 
 1. **Events as the source of truth:** Every state mutation publishes an immutable event to Kafka. Services read events to build their own materialized views rather than sharing databases.
 2. **Loose coupling via topics:** Services communicate exclusively through Kafka topics. No direct service-to-service calls for domain operations. This enables independent deployment, scaling, and schema evolution.
@@ -798,7 +798,7 @@ The CQRS (Command Query Responsibility Segregation) pattern separates write oper
 
 ### 6.1 Three-Tier Cache Hierarchy
 
-Youngsend employs a three-tier cache hierarchy designed to serve the vast majority of requests without hitting the origin database. Each tier has progressively lower latency but higher staleness tolerance.
+Digital Lending OS employs a three-tier cache hierarchy designed to serve the vast majority of requests without hitting the origin database. Each tier has progressively lower latency but higher staleness tolerance.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -885,7 +885,7 @@ curl -X POST "https://api.cloudflare.com/client/v4/zones/{zone}/purge_tags" \
 ```bash
 # Purge specific API response
 curl -X POST "https://api.cloudflare.com/client/v4/zones/{zone}/purge_url" \
-  -d '{"urls":["https://youngsend.com/api/currency?base=NGN"]}'
+  -d '{"urls":["https://digital-lending-os.com/api/currency?base=NGN"]}'
 ```
 
 **Redis Pub/Sub Invalidation (L2):**
@@ -916,7 +916,7 @@ This pattern ensures that even during cache expiry events, the origin only recei
 
 ### 7.1 React Server Components (RSC) + Streaming SSR
 
-Youngsend's frontend performance strategy is centered on RSC and streaming SSR, which fundamentally changes how the application delivers content to the browser.
+Digital Lending OS's frontend performance strategy is centered on RSC and streaming SSR, which fundamentally changes how the application delivers content to the browser.
 
 **Architecture:**
 - `page.tsx` is a 22-line Server Component (was 317-line client monolith)
@@ -992,7 +992,7 @@ const EscrowTab = dynamic(() => import('./tabs/EscrowTab'), {
 
 ### 8.1 Security Overview
 
-Youngsend handles financial transactions and sensitive user data, requiring a comprehensive defense-in-depth security model. The security architecture implements controls at every layer: edge, application, data, and infrastructure.
+Digital Lending OS handles financial transactions and sensitive user data, requiring a comprehensive defense-in-depth security model. The security architecture implements controls at every layer: edge, application, data, and infrastructure.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -1095,7 +1095,7 @@ The application sets `app.tenant_id` at connection/session level before every qu
 
 ### 8.5 PCI DSS Compliance
 
-Youngsend does not store cardholder data — all payment processing is delegated to PCI-compliant providers (Stripe, Paystack, Flutterwave, IntaSend, Paya). However, the platform implements PCI DSS best practices:
+Digital Lending OS does not store cardholder data — all payment processing is delegated to PCI-compliant providers (Stripe, Paystack, Flutterwave, IntaSend, Paya). However, the platform implements PCI DSS best practices:
 - No storage of full card numbers, CVV, or expiration dates
 - Payment provider tokens used for reference (not raw card data)
 - All payment pages served over HTTPS with strict CSP
@@ -1143,7 +1143,7 @@ CSP violations reported to `/api/security/csp-report` for monitoring.
 
 ### 9.1 OpenTelemetry Architecture
 
-Youngsend uses OpenTelemetry as the unified observability framework, collecting traces, metrics, and logs through a single pipeline.
+Digital Lending OS uses OpenTelemetry as the unified observability framework, collecting traces, metrics, and logs through a single pipeline.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1199,7 +1199,7 @@ Youngsend uses OpenTelemetry as the unified observability framework, collecting 
 
 Two primary dashboards are deployed:
 
-**Youngsend Platform Overview** (`youngsend-overview.json`):
+**Digital Lending OS Platform Overview** (`digital-lending-os-overview.json`):
 - Request rate (req/s by method + status)
 - Error rate (4xx/5xx percentage with thresholds)
 - Latency (p50/p95/p99 percentiles)
@@ -1532,7 +1532,7 @@ Kubernetes network policies enforce zero-trust networking within the cluster. De
 infra/
 ├── ARCHITECTURE.md                          # This document
 ├── k8s/
-│   ├── namespace.yaml                      # youngsend-prod namespace
+│   ├── namespace.yaml                      # digital-lending-os-prod namespace
 │   ├── configmap.yaml                      # Application configuration
 │   ├── secret.yaml                         # Sensitive configuration
 │   ├── nextjs-deployment.yaml              # Next.js deployment + service account
@@ -1574,7 +1574,7 @@ infra/
 │   ├── alertmanager-config.yaml            # Alertmanager routing
 │   ├── alertmanager-rules.yaml             # Prometheus alert rules
 │   └── grafana-dashboards/
-│       ├── youngsend-overview.json         # Platform overview dashboard
+│       ├── digital-lending-os-overview.json         # Platform overview dashboard
 │       └── payments-overview.json          # Payments-specific dashboard
 └── terraform/
     ├── main.tf                             # GCP resources (VPC, GKE, SQL, Redis)

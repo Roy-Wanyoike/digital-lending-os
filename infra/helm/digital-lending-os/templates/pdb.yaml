@@ -2,12 +2,12 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "youngsend.fullname" . }}-pdb
+  name: {{ include "digital-lending-os.fullname" . }}-pdb
   labels:
-    {{- include "youngsend.labels" . | nindent 4 }}
+    {{- include "digital-lending-os.labels" . | nindent 4 }}
 spec:
   minAvailable: {{ .Values.pdb.minAvailable }}
   selector:
     matchLabels:
-      {{- include "youngsend.selectorLabels" . | nindent 6 }}
+      {{- include "digital-lending-os.selectorLabels" . | nindent 6 }}
 {{- end }}

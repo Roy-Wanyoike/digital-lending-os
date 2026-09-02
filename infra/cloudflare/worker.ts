@@ -1,4 +1,4 @@
-// ─── Youngsend Edge Worker ───────────────────────────────────────
+// ─── Digital Lending OS Edge Worker ───────────────────────────────────────
 // Cloudflare Worker that handles requests at the edge before they
 // reach the Next.js origin.  Features:
 //   A) Static asset caching (cache-first, long TTL for hashed assets)
@@ -741,7 +741,7 @@ export default {
               code: 'EDGE_AUTH_FAILURE',
             },
             401,
-            { 'WWW-Authenticate': 'Bearer realm="Youngsend", error="invalid_token"' },
+            { 'WWW-Authenticate': 'Bearer realm="Digital Lending OS", error="invalid_token"' },
           );
         }
       }
@@ -798,7 +798,7 @@ export default {
       originResp.headers.set('X-RateLimit-Reset', rateLimitResult.resetAt.toString());
       originResp.headers.set('X-Cache-Status', 'BYPASS');
       originResp.headers.set('X-Edge-Processing-Time', `${Date.now() - startTime}ms`);
-      originResp.headers.set('X-Edge-Worker', 'youngsend-edge');
+      originResp.headers.set('X-Edge-Worker', 'digital-lending-os-edge');
       originResp.headers.set('Vary', 'Authorization, X-Tenant-ID');
 
       injectSecurityHeaders(originResp, env);

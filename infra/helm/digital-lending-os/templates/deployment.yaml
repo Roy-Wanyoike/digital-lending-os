@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "youngsend.fullname" . }}
+  name: {{ include "digital-lending-os.fullname" . }}
   labels:
-    {{- include "youngsend.labels" . | nindent 4 }}
+    {{- include "digital-lending-os.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      {{- include "youngsend.selectorLabels" . | nindent 6 }}
+      {{- include "digital-lending-os.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "youngsend.selectorLabels" . | nindent 8 }}
+        {{- include "digital-lending-os.selectorLabels" . | nindent 8 }}
         version: v1
       annotations:
         {{- with .Values.podAnnotations }}
@@ -21,7 +21,7 @@ spec:
         {{- end }}
     spec:
       automountServiceAccountToken: false
-      serviceAccountName: {{ include "youngsend.serviceAccountName" . }}
+      serviceAccountName: {{ include "digital-lending-os.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: 60
@@ -53,10 +53,10 @@ spec:
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: {{ include "youngsend.fullname" . }}-config
+                name: {{ include "digital-lending-os.fullname" . }}-config
             {{- if .Values.secrets }}
             - secretRef:
-                name: {{ include "youngsend.fullname" . }}-secret
+                name: {{ include "digital-lending-os.fullname" . }}-secret
             {{- end }}
             {{- with .Values.extraEnvFrom }}
             {{- toYaml . | nindent 12 }}

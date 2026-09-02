@@ -1,6 +1,6 @@
-// ─── Youngsend Edge Worker — Comprehensive Edge Protection ───────────
+// ─── Digital Lending OS Edge Worker — Comprehensive Edge Protection ───────────
 // Cloudflare Worker that intercepts all requests at the edge before they
-// reach the Next.js origin at youngsend.space-z.ai.
+// reach the Next.js origin at digital-lending-os.space-z.ai.
 //
 // Features:
 //   1. Rate Limiting (KV-based sliding window, per-auth status)
@@ -23,7 +23,7 @@ export interface Env {
 
   // Environment
   ENVIRONMENT: 'staging' | 'production';
-  ORIGIN_URL: string; // e.g. https://youngsend.space-z.ai
+  ORIGIN_URL: string; // e.g. https://digital-lending-os.space-z.ai
   ALLOWED_ORIGINS: string; // comma-separated origins for CORS
   LOG_LEVEL: string; // debug | info | warn | error
 }
@@ -212,7 +212,7 @@ function structuredLog(
   const configuredLevel = levels[env.LOG_LEVEL as keyof typeof levels] ?? 1;
   if (levels[data.level as keyof typeof levels] < configuredLevel) return;
 
-  const log = { ...data, timestamp: new Date().toISOString(), worker: 'youngsend-edge' };
+  const log = { ...data, timestamp: new Date().toISOString(), worker: 'digital-lending-os-edge' };
   console.log(JSON.stringify(log));
 }
 
@@ -701,7 +701,7 @@ export default {
             { error: 'Unauthorized', message: 'Invalid token format', code: 'EDGE_AUTH_FAILURE' },
             401,
           
-            { 'WWW-Authenticate': 'Bearer realm="Youngsend", error="invalid_token"' },
+            { 'WWW-Authenticate': 'Bearer realm="Digital Lending OS", error="invalid_token"' },
           );
           injectSecurityHeaders(resp, env);
           resp.headers.set('X-Trace-ID', traceId);
@@ -785,7 +785,7 @@ export default {
       // ── 12. Add trace headers ──
       originResp.headers.set('X-Trace-ID', traceId);
       originResp.headers.set('X-Request-ID', requestId);
-      originResp.headers.set('X-Edge-Worker', 'youngsend-edge');
+      originResp.headers.set('X-Edge-Worker', 'digital-lending-os-edge');
       originResp.headers.set('X-Edge-Processing-Time', `${Date.now() - startTime}ms`);
 
       // ── 13. Log the request ──

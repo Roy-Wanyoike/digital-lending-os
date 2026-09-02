@@ -183,7 +183,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "pg_stat_database_numbackends{datname=\"youngsend\"}",
+          "expr": "pg_stat_database_numbackends{datname=\"digital_lending_os\"}",
           "legendFormat": "Active DB Connections",
           "refId": "A"
         }
@@ -224,7 +224,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "container_memory_usage_bytes{name=~\"youngsend.*\"}",
+          "expr": "container_memory_usage_bytes{name=~\"digital_lending_os.*\"}",
           "legendFormat": "Memory",
           "refId": "A"
         }
@@ -265,7 +265,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "rate(container_cpu_usage_seconds_total{name=~\"youngsend.*\"}[5m]) * 100",
+          "expr": "rate(container_cpu_usage_seconds_total{name=~\"digital_lending_os.*\"}[5m]) * 100",
           "legendFormat": "CPU %",
           "refId": "A"
         }
@@ -392,7 +392,7 @@
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["youngsend", "observability"],
+  "tags": ["digital-lending-os", "observability"],
   "templating": {
     "list": [
       {
@@ -415,7 +415,7 @@
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Youngsend Overview",
-  "uid": "youngsend-overview",
+  "title": "Digital Lending OS Overview",
+  "uid": "digital-lending-os-overview",
   "version": 1
 }

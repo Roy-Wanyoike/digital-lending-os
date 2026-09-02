@@ -16,7 +16,7 @@
       "font_src": "'self' https://fonts.gstatic.com",
       "img_src": "'self' data: blob: https://*.stripe.com https://lh3.googleusercontent.com",
       "frame_src": "'self' https://js.stripe.com https://hooks.stripe.com https://paystack.com",
-      "connect_src": "'self' https://*.stripe.com https://api.paystack.co https://api.flutterwave.com https://api.intasend.com https://api.paya.io wss://youngsend.com wss://staging.youngsend.com",
+      "connect_src": "'self' https://*.stripe.com https://api.paystack.co https://api.flutterwave.com https://api.intasend.com https://api.paya.io wss://digital-lending-os.com wss://staging.digital-lending-os.com",
       "object_src": "'none'",
       "base_uri": "'self'",
       "form_action": "'self' https://*.stripe.com https://paystack.com https://api.flutterwave.com https://api.intasend.com",
@@ -24,18 +24,18 @@
       "upgrade_insecure_requests": true,
       "block_all_mixed_content": true
     },
-    "description": "Strict Content Security Policy for Youngsend. Allows Stripe, Paystack, Flutterwave, IntaSend, and Paya integrations. Blocks all mixed content and frame embedding."
+    "description": "Strict Content Security Policy for Digital Lending OS. Allows Stripe, Paystack, Flutterwave, IntaSend, and Paya integrations. Blocks all mixed content and frame embedding."
   },
 
   "report_uri": {
     "enabled": true,
     "uris": [
       {
-        "url": "https://youngsend.com/api/security/csp-report",
+        "url": "https://digital-lending-os.com/api/security/csp-report",
         "description": "Primary CSP violation report endpoint (handled by Next.js origin)"
       },
       {
-        "url": "https://csp-reports.youngsend.com/report",
+        "url": "https://csp-reports.digital-lending-os.com/report",
         "description": "Secondary CSP violation collector (dedicated subdomain)"
       }
     ],
@@ -43,7 +43,7 @@
   },
 
   "csp_reporting_sample_rate": 0.1,
-  "csp_reporting_endpoint": "https://youngsend.com/api/security/csp-report",
+  "csp_reporting_endpoint": "https://digital-lending-os.com/api/security/csp-report",
 
   "x_content_type_options": {
     "enabled": true
@@ -94,10 +94,10 @@
   "hotlink_protection": {
     "enabled": true,
     "allowlisted_domains": [
-      "youngsend.com",
-      "www.youngsend.com",
-      "app.youngsend.com",
-      "staging.youngsend.com"
+      "digital-lending-os.com",
+      "www.digital-lending-os.com",
+      "app.digital-lending-os.com",
+      "staging.digital-lending-os.com"
     ],
     "description": "Prevent hotlinking of images and assets from external domains."
   }

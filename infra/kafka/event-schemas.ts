@@ -1,5 +1,5 @@
 /**
- * Youngsend Kafka Event Schemas
+ * Digital Lending OS Kafka Event Schemas
  *
  * Strict Zod schemas for every event type. Each event includes:
  * - eventId: UUID v4 — unique identifier for this event
@@ -675,7 +675,7 @@ export type DeadLetterEnvelope = z.infer<typeof DeadLetterEnvelopeSchema>;
 
 // ─── Super Union: Any Event ────────────────────────────────────────────────────
 
-export const AnyYoungsendEventSchema = z.union([
+export const AnyDigital Lending OSEventSchema = z.union([
   AnyPaymentEventSchema,
   AnyWalletEventSchema,
   AnyEscrowEventSchema,
@@ -686,7 +686,7 @@ export const AnyYoungsendEventSchema = z.union([
   AuditActionLoggedEventSchema,
 ]);
 
-export type AnyYoungsendEvent = z.infer<typeof AnyYoungsendEventSchema>;
+export type AnyDigital Lending OSEvent = z.infer<typeof AnyDigital Lending OSEventSchema>;
 
 // ─── Validation Helpers ────────────────────────────────────────────────────────
 
@@ -712,10 +712,10 @@ export function parseEvent<T>(schema: z.ZodSchema<T>, raw: unknown): {
  */
 export function parseEventByType(raw: unknown): {
   success: boolean;
-  data?: AnyYoungsendEvent;
+  data?: AnyDigital Lending OSEvent;
   errors?: z.ZodError;
 } {
-  return parseEvent(AnyYoungsendEventSchema, raw);
+  return parseEvent(AnyDigital Lending OSEventSchema, raw);
 }
 
 // ─── Re-exports ───────────────────────────────────────────────────────────────

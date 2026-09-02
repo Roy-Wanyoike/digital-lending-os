@@ -8,7 +8,7 @@
 
 ## Context
 
-Youngsend needs a production-grade containerization and CI/CD strategy. The application is a Next.js 16 app backed by PostgreSQL, Redis, Kafka, and OpenSearch. Prior to this ADR, the project had no Dockerfile, no docker-compose, no `.env.example`, and the `next.config.ts` had `ignoreBuildErrors: true` with `reactStrictMode: false`.
+Digital Lending OS needs a production-grade containerization and CI/CD strategy. The application is a Next.js 16 app backed by PostgreSQL, Redis, Kafka, and OpenSearch. Prior to this ADR, the project had no Dockerfile, no docker-compose, no `.env.example`, and the `next.config.ts` had `ignoreBuildErrors: true` with `reactStrictMode: false`.
 
 ## Decision
 
@@ -23,7 +23,7 @@ Youngsend needs a production-grade containerization and CI/CD strategy. The appl
 
 ### 2. Docker Compose (Local Dev)
 
-Three services on an isolated bridge network (`youngsend-net`):
+Three services on an isolated bridge network (`digital-lending-os-net`):
 | Service | Image | Notes |
 |---------|-------|-------|
 | `nextjs` | Built from Dockerfile | Port 3000, depends on postgres + redis |

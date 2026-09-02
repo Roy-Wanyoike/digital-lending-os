@@ -1,19 +1,19 @@
-# Youngsend Horizontal Pod Autoscaler
+# Digital Lending OS Horizontal Pod Autoscaler
 # Dual-metric CPU + Memory with scale-up/down behavior tuning
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: youngsend-hpa
-  namespace: youngsend
+  name: digital-lending-os-hpa
+  namespace: digital-lending-os
   labels:
-    app: youngsend
-    app.kubernetes.io/name: youngsend
-    app.kubernetes.io/part-of: youngsend
+    app: digital-lending-os
+    app.kubernetes.io/name: digital-lending-os
+    app.kubernetes.io/part-of: digital-lending-os
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: youngsend
+    name: digital-lending-os
   minReplicas: 2
   maxReplicas: 10
   metrics:

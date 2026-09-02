@@ -2,14 +2,14 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "youngsend.fullname" . }}-hpa
+  name: {{ include "digital-lending-os.fullname" . }}-hpa
   labels:
-    {{- include "youngsend.labels" . | nindent 4 }}
+    {{- include "digital-lending-os.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "youngsend.fullname" . }}
+    name: {{ include "digital-lending-os.fullname" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:

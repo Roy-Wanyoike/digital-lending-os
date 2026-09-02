@@ -1,5 +1,5 @@
 /**
- * Youngsend Kafka Topic Definitions
+ * Digital Lending OS Kafka Topic Definitions
  *
  * All topics organized by domain. Each topic definition includes:
  * - key type (the entity ID used for partition routing)

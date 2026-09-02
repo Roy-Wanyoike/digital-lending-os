@@ -6,7 +6,7 @@
 
 ## Context
 
-Youngsend provides multi-currency wallet infrastructure supporting 18 fiat currencies (USD, EUR, GBP, NGN, KES, etc.) and 6 cryptocurrencies (USDT, USDC, BTC, ETH, SOL, BNB). Wallets are scoped to businesses, which are scoped to tenants. The system must support deposits, withdrawals, currency conversion, and crypto withdrawals with strong consistency guarantees.
+Digital Lending OS provides multi-currency wallet infrastructure supporting 18 fiat currencies (USD, EUR, GBP, NGN, KES, etc.) and 6 cryptocurrencies (USDT, USDC, BTC, ETH, SOL, BNB). Wallets are scoped to businesses, which are scoped to tenants. The system must support deposits, withdrawals, currency conversion, and crypto withdrawals with strong consistency guarantees.
 
 ## Decision
 

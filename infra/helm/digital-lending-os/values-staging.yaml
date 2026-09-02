@@ -1,10 +1,10 @@
 # Staging environment values
-# Usage: helm install youngsend ./infra/helm/youngsend -f values-staging.yaml
+# Usage: helm install digital-lending-os ./infra/helm/digital-lending-os -f values-staging.yaml
 
 replicaCount: 2
 
 image:
-  repository: ghcr.io/youngsend/youngsend
+  repository: ghcr.io/roy-wanyoike/digital-lending-os
   pullPolicy: IfNotPresent
   tag: staging
 
@@ -31,14 +31,14 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
   hosts:
-    - host: staging.youngsend.space-z.ai
+    - host: staging.digitallendingos.co.ke
       paths:
         - path: /
           pathType: Prefix
   tls: []
-  #  - secretName: youngsend-staging-tls
+  #  - secretName: digital-lending-os-staging-tls
   #    hosts:
-  #      - staging.youngsend.space-z.ai
+  #      - staging.digitallendingos.co.ke
 
 config:
   DB_PROVIDER: postgresql
@@ -50,7 +50,7 @@ config:
   KAFKA_BROKERS: kafka-staging:9092
   OPENSEARCH_URL: https://opensearch-staging:9200
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector-staging:4317
-  OTEL_SERVICE_NAME: youngsend-api-staging
+  OTEL_SERVICE_NAME: digital-lending-os-api-staging
 
 secrets: {}
 

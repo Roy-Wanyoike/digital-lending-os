@@ -28,9 +28,9 @@ scrape_configs:
     static_configs:
       - labels:
           job: nginx
-          host: youngsend
+          host: digital-lending-os
           __path__: /var/log/nginx/access.log
       - labels:
           job: nginx
-          host: youngsend
+          host: digital-lending-os
           __path__: /var/log/nginx/error.log

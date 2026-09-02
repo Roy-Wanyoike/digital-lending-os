@@ -1,4 +1,4 @@
-# Alertmanager Configuration — Youngsend Fintech Platform
+# Alertmanager Configuration — Digital Lending OS
 #
 # Alerting rules and notification routing for:
 # - Payment error rate > 5%
@@ -14,7 +14,7 @@ global:
   resolve_timeout: 5m
   # SMTP config (optional, for email alerts)
   smtp_smarthost: "${SMTP_HOST:localhost}:587"
-  smtp_from: "${SMTP_FROM:alerts@youngsend.com}"
+  smtp_from: "${SMTP_FROM:alerts@digitallendingos.co.ke}"
   smtp_auth_username: "${SMTP_USERNAME:}"
   smtp_auth_password: "${SMTP_PASSWORD:}"
   smtp_require_tls: true
@@ -117,7 +117,7 @@ receivers:
         actions:
           - type: button
             text: "View Dashboard"
-            url: "${GRAFANA_URL:}/d/youngsend-overview"
+            url: "${GRAFANA_URL:}/d/digital-lending-os-overview"
 
   # ── Slack: Infrastructure ──────────────────────────────────────────
   - name: "slack-infra"
@@ -163,7 +163,7 @@ receivers:
         routing_key: "${PAGERDUTY_ROUTING_KEY_PAYMENTS:}"
         severity: "critical"
         summary: "{{ .CommonLabels.alertname }} - {{ .CommonAnnotations.summary }}"
-        source: "youngsend-api"
+        source: "digital-lending-os-api"
         custom_details:
           environment: "{{ .CommonLabels.deployment_environment }}"
           provider: "{{ .CommonLabels.provider }}"
@@ -198,7 +198,7 @@ receivers:
         routing_key: "${PAGERDUTY_ROUTING_KEY_FRAUD:}"
         severity: "critical"
         summary: "FRAUD: {{ .CommonLabels.alertname }} - {{ .CommonAnnotations.summary }}"
-        source: "youngsend-fraud-engine"
+        source: "digital-lending-os-fraud-engine"
         custom_details:
           environment: "{{ .CommonLabels.deployment_environment }}"
           fraud_type: "{{ .CommonLabels.type }}"

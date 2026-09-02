@@ -1,5 +1,5 @@
 groups:
-  - name: youngsend-alerts
+  - name: dlo-alerts
     rules:
       - alert: HighErrorRate
         expr: |

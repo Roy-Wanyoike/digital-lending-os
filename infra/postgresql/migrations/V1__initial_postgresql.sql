@@ -1,6 +1,6 @@
 -- ============================================================
 -- V1__initial_postgresql.sql
--- Youngsend PostgreSQL Initial Schema
+-- Digital Lending OS PostgreSQL Initial Schema
 -- ============================================================
 -- Creates: extensions, enum types, all 35 tables with constraints,
 --          foreign keys, unique indexes, and Row Level Security

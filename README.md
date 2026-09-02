@@ -1,6 +1,6 @@
-# Youngsend
+# Digital Lending OS
 
-> **The Financial Operating System for Global Commerce**
+> **The Operating System for Digital Lending in Kenya**
 
 A full-stack, multi-tenant financial platform with AI-powered trust scoring, smart escrow, multi-currency wallets, global payment routing across 20+ countries, fraud detection, compliance engine, and a referral rewards system.
 
@@ -184,7 +184,7 @@ src/
 
 ```bash
 git clone <repo-url>
-cd youngsend
+cd digital-lending-os
 bun install
 
 # Configure environment

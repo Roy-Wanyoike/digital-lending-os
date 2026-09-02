@@ -6,7 +6,7 @@
 
 ## Context
 
-Youngsend requires three interconnected capabilities:
+Digital Lending OS requires three interconnected capabilities:
 1. **Full-text search** — users and admins need to search across payments, transactions, businesses, users, and audit logs with filtering, sorting, and aggregations.
 2. **Analytics** — the dashboard and reporting system need aggregated metrics (payment volume, escrow stats, wallet balances, fraud counts) scoped to a tenant.
 3. **Reporting** — exportable reports for transactions, invoices, escrows, wallets, and collections with date filtering and pagination.
