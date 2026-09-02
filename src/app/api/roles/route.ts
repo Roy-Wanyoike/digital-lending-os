@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { type AccountRole } from '@prisma/client';
 import { db } from '@/lib/db';
 import { getApiUser } from '@/lib/auth/api-helpers';
 import { ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
@@ -18,13 +19,15 @@ const getHandler = withErrorHandler(async (req: NextRequest) => {
   if (!user) return unauthorized();
 
   // Return role definitions with user counts per role in tenant
-  const roleCounts = await db.account.groupBy({
+  const roleCounts: { role: AccountRole; _count: { id: number } }[] = await db.account.groupBy({
     by: ['role'],
     _count: { id: true },
     where: { tenantId: user.tenantId },
   });
 
-  const countMap = Object.fromEntries(roleCounts.map((r: { role: string; _count: { id: number } }) => [r.role, r._count.id]));
+  const countMap = Object.fromEntries(
+    roleCounts.map((r) => [r.role, r._count.id])
+  );
 
   const roles = ROLE_DEFINITIONS.map(r => ({
     ...r,

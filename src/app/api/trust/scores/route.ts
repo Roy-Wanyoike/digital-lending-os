@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
@@ -20,7 +21,7 @@ async function getHandler(request: NextRequest) {
     const sortBy = searchParams.get('sortBy') || 'overallScore'
     const sortOrder = searchParams.get('sortOrder') || 'desc'
 
-    const where: Record<string, unknown> = { business: { tenantId: user.tenantId } }
+    const where: Prisma.TrustScoreWhereInput = { business: { tenantId: user.tenantId } }
     if (businessId) {
       where.businessId = businessId
     }
