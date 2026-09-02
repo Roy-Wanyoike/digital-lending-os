@@ -1,0 +1,101 @@
+# Production environment values
+# Usage: helm install digital-lending-os ./infra/helm/digital-lending-os -f values-production.yaml
+
+replicaCount: 3
+
+image:
+  repository: ghcr.io/roy-wanyoike/digital-lending-os
+  pullPolicy: IfNotPresent
+  tag: "0.2.1"
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 1024Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilization: 70
+  targetMemoryUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 60
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+      selectPolicy: Min
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rate-limit: "1000"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://digitallendingos.co.ke"
+  hosts:
+    - host: digitallendingos.co.ke
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: digital-lending-os-tls
+      hosts:
+        - digitallendingos.co.ke
+
+config:
+  DB_PROVIDER: postgresql
+  NODE_ENV: production
+  NEXT_TELEMETRY_DISABLED: "1"
+  HOSTNAME: "0.0.0.0"
+  PORT: "3000"
+  REDIS_URL: redis://redis:6379/0
+  KAFKA_BROKERS: kafka:9092
+  OPENSEARCH_URL: https://opensearch:9200
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_SERVICE_NAME: digital-lending-os-api
+
+secrets: {}
+# IMPORTANT: Set these via --set or sealed secrets
+#  DATABASE_POSTGRESQL_URL: postgresql://user:pass@postgres:5432/digital_lending_os
+#  NEXTAUTH_SECRET: production-secret
+#  OPENSEARCH_USERNAME: admin
+#  OPENSEARCH_PASSWORD: production-password
+
+healthcheck:
+  livenessInitialDelay: 15
+  readinessInitialDelay: 5
+
+pdb:
+  enabled: true
+  minAvailable: 2
+
+networkPolicy:
+  enabled: true
+  strict: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

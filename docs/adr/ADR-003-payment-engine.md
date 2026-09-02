@@ -9,7 +9,7 @@
 
 ## Context
 
-Youngsend processes payments across 5 providers (Stripe, Paystack, Flutterwave, IntaSend, Paya) spanning Africa, Europe, and the Americas. The payment engine must:
+Digital Lending OS processes payments across 5 providers (Stripe, Paystack, Flutterwave, IntaSend, Paya) spanning Africa, Europe, and the Americas. The payment engine must:
 
 - Initialize payments with the optimal provider (cost routing)
 - Receive and verify webhooks from each provider

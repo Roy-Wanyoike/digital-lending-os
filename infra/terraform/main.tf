@@ -238,20 +238,20 @@ resource "google_sql_database_instance" "postgresql" {
   ]
 }
 
-resource "google_sql_database" "youngsend" {
+resource "google_sql_database" "digital_lending_os" {
   name     = var.db_name
   project  = var.project_id
   instance = google_sql_database_instance.postgresql.name
 }
 
-resource "google_sql_user" "youngsend" {
+resource "google_sql_user" "digital_lending_os" {
   name     = var.db_user
   project  = var.project_id
   instance = google_sql_database_instance.postgresql.name
   password = var.db_password
 }
 
-resource "google_redis_instance" "youngsend" {
+resource "google_redis_instance" "digital_lending_os" {
   name           = "${var.project_id}-redis"
   project        = var.project_id
   region         = var.region
@@ -297,12 +297,12 @@ resource "google_project_iam_member" "cloudsql_client" {
   member  = "serviceAccount:${google_service_account.cloudsql_proxy.email}"
 }
 
-resource "google_compute_global_address" "youngsend_ingress" {
+resource "google_compute_global_address" "dlo_ingress" {
   name    = "${var.cluster_name}-ingress-ip"
   project = var.project_id
 }
 
-resource "google_compute_ssl_policy" "youngsend" {
+resource "google_compute_ssl_policy" "digital_lending_os" {
   name             = "${var.cluster_name}-ssl-policy"
   project          = var.project_id
   profile          = "MODERN"
@@ -336,8 +336,8 @@ resource "google_service_networking_connection" "private_service_access" {
 resource "google_service_account" "app" {
   account_id   = "${var.cluster_name}-app"
   project      = var.project_id
-  display_name = "YoungSend Application Service Account"
-  description  = "Service account for the YoungSend application pods via Workload Identity"
+  display_name = "Digital Lending OS Application Service Account"
+  description  = "Service account for the Digital Lending OS application pods via Workload Identity"
 }
 
 resource "google_project_iam_member" "app_log_writer" {
@@ -371,7 +371,7 @@ resource "google_project_iam_member" "app_storage_object_viewer" {
 resource "google_service_account_iam_member" "workload_identity_binding" {
   service_account_id = google_service_account.app.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[youngsend/youngsend-app]"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[digital-lending-os/digital-lending-os-app]"
 }
 
 # ─────────────────────────────────────────────────────────────────
@@ -421,7 +421,7 @@ resource "google_storage_bucket_iam_member" "logs_writer" {
 # ─────────────────────────────────────────────────────────────────
 
 resource "google_secret_manager_secret" "db_password" {
-  secret_id = "youngsend-db-password"
+  secret_id = "dlo-db-password"
   project   = var.project_id
 
   replication {
@@ -439,7 +439,7 @@ resource "google_secret_manager_secret_version" "db_password" {
 }
 
 resource "google_secret_manager_secret" "app_secret_key" {
-  secret_id = "youngsend-app-secret-key"
+  secret_id = "dlo-app-secret-key"
   project   = var.project_id
 
   replication {
@@ -452,7 +452,7 @@ resource "google_secret_manager_secret" "app_secret_key" {
 }
 
 resource "google_secret_manager_secret" "stripe_webhook_secret" {
-  secret_id = "youngsend-stripe-webhook-secret"
+  secret_id = "dlo-stripe-webhook-secret"
   project   = var.project_id
 
   replication {
@@ -465,7 +465,7 @@ resource "google_secret_manager_secret" "stripe_webhook_secret" {
 }
 
 resource "google_secret_manager_secret" "jwt_secret" {
-  secret_id = "youngsend-jwt-secret"
+  secret_id = "dlo-jwt-secret"
   project   = var.project_id
 
   replication {

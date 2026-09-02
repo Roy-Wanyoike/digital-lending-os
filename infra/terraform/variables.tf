@@ -1,4 +1,4 @@
-# Youngsend Terraform Variables
+# Digital Lending OS Terraform Variables
 
 variable "project_id" {
   description = "GCP Project ID"
@@ -88,13 +88,13 @@ variable "node_service_account" {
 variable "db_name" {
   description = "Cloud SQL database name"
   type        = string
-  default     = "youngsend"
+  default     = "digital_lending_os"
 }
 
 variable "db_user" {
   description = "Cloud SQL database user"
   type        = string
-  default     = "youngsend"
+  default     = "digital_lending_os"
 }
 
 variable "db_password" {

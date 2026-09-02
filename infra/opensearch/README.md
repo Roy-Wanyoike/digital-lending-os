@@ -2,7 +2,7 @@
 
 ## Overview
 
-Youngsend uses OpenSearch as the primary full-text search engine for querying payments, transactions, businesses, users, and audit logs. The search layer sits between the API routes and the primary database, providing sub-second search across millions of records with support for faceted navigation, aggregations, and real-time CDC synchronization.
+Digital Lending OS uses OpenSearch as the primary full-text search engine for querying payments, transactions, businesses, users, and audit logs. The search layer sits between the API routes and the primary database, providing sub-second search across millions of records with support for faceted navigation, aggregations, and real-time CDC synchronization.
 
 ```
  ┌─────────────┐     ┌──────────────────┐     ┌─────────────────┐
@@ -90,7 +90,7 @@ Three synchronization strategies:
 #### CDC (Change Data Capture)
 - Subscribes to Kafka topics: `payment.events.*`, `wallet.events.*`, `business.events.*`, `user.events.*`, `audit.events.*`
 - `processCDCEvent()` translates Kafka events → OpenSearch index/delete operations
-- `createCDCMessageHandler()` returns a handler compatible with the Youngsend Kafka consumer framework
+- `createCDCMessageHandler()` returns a handler compatible with the Digital Lending OS Kafka consumer framework
 - Sequential processing within partitions to preserve ordering
 - Errors propagate to the consumer's DLQ handling
 
@@ -119,7 +119,7 @@ Located at `infra/opensearch/index-templates.json`. Register with:
 ```bash
 # Register all templates
 for template in payments transactions businesses users audit-logs; do
-  curl -X PUT "https://opensearch:9200/_index_template/youngsend-${template}-template" \
+  curl -X PUT "https://opensearch:9200/_index_template/dlo-${template}-template" \
     -H 'Content-Type: application/json' \
     -d @index-templates.json
 done

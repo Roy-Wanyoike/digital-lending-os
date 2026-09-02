@@ -1,4 +1,4 @@
-# OpenTelemetry Collector Configuration — Youngsend Fintech Platform
+# OpenTelemetry Collector Configuration — Digital Lending OS
 #
 # Receivers:
 #   - OTLP gRPC on :4317
@@ -72,7 +72,7 @@ processors:
       exclude:
         match_type: strict
         metric_names:
-          - "youngsend_request_duration"
+          - "dlo_request_duration"
         resource_attributes:
           - key: http.route
             value: /api/health
@@ -123,9 +123,9 @@ exporters:
   # ── Prometheus Exporter (self-hosted metrics endpoint) ─────────────
   prometheus:
     endpoint: 0.0.0.0:8888
-    namespace: youngsend
+    namespace: digital_lending_os
     const_labels:
-      cluster: ${K8S_CLUSTER:-youngsend-prod}
+      cluster: ${K8S_CLUSTER:-dlo-prod}
     resource_to_telemetry_conversion:
       enabled: true
 

@@ -8,7 +8,7 @@
 
 ## Context
 
-Youngsend is a multi-tenant B2B fintech platform handling escrow payments, digital wallets, and compliance services for 100M users across emerging markets. As the system scales beyond a monolithic architecture, synchronous point-to-point integrations between domains become a liability:
+Digital Lending OS is a multi-tenant B2B fintech platform handling escrow payments, digital wallets, and compliance services for 100M users across emerging markets. As the system scales beyond a monolithic architecture, synchronous point-to-point integrations between domains become a liability:
 
 1. **Tight coupling:** Payment completion must trigger wallet crediting, escrow funding, notification delivery, audit logging, and search indexing. Direct API calls create a dependency graph that makes independent deployment impossible.
 2. **No audit trail:** Synchronous calls between services leave no immutable record of what happened, when, and why. Financial regulators require a complete, ordered event log.

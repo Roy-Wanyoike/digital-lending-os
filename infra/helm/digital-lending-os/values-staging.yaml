@@ -1,0 +1,71 @@
+# Staging environment values
+# Usage: helm install digital-lending-os ./infra/helm/digital-lending-os -f values-staging.yaml
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/roy-wanyoike/digital-lending-os
+  pullPolicy: IfNotPresent
+  tag: staging
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilization: 70
+  targetMemoryUtilization: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rate-limit: "200"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: staging.digitallendingos.co.ke
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: digital-lending-os-staging-tls
+  #    hosts:
+  #      - staging.digitallendingos.co.ke
+
+config:
+  DB_PROVIDER: postgresql
+  NODE_ENV: production
+  NEXT_TELEMETRY_DISABLED: "1"
+  HOSTNAME: "0.0.0.0"
+  PORT: "3000"
+  REDIS_URL: redis://redis-staging:6379/0
+  KAFKA_BROKERS: kafka-staging:9092
+  OPENSEARCH_URL: https://opensearch-staging:9200
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector-staging:4317
+  OTEL_SERVICE_NAME: digital-lending-os-api-staging
+
+secrets: {}
+
+healthcheck:
+  livenessInitialDelay: 15
+  readinessInitialDelay: 5
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  strict: false
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

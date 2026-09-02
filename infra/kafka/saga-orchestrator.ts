@@ -1,5 +1,5 @@
 /**
- * Youngsend Saga Orchestrator — Payment Workflow
+ * Digital Lending OS Saga Orchestrator — Payment Workflow
  *
  * Implements the Saga pattern for distributed transactions using a state machine approach.
  *
@@ -26,9 +26,9 @@
  */
 
 import { v4 as uuidv4 } from "uuid";
-import type { YoungsendProducer } from "./producer";
+import type { Digital Lending OSProducer } from "./producer";
 import { buildEvent, type BaseEvent } from "./producer";
-import type { YoungsendConsumer } from "./consumer";
+import type { Digital Lending OSConsumer } from "./consumer";
 import type { MessageMetadata } from "./consumer";
 import {
   PaymentInitiatedEventSchema,
@@ -154,15 +154,15 @@ const STATE_TRANSITIONS: Record<SagaState, SagaState[]> = {
 // ─── Saga Orchestrator Class ──────────────────────────────────────────────────
 
 export class PaymentSaga {
-  private producer: YoungsendProducer;
-  private consumer: YoungsendConsumer;
+  private producer: Digital Lending OSProducer;
+  private consumer: Digital Lending OSConsumer;
   private sagaInstances: Map<string, PaymentSagaData>;
   private serviceName: string;
   private correlationToSaga: Map<string, string>; // correlationId → sagaId
 
   constructor(options: {
-    producer: YoungsendProducer;
-    consumer: YoungsendConsumer;
+    producer: Digital Lending OSProducer;
+    consumer: Digital Lending OSConsumer;
     serviceName?: string;
   }) {
     this.producer = options.producer;

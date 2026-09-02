@@ -1,4 +1,4 @@
-# Youngsend Terraform Outputs
+# Digital Lending OS Terraform Outputs
 
 # ─────────────────────────────────────────────────────────────────
 # GKE Cluster
@@ -52,17 +52,17 @@ output "postgresql_database_url" {
 
 output "redis_host" {
   description = "Memorystore Redis host"
-  value       = google_redis_instance.youngsend.host
+  value       = google_redis_instance.digital_lending_os.host
 }
 
 output "redis_port" {
   description = "Memorystore Redis port"
-  value       = google_redis_instance.youngsend.port
+  value       = google_redis_instance.digital_lending_os.port
 }
 
 output "redis_url" {
   description = "Redis connection URL"
-  value       = "redis://${google_redis_instance.youngsend.host}:${google_redis_instance.youngsend.port}"
+  value       = "redis://${google_redis_instance.digital_lending_os.host}:${google_redis_instance.digital_lending_os.port}"
 }
 
 # ─────────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ output "redis_url" {
 
 output "ingress_ip" {
   description = "Global static IP for GKE Ingress"
-  value       = google_compute_global_address.youngsend_ingress.address
+  value       = google_compute_global_address.dlo_ingress.address
 }
 
 output "vpc_name" {

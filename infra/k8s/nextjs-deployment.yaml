@@ -1,13 +1,13 @@
-# Youngsend Next.js 16 Deployment
+# Digital Lending OS Next.js 16 Deployment
 # 3 replicas with Prisma migrate init container, zone spreading
 
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: youngsend-nextjs
-  namespace: youngsend-prod
+  name: digital-lending-os-nextjs
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-nextjs
+    app.kubernetes.io/name: digital-lending-os-nextjs
     app.kubernetes.io/component: frontend
     app.kubernetes.io/environment: production
 spec:
@@ -20,11 +20,11 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app.kubernetes.io/name: youngsend-nextjs
+      app.kubernetes.io/name: digital-lending-os-nextjs
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: youngsend-nextjs
+        app.kubernetes.io/name: digital-lending-os-nextjs
         app.kubernetes.io/component: frontend
         app.kubernetes.io/environment: production
       annotations:
@@ -32,7 +32,7 @@ spec:
         prometheus.io/port: "3000"
         prometheus.io/path: "/api/metrics"
     spec:
-      serviceAccountName: youngsend-nextjs
+      serviceAccountName: digital-lending-os-nextjs
       automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
@@ -44,14 +44,14 @@ spec:
       terminationGracePeriodSeconds: 60
       initContainers:
         - name: prisma-migrate
-          image: gcr.io/YOUR_PROJECT_ID/youngsend:IMAGE_TAG
+          image: gcr.io/YOUR_PROJECT_ID/digital-lending-os:IMAGE_TAG
           imagePullPolicy: IfNotPresent
           command: ["npx", "prisma", "migrate", "deploy"]
           envFrom:
             - configMapRef:
-                name: youngsend-config
+                name: digital-lending-os-config
             - secretRef:
-                name: youngsend-secrets
+                name: digital-lending-os-secrets
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
@@ -66,7 +66,7 @@ spec:
               cpu: 250m
       containers:
         - name: nextjs
-          image: gcr.io/YOUR_PROJECT_ID/youngsend:IMAGE_TAG
+          image: gcr.io/YOUR_PROJECT_ID/digital-lending-os:IMAGE_TAG
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -74,9 +74,9 @@ spec:
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: youngsend-config
+                name: digital-lending-os-config
             - secretRef:
-                name: youngsend-secrets
+                name: digital-lending-os-secrets
           env:
             - name: PORT
               value: "3000"
@@ -144,19 +144,19 @@ spec:
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              app.kubernetes.io/name: youngsend-nextjs
+              app.kubernetes.io/name: digital-lending-os-nextjs
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app.kubernetes.io/name: youngsend-nextjs
+              app.kubernetes.io/name: digital-lending-os-nextjs
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: youngsend-nextjs
-  namespace: youngsend-prod
+  name: digital-lending-os-nextjs
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-nextjs
+    app.kubernetes.io/name: digital-lending-os-nextjs
 automountServiceAccountToken: false

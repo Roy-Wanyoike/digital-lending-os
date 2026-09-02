@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────
-# Youngsend — Nginx Reverse Proxy (Docker Compose Extension)
+# Digital Lending OS — Nginx Reverse Proxy (Docker Compose Extension)
 # Overlay on top of docker-compose.yml
 # Usage: docker compose -f docker-compose.yml -f infra/nginx/docker-compose.nginx.yml up -d
 # ─────────────────────────────────────────────────────────────────────
@@ -8,7 +8,7 @@ services:
   # ── Nginx Reverse Proxy ───────────────────────────────────────────
   nginx:
     image: nginx:1.25-alpine
-    container_name: youngsend-nginx
+    container_name: dlo-nginx
     ports:
       - "80:80"
       - "443:443"
@@ -21,4 +21,4 @@ services:
         condition: service_healthy
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net

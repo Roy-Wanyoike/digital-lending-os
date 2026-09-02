@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────
-# Youngsend — Local Deployment Helper
+# Digital Lending OS — Local Deployment Helper
 # Usage: ./deploy.sh [staging|production]
 #
 # Builds the Docker image locally, pushes it to GCR, and applies
@@ -11,11 +11,11 @@ set -euo pipefail
 # ── Config ────────────────────────────────────────────────────────────
 ENVIRONMENT="${1:-staging}"
 PROJECT_ID="${GCP_PROJECT_ID:-YOUR_PROJECT_ID}"
-REGION="${GCP_REGION:-us-central1}"
-IMAGE_NAME="gcr.io/${PROJECT_ID}/youngsend"
+REGION="${GCP_REGION:-africa-south1}"
+IMAGE_NAME="gcr.io/${PROJECT_ID}/digital-lending-os"
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo 'local')"
-NAMESPACE="youngsend-${ENVIRONMENT}"
-CLUSTER="youngsend-${ENVIRONMENT}"
+NAMESPACE="dlo-${ENVIRONMENT}"
+CLUSTER="dlo-${ENVIRONMENT}"
 K8S_DIR="infra/k8s"
 
 # ── Colours ───────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Colour
 
 info()  { echo -e "${GREEN}[INFO]${NC}  $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
 # ── Validation ────────────────────────────────────────────────────────
@@ -77,8 +77,8 @@ done
 info "Manifests applied."
 
 # ── Step 5: Wait for Rollout ─────────────────────────────────────────
-info "Waiting for rollout of deployment/youngsend-nextjs in ${NAMESPACE}..."
-if kubectl rollout status deployment/youngsend-nextjs \
+info "Waiting for rollout of deployment/digital-lending-os-nextjs in ${NAMESPACE}..."
+if kubectl rollout status deployment/digital-lending-os-nextjs \
   -n "${NAMESPACE}" \
   --timeout=300s; then
   info "Rollout successful!"
@@ -96,4 +96,5 @@ info "  Namespace:    ${NAMESPACE}"
 info "  Cluster:      ${CLUSTER}"
 info "  Image:        ${IMAGE_NAME}:${GIT_SHA}"
 info "═══════════════════════════════════════════════════════"
-kubectl get pods -n "${NAMESPACE}" -l app.kubernetes.io/name=youngsend-nextjs
+# shellcheck disable=SC2086
+kubectl get pods -n "${NAMESPACE}" -l app.kubernetes.io/name=digital-lending-os-nextjs

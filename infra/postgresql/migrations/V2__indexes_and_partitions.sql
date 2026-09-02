@@ -1,6 +1,6 @@
 -- ============================================================
 -- V2__indexes_and_partitions.sql
--- Youngsend PostgreSQL Performance Indexes & Table Partitioning
+-- Digital Lending OS PostgreSQL Performance Indexes & Table Partitioning
 -- ============================================================
 -- 1. BRIN indexes on timestamp columns (time-series)
 -- 2. Partial indexes for active/open records

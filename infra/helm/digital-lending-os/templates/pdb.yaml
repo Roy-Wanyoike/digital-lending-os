@@ -1,0 +1,13 @@
+{{- if .Values.pdb.enabled -}}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "digital-lending-os.fullname" . }}-pdb
+  labels:
+    {{- include "digital-lending-os.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "digital-lending-os.selectorLabels" . | nindent 6 }}
+{{- end }}

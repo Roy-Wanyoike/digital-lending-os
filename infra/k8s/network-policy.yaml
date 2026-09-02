@@ -1,4 +1,4 @@
-# Youngsend Network Policies
+# Digital Lending OS Network Policies
 # Default deny-all with selective allow rules for ingress and egress
 
 ---
@@ -7,10 +7,10 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: default-deny-all
-  namespace: youngsend
+  namespace: digital-lending-os
   labels:
-    app.kubernetes.io/name: youngsend
-    app.kubernetes.io/part-of: youngsend
+    app.kubernetes.io/name: digital-lending-os
+    app.kubernetes.io/part-of: digital-lending-os
 spec:
   podSelector: {}
   policyTypes:
@@ -22,14 +22,14 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-ingress-nginx
-  namespace: youngsend
+  namespace: digital-lending-os
   labels:
-    app.kubernetes.io/name: youngsend
-    app.kubernetes.io/part-of: youngsend
+    app.kubernetes.io/name: digital-lending-os
+    app.kubernetes.io/part-of: digital-lending-os
 spec:
   podSelector:
     matchLabels:
-      app: youngsend
+      app: digital-lending-os
   policyTypes:
     - Ingress
   ingress:
@@ -46,14 +46,14 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-egress-postgresql
-  namespace: youngsend
+  namespace: digital-lending-os
   labels:
-    app.kubernetes.io/name: youngsend
-    app.kubernetes.io/part-of: youngsend
+    app.kubernetes.io/name: digital-lending-os
+    app.kubernetes.io/part-of: digital-lending-os
 spec:
   podSelector:
     matchLabels:
-      app: youngsend
+      app: digital-lending-os
   policyTypes:
     - Egress
   egress:
@@ -70,14 +70,14 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-egress-redis
-  namespace: youngsend
+  namespace: digital-lending-os
   labels:
-    app.kubernetes.io/name: youngsend
-    app.kubernetes.io/part-of: youngsend
+    app.kubernetes.io/name: digital-lending-os
+    app.kubernetes.io/part-of: digital-lending-os
 spec:
   podSelector:
     matchLabels:
-      app: youngsend
+      app: digital-lending-os
   policyTypes:
     - Egress
   egress:
@@ -94,14 +94,14 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-egress-kafka
-  namespace: youngsend
+  namespace: digital-lending-os
   labels:
-    app.kubernetes.io/name: youngsend
-    app.kubernetes.io/part-of: youngsend
+    app.kubernetes.io/name: digital-lending-os
+    app.kubernetes.io/part-of: digital-lending-os
 spec:
   podSelector:
     matchLabels:
-      app: youngsend
+      app: digital-lending-os
   policyTypes:
     - Egress
   egress:
@@ -118,14 +118,14 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-egress-opensearch
-  namespace: youngsend
+  namespace: digital-lending-os
   labels:
-    app.kubernetes.io/name: youngsend
-    app.kubernetes.io/part-of: youngsend
+    app.kubernetes.io/name: digital-lending-os
+    app.kubernetes.io/part-of: digital-lending-os
 spec:
   podSelector:
     matchLabels:
-      app: youngsend
+      app: digital-lending-os
   policyTypes:
     - Egress
   egress:
@@ -142,14 +142,14 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-egress-otel-collector
-  namespace: youngsend
+  namespace: digital-lending-os
   labels:
-    app.kubernetes.io/name: youngsend
-    app.kubernetes.io/part-of: youngsend
+    app.kubernetes.io/name: digital-lending-os
+    app.kubernetes.io/part-of: digital-lending-os
 spec:
   podSelector:
     matchLabels:
-      app: youngsend
+      app: digital-lending-os
   policyTypes:
     - Egress
   egress:
@@ -166,10 +166,10 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-dns-egress
-  namespace: youngsend
+  namespace: digital-lending-os
   labels:
-    app.kubernetes.io/name: youngsend
-    app.kubernetes.io/part-of: youngsend
+    app.kubernetes.io/name: digital-lending-os
+    app.kubernetes.io/part-of: digital-lending-os
 spec:
   podSelector: {}
   policyTypes:

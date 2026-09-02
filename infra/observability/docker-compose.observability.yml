@@ -9,7 +9,7 @@ services:
   # ── Prometheus ────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.50.0
-    container_name: youngsend-prometheus
+    container_name: dlo-prometheus
     volumes:
       - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ../prometheus/alerts:/etc/prometheus/alerts:ro
@@ -22,12 +22,12 @@ services:
       - "9090:9090"
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── Grafana ───────────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:10.3.0
-    container_name: youngsend-grafana
+    container_name: dlo-grafana
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -43,12 +43,12 @@ services:
       - loki
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── Loki ──────────────────────────────────────────────────────────
   loki:
     image: grafana/loki:2.9.3
-    container_name: youngsend-loki
+    container_name: dlo-loki
     volumes:
       - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
@@ -57,12 +57,12 @@ services:
       - "3100:3100"
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── Promtail ──────────────────────────────────────────────────────
   promtail:
     image: grafana/promtail:2.9.3
-    container_name: youngsend-promtail
+    container_name: dlo-promtail
     volumes:
       - ./promtail-config.yaml:/etc/promtail/config.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -72,12 +72,12 @@ services:
       - loki
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── Node Exporter ─────────────────────────────────────────────────
   node-exporter:
     image: prom/node-exporter:v1.7.0
-    container_name: youngsend-node-exporter
+    container_name: dlo-node-exporter
     command:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
@@ -90,26 +90,26 @@ services:
       - "9100:9100"
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── Postgres Exporter ─────────────────────────────────────────────
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
-    container_name: youngsend-postgres-exporter
+    container_name: dlo-postgres-exporter
     environment:
-      DATA_SOURCE_NAME: "postgresql://youngsend:youngsend@postgres:5432/youngsend?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://dlo:dlo@postgres:5432/digital_lending_os?sslmode=disable"
     ports:
       - "9187:9187"
     depends_on:
       - postgres
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── Redis Exporter ────────────────────────────────────────────────
   redis-exporter:
     image: oliver006/redis_exporter:v1.58.0
-    container_name: youngsend-redis-exporter
+    container_name: dlo-redis-exporter
     environment:
       - REDIS_ADDR=redis:6379
     ports:
@@ -118,7 +118,7 @@ services:
       - redis
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
 volumes:
   prometheus_data:
@@ -129,5 +129,5 @@ volumes:
     driver: local
 
 networks:
-  youngsend-net:
+  dlo-net:
     external: true

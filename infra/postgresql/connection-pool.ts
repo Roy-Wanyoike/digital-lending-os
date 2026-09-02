@@ -93,7 +93,7 @@ export interface PoolConfig {
 // ============================================================
 
 /**
- * Transaction mode — Best for OLTP workloads (default for Youngsend).
+ * Transaction mode — Best for OLTP workloads (default for Digital Lending OS).
  * Server connection held only for duration of transaction.
  * Maximum multiplexing efficiency.
  */
@@ -103,7 +103,7 @@ export function getTransactionPoolConfig(resources?: Partial<SystemResources>): 
 
   return {
     mode: 'transaction',
-    database: 'youngsend',
+    database: 'digital-lending-os',
     port: 6432,
     maxClientConn: sys.maxClientConn,
     defaultPoolSize: poolSize,
@@ -132,7 +132,7 @@ export function getSessionPoolConfig(resources?: Partial<SystemResources>): Pool
 
   return {
     mode: 'session',
-    database: 'youngsend',
+    database: 'digital-lending-os',
     port: 6433,
     maxClientConn: Math.min(100, poolSize * 4),
     defaultPoolSize: poolSize,
@@ -161,7 +161,7 @@ export function getStatementPoolConfig(resources?: Partial<SystemResources>): Po
 
   return {
     mode: 'statement',
-    database: 'youngsend',
+    database: 'digital-lending-os',
     port: 6434,
     maxClientConn: Math.min(50, poolSize * 5),
     defaultPoolSize: poolSize,
@@ -194,8 +194,8 @@ export function generatePgbouncerIni(
   const poolToIni = (cfg: PoolConfig, name: string) => {
     const lines = [
       `[${name}]`,
-      `host=${name === 'youngsend_primary' ? primaryHost : replicaHost}`,
-      `port=${name === 'youngsend_primary' ? primaryPort : replicaPort}`,
+      `host=${name === 'digital-lending-os_primary' ? primaryHost : replicaHost}`,
+      `port=${name === 'digital-lending-os_primary' ? primaryPort : replicaPort}`,
       `dbname=${cfg.database}`,
       `pool_mode=${cfg.mode}`,
       `default_pool_size=${cfg.defaultPoolSize}`,
@@ -208,17 +208,17 @@ export function generatePgbouncerIni(
 
   return [
     '[databases]',
-    poolToIni(oltpConfig, 'youngsend_primary'),
-    poolToIni(oltpConfig, 'youngsend_read'),
-    poolToIni(sessionConfig, 'youngsend_admin'),
-    poolToIni(analyticsConfig, 'youngsend_analytics'),
+    poolToIni(oltpConfig, 'digital-lending-os_primary'),
+    poolToIni(oltpConfig, 'digital-lending-os_read'),
+    poolToIni(sessionConfig, 'digital-lending-os_admin'),
+    poolToIni(analyticsConfig, 'digital-lending-os_analytics'),
     '',
     '[pgbouncer]',
     `listen_addr = 0.0.0.0`,
     `listen_port = ${oltpConfig.port}`,
     `auth_type = scram-sha-256`,
     `auth_file = /etc/pgbouncer/userlist.txt`,
-    `admin_users = postgres, youngsend_admin`,
+    `admin_users = postgres, digital-lending-os_admin`,
     `stats_period = 60`,
     `log_connections = 1`,
     `log_disconnections = 1`,
@@ -251,7 +251,7 @@ export function generateConnectionStrings(
   oltpConfig: PoolConfig,
   sessionConfig: PoolConfig,
   analyticsConfig: PoolConfig,
-  user: string = 'youngsend_app',
+  user: string = 'digital-lending-os_app',
 ): {
   primaryUrl: string;
   readUrl: string;
@@ -263,11 +263,11 @@ export function generateConnectionStrings(
     `postgresql://${user}@${pgbouncerHost}:${port}/${db}`;
 
   return {
-    primaryUrl: makeUrl(oltpConfig.port, 'youngsend_primary'),
-    readUrl: makeUrl(oltpConfig.port, 'youngsend_read'),
-    adminUrl: makeUrl(sessionConfig.port, 'youngsend_admin'),
-    analyticsUrl: makeUrl(analyticsConfig.port, 'youngsend_analytics'),
-    directPrimaryUrl: `postgresql://${user}@localhost:5432/youngsend`, // For migrations (bypasses PgBouncer)
+    primaryUrl: makeUrl(oltpConfig.port, 'digital-lending-os_primary'),
+    readUrl: makeUrl(oltpConfig.port, 'digital-lending-os_read'),
+    adminUrl: makeUrl(sessionConfig.port, 'digital-lending-os_admin'),
+    analyticsUrl: makeUrl(analyticsConfig.port, 'digital-lending-os_analytics'),
+    directPrimaryUrl: `postgresql://${user}@localhost:5432/digital-lending-os`, // For migrations (bypasses PgBouncer)
   };
 }
 

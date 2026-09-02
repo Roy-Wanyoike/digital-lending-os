@@ -1,0 +1,21 @@
+apiVersion: v2
+name: digital-lending-os
+version: 0.2.1
+appVersion: "0.2.1"
+description: Digital Lending OS - Multi-Tenant Digital Lending Platform for Kenyan DCPs
+type: application
+keywords:
+  - lending
+  - digital-credit
+  - kenya
+  - multi-tenant
+  - nextjs
+  - digital-lending-os
+maintainers:
+  - name: Digital Lending OS Engineering
+    email: infra@digitallendingos.co.ke
+    url: https://digitallendingos.co.ke
+home: https://github.com/Roy-Wanyoike/digital-lending-os
+sources:
+  - https://github.com/Roy-Wanyoike/digital-lending-os
+icon: https://digitallendingos.co.ke/logo.svg

@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────
-# OpenTelemetry Collector — Youngsend Docker Compose Stack
+# OpenTelemetry Collector — Digital Lending OS Docker Compose Stack
 # Receives OTLP from app, exports traces to Jaeger, metrics to Prometheus
 # ─────────────────────────────────────────────────────────────────────
 

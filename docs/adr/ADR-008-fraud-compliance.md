@@ -6,7 +6,7 @@
 
 ## Context
 
-Youngsend operates a multi-tenant B2B cross-border payments platform. Fraud detection and regulatory compliance are mission-critical: the platform must detect suspicious activity (money laundering, sanctions evasion, account takeover) while maintaining compliance with KYC/AML regulations across jurisdictions.
+Digital Lending OS operates a multi-tenant B2B cross-border payments platform. Fraud detection and regulatory compliance are mission-critical: the platform must detect suspicious activity (money laundering, sanctions evasion, account takeover) while maintaining compliance with KYC/AML regulations across jurisdictions.
 
 This ADR covers the design of three interrelated subsystems:
 1. **Fraud Rule Engine** — configurable rules that evaluate transactions and entities for fraud signals

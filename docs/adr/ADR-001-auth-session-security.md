@@ -6,7 +6,7 @@
 
 ## Context
 
-Youngsend is a multi-tenant fintech platform handling escrow payments. Authentication and session management are security-critical: a compromised session grants access to funds, business data, and cross-tenant resources.
+Digital Lending OS is a multi-tenant fintech platform handling escrow payments. Authentication and session management are security-critical: a compromised session grants access to funds, business data, and cross-tenant resources.
 
 ### Problems Identified
 

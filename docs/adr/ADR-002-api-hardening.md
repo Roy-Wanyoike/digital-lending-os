@@ -8,12 +8,12 @@
 
 ## Context
 
-Youngsend has 70+ API routes. An audit revealed:
+Digital Lending OS has 70+ API routes. An audit revealed:
 
 1. **Inconsistent error envelopes** — routes return `{ error: string }`, `{ error: { message } }`, or throw raw. Frontend cannot reliably parse errors.
 2. **Missing try-catch** — `/api/payments/providers`, `/api/convert` (now deleted), and `/api/route.ts` (now deleted) lacked error boundaries.
 3. **No input validation** — most POST/PUT routes beyond payments/intents used ad-hoc `if (!field)` checks instead of Zod schemas.
-4. **Structured logging gap** — many routes used `console.error` instead of the `YoungsendLogger` telemetry pipeline.
+4. **Structured logging gap** — many routes used `console.error` instead of the `Digital Lending OSLogger` telemetry pipeline.
 5. **Legacy routes** — `/api/convert` was an open proxy with no auth; `/api/route.ts` leaked a "Hello World" response.
 
 ## Decision

@@ -1,5 +1,5 @@
 /**
- * Youngsend Kafka Producer
+ * Digital Lending OS Kafka Producer
  *
  * Production-ready KafkaJS producer wrapper with:
  * - Connection pooling via singleton management
@@ -19,7 +19,7 @@ import { BaseEventSchema, type BaseEvent, parseEventByType } from "./event-schem
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface YoungsendProducerConfig {
+export interface Digital Lending OSProducerConfig {
   /** Kafka broker list, e.g. "kafka-1:9092,kafka-2:9092,kafka-3:9092" */
   brokers: string[];
   /** Client ID for this producer instance */
@@ -86,7 +86,7 @@ export interface ProduceResult {
 
 // ─── Default Configuration ─────────────────────────────────────────────────────
 
-const DEFAULT_CONFIG: Omit<Required<YoungsendProducerConfig>, "brokers" | "clientId" | "serviceName" | "transactionalId" | "securityProtocol" | "saslMechanism" | "saslUsername" | "saslPassword" | "ssl"> = {
+const DEFAULT_CONFIG: Omit<Required<Digital Lending OSProducerConfig>, "brokers" | "clientId" | "serviceName" | "transactionalId" | "securityProtocol" | "saslMechanism" | "saslUsername" | "saslPassword" | "ssl"> = {
   enableIdempotence: true,
   requestTimeoutMs: 30000,
   maxInFlightRequests: 5,
@@ -100,15 +100,15 @@ const DEFAULT_CONFIG: Omit<Required<YoungsendProducerConfig>, "brokers" | "clien
 
 // ─── Producer Class ────────────────────────────────────────────────────────────
 
-export class YoungsendProducer {
+export class Digital Lending OSProducer {
   private kafka: Kafka;
   private producer: Producer;
-  private config: Required<Pick<YoungsendProducerConfig, "brokers" | "clientId" | "serviceName" | "enableIdempotence">> & YoungsendProducerConfig;
+  private config: Required<Pick<Digital Lending OSProducerConfig, "brokers" | "clientId" | "serviceName" | "enableIdempotence">> & Digital Lending OSProducerConfig;
   private metrics: ProducerMetrics;
   private isShutdown = false;
   private connectPromise: Promise<void> | null = null;
 
-  constructor(config: YoungsendProducerConfig) {
+  constructor(config: Digital Lending OSProducerConfig) {
     this.config = {
       ...DEFAULT_CONFIG,
       ...config,
@@ -191,7 +191,7 @@ export class YoungsendProducer {
       await this.producer.disconnect();
     } catch (error) {
       // Swallow disconnect errors — we're shutting down
-      console.error("[YoungsendProducer] Error during disconnect:", error);
+      console.error("[Digital Lending OSProducer] Error during disconnect:", error);
     }
   }
 
@@ -266,7 +266,7 @@ export class YoungsendProducer {
       this.metrics.errors++;
       const err = error instanceof Error ? error : new Error(String(error));
       console.error(
-        `[YoungsendProducer] Produce error on topic=${topic} key=${keyBuffer}:`,
+        `[Digital Lending OSProducer] Produce error on topic=${topic} key=${keyBuffer}:`,
         err.message,
       );
       return {
@@ -378,7 +378,7 @@ export class YoungsendProducer {
         await txn.abort();
         this.metrics.transactionsAborted++;
       } catch (abortError) {
-        console.error("[YoungsendProducer] Transaction abort failed:", abortError);
+        console.error("[Digital Lending OSProducer] Transaction abort failed:", abortError);
       }
       throw error;
     }
@@ -462,7 +462,7 @@ export class YoungsendProducer {
    */
   async flush(): Promise<void> {
     const timeout = setTimeout(() => {
-      console.warn("[YoungsendProducer] Flush timed out after 10 seconds");
+      console.warn("[Digital Lending OSProducer] Flush timed out after 10 seconds");
     }, 10000);
 
     try {
@@ -525,17 +525,17 @@ export class YoungsendProducer {
 
 // ─── Singleton Factory ────────────────────────────────────────────────────────
 
-const producerInstances = new Map<string, YoungsendProducer>();
+const producerInstances = new Map<string, Digital Lending OSProducer>();
 
 /**
  * Get or create a singleton producer instance for a given service.
  * Reuses the same connection pool across the application lifecycle.
  */
-export function getProducer(config: YoungsendProducerConfig): YoungsendProducer {
+export function getProducer(config: Digital Lending OSProducerConfig): Digital Lending OSProducer {
   const key = `${config.clientId}:${config.brokers.join(",")}`;
   let instance = producerInstances.get(key);
   if (!instance) {
-    instance = new YoungsendProducer(config);
+    instance = new Digital Lending OSProducer(config);
     producerInstances.set(key, instance);
   }
   return instance;

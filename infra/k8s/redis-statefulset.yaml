@@ -1,13 +1,13 @@
-# Youngsend Redis 3-Replica StatefulSet with Sentinel
+# Digital Lending OS Redis 3-Replica StatefulSet with Sentinel
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: youngsend-redis-headless
-  namespace: youngsend-prod
+  name: digital-lending-os-redis-headless
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-redis
+    app.kubernetes.io/name: digital-lending-os-redis
 spec:
   clusterIP: None
   publishNotReadyAddresses: true
@@ -19,15 +19,15 @@ spec:
       port: 26379
       targetPort: sentinel
   selector:
-    app.kubernetes.io/name: youngsend-redis
+    app.kubernetes.io/name: digital-lending-os-redis
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: youngsend-redis
-  namespace: youngsend-prod
+  name: digital-lending-os-redis
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-redis
+    app.kubernetes.io/name: digital-lending-os-redis
 spec:
   type: ClusterIP
   ports:
@@ -35,26 +35,26 @@ spec:
       port: 6379
       targetPort: redis
   selector:
-    app.kubernetes.io/name: youngsend-redis
+    app.kubernetes.io/name: digital-lending-os-redis
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: youngsend-redis
-  namespace: youngsend-prod
+  name: digital-lending-os-redis
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-redis
+    app.kubernetes.io/name: digital-lending-os-redis
     app.kubernetes.io/component: cache
 spec:
-  serviceName: youngsend-redis-headless
+  serviceName: digital-lending-os-redis-headless
   replicas: 3
   selector:
     matchLabels:
-      app.kubernetes.io/name: youngsend-redis
+      app.kubernetes.io/name: digital-lending-os-redis
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: youngsend-redis
+        app.kubernetes.io/name: digital-lending-os-redis
         app.kubernetes.io/component: cache
       annotations:
         prometheus.io/scrape: "true"
@@ -70,7 +70,7 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchLabels:
-                  app.kubernetes.io/name: youngsend-redis
+                  app.kubernetes.io/name: digital-lending-os-redis
               topologyKey: kubernetes.io/hostname
       terminationGracePeriodSeconds: 30
       containers:
@@ -90,7 +90,7 @@ spec:
               if [ "$IDX" = "0" ]; then
                 sed -i "s/^# *replicaof.*/replicaof no one/" $REDIS_CONF
               else
-                sed -i "s/^# *replicaof.*/replicaof youngsend-redis-0.youngsend-redis-headless.youngsend-prod.svc.cluster.local 6379/" $REDIS_CONF
+                sed -i "s/^# *replicaof.*/replicaof digital-lending-os-redis-0.digital-lending-os-redis-headless.digital-lending-os-prod.svc.cluster.local 6379/" $REDIS_CONF
               fi
               exec redis-server $REDIS_CONF
           env:
@@ -138,12 +138,12 @@ spec:
             - |
               HOSTNAME=$(hostname)
               IDX=${HOSTNAME##*-}
-              sentinel monitor youngsend-master youngsend-redis-0.youngsend-redis-headless.youngsend-prod.svc.cluster.local 6379 2
-              sentinel down-after-milliseconds youngsend-master 5000
-              sentinel failover-timeout youngsend-master 10000
-              sentinel parallel-syncs youngsend-master 1
+              sentinel monitor digital-lending-os-master digital-lending-os-redis-0.digital-lending-os-redis-headless.digital-lending-os-prod.svc.cluster.local 6379 2
+              sentinel down-after-milliseconds digital-lending-os-master 5000
+              sentinel failover-timeout digital-lending-os-master 10000
+              sentinel parallel-syncs digital-lending-os-master 1
               sentinel resolve-hostnames no
-              sentinel announce-ip youngsend-redis-${IDX}.youngsend-redis-headless.youngsend-prod.svc.cluster.local
+              sentinel announce-ip digital-lending-os-redis-${IDX}.digital-lending-os-redis-headless.digital-lending-os-prod.svc.cluster.local
               sentinel announce-port 26379
               exec redis-sentinel /dev/stdin
           resources:
@@ -183,7 +183,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: redis-config
-  namespace: youngsend-prod
+  namespace: digital-lending-os-prod
 data:
   redis.conf: |
     bind 0.0.0.0

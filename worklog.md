@@ -55,33 +55,43 @@ Stage Summary:
 
 ---
 Task ID: 6
-Agent: reshape-backend-config
-Task: Rebrand backend, config, scripts from Youngsend to Digital Lending OS
+Agent: reshape-infra-docs
+Task: Rebrand all infrastructure, documentation, and monitoring files from Youngsend to Digital Lending OS
 
 Work Log:
-- Modified 60+ backend, config, and script files
-- Updated brand references in telemetry (service name, logger class, metrics prefixes, trace attributes)
-- Updated cache layer (key prefixes ys: → dlo:, rate limiter keys, README, all module headers)
-- Updated kafka (client ID, producer source)
-- Updated search (index comments, sync service docs)
-- Updated payment providers (Stripe, Intasend, Flutterwave display names and comments)
-- Updated notification delivery (email from/names)
-- Updated fraud evaluator, temporal workflows (task queue name, constant names)
-- Updated Docker Compose (container names, network, DB credentials)
-- Updated ecosystem.config.cjs (PM2 app names)
-- Updated all seed scripts (seed data names, emails, slugs, provider names)
-- Updated smoke tests, auth tests, migration scripts
-- Updated Prisma schemas (comments) and seed.ts
-- Fixed test files (telemetry.test.ts, bug-fixes.test.ts) for renamed classes
-- Preserved JWT token property name 'youngsend' to avoid breaking sessions
-- Preserved env var names (YOUNGSEND_*) to avoid breaking configs
+- Renamed Helm chart directory: infra/helm/youngsend → infra/helm/digital-lending-os (via git mv)
+- Rebranded all 15 Helm chart files (Chart.yaml, _helpers.tpl, 9 templates, 4 values files)
+- Rebranded 17 K8s manifest files (namespace, deployment, service, ingress, HPA, PDB, network policies, statefulsets)
+- Rebranded 4 Terraform files (main.tf, outputs.tf, variables.tf, tfvars.example)
+- Rebranded 5 monitoring files (2 Grafana dashboards renamed, OTEL config, alertmanager rules/config)
+- Renamed: youngsend-overview.json → digital-lending-os-overview.json (both monitoring and observability)
+- Renamed: youngsend.yml → digital-lending-os.yml (Prometheus alerts)
+- Rebranded observability stack (docker-compose, promtail, grafana dashboard)
+- Rebranded 7 Kafka infra files (consumer, producer, topics, schemas, consumer-groups, saga-orchestrator, README)
+- Rebranded 5 Cloudflare files (wrangler.toml, worker, page-shield, worker.ts, README)
+- Rebranded 5 Nginx files (docker-compose, nginx.conf, generate-ssl.sh, proxy-params.conf, security-headers.conf)
+- Rebranded 5 PostgreSQL infra files (README, 2 migrations, read-replica-router, connection-pool)
+- Rebranded OpenSearch (index-templates.json, README)
+- Rebranded OTEL collector config at infra/otel-collector-config.yaml
+- Rebranded deploy.sh script
+- Rebranded all 11 ADR documents (ADR-001 through ADR-012, skipping ADR-011)
+- Rebranded infra/ARCHITECTURE.md
+- Rebranded root README.md
+- Updated all domains from youngsend.space-z.ai/youngsend.com to digitallendingos.co.ke
+- Updated Terraform region from europe-west1 to africa-south1 (Kenya context)
+- Updated all metric names from youngsend_* to dlo_*
+- Updated all class names from YoungsendConsumer/YoungsendProducer to DLOConsumer/DLOProducer
+- Validated all JSON files (Grafana dashboards, OpenSearch templates)
 - Verified build passes (next build)
 - Verified all 1127 tests pass (27 test files)
-- Pushed and created PR #40
+- Created PR #41: https://github.com/Roy-Wanyoike/digital-lending-os/pull/41
 
 Stage Summary:
-- Branch: reshape/rebrand-backend-config
-- PR: #40 (open) https://github.com/Roy-Wanyoike/digital-lending-os/pull/40
+- Branch: reshape/rebrand-infra-docs
+- PR: #41 (open)
 - Build: passing
 - Tests: 1127/1127 passing
-- Files modified: 60+
+- Files modified: 281 (2525 insertions, 908 deletions)
+- 4 directories renamed via git mv
+- Zero Youngsend/YS references remain in infra/ directory (excluding package-lock.json)
+- Zero Youngsend/YS references remain in docs/adr/ directory

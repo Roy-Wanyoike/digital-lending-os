@@ -9,7 +9,7 @@
 
 ## Context
 
-Youngsend's escrow system protects trade between buyers and sellers by holding funds until delivery conditions are met. The system must:
+Digital Lending OS's escrow system protects trade between buyers and sellers by holding funds until delivery conditions are met. The system must:
 
 - Manage a multi-step escrow lifecycle with milestone-based fund release
 - Enforce strict tenant isolation — no cross-tenant data leakage

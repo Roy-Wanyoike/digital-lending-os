@@ -1,5 +1,5 @@
 /**
- * Youngsend Kafka Consumer Framework
+ * Digital Lending OS Kafka Consumer Framework
  *
  * Feature-rich consumer wrapper with:
  * - Graceful shutdown (SIGTERM, SIGINT, SIGQUIT handling)
@@ -22,8 +22,8 @@ import {
 import type { ConsumerGroupConfig, RetryStrategy } from "./consumer-groups";
 import { toKafkaConsumerConfig, computeRetryDelay, resolveDlqTopic } from "./consumer-groups";
 import type { BaseEvent } from "./event-schemas";
-import { AnyYoungsendEventSchema, parseEventByType } from "./event-schemas";
-import { YoungsendProducer, type ProduceResult } from "./producer";
+import { AnyDigital Lending OSEventSchema, parseEventByType } from "./event-schemas";
+import { Digital Lending OSProducer, type ProduceResult } from "./producer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,7 +59,7 @@ export interface ConsumerMetrics {
   uptimeMs: number;
 }
 
-export interface YoungsendConsumerConfig {
+export interface Digital Lending OSConsumerConfig {
   /** Kafka broker list */
   brokers: string[];
   /** The consumer group configuration (from consumer-groups.ts) */
@@ -82,7 +82,7 @@ export interface YoungsendConsumerConfig {
     key?: Buffer | string;
   };
   /** Producer instance for DLQ forwarding. If not provided, one will be created. */
-  producer?: YoungsendProducer;
+  producer?: Digital Lending OSProducer;
   /** Producer config for DLQ forwarding (used if producer is not provided) */
   producerConfig?: {
     serviceName: string;
@@ -167,11 +167,11 @@ interface RetryState {
 
 // ─── Consumer Class ────────────────────────────────────────────────────────────
 
-export class YoungsendConsumer {
+export class Digital Lending OSConsumer {
   private kafka: Kafka;
   private consumer: Consumer;
-  private config: YoungsendConsumerConfig;
-  private producer: YoungsendProducer;
+  private config: Digital Lending OSConsumerConfig;
+  private producer: Digital Lending OSProducer;
   private metrics: ConsumerMetrics;
   private idempotencyCache: IdempotencyCache;
   private retryStates: Map<string, RetryState>;
@@ -182,7 +182,7 @@ export class YoungsendConsumer {
   private currentHandler: MessageHandler | BatchHandler | null = null;
   private metricsInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(config: YoungsendConsumerConfig) {
+  constructor(config: Digital Lending OSConsumerConfig) {
     this.config = config;
     this.startedAt = Date.now();
     this.shutdownSignalHandlers = [];
@@ -228,7 +228,7 @@ export class YoungsendConsumer {
     // Producer for DLQ forwarding
     this.producer =
       config.producer ??
-      new YoungsendProducer({
+      new Digital Lending OSProducer({
         brokers: config.brokers,
         clientId: `${config.clientId}-dlq-producer`,
         serviceName: config.producerConfig?.serviceName ?? "dlq-forwarder",
@@ -316,7 +316,7 @@ export class YoungsendConsumer {
         ),
       ]);
     } catch (error) {
-      console.error("[YoungsendConsumer] Error stopping consumer:", error);
+      console.error("[Digital Lending OSConsumer] Error stopping consumer:", error);
     }
 
     // Commit final offsets if manual commit mode
@@ -326,7 +326,7 @@ export class YoungsendConsumer {
           this.consumer.groupMetadata().offsets(),
         );
       } catch (error) {
-        console.error("[YoungsendConsumer] Error committing final offsets:", error);
+        console.error("[Digital Lending OSConsumer] Error committing final offsets:", error);
       }
     }
 
@@ -334,21 +334,21 @@ export class YoungsendConsumer {
     try {
       await this.producer.flush();
     } catch (error) {
-      console.error("[YoungsendConsumer] Error flushing producer:", error);
+      console.error("[Digital Lending OSConsumer] Error flushing producer:", error);
     }
 
     // Disconnect
     try {
       await this.consumer.disconnect();
     } catch (error) {
-      console.error("[YoungsendConsumer] Error disconnecting consumer:", error);
+      console.error("[Digital Lending OSConsumer] Error disconnecting consumer:", error);
     }
 
     if (!this.config.producer) {
       try {
         await this.producer.disconnect();
       } catch (error) {
-        console.error("[YoungsendConsumer] Error disconnecting DLQ producer:", error);
+        console.error("[Digital Lending OSConsumer] Error disconnecting DLQ producer:", error);
       }
     }
 
@@ -362,7 +362,7 @@ export class YoungsendConsumer {
 
     this.emitMetrics();
     console.info(
-      `[YoungsendConsumer] Group=${this.config.groupConfig.groupId} stopped cleanly.`,
+      `[Digital Lending OSConsumer] Group=${this.config.groupConfig.groupId} stopped cleanly.`,
     );
   }
 
@@ -385,7 +385,7 @@ export class YoungsendConsumer {
       // Idempotency check
       if (this.idempotencyCache.checkAndMark(parsed.eventId)) {
         console.info(
-          `[YoungsendConsumer] Duplicate eventId=${parsed.eventId} skipped. topic=${topic} offset=${message.offset}`,
+          `[Digital Lending OSConsumer] Duplicate eventId=${parsed.eventId} skipped. topic=${topic} offset=${message.offset}`,
         );
         this.metrics.messagesSkipped++;
         await this.commitOffset(topic, partition, message.offset);
@@ -400,7 +400,7 @@ export class YoungsendConsumer {
       this.metrics.lastProcessedOffset = message.offset;
     } catch (error) {
       console.error(
-        `[YoungsendConsumer] Unhandled error on topic=${topic} partition=${partition} offset=${message.offset}:`,
+        `[Digital Lending OSConsumer] Unhandled error on topic=${topic} partition=${partition} offset=${message.offset}:`,
         error,
       );
       this.metrics.messagesErrored++;
@@ -460,7 +460,7 @@ export class YoungsendConsumer {
       }
     } catch (error) {
       console.error(
-        `[YoungsendConsumer] Batch processing error on topic=${topic} partition=${partition}:`,
+        `[Digital Lending OSConsumer] Batch processing error on topic=${topic} partition=${partition}:`,
         error,
       );
       // Forward entire batch to DLQ
@@ -512,7 +512,7 @@ export class YoungsendConsumer {
         // Check if we've exhausted retries
         if (retryState.attempt >= strategy.maxAttempts) {
           console.error(
-            `[YoungsendConsumer] Max retries (${strategy.maxAttempts}) exhausted for topic=${topic} offset=${metadata.offset}:`,
+            `[Digital Lending OSConsumer] Max retries (${strategy.maxAttempts}) exhausted for topic=${topic} offset=${metadata.offset}:`,
             err.message,
           );
           await this.forwardToDlq(topic, event, metadata, err, retryState.failureTimestamps);
@@ -523,7 +523,7 @@ export class YoungsendConsumer {
         // Wait before retry
         const delay = computeRetryDelay(retryState.attempt, strategy);
         console.warn(
-          `[YoungsendConsumer] Retry ${retryState.attempt}/${strategy.maxAttempts} for topic=${topic} offset=${metadata.offset} after ${delay}ms: ${err.message}`,
+          `[Digital Lending OSConsumer] Retry ${retryState.attempt}/${strategy.maxAttempts} for topic=${topic} offset=${metadata.offset} after ${delay}ms: ${err.message}`,
         );
         await this.sleep(delay);
       }
@@ -557,11 +557,11 @@ export class YoungsendConsumer {
       this.metrics.dlqForwarded++;
 
       console.info(
-        `[YoungsendConsumer] Forwarded to DLQ: topic=${dlqTopic} originalTopic=${sourceTopic} offset=${metadata.offset}`,
+        `[Digital Lending OSConsumer] Forwarded to DLQ: topic=${dlqTopic} originalTopic=${sourceTopic} offset=${metadata.offset}`,
       );
     } catch (dlqError) {
       console.error(
-        `[YoungsendConsumer] Failed to forward to DLQ:`,
+        `[Digital Lending OSConsumer] Failed to forward to DLQ:`,
         dlqError,
       );
     }
@@ -573,7 +573,7 @@ export class YoungsendConsumer {
     try {
       if (!message.value) {
         console.error(
-          `[YoungsendConsumer] Empty message value on topic=${message.topic} offset=${message.offset}`,
+          `[Digital Lending OSConsumer] Empty message value on topic=${message.topic} offset=${message.offset}`,
         );
         return null;
       }
@@ -583,7 +583,7 @@ export class YoungsendConsumer {
 
       if (!result.success) {
         console.error(
-          `[YoungsendConsumer] Schema validation failed on topic=${message.topic} offset=${message.offset}:`,
+          `[Digital Lending OSConsumer] Schema validation failed on topic=${message.topic} offset=${message.offset}:`,
           result.errors?.map((e) => e.message).join(", "),
         );
         return null;
@@ -592,7 +592,7 @@ export class YoungsendConsumer {
       return result.data;
     } catch (error) {
       console.error(
-        `[YoungsendConsumer] Deserialization error on topic=${message.topic} offset=${message.offset}:`,
+        `[Digital Lending OSConsumer] Deserialization error on topic=${message.topic} offset=${message.offset}:`,
         error,
       );
       return null;
@@ -608,7 +608,7 @@ export class YoungsendConsumer {
       await this.consumer.commitOffsets([{ topic, partition, offset }]);
     } catch (error) {
       console.error(
-        `[YoungsendConsumer] Failed to commit offset: topic=${topic} partition=${partition} offset=${offset}`,
+        `[Digital Lending OSConsumer] Failed to commit offset: topic=${topic} partition=${partition} offset=${offset}`,
         error,
       );
     }
@@ -676,7 +676,7 @@ export class YoungsendConsumer {
 
     // Structured log output
     console.info(
-      `[YoungsendConsumer:Metrics] group=${this.config.groupConfig.groupId} processed=${this.metrics.messagesProcessed} errored=${this.metrics.messagesErrored} dlq=${this.metrics.dlqForwarded} avgMs=${this.metrics.avgProcessingTimeMs.toFixed(2)}`,
+      `[Digital Lending OSConsumer:Metrics] group=${this.config.groupConfig.groupId} processed=${this.metrics.messagesProcessed} errored=${this.metrics.messagesErrored} dlq=${this.metrics.dlqForwarded} avgMs=${this.metrics.avgProcessingTimeMs.toFixed(2)}`,
     );
   }
 
@@ -692,7 +692,7 @@ export class YoungsendConsumer {
 
   private registerShutdownHandlers(): void {
     const handleShutdown = async (signal: string) => {
-      console.info(`[YoungsendConsumer] Received ${signal}. Initiating graceful shutdown...`);
+      console.info(`[Digital Lending OSConsumer] Received ${signal}. Initiating graceful shutdown...`);
       await this.stop();
       process.exit(0);
     };
@@ -726,21 +726,21 @@ export interface ConsumerFactoryOptions {
   brokers: string[];
   consumerConfig: ConsumerGroupConfig;
   clientId: string;
-  securityProtocol?: YoungsendConsumerConfig["securityProtocol"];
-  saslMechanism?: YoungsendConsumerConfig["saslMechanism"];
-  saslUsername?: YoungsendConsumerConfig["saslUsername"];
-  saslPassword?: YoungsendConsumerConfig["saslPassword"];
-  producer?: YoungsendProducer;
+  securityProtocol?: Digital Lending OSConsumerConfig["securityProtocol"];
+  saslMechanism?: Digital Lending OSConsumerConfig["saslMechanism"];
+  saslUsername?: Digital Lending OSConsumerConfig["saslUsername"];
+  saslPassword?: Digital Lending OSConsumerConfig["saslPassword"];
+  producer?: Digital Lending OSProducer;
   shutdownTimeoutMs?: number;
 }
 
 /**
- * Create a configured YoungsendConsumer ready for handler registration.
+ * Create a configured Digital Lending OSConsumer ready for handler registration.
  */
 export function createConsumer(
   options: ConsumerFactoryOptions,
-): YoungsendConsumer {
-  return new YoungsendConsumer({
+): Digital Lending OSConsumer {
+  return new Digital Lending OSConsumer({
     brokers: options.brokers,
     groupConfig: options.consumerConfig,
     clientId: options.clientId,

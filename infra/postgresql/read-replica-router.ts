@@ -1,5 +1,5 @@
 /**
- * Youngsend PostgreSQL Read/Write Splitting Router
+ * Digital Lending OS PostgreSQL Read/Write Splitting Router
  *
  * Provides getReadClient() for read-replica queries and getWriteClient() for primary queries.
  * Auto-failover: if the replica is unhealthy or lagged, reads fall back to the primary.

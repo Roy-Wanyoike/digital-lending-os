@@ -1,7 +1,7 @@
 {
   "uid": "payments-overview",
-  "title": "Youngsend Payments Dashboard",
-  "tags": ["youngsend", "payments"],
+  "title": "Digital Lending OS Payments Dashboard",
+  "tags": ["digital-lending-os", "payments"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -37,7 +37,7 @@
         "label": "Provider",
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
         "refresh": 2,
-        "query": "label_values(youngsend_payment_total, provider)",
+        "query": "label_values(dlo_payment_total, provider)",
         "includeAll": true,
         "allValue": ".*",
         "current": { "selected": false, "text": "All", "value": "$__all" },
@@ -50,7 +50,7 @@
         "label": "Currency",
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
         "refresh": 2,
-        "query": "label_values(youngsend_payment_total, currency)",
+        "query": "label_values(dlo_payment_total, currency)",
         "includeAll": true,
         "allValue": ".*",
         "current": { "selected": false, "text": "All", "value": "$__all" },
@@ -68,7 +68,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(increase(youngsend_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\", currency=~\"$currency\"}[$__rate_interval])) by (provider)",
+          "expr": "sum(increase(dlo_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\", currency=~\"$currency\"}[$__rate_interval])) by (provider)",
           "legendFormat": "{{provider}}",
           "refId": "A"
         }
@@ -99,7 +99,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(increase(youngsend_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\"}[$__rate_interval])) by (currency)",
+          "expr": "sum(increase(dlo_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\"}[$__rate_interval])) by (currency)",
           "legendFormat": "{{currency}}",
           "refId": "A"
         }
@@ -124,7 +124,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(increase(youngsend_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\", currency=~\"$currency\"}[$__rate_interval]))",
+          "expr": "sum(increase(dlo_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\", currency=~\"$currency\"}[$__rate_interval]))",
           "legendFormat": "Total",
           "refId": "A"
         }
@@ -156,19 +156,19 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(youngsend_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\", status=\"success\"}[$__rate_interval]))",
+          "expr": "sum(rate(dlo_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\", status=\"success\"}[$__rate_interval]))",
           "legendFormat": "Success",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(youngsend_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\", status=\"failed\"}[$__rate_interval]))",
+          "expr": "sum(rate(dlo_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\", status=\"failed\"}[$__rate_interval]))",
           "legendFormat": "Failed",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(youngsend_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\", status=\"pending\"}[$__rate_interval]))",
+          "expr": "sum(rate(dlo_payment_total{deployment_environment=~\"$environment\", provider=~\"$provider\", status=\"pending\"}[$__rate_interval]))",
           "legendFormat": "Pending",
           "refId": "C"
         }
@@ -213,7 +213,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(youngsend_payment_total{deployment_environment=~\"$environment\", status=\"failed\"}[$__rate_interval])) by (provider) / sum(rate(youngsend_payment_total{deployment_environment=~\"$environment\"}[$__rate_interval])) by (provider) * 100",
+          "expr": "sum(rate(dlo_payment_total{deployment_environment=~\"$environment\", status=\"failed\"}[$__rate_interval])) by (provider) / sum(rate(dlo_payment_total{deployment_environment=~\"$environment\"}[$__rate_interval])) by (provider) * 100",
           "legendFormat": "{{provider}}",
           "refId": "A"
         }
@@ -254,7 +254,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(increase(youngsend_payment_amount_bucket{deployment_environment=~\"$environment\", provider=~\"$provider\", currency=~\"$currency\"}[$__rate_interval])) by (le)",
+          "expr": "sum(increase(dlo_payment_amount_bucket{deployment_environment=~\"$environment\", provider=~\"$provider\", currency=~\"$currency\"}[$__rate_interval])) by (le)",
           "legendFormat": "{{le}}",
           "refId": "A",
           "format": "heatmap",
@@ -284,7 +284,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(youngsend_payment_amount_sum{deployment_environment=~\"$environment\", provider=~\"$provider\"}[$__rate_interval])) by (provider) / sum(rate(youngsend_payment_amount_count{deployment_environment=~\"$environment\", provider=~\"$provider\"}[$__rate_interval])) by (provider)",
+          "expr": "sum(rate(dlo_payment_amount_sum{deployment_environment=~\"$environment\", provider=~\"$provider\"}[$__rate_interval])) by (provider) / sum(rate(dlo_payment_amount_count{deployment_environment=~\"$environment\", provider=~\"$provider\"}[$__rate_interval])) by (provider)",
           "legendFormat": "{{provider}}",
           "refId": "A"
         }
@@ -318,13 +318,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(increase(youngsend_fraud_alerts{deployment_environment=~\"$environment\"}[$__rate_interval])) by (severity)",
+          "expr": "sum(increase(dlo_fraud_alerts{deployment_environment=~\"$environment\"}[$__rate_interval])) by (severity)",
           "legendFormat": "{{severity}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(increase(youngsend_fraud_alerts{deployment_environment=~\"$environment\"}[$__rate_interval])) by (type)",
+          "expr": "sum(increase(dlo_fraud_alerts{deployment_environment=~\"$environment\"}[$__rate_interval])) by (type)",
           "legendFormat": "type: {{type}}",
           "refId": "B"
         }
@@ -372,19 +372,19 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.50, sum(rate(youngsend_request_duration_bucket{deployment_environment=~\"$environment\", route=~\"/api/pay.*\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(dlo_request_duration_bucket{deployment_environment=~\"$environment\", route=~\"/api/pay.*\"}[$__rate_interval])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.95, sum(rate(youngsend_request_duration_bucket{deployment_environment=~\"$environment\", route=~\"/api/pay.*\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(dlo_request_duration_bucket{deployment_environment=~\"$environment\", route=~\"/api/pay.*\"}[$__rate_interval])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.99, sum(rate(youngsend_request_duration_bucket{deployment_environment=~\"$environment\", route=~\"/api/pay.*\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(dlo_request_duration_bucket{deployment_environment=~\"$environment\", route=~\"/api/pay.*\"}[$__rate_interval])) by (le))",
           "legendFormat": "p99",
           "refId": "C"
         }

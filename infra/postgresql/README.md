@@ -1,8 +1,8 @@
-# Youngsend PostgreSQL Migration Infrastructure
+# Digital Lending OS PostgreSQL Migration Infrastructure
 
 ## Overview
 
-This document describes the PostgreSQL database architecture for Youngsend, a multi-tenant B2B escrow and payment platform designed to scale to **100M+ users**. The architecture covers primary/replica topologies, connection pooling via PgBouncer, WAL-based streaming replication, Point-in-Time Recovery (PITR), and index optimization strategies.
+This document describes the PostgreSQL database architecture for Digital Lending OS, a multi-tenant B2B escrow and payment platform designed to scale to **100M+ users**. The architecture covers primary/replica topologies, connection pooling via PgBouncer, WAL-based streaming replication, Point-in-Time Recovery (PITR), and index optimization strategies.
 
 ---
 
@@ -108,8 +108,8 @@ pool_size = (64 * 2) + 32 = 160 connections
 
 ```ini
 [databases]
-youngsend_primary = host=primary.internal port=5432 dbname=youngsend
-youngsend_read    = host=replica.internal port=5432 dbname=youngsend
+digital-lending-os_primary = host=primary.internal port=5432 dbname=digital-lending-os
+digital-lending-os-read    = host=replica.internal port=5432 dbname=digital-lending-os
 
 [pgbouncer]
 listen_addr = 0.0.0.0
@@ -220,7 +220,7 @@ Schedule:
 ```ini
 # postgresql.conf
 archive_mode = on
-archive_command = 'aws s3 cp %p s3://youngsend-backups/wal-archive/%f'
+archive_command = 'aws s3 cp %p s3://digital-lending-os-backups/wal-archive/%f'
 archive_timeout = 300    # Force archive every 5 min even if WAL not full
 ```
 
@@ -228,7 +228,7 @@ archive_timeout = 300    # Force archive every 5 min even if WAL not full
 
 ```bash
 #!/bin/bash
-# /etc/cron.daily/youngsend-pg-backup
+# /etc/cron.daily/digital-lending-os-pg-backup
 BACKUP_DIR="/backups/base/$(date +%Y-%m-%d)"
 pg_basebackup \
   -h localhost -U backup_user -D "$BACKUP_DIR" \
@@ -237,7 +237,7 @@ pg_basebackup \
   --label="daily_$(date +%Y%m%d)"
 
 # Upload to S3
-aws s3 sync "$BACKUP_DIR" "s3://youngsend-backups/base/$BACKUP_DIR/"
+aws s3 sync "$BACKUP_DIR" "s3://digital-lending-os-backups/base/$BACKUP_DIR/"
 
 # Retention: keep last 30 daily, 12 monthly
 find /backups/base/ -maxdepth 1 -mtime +30 -exec rm -rf {} \;
@@ -247,7 +247,7 @@ find /backups/base/ -maxdepth 1 -mtime +30 -exec rm -rf {} \;
 
 ```bash
 # Restore to specific timestamp
-restore_command = 'aws s3 cp s3://youngsend-backups/wal-archive/%f %p'
+restore_command = 'aws s3 cp s3://digital-lending-os-backups/wal-archive/%f %p'
 recovery_target_time = '2025-01-15 14:30:00 UTC'
 recovery_target_action = 'pause'  # Inspect before promoting
 ```

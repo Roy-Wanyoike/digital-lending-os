@@ -1,0 +1,154 @@
+# Default values for digital-lending-os.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/roy-wanyoike/digital-lending-os
+  pullPolicy: IfNotPresent
+  tag: latest
+
+# Internal container port (Next.js default)
+containerPort: 3000
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: false
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "3000"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: digitallendingos.co.ke
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: digital-lending-os-tls
+  #    hosts:
+  #      - digitallendingos.co.ke
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilization: 70
+  targetMemoryUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+      selectPolicy: Min
+
+# Application configuration (non-sensitive)
+config:
+  DB_PROVIDER: postgresql
+  NODE_ENV: production
+  NEXT_TELEMETRY_DISABLED: "1"
+  HOSTNAME: "0.0.0.0"
+  PORT: "3000"
+  REDIS_URL: redis://redis:6379/0
+  KAFKA_BROKERS: kafka:9092
+  OPENSEARCH_URL: https://opensearch:9200
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_SERVICE_NAME: digital-lending-os-api
+
+# Secrets (sensitive — populated per-environment)
+secrets: {}
+# Example:
+#  DATABASE_POSTGRESQL_URL: postgresql://user:pass@postgres:5432/digital_lending_os
+#  NEXTAUTH_SECRET: your-nextauth-secret
+#  OPENSEARCH_USERNAME: admin
+#  OPENSEARCH_PASSWORD: your-opensearch-password
+
+healthcheck:
+  livenessInitialDelay: 15
+  readinessInitialDelay: 5
+  livenessPath: /api/health
+  readinessPath: /api/health
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: true
+  # Strict mode: deny all by default, only allow explicit rules
+  strict: false
+
+# Additional environment variables from existing configmap/secret refs
+extraEnvFrom: []
+# - configMapRef:
+#     name: extra-config
+# - secretRef:
+#     name: extra-secret
+
+extraVolumes: []
+extraVolumeMounts: []

@@ -1,19 +1,19 @@
-# Youngsend Next.js HorizontalPodAutoscaler
+# Digital Lending OS Next.js HorizontalPodAutoscaler
 # Dual-metric: CPU + Memory, plus custom requests_per_second
 
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: youngsend-nextjs-hpa
-  namespace: youngsend-prod
+  name: digital-lending-os-nextjs-hpa
+  namespace: digital-lending-os-prod
   labels:
-    app.kubernetes.io/name: youngsend-nextjs
+    app.kubernetes.io/name: digital-lending-os-nextjs
     app.kubernetes.io/component: autoscaling
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: youngsend-nextjs
+    name: digital-lending-os-nextjs
   minReplicas: 3
   maxReplicas: 100
   metrics:
@@ -35,7 +35,7 @@ spec:
           name: requests_per_second
           selector:
             matchLabels:
-              app.kubernetes.io/name: youngsend-nextjs
+              app.kubernetes.io/name: digital-lending-os-nextjs
         target:
           type: AverageValue
           averageValue: "1000"

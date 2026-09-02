@@ -6,7 +6,7 @@
 
 ## Context
 
-Youngsend's landing page was entirely a `'use client'` component, shipping the full
+Digital Lending OS's landing page was entirely a `'use client'` component, shipping the full
 React runtime + `next-auth` + `lucide-react` + `radix` UI primitives for what is
 essentially static HTML with two `signIn()` buttons. API routes lacked
 request-level observability — no `x-request-id` tracing, no structured timing logs,
