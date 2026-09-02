@@ -126,10 +126,10 @@ async function simulatePaymentFlow(
 ) {
   const idempotencyKey = `paykey_${paymentId}`
 
-  const existing = guard.getCachedResponse(idempotencyKey)
+  const existing = await guard.getCachedResponse(idempotencyKey)
   if (existing) return { idempotent: true, existing }
 
-  const acquireResult = guard.acquire(idempotencyKey)
+  const acquireResult = await guard.acquire(idempotencyKey)
   if (!acquireResult.acquired) {
     if (acquireResult.alreadyProcessing) throw new Error('Payment already being processed')
     return { idempotent: true, existing: acquireResult.completedResponse }
@@ -155,10 +155,10 @@ async function simulatePaymentFlow(
     })
 
     const result = { paymentId, status: 'COMPLETED' as const, amount, fee, netAmount, ledgerEntries: ledgerResult.entries.length }
-    guard.complete(idempotencyKey, result, 201)
+    await guard.complete(idempotencyKey, result, 201)
     return { idempotent: false, result }
   } catch (error) {
-    guard.fail(idempotencyKey)
+    await guard.fail(idempotencyKey)
     throw error
   }
 }

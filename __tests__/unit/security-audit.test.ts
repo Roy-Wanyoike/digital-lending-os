@@ -784,18 +784,18 @@ describe('8. Idempotency', () => {
       guard.destroy()
     })
 
-    it('second acquire with same key returns already-processed response', () => {
-      guard.acquire('test-key-1')
-      guard.complete('test-key-1', { status: 'ok' }, 200)
-      const second = guard.acquire('test-key-1')
+    it('second acquire with same key returns already-processed response', async () => {
+      await guard.acquire('test-key-1')
+      await guard.complete('test-key-1', { status: 'ok' }, 200)
+      const second = await guard.acquire('test-key-1')
       expect(second.acquired).toBe(false)
       expect(second.completedResponse).toBeDefined()
       expect(second.completedResponse!.status).toBe('completed')
     })
 
-    it('prevents double processing (in-flight dedup)', () => {
-      guard.acquire('test-key-2')
-      const second = guard.acquire('test-key-2')
+    it('prevents double processing (in-flight dedup)', async () => {
+      await guard.acquire('test-key-2')
+      const second = await guard.acquire('test-key-2')
       expect(second.acquired).toBe(false)
       expect(second.alreadyProcessing).toBe(true)
     })

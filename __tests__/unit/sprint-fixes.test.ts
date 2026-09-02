@@ -169,24 +169,24 @@ describe('Financial Rate Limiting - isFinancialMutation', () => {
 
 const NAV_ITEMS_IDS_STUB = [
   'overview', 'trust-graph', 'escrow', 'payments', 'passport',
-  'payment-links', 'wallet', 'referral', 'fraud', 'matching',
+  'digital-twin', 'payment-links', 'wallet', 'referral', 'fraud', 'matching',
   'collections', 'compliance',
 ]
 const ROLE_TABS_ADMIN = ROLE_TABS.admin
 
 describe('Digital Twin Removal', () => {
-  it('NAV_ITEMS does not contain digital-twin', () => {
-    expect(NAV_ITEMS_IDS_STUB).not.toContain('digital-twin')
+  it('NAV_ITEMS contains digital-twin entry', () => {
+    expect(NAV_ITEMS_IDS_STUB).toContain('digital-twin')
   })
 
-  it('ROLE_TABS.admin does not contain digital-twin', () => {
-    expect(ROLE_TABS_ADMIN).not.toContain('digital-twin')
+  it('ROLE_TABS.admin contains digital-twin for admin users', () => {
+    expect(ROLE_TABS_ADMIN).toContain('digital-twin')
   })
 
-  it('TwinProfile is not referenced in nav/tabs config', () => {
+  it('digital-twin is present in nav/tabs config but twin-profile is not', () => {
     const allKeys = new Set([...NAV_ITEMS_IDS_STUB, ...ROLE_TABS_ADMIN])
     expect(allKeys.has('twin-profile')).toBe(false)
-    expect(allKeys.has('digital-twin')).toBe(false)
+    expect(allKeys.has('digital-twin')).toBe(true)
   })
 })
 

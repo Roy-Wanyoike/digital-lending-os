@@ -18,18 +18,18 @@ describe('IdempotencyGuard', () => {
 
   // ── 1. Acquire / complete / release cycle ─────────────────────────
   describe('acquire/complete/release cycle', () => {
-    it('acquire returns acquired=true on first call', () => {
-      const result = guard.acquire('key-1')
+    it('acquire returns acquired=true on first call', async () => {
+      const result = await guard.acquire('key-1')
       expect(result.acquired).toBe(true)
       expect(result.alreadyProcessing).toBe(false)
       expect(result.completedResponse).toBeUndefined()
     })
 
-    it('complete stores the response', () => {
-      guard.acquire('key-2')
-      guard.complete('key-2', { success: true, id: 'abc' }, 201, { 'X-Custom': 'yes' })
+    it('complete stores the response', async () => {
+      await guard.acquire('key-2')
+      await guard.complete('key-2', { success: true, id: 'abc' }, 201, { 'X-Custom': 'yes' })
 
-      const cached = guard.getCachedResponse('key-2')
+      const cached = await guard.getCachedResponse('key-2')
       expect(cached).toBeDefined()
       expect(cached!.status).toBe('completed')
       expect(cached!.response).toEqual({ success: true, id: 'abc' })
@@ -37,64 +37,64 @@ describe('IdempotencyGuard', () => {
       expect(cached!.responseHeaders).toEqual({ 'X-Custom': 'yes' })
     })
 
-    it('release removes the entry', () => {
-      guard.acquire('key-3')
-      expect(guard.isProcessing('key-3')).toBe(true)
-      guard.release('key-3')
-      expect(guard.isProcessing('key-3')).toBe(false)
+    it('release removes the entry', async () => {
+      await guard.acquire('key-3')
+      expect(await guard.isProcessing('key-3')).toBe(true)
+      await guard.release('key-3')
+      expect(await guard.isProcessing('key-3')).toBe(false)
       expect(guard.size).toBe(0)
     })
 
-    it('complete on non-existent key is a no-op', () => {
-      expect(() => guard.complete('no-such', {})).not.toThrow()
+    it('complete on non-existent key is a no-op', async () => {
+      await expect(guard.complete('no-such', {})).resolves.toBeUndefined()
     })
   })
 
   // ── 2. Duplicate key returns cached response ───────────────────────
   describe('duplicate key returns cached response', () => {
-    it('returns completed response on second acquire', () => {
-      guard.acquire('key-dup')
-      guard.complete('key-dup', { amount: 500 }, 200)
+    it('returns completed response on second acquire', async () => {
+      await guard.acquire('key-dup')
+      await guard.complete('key-dup', { amount: 500 }, 200)
 
-      const second = guard.acquire('key-dup')
+      const second = await guard.acquire('key-dup')
       expect(second.acquired).toBe(false)
       expect(second.alreadyProcessing).toBe(false)
       expect(second.completedResponse).toBeDefined()
       expect(second.completedResponse!.response).toEqual({ amount: 500 })
     })
 
-    it('getCachedResponse returns undefined for processing entries', () => {
-      guard.acquire('key-proc')
-      const cached = guard.getCachedResponse('key-proc')
+    it('getCachedResponse returns undefined for processing entries', async () => {
+      await guard.acquire('key-proc')
+      const cached = await guard.getCachedResponse('key-proc')
       expect(cached).toBeUndefined()
     })
 
-    it('getCachedResponse returns the response for completed entries', () => {
-      guard.acquire('key-done')
-      guard.complete('key-done', { data: 'hello' })
-      const cached = guard.getCachedResponse<{ data: string }>('key-done')
+    it('getCachedResponse returns the response for completed entries', async () => {
+      await guard.acquire('key-done')
+      await guard.complete('key-done', { data: 'hello' })
+      const cached = await guard.getCachedResponse<{ data: string }>('key-done')
       expect(cached!.response.data).toBe('hello')
     })
   })
 
   // ── 3. Concurrent same key returns 409 (already processing) ───────
   describe('concurrent same key returns alreadyProcessing', () => {
-    it('second acquire while processing returns alreadyProcessing=true', () => {
-      const first = guard.acquire('key-conc')
+    it('second acquire while processing returns alreadyProcessing=true', async () => {
+      const first = await guard.acquire('key-conc')
       expect(first.acquired).toBe(true)
 
-      const second = guard.acquire('key-conc')
+      const second = await guard.acquire('key-conc')
       expect(second.acquired).toBe(false)
       expect(second.alreadyProcessing).toBe(true)
       expect(second.completedResponse).toBeUndefined()
     })
 
-    it('isProcessing returns true while in processing state', () => {
-      guard.acquire('key-isproc')
-      expect(guard.isProcessing('key-isproc')).toBe(true)
+    it('isProcessing returns true while in processing state', async () => {
+      await guard.acquire('key-isproc')
+      expect(await guard.isProcessing('key-isproc')).toBe(true)
 
-      guard.complete('key-isproc', {})
-      expect(guard.isProcessing('key-isproc')).toBe(false)
+      await guard.complete('key-isproc', {})
+      expect(await guard.isProcessing('key-isproc')).toBe(false)
     })
   })
 
@@ -102,72 +102,72 @@ describe('IdempotencyGuard', () => {
   describe('expired entries allow re-acquisition', () => {
     it('expired processing entry can be re-acquired', async () => {
       // Use very short TTL
-      guard.acquire('key-exp', 1) // 1ms TTL
+      await guard.acquire('key-exp', 1) // 1ms TTL
 
       // Wait for expiry
       await new Promise((r) => setTimeout(r, 10))
 
       // Should be able to acquire again
-      const result = guard.acquire('key-exp', 5000)
+      const result = await guard.acquire('key-exp', 5000)
       expect(result.acquired).toBe(true)
     })
 
     it('expired completed entry can be re-acquired', async () => {
-      guard.acquire('key-exp-done', 1)
-      guard.complete('key-exp-done', { old: true })
+      await guard.acquire('key-exp-done', 1)
+      await guard.complete('key-exp-done', { old: true })
 
       await new Promise((r) => setTimeout(r, 10))
 
-      const result = guard.acquire('key-exp-done', 5000)
+      const result = await guard.acquire('key-exp-done', 5000)
       expect(result.acquired).toBe(true)
       expect(result.completedResponse).toBeUndefined()
     })
 
     it('getCachedResponse returns undefined for expired entries', async () => {
-      guard.acquire('key-exp-cache', 1)
-      guard.complete('key-exp-cache', { data: 1 })
+      await guard.acquire('key-exp-cache', 1)
+      await guard.complete('key-exp-cache', { data: 1 })
 
       await new Promise((r) => setTimeout(r, 10))
 
-      const cached = guard.getCachedResponse('key-exp-cache')
+      const cached = await guard.getCachedResponse('key-exp-cache')
       expect(cached).toBeUndefined()
     })
 
     it('isProcessing returns false for expired processing entries', async () => {
-      guard.acquire('key-exp-proc', 1)
+      await guard.acquire('key-exp-proc', 1)
 
       await new Promise((r) => setTimeout(r, 10))
 
-      expect(guard.isProcessing('key-exp-proc')).toBe(false)
+      expect(await guard.isProcessing('key-exp-proc')).toBe(false)
     })
   })
 
   // ── 5. Failed entries have short TTL (30s) ───────────────────────
   describe('failed entries', () => {
-    it('fail sets status to failed', () => {
-      guard.acquire('key-fail')
-      guard.fail('key-fail')
+    it('fail sets status to failed', async () => {
+      await guard.acquire('key-fail')
+      await guard.fail('key-fail')
 
       // After fail, should NOT be processing
-      expect(guard.isProcessing('key-fail')).toBe(false)
+      expect(await guard.isProcessing('key-fail')).toBe(false)
       // Should still have an entry (not deleted)
       expect(guard.size).toBe(1)
     })
 
-    it('failed entry can be re-acquired (returns completed with failed status)', () => {
-      guard.acquire('key-fail-retry')
-      guard.fail('key-fail-retry')
+    it('failed entry can be re-acquired (returns completed with failed status)', async () => {
+      await guard.acquire('key-fail-retry')
+      await guard.fail('key-fail-retry')
 
       // Failed entries are returned as completed responses with status 'failed'
-      const result = guard.acquire('key-fail-retry')
+      const result = await guard.acquire('key-fail-retry')
       expect(result.acquired).toBe(false)
       expect(result.alreadyProcessing).toBe(false)
       expect(result.completedResponse).toBeDefined()
       expect(result.completedResponse!.status).toBe('failed')
     })
 
-    it('fail on non-existent key is a no-op', () => {
-      expect(() => guard.fail('no-such')).not.toThrow()
+    it('fail on non-existent key is a no-op', async () => {
+      await expect(guard.fail('no-such')).resolves.toBeUndefined()
     })
   })
 
@@ -211,10 +211,6 @@ describe('IdempotencyGuard', () => {
     it('static helpers produce well-formed keys', () => {
       const payKey = IdempotencyGuard.paymentKey('pay-123')
       expect(payKey).toBe('idempotency:pay-123')
-      // Note: the colon in the static key means it won't pass validateKey,
-      // which only allows [a-zA-Z0-9_-]. This is by design — validateKey
-      // is for user-supplied Idempotency-Key headers, while static helpers
-      // produce internal keys used programmatically.
       expect(payKey).toContain('pay-123')
 
       const txnKey = IdempotencyGuard.transitionKey('pay-123', 'COMPLETED')
@@ -276,7 +272,7 @@ describe('IdempotencyGuard', () => {
       // Very short cleanup interval
       const testGuard = new IdempotencyGuard(1, 50) // 1ms TTL, 50ms cleanup
 
-      testGuard.acquire('cleanup-key')
+      await testGuard.acquire('cleanup-key')
       expect(testGuard.size).toBe(1)
 
       // Wait for cleanup to run (at least 2x the interval)
@@ -289,8 +285,8 @@ describe('IdempotencyGuard', () => {
     it('does not purge non-expired entries', async () => {
       const testGuard = new IdempotencyGuard(10000, 50) // 10s TTL, 50ms cleanup
 
-      testGuard.acquire('long-lived')
-      testGuard.complete('long-lived', { data: 1 })
+      await testGuard.acquire('long-lived')
+      await testGuard.complete('long-lived', { data: 1 })
 
       await new Promise((r) => setTimeout(r, 150))
 
@@ -298,10 +294,10 @@ describe('IdempotencyGuard', () => {
       testGuard.destroy()
     })
 
-    it('clear() removes all entries immediately', () => {
-      guard.acquire('key-c1')
-      guard.acquire('key-c2')
-      guard.complete('key-c1', {})
+    it('clear() removes all entries immediately', async () => {
+      await guard.acquire('key-c1')
+      await guard.acquire('key-c2')
+      await guard.complete('key-c1', {})
       expect(guard.size).toBe(2)
 
       guard.clear()

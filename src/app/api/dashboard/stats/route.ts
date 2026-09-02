@@ -42,7 +42,7 @@ async function getHandler(request: NextRequest) {
 
     // Second-level: Redis-backed cache (30s TTL) with singleflight stampede protection
     const data = cacheManager
-      ? await cacheManager.getOrSet(`dashboard:stats:${user.tenantId}`, fetchStats, { ttl: 30_000 })
+      ? await cacheManager.getOrSet(`dashboard:stats:${user.tenantId}`, fetchStats as unknown as () => Promise<import('@/backend/lib/cache/cache-manager').Cacheable>, { ttl: 30_000 })
       : await fetchStats();
 
     // Populate first-level cache for subsequent requests within 2s

@@ -100,7 +100,7 @@ async function postHandler(request: NextRequest) {
     }
 
     // Atomically create the review and update trust score in a single transaction
-    const review = await db.$transaction(async (tx) => {
+    const review = await db.$transaction(async (tx: import('@prisma/client').Prisma.TransactionClient) => {
       const createdReview = await tx.review.create({
         data: {
           fromBusinessId,
