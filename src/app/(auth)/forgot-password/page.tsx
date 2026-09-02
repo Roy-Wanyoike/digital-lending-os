@@ -189,9 +189,9 @@ export default function ForgotPasswordPage() {
       </Suspense>
       <p className="mt-8 text-xs text-muted-foreground">
         Need help?{' '}
-        <Link href="/support" prefetch={false} className="underline hover:text-foreground transition-colors">
+        <a href="mailto:support@youngsend.com" className="underline hover:text-foreground transition-colors">
           Contact support
-        </Link>
+        </a>
       </p>
     </div>
   )
