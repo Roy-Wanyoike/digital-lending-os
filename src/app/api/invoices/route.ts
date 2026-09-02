@@ -80,8 +80,7 @@ async function postHandler(req: NextRequest) {
   });
   if (!business) return forbidden('Business not found or not in your tenant');
 
-  const count = await db.invoice.count();
-  const invoiceRef = `INV-${String(count + 1).padStart(6, '0')}`;
+  const invoiceRef = `INV-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
   const invoice = await db.invoice.create({
     data: {
