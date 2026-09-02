@@ -3,9 +3,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useApi } from '@/hooks/use-api'
+import { LoadingSkeleton, ErrorState } from '@/frontend/components/dashboard/dashboard-components'
 import {
-  useApi, getStatusBadgeVariant, getStatusColor, getRiskBg, getRiskColor,
-  truncate, FRAUD_SEVERITIES, FRAUD_STATUSES, PipelineCard, LoadingSkeleton, ErrorState, formatDate,
+  getStatusBadgeVariant, getStatusColor, getRiskBg, getRiskColor,
+  truncate, FRAUD_SEVERITIES, FRAUD_STATUSES, PipelineCard, formatDate,
   type FraudAlert, type FraudRule, type Business,
 } from '@/lib/dashboard-helpers'
 

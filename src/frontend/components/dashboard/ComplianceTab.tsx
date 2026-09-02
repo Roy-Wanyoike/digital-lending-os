@@ -4,9 +4,11 @@ import { Scale, Search, AlertTriangle, ShieldAlert } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useApi } from '@/hooks/use-api'
+import { KPICard, LoadingSkeleton, ErrorState } from '@/frontend/components/dashboard/dashboard-components'
 import {
-  useApi, formatDate, getStatusBadgeVariant, getStatusColor,
-  KPICard, LoadingSkeleton, ErrorState, type ComplianceRule, type Screening,
+  formatDate, getStatusBadgeVariant, getStatusColor,
+  type ComplianceRule, type Screening,
 } from '@/lib/dashboard-helpers'
 
 export function ComplianceTab() {

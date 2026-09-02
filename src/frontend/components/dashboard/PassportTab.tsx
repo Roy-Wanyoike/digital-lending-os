@@ -5,9 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useApi } from '@/hooks/use-api'
+import { KPICard, LoadingSkeleton, ErrorState } from '@/frontend/components/dashboard/dashboard-components'
 import {
-  useApi, getCountryFlag, formatDate, getStatusBadgeVariant, getStatusColor,
-  KPICard, LoadingSkeleton, ErrorState, type Business, type Verification,
+  getCountryFlag, formatDate, getStatusBadgeVariant, getStatusColor,
+  type Business, type Verification,
 } from '@/lib/dashboard-helpers'
 
 export function PassportTab() {

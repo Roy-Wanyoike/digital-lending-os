@@ -7,10 +7,11 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useApi } from '@/hooks/use-api'
+import { LoadingSkeleton, ErrorState } from '@/frontend/components/dashboard/dashboard-components'
 import {
   formatCurrency, getStatusBadgeVariant, getStatusColor,
   getTrustScoreBg, getTrustScoreColor, CURRENCY_FLAGS, PAYMENT_METHOD_TYPES,
-  LoadingSkeleton, ErrorState, type PaymentIntent, type ExchangeRate, type PaymentMethod,
+  type PaymentIntent, type ExchangeRate, type PaymentMethod,
 } from '@/lib/dashboard-helpers'
 
 export function PaymentsTab() {

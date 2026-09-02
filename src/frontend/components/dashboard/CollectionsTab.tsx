@@ -3,9 +3,11 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useApi } from '@/hooks/use-api'
+import { LoadingSkeleton, ErrorState } from '@/frontend/components/dashboard/dashboard-components'
 import {
-  useApi, formatCurrency, formatDate, getStatusBadgeVariant, getStatusColor,
-  truncate, AGING_BUCKETS, PRIORITY_LEVELS, PipelineCard, LoadingSkeleton, ErrorState,
+  formatCurrency, formatDate, getStatusBadgeVariant, getStatusColor,
+  truncate, AGING_BUCKETS, PRIORITY_LEVELS, PipelineCard,
   type CollectionRecord,
 } from '@/lib/dashboard-helpers'
 

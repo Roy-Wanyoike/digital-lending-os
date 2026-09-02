@@ -4,9 +4,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useApi } from '@/hooks/use-api'
+import { LoadingSkeleton, ErrorState } from '@/frontend/components/dashboard/dashboard-components'
 import {
-  useApi, formatDate, getStatusBadgeVariant, getStatusColor,
-  MATCHING_STATUSES, PipelineCard, LoadingSkeleton, ErrorState, type MatchingRecord,
+  formatDate, getStatusBadgeVariant, getStatusColor,
+  MATCHING_STATUSES, PipelineCard, type MatchingRecord,
 } from '@/lib/dashboard-helpers'
 
 export function MatchingTab() {
