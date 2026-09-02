@@ -151,6 +151,6 @@ const postHandler = withErrorHandler(async (req: NextRequest) => {
   });
 });
 
-export const GET = withApiTelemetry(withErrorHandler(getHandler), '/api/users');
+export const GET = withApiTelemetry(getHandler, '/api/users');
 
-export const POST = withApiTelemetry(withErrorHandler(postHandler), '/api/users');
+export const POST = withApiTelemetry(postHandler, '/api/users');

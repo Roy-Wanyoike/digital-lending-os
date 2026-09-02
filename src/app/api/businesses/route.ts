@@ -52,9 +52,9 @@ const getBusinessesHandler = withErrorHandler(async (req: NextRequest) => {
   return ok(businesses);
 });
 
-export const GET = withApiTelemetry(withErrorHandler(getBusinessesHandler), '/api/businesses');
+export const GET = withApiTelemetry(getBusinessesHandler, '/api/businesses');
 
-export const POST = withErrorHandler(async (req: NextRequest) => {
+export const POST = withApiTelemetry(withErrorHandler(async (req: NextRequest) => {
   const user = await requireAuth(req);
   if (user.role !== 'admin') return forbidden();
 
@@ -79,4 +79,4 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   log.info('Business created', { businessId: business.id, tenantId: user.tenantId });
   return created(business);
-});
+}), '/api/businesses');
