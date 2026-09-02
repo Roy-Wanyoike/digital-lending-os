@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper'
-import { getApiUser } from '@/backend/lib/auth/api-helpers'
+import { getApiUser } from '@/lib/auth/api-helpers'
 import { ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response'
 
 // ── Supported Currency Metadata ──────────────────────────────────────────

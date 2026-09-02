@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAuth } from '@/backend/lib/auth/api-helpers'
+import { requireAuth } from '@/lib/auth/api-helpers'
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper'
 import { badRequest, error, notFound, validationError, withErrorHandler } from '@/backend/lib/api-response'
 import { db } from '@/lib/db'
