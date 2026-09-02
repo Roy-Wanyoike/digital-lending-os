@@ -572,15 +572,15 @@ export async function processCDCBatch(
 }
 
 /**
- * Create a CDC consumer handler suitable for use with the Youngsend
+ * Create a CDC consumer handler suitable for use with the Digital Lending OS
  * Kafka consumer framework (see infra/kafka/consumer.ts).
  *
  * Usage:
  * ```ts
- * import { YoungsendConsumer } from '@/infra/kafka/consumer'
+ * import { DigitalLendingOsConsumer } from '@/infra/kafka/consumer'
  * import { createCDCMessageHandler, getCDCTopics } from '@/backend/services/search/sync-service'
  *
- * const consumer = new YoungsendConsumer({
+ * const consumer = new DigitalLendingOsConsumer({
  *   groupId: 'search-sync-service',
  *   topics: getCDCTopics(),
  *   handler: createCDCMessageHandler(),

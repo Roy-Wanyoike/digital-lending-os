@@ -4,17 +4,17 @@ import bcrypt from 'bcryptjs'
 const db = new PrismaClient()
 
 async function main() {
-  console.log('Seeding Youngsend auth data...')
+  console.log('Seeding Digital Lending OS auth data...')
 
   const passwordHash = await bcrypt.hash('Demo1234!', 12)
 
   // Create default tenant
   const tenant = await db.tenant.upsert({
-    where: { slug: 'youngsend-demo' },
+    where: { slug: 'dlo-demo' },
     update: {},
     create: {
-      name: 'Youngsend Demo',
-      slug: 'youngsend-demo',
+      name: 'Digital Lending OS Demo',
+      slug: 'dlo-demo',
       plan: 'enterprise',
       ownerEmail: 'youngsharktechnologies@gmail.com',
       ownerName: 'Young Shark',
@@ -34,7 +34,7 @@ async function main() {
       country: 'KE',
       city: 'Nairobi',
       industry: 'Fintech',
-      website: 'https://youngsend.space-z.ai',
+      website: 'https://digitallendingos.co.ke',
       description: 'Building the Financial Operating System for Global Commerce',
       employeeCount: 15,
       annualRevenue: 500000,

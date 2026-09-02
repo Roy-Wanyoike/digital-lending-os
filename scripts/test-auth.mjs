@@ -44,7 +44,7 @@ const login = await fetch(`${BASE}/api/auth/callback/credentials`, {
     'Content-Type': 'application/x-www-form-urlencoded',
     'Cookie': cookies(),
   },
-  body: `csrfToken=${encodeURIComponent(csrfToken)}&email=${encodeURIComponent('admin@youngsend.com')}&password=demo1234&callbackUrl=%2F`,
+  body: `csrfToken=${encodeURIComponent(csrfToken)}&email=${encodeURIComponent('admin@digitallendingos.co.ke')}&password=demo1234&callbackUrl=%2F`,
   redirect: 'manual',
 });
 console.log(`   Status: ${login.status}, Location: ${login.headers.get('location')}`);

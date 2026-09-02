@@ -43,16 +43,16 @@ const RELATIONSHIPS = [
 const STATUSES = ['created', 'funded', 'in_escrow', 'completed', 'completed', 'completed', 'disputed', 'completed', 'in_escrow', 'funded', 'completed', 'completed']
 
 const USERS = [
-  { email: 'admin@youngsend.com', name: 'Sarah Chen', role: 'admin', businessId: null },
-  { email: 'ops@youngsend.com', name: 'Marcus Okonkwo', role: 'admin', businessId: null },
+  { email: 'admin@digitallendingos.co.ke', name: 'Sarah Chen', role: 'admin', businessId: null },
+  { email: 'ops@digitallendingos.co.ke', name: 'Marcus Okonkwo', role: 'admin', businessId: null },
   { email: 'zhang.wei@shanghaitechexim.com', name: 'Zhang Wei', role: 'seller', businessIdx: 0 },
   { email: 'hans.mueller@berlintradehaus.de', name: 'Hans Müller', role: 'seller', businessIdx: 1 },
   { email: 'chidi.eze@lagosmercantile.ng', name: 'Chidi Eze', role: 'seller', businessIdx: 2 },
   { email: 'rafael.silva@spindustrial.br', name: 'Rafael Silva', role: 'buyer', businessIdx: 3 },
   { email: 'lee.wee@sglobaltrade.sg', name: 'Lee Wee Cheng', role: 'buyer', businessIdx: 4 },
   { email: 'ahmed.khalidi@goldstar.ae', name: 'Ahmed Al Khalidi', role: 'buyer', businessIdx: 5 },
-  { email: 'audit@youngsend.com', name: 'Priya Sharma', role: 'auditor', businessId: null },
-  { email: 'viewer@youngsend.com', name: 'James Wilson', role: 'viewer', businessId: null },
+  { email: 'audit@digitallendingos.co.ke', name: 'Priya Sharma', role: 'auditor', businessId: null },
+  { email: 'viewer@digitallendingos.co.ke', name: 'James Wilson', role: 'viewer', businessId: null },
 ]
 
 const GLOBAL_PAYMENT_METHODS = [
@@ -142,7 +142,7 @@ function pick<T>(arr: T[]): T {
 // ============================================================
 
 async function seed() {
-  console.log('🌱 Seeding Youngsend database (v2 - expanded)...\n')
+  console.log('🌱 Seeding Digital Lending OS database (v2 - expanded)...\n')
 
   // ==========================================================
   // 1. BUSINESSES (12)
@@ -170,7 +170,7 @@ async function seed() {
         verifiedAt: Math.random() > 0.2 ? new Date() : null,
         passport: {
           create: {
-            passportHash: createHash('sha256').update(id + 'youngsend').digest('hex'),
+            passportHash: createHash('sha256').update(id + 'dlo').digest('hex'),
             credentialLevel: ['basic', 'standard', 'enhanced', 'premium'][randomInt(0, 3)],
             kycStatus: Math.random() > 0.3 ? 'verified' : 'in_progress',
             kycVerifiedAt: Math.random() > 0.3 ? new Date() : null,
@@ -634,7 +634,7 @@ async function seed() {
         fromCurrency: r.from,
         toCurrency: r.to,
         rate: r.rate + randomFloat(-0.01, 0.01),
-        provider: 'youngsend_ai',
+        provider: 'dlo_ai',
         source: 'composite_market_feed',
         expiresAt: new Date(Date.now() + 3600000),
       },
@@ -1049,7 +1049,7 @@ async function seed() {
   // FINAL SUMMARY
   // ==========================================================
   console.log('\n' + '='.repeat(60))
-  console.log('✅ Youngsend v2 Seeding Complete!')
+  console.log('✅ Digital Lending OS v2 Seeding Complete!')
   console.log('='.repeat(60))
   console.log(`
   ORIGINAL DATA (recreated):

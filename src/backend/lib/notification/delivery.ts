@@ -107,7 +107,7 @@ export async function deliverNotification(
           },
           body: JSON.stringify({
             personalizations: [{ to: [{ email: accountEmail }] }],
-            from: { email: 'noreply@youngsend.com', name: 'YoungSend' },
+            from: { email: 'noreply@digitallendingos.co.ke', name: 'Digital Lending OS' },
             subject: title,
             content: [{ type: 'text/plain', value: body }],
           }),

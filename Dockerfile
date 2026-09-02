@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────
-# Youngsend — Production Multi-Stage Dockerfile
+# Digital Lending OS — Production Multi-Stage Dockerfile
 # Node 22 · Alpine · Non-root · Standalone output
 # ─────────────────────────────────────────────────────────────────────
 

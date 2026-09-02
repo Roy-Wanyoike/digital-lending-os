@@ -1,5 +1,5 @@
 /**
- * Health Check System for Youngsend Fintech Platform
+ * Health Check System for Digital Lending OS
  *
  * Three probe types (Kubernetes-style):
  * - Liveness: "Am I alive?" — process is running and not deadlocked

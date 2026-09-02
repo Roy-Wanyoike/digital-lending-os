@@ -1,5 +1,5 @@
 /**
- * Redis Client — Youngsend Caching Layer
+ * Redis Client — Digital Lending OS Caching Layer
  *
  * Factory pattern returning either a real ioredis client (cluster-aware)
  * or an in-memory LRU fallback when REDIS_URL is absent or Redis is down.

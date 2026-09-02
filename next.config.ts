@@ -50,8 +50,8 @@ const nextConfig: NextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
     remotePatterns: [
       // Add specific external domains as needed, e.g.:
-      // { protocol: "https", hostname: "cdn.youngsend.com" },
-      // { protocol: "https", hostname: "youngsend.com" },
+      // { protocol: "https", hostname: "cdn.digitallendingos.co.ke" },
+      // { protocol: "https", hostname: "digitallendingos.co.ke" },
     ],
     minimumCacheTTL: 60,
   },

@@ -127,7 +127,7 @@ async function main() {
   for (let i = 0; i < 10; i++) {
     users.push(await db.user.create({
       data: {
-        email: `user${i + 1}@youngsend.com`,
+        email: `user${i + 1}@digitallendingos.co.ke`,
         name: BUSINESS_NAMES[i],
         role: i === 0 ? 'admin' : i < 3 ? 'buyer' : i < 6 ? 'seller' : i < 8 ? 'auditor' : 'viewer',
         businessId: `biz_${i + 1}`,
@@ -830,7 +830,7 @@ async function main() {
     await db.currencyRate.create({
       data: {
         fromCurrency: from as string, toCurrency: to as string,
-        rate: rate as number, provider: 'youngsend', source: 'seed',
+        rate: rate as number, provider: 'dlo', source: 'seed',
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
       },
     })

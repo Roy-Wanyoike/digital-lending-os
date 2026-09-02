@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────
-# Youngsend — Docker Compose Dev Override
+# Digital Lending OS — Docker Compose Dev Override
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 # ─────────────────────────────────────────────────────────────────────
 
@@ -16,8 +16,8 @@ services:
     env_file:
       - .env
     environment:
-      - DATABASE_URL=postgresql://youngsend:youngsend@postgres:5432/youngsend
-      - DIRECT_URL=postgresql://youngsend:youngsend@postgres:5432/youngsend
+      - DATABASE_URL=postgresql://digital-lending-os:digital-lending-os@postgres:5432/digital_lending_os
+      - DIRECT_URL=postgresql://digital-lending-os:digital-lending-os@postgres:5432/digital_lending_os
     volumes:
       # Hot-reload: mount source so file-watcher picks up changes
       - ./src:/app/src

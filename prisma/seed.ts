@@ -24,7 +24,7 @@ const COLLECTION_CHANNELS = ['email','sms','whatsapp']
 
 // ─── main ──────────────────────────────────────────────────
 async function main() {
-  console.log('🌱 Seeding Youngsend database...')
+  console.log('🌱 Seeding Digital Lending OS database...')
 
   // Clean all tables (order matters for FK constraints)
   const tables = [
@@ -49,10 +49,10 @@ async function main() {
   // ─── 1. Tenant ───────────────────────────────────────────
   const tenant = await db.tenant.create({
     data: {
-      name: 'Youngsend Demo',
-      slug: 'youngsend-demo',
+      name: 'Digital Lending OS Demo',
+      slug: 'dlo-demo',
       ownerName: 'Alice Mwangi',
-      ownerEmail: 'alice@youngsend.com',
+      ownerEmail: 'alice@digitallendingos.co.ke',
       plan: 'business',
       maxBusinesses: 50,
       maxUsers: 100,
@@ -63,7 +63,7 @@ async function main() {
   // ─── 2. Account (for auth/login) ─────────────────────────
   const adminAccount = await db.account.create({
     data: {
-      email: 'admin@youngsend.com',
+      email: 'admin@digitallendingos.co.ke',
       passwordHash: pwd('demo1234'),
       name: 'Alice Mwangi',
       role: 'admin',
@@ -786,7 +786,7 @@ async function main() {
         fromCurrency: from as string,
         toCurrency: to as string,
         rate: rate as number,
-        provider: 'youngsend-rates',
+        provider: 'dlo-rates',
         expiresAt: futureDays(1),
       },
     })

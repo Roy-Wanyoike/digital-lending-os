@@ -1,4 +1,4 @@
-// --- OpenSearch Index Definitions for Youngsend ---
+// --- OpenSearch Index Definitions for Digital Lending OS ---
 // Defines mappings, settings, and metadata for all searchable indices.
 // These map to the Prisma models and power the high-level search service.
 

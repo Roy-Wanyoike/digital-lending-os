@@ -91,7 +91,7 @@ enum ComplianceStatus {
 model Tenant {
   id            String   @id @default(cuid())
   name          String
-  slug          String   @unique // used in subdomain/URL: youngsend.space-z.ai
+  slug          String   @unique // used in subdomain/URL: digitallendingos.co.ke
   plan          String   @default("starter") // starter, professional, enterprise
   status        TenantStatus @default(active)
   maxBusinesses Int      @default(5)

@@ -1,5 +1,5 @@
 /**
- * Structured JSON Logger for Youngsend Fintech Platform
+ * Structured JSON Logger for Digital Lending OS
  *
  * Features:
  * - ISO 8601 timestamps
@@ -144,12 +144,12 @@ class OTLPLogExporter implements LogExporter {
             {
               resource: {
                 attributes: [
-                  { key: 'service.name', value: { stringValue: 'youngsend-api' } },
+                  { key: 'service.name', value: { stringValue: 'dlo-api' } },
                 ],
               },
               scopeLogs: [
                 {
-                  scope: { name: 'youngsend-logger', version: '1.0.0' },
+                  scope: { name: 'dlo-logger', version: '1.0.0' },
                   logRecords: batch.map((entry) => ({
                     timeUnixNano: String(new Date(entry.timestamp).getTime() * 1_000_000),
                     severityNumber: this.levelToSeverity(entry.level),
@@ -226,14 +226,14 @@ export interface LoggerConfig {
   enableConsole?: boolean;
 }
 
-export class YoungsendLogger {
+export class DigitalLendingOsLogger {
   private readonly serviceName: string;
   private readonly minLevel: LogLevel;
   private readonly exporters: LogExporter[];
   private readonly boundContext: Record<string, unknown>;
 
   private constructor(config: LoggerConfig & { boundContext?: Record<string, unknown> }) {
-    this.serviceName = config.serviceName || process.env.OTEL_SERVICE_NAME || 'youngsend-api';
+    this.serviceName = config.serviceName || process.env.OTEL_SERVICE_NAME || 'dlo-api';
     this.minLevel = config.minLevel ?? LogLevel.INFO;
     this.exporters = [];
     this.boundContext = config.boundContext || {};
@@ -256,22 +256,22 @@ export class YoungsendLogger {
   /**
    * Create a new root logger instance.
    */
-  static create(config: LoggerConfig = {}): YoungsendLogger {
-    return new YoungsendLogger(config);
+  static create(config: LoggerConfig = {}): DigitalLendingOsLogger {
+    return new DigitalLendingOsLogger(config);
   }
 
   /**
    * Create a child logger with bound context fields (tenant_id, user_id, etc.).
    */
-  child(bindings: Record<string, unknown>): YoungsendLogger {
+  child(bindings: Record<string, unknown>): DigitalLendingOsLogger {
     return this.createChild(bindings);
   }
 
   /**
    * Internal child creation that properly shares exporters.
    */
-  private createChild(bindings: Record<string, unknown>): YoungsendLogger {
-    const child = new YoungsendLogger({
+  private createChild(bindings: Record<string, unknown>): DigitalLendingOsLogger {
+    const child = new DigitalLendingOsLogger({
       serviceName: this.serviceName,
       minLevel: this.minLevel,
       enableConsole: false,
@@ -285,7 +285,7 @@ export class YoungsendLogger {
   /**
    * Create a child logger with bound context (correct implementation).
    */
-  withContext(bindings: Record<string, unknown>): YoungsendLogger {
+  withContext(bindings: Record<string, unknown>): DigitalLendingOsLogger {
     return this.createChild(bindings);
   }
 
@@ -351,14 +351,14 @@ export class YoungsendLogger {
 
 // ─── Default Logger Singleton ────────────────────────────────────────────────
 
-let _logger: YoungsendLogger | null = null;
+let _logger: DigitalLendingOsLogger | null = null;
 
 /**
- * Get or create the default Youngsend logger.
+ * Get or create the default Digital Lending OS logger.
  */
-export function getLogger(): YoungsendLogger {
+export function getLogger(): DigitalLendingOsLogger {
   if (!_logger) {
-    _logger = YoungsendLogger.create({
+    _logger = DigitalLendingOsLogger.create({
       minLevel: parseLogLevel(process.env.LOG_LEVEL || 'info'),
     });
   }
@@ -368,8 +368,8 @@ export function getLogger(): YoungsendLogger {
 /**
  * Create and set the default logger.
  */
-export function initLogger(config: LoggerConfig = {}): YoungsendLogger {
-  _logger = YoungsendLogger.create(config);
+export function initLogger(config: LoggerConfig = {}): DigitalLendingOsLogger {
+  _logger = DigitalLendingOsLogger.create(config);
   return _logger;
 }
 

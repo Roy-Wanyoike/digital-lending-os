@@ -349,9 +349,9 @@ describe('Bug Fix Group 3: Logger child() shares exporters (Bug 2)', () => {
   })
 
   it('child logger should share the SAME exporters array reference as parent', async () => {
-    const { YoungsendLogger } = await import('@/backend/lib/telemetry/logger')
+    const { DigitalLendingOsLogger } = await import('@/backend/lib/telemetry/logger')
     const mockExporter = createMockExporter()
-    const parent = YoungsendLogger.create({
+    const parent = DigitalLendingOsLogger.create({
       serviceName: 'test-parent',
       minLevel: 0, // TRACE — accept all
       exporter: mockExporter as any,
@@ -367,9 +367,9 @@ describe('Bug Fix Group 3: Logger child() shares exporters (Bug 2)', () => {
   })
 
   it("child logger should actually export to parent's mock exporter", async () => {
-    const { YoungsendLogger } = await import('@/backend/lib/telemetry/logger')
+    const { DigitalLendingOsLogger } = await import('@/backend/lib/telemetry/logger')
     const mockExporter = createMockExporter()
-    const parent = YoungsendLogger.create({
+    const parent = DigitalLendingOsLogger.create({
       serviceName: 'test-parent',
       minLevel: 0,
       exporter: mockExporter as any,
@@ -386,9 +386,9 @@ describe('Bug Fix Group 3: Logger child() shares exporters (Bug 2)', () => {
   })
 
   it('grandchild logger should also share parent exporters', async () => {
-    const { YoungsendLogger } = await import('@/backend/lib/telemetry/logger')
+    const { DigitalLendingOsLogger } = await import('@/backend/lib/telemetry/logger')
     const mockExporter = createMockExporter()
-    const parent = YoungsendLogger.create({
+    const parent = DigitalLendingOsLogger.create({
       serviceName: 'test-root',
       minLevel: 0,
       exporter: mockExporter as any,
@@ -409,9 +409,9 @@ describe('Bug Fix Group 3: Logger child() shares exporters (Bug 2)', () => {
   })
 
   it('withContext creates child that shares exporters', async () => {
-    const { YoungsendLogger } = await import('@/backend/lib/telemetry/logger')
+    const { DigitalLendingOsLogger } = await import('@/backend/lib/telemetry/logger')
     const mockExporter = createMockExporter()
-    const parent = YoungsendLogger.create({
+    const parent = DigitalLendingOsLogger.create({
       serviceName: 'test-wctx',
       minLevel: 0,
       exporter: mockExporter as any,
@@ -425,9 +425,9 @@ describe('Bug Fix Group 3: Logger child() shares exporters (Bug 2)', () => {
   })
 
   it('shutdown on parent should shutdown shared exporters', async () => {
-    const { YoungsendLogger } = await import('@/backend/lib/telemetry/logger')
+    const { DigitalLendingOsLogger } = await import('@/backend/lib/telemetry/logger')
     const mockExporter = createMockExporter()
-    const parent = YoungsendLogger.create({
+    const parent = DigitalLendingOsLogger.create({
       serviceName: 'test-shutdown',
       minLevel: 0,
       exporter: mockExporter as any,
@@ -526,7 +526,7 @@ describe('Bug Fix Group 7: OTel Logger Trace Stubs (Bug 16)', () => {
   })
 
   it('logger does not crash when logging with trace context stubs', async () => {
-    const { YoungsendLogger } = await import('@/backend/lib/telemetry/logger')
+    const { DigitalLendingOsLogger } = await import('@/backend/lib/telemetry/logger')
     const mockExporter = {
       export(entry: any) {
         collectedEntries.push(entry)
@@ -534,7 +534,7 @@ describe('Bug Fix Group 7: OTel Logger Trace Stubs (Bug 16)', () => {
       async shutdown() {},
     }
 
-    const logger = YoungsendLogger.create({
+    const logger = DigitalLendingOsLogger.create({
       serviceName: 'test-trace-stub',
       minLevel: 0,
       exporter: mockExporter as any,
@@ -553,7 +553,7 @@ describe('Bug Fix Group 7: OTel Logger Trace Stubs (Bug 16)', () => {
   })
 
   it('logger emits entries without crashing on all log levels', async () => {
-    const { YoungsendLogger } = await import('@/backend/lib/telemetry/logger')
+    const { DigitalLendingOsLogger } = await import('@/backend/lib/telemetry/logger')
     const mockExporter = {
       export(entry: any) {
         collectedEntries.push(entry)
@@ -561,7 +561,7 @@ describe('Bug Fix Group 7: OTel Logger Trace Stubs (Bug 16)', () => {
       async shutdown() {},
     }
 
-    const logger = YoungsendLogger.create({
+    const logger = DigitalLendingOsLogger.create({
       serviceName: 'test-levels',
       minLevel: 0,
       exporter: mockExporter as any,
@@ -592,7 +592,7 @@ describe('Bug Fix Group 7: OTel Logger Trace Stubs (Bug 16)', () => {
   })
 
   it('logger respects minLevel filter', async () => {
-    const { YoungsendLogger, LogLevel } = await import('@/backend/lib/telemetry/logger')
+    const { DigitalLendingOsLogger, LogLevel } = await import('@/backend/lib/telemetry/logger')
     const mockExporter = {
       export(entry: any) {
         collectedEntries.push(entry)
@@ -600,7 +600,7 @@ describe('Bug Fix Group 7: OTel Logger Trace Stubs (Bug 16)', () => {
       async shutdown() {},
     }
 
-    const logger = YoungsendLogger.create({
+    const logger = DigitalLendingOsLogger.create({
       serviceName: 'test-filter',
       minLevel: LogLevel.WARN,
       exporter: mockExporter as any,
@@ -619,7 +619,7 @@ describe('Bug Fix Group 7: OTel Logger Trace Stubs (Bug 16)', () => {
   })
 
   it('logger child inherits minLevel from parent', async () => {
-    const { YoungsendLogger, LogLevel } = await import('@/backend/lib/telemetry/logger')
+    const { DigitalLendingOsLogger, LogLevel } = await import('@/backend/lib/telemetry/logger')
     const mockExporter = {
       export(entry: any) {
         collectedEntries.push(entry)
@@ -627,7 +627,7 @@ describe('Bug Fix Group 7: OTel Logger Trace Stubs (Bug 16)', () => {
       async shutdown() {},
     }
 
-    const parent = YoungsendLogger.create({
+    const parent = DigitalLendingOsLogger.create({
       serviceName: 'test-inherit-level',
       minLevel: LogLevel.ERROR,
       exporter: mockExporter as any,

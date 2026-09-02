@@ -1,5 +1,5 @@
 #!/bin/bash
-# Youngsend Dev Server — startup with warmup
+# Digital Lending OS Dev Server — startup with warmup
 # Usage: bash scripts/start.sh
 set -e
 

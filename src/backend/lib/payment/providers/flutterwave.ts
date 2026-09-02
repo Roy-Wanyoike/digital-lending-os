@@ -39,7 +39,7 @@ export class FlutterwaveProvider implements PaymentProvider {
         phonenumber: input.phone || '',
       },
       customizations: {
-        title: 'Youngsend Payment',
+        title: 'Digital Lending OS Payment',
         description: `Payment ${input.reference}`,
         logo: '',
       },

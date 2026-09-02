@@ -1,5 +1,5 @@
 /**
- * Caching Strategies — Youngsend Caching Layer
+ * Caching Strategies — Digital Lending OS Caching Layer
  *
  * Predefined strategies for common fintech cache domains.
  * Each strategy implements CacheStrategy interface providing:

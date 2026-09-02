@@ -1,5 +1,5 @@
 /**
- * Cache Manager — Youngsend Caching Layer
+ * Cache Manager — Digital Lending OS Caching Layer
  *
  * High-level typed cache abstraction with:
  *  - get<T> / set<T> / delete / invalidatePattern / invalidateByPrefix / exists / increment / decrement
@@ -73,8 +73,8 @@ export interface CacheManagerConfig {
 
 // ─── Serialization ───────────────────────────────────────────────────────────
 
-const CACHE_PREFIX = 'ys:cache:';
-const TAG_PREFIX = 'ys:tag:';
+const CACHE_PREFIX = 'dlo:cache:';
+const TAG_PREFIX = 'dlo:tag:';
 
 let CACHE_VERSION = 'v1';
 

@@ -158,7 +158,7 @@ function stableUrl(url: string): string {
 }
 
 /**
- * Generic data-fetching hook for the Youngsend dashboard.
+ * Generic data-fetching hook for the Digital Lending OS dashboard.
  *
  * @example
  * ```tsx

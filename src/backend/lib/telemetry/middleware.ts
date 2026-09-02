@@ -1,5 +1,5 @@
 /**
- * Next.js Telemetry Middleware for Youngsend
+ * Next.js Telemetry Middleware for Digital Lending OS
  *
  * Provides:
  * - Auto-creates spans for all /api/* routes

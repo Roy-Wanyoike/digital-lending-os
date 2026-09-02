@@ -1,5 +1,5 @@
 /**
- * Youngsend Caching Layer — Public API
+ * Digital Lending OS Caching Layer — Public API
  *
  * Re-exports all modules:
  *  - client: Redis client factory, circuit breaker, LRU fallback
