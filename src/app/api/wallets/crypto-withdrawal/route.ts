@@ -5,6 +5,14 @@ import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+import {
+  DEFAULT_CRYPTO_PRICES_USD,
+  DEFAULT_NETWORK_FEES,
+  DEFAULT_FIAT_TO_USD,
+  CRYPTO_NETWORKS,
+  CRYPTO_WITHDRAWAL_FEE_PERCENT,
+  CRYPTO_WITHDRAWAL_MIN_FEE,
+} from '@/backend/config/financial-config';
 const cryptoWithdrawalSchema = z.object({
   walletId: z.string().min(1, 'Wallet ID is required'),
   amount: z.number().positive('Amount must be greater than 0'),
@@ -13,45 +21,6 @@ const cryptoWithdrawalSchema = z.object({
   walletAddress: z.string().min(10, 'Wallet address is required'),
   notes: z.string().optional(),
 })
-
-// Supported network per crypto
-const CRYPTO_NETWORKS: Record<string, string[]> = {
-  USDT: ['trc20', 'erc20', 'bsc', 'solana'],
-  USDC: ['trc20', 'erc20', 'bsc', 'solana'],
-  BTC: ['bitcoin'],
-  ETH: ['erc20'],
-  SOL: ['solana'],
-  BNB: ['bsc', 'bep2'],
-}
-
-// Approximate fiat-to-crypto rates for demo
-const CRYPTO_PRICES_USD: Record<string, number> = {
-  USDT: 1.0,
-  USDC: 1.0,
-  BTC: 67500,
-  ETH: 3450,
-  SOL: 172,
-  BNB: 580,
-}
-
-// Network fees in crypto
-const NETWORK_FEES: Record<string, number> = {
-  trc20: 1.0,      // USDT TRC20 fee ~1 USDT
-  erc20: 2.5,      // USDT/USDC ERC20 fee ~$2.5
-  bsc: 0.1,        // BSC fee ~$0.10
-  solana: 0.00025, // SOL fee ~0.00025 SOL
-  bitcoin: 0.0001, // BTC fee ~$6.75 worth
-  bep2: 0.0005,   // BNB BEP2 fee ~0.0005 BNB
-}
-
-// Fiat per USD conversion rates
-const FIAT_TO_USD: Record<string, number> = {
-  USD: 1, EUR: 1.087, GBP: 1.267, NGN: 0.000645, KES: 0.00652,
-  GHS: 0.0658, UGX: 0.000267, TZS: 0.000377, ZAR: 0.0549,
-  JPY: 0.00669, CNY: 0.138, INR: 0.01198, BRL: 0.20,
-  CAD: 0.73, AUD: 0.653, CHF: 1.136, AED: 0.272, SGD: 0.746,
-}
-
 async function postHandler(request: NextRequest) {
   try {
     const user = await requireAuth(request)
@@ -108,7 +77,7 @@ async function postHandler(request: NextRequest) {
     }
 
     // Calculate fees first to check total debit against available balance
-    const processingFee = Math.max(data.amount * 0.01, 1.0) // 1% min $1
+    const processingFee = Math.max(data.amount * (CRYPTO_WITHDRAWAL_FEE_PERCENT / 100), CRYPTO_WITHDRAWAL_MIN_FEE)
     const totalDebit = Math.round((data.amount + processingFee) * 100) / 100
 
     // Early rejection check (optimization; real check happens inside transaction)
@@ -117,11 +86,11 @@ async function postHandler(request: NextRequest) {
     }
 
     // Calculate crypto amount
-    const fiatToUsd = FIAT_TO_USD[wallet.currency] || 1
+    const fiatToUsd = DEFAULT_FIAT_TO_USD[wallet.currency] || 1
     const amountInUsd = data.amount * fiatToUsd
-    const cryptoPrice = CRYPTO_PRICES_USD[data.cryptoCurrency]
+    const cryptoPrice = DEFAULT_CRYPTO_PRICES_USD[data.cryptoCurrency]
     const cryptoAmount = amountInUsd / cryptoPrice
-    const networkFee = NETWORK_FEES[data.network]
+    const networkFee = DEFAULT_NETWORK_FEES[data.network]
     const netCryptoAmount = Math.max(0, cryptoAmount - networkFee)
     const withdrawalRef = `CRW-${randomUUID().slice(0, 8).toUpperCase()}`
 

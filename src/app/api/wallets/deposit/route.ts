@@ -6,8 +6,7 @@ import { eventBus } from '@/backend/services/event-bus'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
-const REFERRAL_BONUS_AMOUNT = 100.00
-const REFERRAL_BONUS_CURRENCY = 'USD'
+import { REFERRAL_BONUS_AMOUNT, REFERRAL_BONUS_CURRENCY } from '@/backend/config/financial-config'
 
 const depositSchema = z.object({
   walletId: z.string().min(1, 'Wallet ID is required'),
