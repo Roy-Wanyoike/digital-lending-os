@@ -129,6 +129,7 @@
 - Alert creation requires admin/auditor role
 - Alert refs have a max retry limit (10) to prevent infinite loops
 
+<!-- TRACKING: Rate limiting on alert creation not yet implemented — tracked as future work -->
 **Residual Risk:** Medium. Rate limiting on alert creation is not implemented.
 
 **Recommended Hardening:**
@@ -156,7 +157,7 @@
 
 | ID | Threat | Severity | Status |
 |---|---|---|---|
-| T1 | Rule tenant isolation gap | High | Mitigated (migration pending) |
+| T1 | Rule tenant isolation gap | High | Partially mitigated — ComplianceRule has `tenantId`; FraudRule uses JSON workaround (migration pending) |
 | T2 | Orphaned alert isolation bypass | Critical | Fixed |
 | T3 | CSRF on mutations | High | Fixed |
 | T4 | Arbitrary status transitions | Medium | Fixed |

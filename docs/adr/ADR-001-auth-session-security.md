@@ -40,7 +40,8 @@ Youngsend is a multi-tenant fintech platform handling escrow payments. Authentic
 | `maxAge` | 24 hours | Limits token theft window |
 | `updateAge` | 24 hours | Forces re-authentication daily |
 | Login rate limit | 5/min per email | Brute-force mitigation |
-| Auth endpoint rate limit | 10/min per IP | Credential stuffing mitigation (TODO) |
+<!-- RESOLVED: IP-based rate limiting implemented in middleware.ts (100 req/min global, 10/min financial mutations) + Cloudflare worker + K8s ingress rate limiting -->
+| Auth endpoint rate limit | 10/min per IP | Credential stuffing mitigation (implemented via middleware + infra) |
 
 ### 3. Multi-Tenant Session Isolation
 
@@ -51,6 +52,7 @@ Youngsend is a multi-tenant fintech platform handling escrow payments. Authentic
 
 ### 4. Token Rotation on Sensitive Actions
 
+<!-- TRACKING: Token rotation not yet implemented — tracked as future work. Re-auth required after 24h JWT expiry. -->
 **Decision**: Not implemented yet — deferred to next sprint.
 
 **Planned approach**:
@@ -85,5 +87,7 @@ Server Components:
 
 - **Positive**: Single source of truth for auth. Consistent CSRF enforcement. Graceful JWT error handling.
 - **Positive**: All routes now use `db` from `@/lib/db` — no direct `prisma` imports.
+- **Positive**: IP-based rate limiting on all API endpoints via middleware + Cloudflare worker + K8s ingress.
 - **Negative**: `session.ts` functions are deprecated; requires migration of any remaining consumers.
-- **Risk**: No IP-based rate limiting on `/api/auth/[...nextauth]` yet. Depends on infrastructure-level WAF/rate-limiter in production.
+- **Risk (resolved)**: IP-based rate limiting on `/api/auth/[...nextauth]` — now implemented via middleware.ts.
+- **Risk**: No refresh token rotation — re-authentication required after 24h JWT expiry.

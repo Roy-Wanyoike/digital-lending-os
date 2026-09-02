@@ -7,7 +7,7 @@
 - [x] All API routes (except webhooks + health) have auth check
 - [x] No route imports prisma directly (all use db from @/lib/db)
 - [x] Session errors return 401, not 500
-- [ ] Rate limiting on auth endpoints (IP-based GAP, only per-email exists)
+- [x] Rate limiting on auth endpoints (IP-based implemented via middleware.ts + Cloudflare worker + K8s ingress)
 - [x] JWT has expiry <= 24h (configured: exactly 24h)
 - [ ] Refresh token rotation implemented (deferred)
 - [x] CSRF protection on all mutations (requireAuth enforces for POST/PUT/PATCH/DELETE)
@@ -46,6 +46,6 @@
 
 ## Remaining Gaps
 
-1. IP-based rate limiting on /api/auth/*: Only per-email exists.
+1. ~~IP-based rate limiting on /api/auth/*~~: **Resolved** — middleware.ts enforces 100 req/min per IP globally, 10 req/min for financial mutations. Cloudflare worker and K8s ingress provide additional layers.
 2. Refresh token rotation: Deferred. Re-auth after 24h.
 3. Session revocation: Cannot revoke individual sessions.

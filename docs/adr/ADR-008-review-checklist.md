@@ -31,12 +31,12 @@
 - [x] Auth: uses `requireAuth()`
 - [x] Role check: admin or auditor only
 - [x] Cache: 5-min TTL, tenant-keyed
-- [ ] **KNOWN:** No `tenantId` filter on query (rules are system-wide) — tracked in ADR-008
+- [ ] **KNOWN:** No dedicated `tenantId` column on FraudRule — tenant isolation via `_tenantId` embedded in condition JSON (workaround, proper migration pending)
 
 ### Fraud Rules — `POST /api/fraud/rules`
 - [x] Auth: uses `requireRole(['admin'])` — CSRF enforced
 - [x] Condition validated as JSON object (not just valid JSON)
-- [ ] **KNOWN:** No `tenantId` on create — tracked in ADR-008
+- [ ] **KNOWN:** No dedicated `tenantId` column on create — tenantId embedded in condition JSON (workaround)
 
 ### Compliance Screenings — `GET /api/compliance/screenings`
 - [x] Auth: `getApiUser` (read-only, no CSRF needed)
@@ -52,12 +52,14 @@
 ### Compliance Rules — `GET /api/compliance/rules`
 - [x] Auth: `requireAuth()`
 - [x] Role check: admin or auditor only
-- [ ] **KNOWN:** No `tenantId` filter — tracked in ADR-008
+<!-- RESOLVED: ComplianceRule now has tenantId column. Migration: add_compliance_rule_tenant_id. GET filters by user.tenantId, POST sets tenantId from session. -->
+- [x] **RESOLVED:** `tenantId` column added, GET filters by `user.tenantId`
 
 ### Compliance Rules — `POST /api/compliance/rules`
 - [x] Auth: `requireRole(['admin'])` — CSRF enforced
 - [x] Condition validated as JSON object
-- [ ] **KNOWN:** No `tenantId` — tracked in ADR-008
+<!-- RESOLVED: ComplianceRule now has tenantId column. POST sets tenantId from user session. -->
+- [x] **RESOLVED:** `tenantId` column added, set from `user.tenantId` on create
 
 ### Passport Verifications — `GET /api/passport/verifications`
 - [x] Auth: `getApiUser`
@@ -102,11 +104,13 @@
 - [x] `FraudAlert.businessId` is nullable in schema but enforced required at API layer
 - [ ] **TODO:** Add NOT NULL DB constraint on `FraudAlert.businessId` (migration)
 - [ ] **TODO:** Add NOT NULL DB constraint on `ComplianceScreening.businessId` (migration)
-- [ ] **TODO:** Add `tenantId` to `FraudRule` (migration, see ADR-008)
-- [ ] **TODO:** Add `tenantId` to `ComplianceRule` (migration, see ADR-008)
+- [ ] **TODO:** Add dedicated `tenantId` column to `FraudRule` (migration, see ADR-008; workaround via `_tenantId` in condition JSON)
+<!-- RESOLVED: ComplianceRule now has tenantId column. Migration: add_compliance_rule_tenant_id. -->
+- [x] **RESOLVED:** Add `tenantId` to `ComplianceRule` (migration applied, route updated)
 
 ## Known Limitations (Not Bugs — Tracked for Future Work)
 
+<!-- TRACKING: All items below are genuine future work, not yet implemented -->
 1. **No runtime rule evaluation engine** — Rules are CRUD-only; no transaction-event evaluation.
 2. **Mock screening data** — Must integrate real provider before production.
 3. **No alert notifications** — Alerts are created but not pushed to investigators.

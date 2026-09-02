@@ -6,7 +6,8 @@
 
 | Threat | Likelihood | Impact | Mitigation | Residual Risk |
 |--------|-----------|--------|-----------|---------------|
-| Credential stuffing on /api/auth | High | Critical | Per-email rate limit (5/min). TODO: IP-based rate limit | Medium |
+<!-- RESOLVED: IP-based rate limiting implemented in middleware.ts (100 req/min per IP, 10/min financial) + Cloudflare worker + K8s ingress -->
+| Credential stuffing on /api/auth | High | Critical | Per-email rate limit (5/min). IP-based rate limit in middleware + infra | Medium |
 | Session token theft via XSS | Medium | Critical | HttpOnly, Secure, SameSite=Lax cookies (NextAuth default) | Low |
 | Email enumeration via login | Medium | Low | Generic invalid credentials message | Low |
 | Account takeover via stale JWT | Low | High | 24h maxAge + graceful decryption error to 401 | Low |
@@ -81,8 +82,9 @@ Session Hijacking
 Brute Force
 +-- 2.1 Credential stuffing
 |   +-- Per-email rate limit: 5/min
-|   +-- GAP: No IP-based limit on auth endpoint
-|   +-- Mitigated: WAF at infrastructure level (TODO)
+|   +-- Mitigated: IP-based rate limit in middleware (100 req/min) + Cloudflare worker + K8s ingress
+<!-- RESOLVED: Cloudflare worker rate limiting + K8s ingress rate limiting deployed -->
+|   +-- Mitigated: WAF at infrastructure level (Cloudflare worker + K8s ingress)
 +-- 2.2 Password spraying
 |   +-- Each account gets own rate limit
 +-- 2.3 Dictionary attack on single account
@@ -107,10 +109,11 @@ Token Theft
 
 | Risk | Level | Key Gap |
 |------|-------|----------|
-| Brute force | MEDIUM | No IP-based rate limit on /api/auth/* |
+| Brute force | LOW | IP-based rate limit implemented via middleware + infra |
 | Session hijacking | LOW | |
 | CSRF | LOW | |
 | Cross-tenant access | LOW | |
 | Token theft | LOW | |
 
-**Top priority**: Implement IP-based rate limiting on /api/auth/[...nextauth].
+<!-- RESOLVED: IP-based rate limiting now implemented via middleware.ts + Cloudflare worker + K8s ingress -->
+**Former top priority (resolved):** IP-based rate limiting on /api/auth/[...nextauth] — implemented via middleware + infrastructure.

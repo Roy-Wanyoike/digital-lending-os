@@ -24,6 +24,7 @@ The escrow system holds funds in trust between two parties. It is the highest-va
 | Double milestone release | Tampering | Release route | **Medium** | Partial — no DB-level lock; Node.js single-thread provides implicit safety |
 | Score manipulation | Tampering | Trust score POST | **Medium** | Mitigated — scores are recalculated from source data, not user-supplied |
 | Dispute abuse (frivolous) | Denial of Service | Dispute create | **Medium** | Open — no rate limiting or dispute count limits |
+<!-- TRACKING: AI risk score is random (Math.random()) — real fraud/risk model needed before production -->
 | AI risk score manipulation | Tampering | Escrow create | **Low** | Open — risk score is random; no user input affects it |
 | Audit log tampering | Repudiation | All routes | **Low** | Mitigated — audit logs are append-only, no update/delete exposed |
 

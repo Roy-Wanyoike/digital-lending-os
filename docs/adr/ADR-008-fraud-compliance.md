@@ -26,6 +26,7 @@ This ADR covers the design of three interrelated subsystems:
 
 **Current limitation:** `FraudRule` has no `tenantId` column — rules are system-wide. All tenants share the same rule set. A future migration should add `tenantId` to support per-tenant rule customization (see Migration Plan below).
 
+<!-- TRACKING: Runtime rule evaluation engine not yet implemented — rules are stored but not evaluated against transactions -->
 **Evaluation logic:** Rules are currently declarative only — the route stores them but the actual runtime evaluation engine is not yet implemented. The intended design is:
 - Rules are fetched (cached 5min via `cache-manager`)
 - On transaction events, the engine evaluates all active rules against the event payload
@@ -54,11 +55,11 @@ resolved → (terminal)
 - Screening types: `sanctions`, `pep`, `adverse_media`, `country_risk`.
 - Results: `clear`, `potential_match`, `alert`.
 - Risk levels: `low`, `medium`, `high`, `critical`.
-- Currently uses mock data; real integration should plug into external screening providers (ComplyAdvantage, Dow Jones, etc.).
+- Currently uses mock data; real integration should plug into external screening providers (ComplyAdvantage, Dow Jones, etc.). **This is a P0 requirement for production deployment.**
 
 **Tenant isolation:** `ComplianceScreening` has no `tenantId` but has a `businessId` field. The GET endpoint filters by tenant business IDs. The POST endpoint now requires `businessId` and validates tenant ownership.
 
-**Compliance rules** (`ComplianceRule`) are similar to fraud rules — stored as JSON conditions, system-wide (no `tenantId`). Types include `sanctions_check`, `kyc_requirement`, `aml_threshold`, `transaction_limit`, `country_restriction`, `industry_restriction`.
+**Compliance rules** (`ComplianceRule`) are stored as JSON conditions with `tenantId` for per-tenant customization. Types include `sanctions_check`, `kyc_requirement`, `aml_threshold`, `transaction_limit`, `country_restriction`, `industry_restriction`.
 
 ### 3. KYC Verification Flow
 
@@ -101,14 +102,14 @@ All mutations (POST/PUT) are protected by CSRF validation via `requireAuth`/`req
 - Tenant isolation enforced on all data endpoints
 
 ### Negative / Technical Debt
-- **FraudRule and ComplianceRule lack `tenantId`** — all tenants share the same rules. This is acceptable for MVP but must be addressed before multi-tenant customization.
+- **FraudRule lacks `tenantId`** — uses a JSON workaround (`_tenantId` in condition). ComplianceRule now has `tenantId`. This is acceptable for MVP but FraudRule must be migrated before full multi-tenant customization.
 - **Screening pipeline uses mock data** — real screening provider integration is required for production.
 - **No runtime rule evaluation engine** — rules are stored but not evaluated against transactions.
 - **No alert notification system** — alerts are created but not pushed to investigators (no WebSocket, email, or webhook integration).
 
 ### Migration Plan (P0)
-1. Add `tenantId` column to `FraudRule` and `ComplianceRule` (nullable, backfill with a system tenant)
-2. Scope all rule queries by `tenantId`
+1. ~~Add `tenantId` column to `FraudRule` and `ComplianceRule` (nullable, backfill with a system tenant)~~ — **ComplianceRule done** (`add_compliance_rule_tenant_id` migration); FraudRule pending
+2. ~~Scope all rule queries by `tenantId`~~ — **ComplianceRule done**; FraudRule uses JSON workaround
 3. Add a system-tenant for default rules that apply to all tenants
 4. Implement rule evaluation engine with event-driven triggers
 5. Integrate real screening providers (ComplyAdvantage, Refinitiv World-Check)

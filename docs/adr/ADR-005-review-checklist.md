@@ -105,6 +105,8 @@
 - [x] Exchange rates are server-side constants (not client-supplied)
 
 ## Known Limitations / Future Work
+
+<!-- TRACKING: All items below are genuine future work, not yet implemented -->
 - [ ] Add `CHECK (availableBalance >= 0)` constraint on Wallet table
 - [ ] Implement optimistic locking with version column
 - [ ] Replace demo exchange rates with CurrencyRate table or external API

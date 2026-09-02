@@ -111,6 +111,7 @@ overall = payment×0.25 + quality×0.25 + delivery×0.20 + communication×0.15 +
 - Resolution text is analyzed to determine escrow fate:
   - Contains "refund"/"cancel"/"return to buyer" → escrow moves to `refunded`
   - Otherwise → escrow resumes `in_escrow`
+<!-- TRACKING: AI dispute analysis still uses mock recommendations — real LLM integration tracked as future work -->
 - AI recommendations are currently mock-generated (TODO: integrate real AI analysis)
 
 ### 6. Audit Logging

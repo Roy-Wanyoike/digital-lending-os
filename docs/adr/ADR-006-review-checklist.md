@@ -62,6 +62,6 @@
 - [ ] 401 response triggers redirect to `/login`
 
 ---
-
+<!-- TRACKING: 6 items remain pending — build verification (blocked by TS error in dashboard stats route) + remaining 8 tabs migration -->
 **Total items:** 30 checked, 6 pending (build/runtime verification + remaining 8 tabs)
 **Coverage:** 83% complete

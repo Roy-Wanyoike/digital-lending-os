@@ -20,7 +20,8 @@
 | Data tampering via direct DB access | Low | Critical | Private subnet; RBAC restricts direct DB access to DBA team | Low |
 | Schema migration tampering | Low | High | Migrations in version control; CI runs `prisma migrate deploy`; manual migration requires DBA approval | Low |
 | Data tampering via replica | Low | Medium | Read replicas are read-only (PgBouncer Pool B/C route SELECT only) | Very Low |
-| Cascade delete accidentally destroys financial data | Medium | Critical | ADR-011 documents cascade risks; Wallet → WalletTransaction should be Restrict (TODO) | Medium |
+<!-- TRACKING: Wallet → WalletTransaction cascade still Cascade — needs Restrict. Requires schema migration (prisma). -->
+| Cascade delete accidentally destroys financial data | Medium | Critical | ADR-011 documents cascade risks; Wallet → WalletTransaction should be Restrict (TODO, schema migration pending) | Medium |
 
 ### R - Repudiation
 
@@ -29,7 +30,8 @@
 | Deny modifying a record | Medium | Medium | `updatedAt` timestamp on all models; `logAudit()` on critical mutations | Low |
 | Deny deleting a record | Medium | High | Soft-delete pattern (status field) preferred; hard-delete audit log (future) | Medium |
 | No evidence of who changed tenant data | Low | Critical | All writes go through `requireAuth()`; actor in audit log; `log_min_duration_statement` for slow queries | Low |
-| Database-level audit gap | Medium | Medium | PostgreSQL `pgaudit` extension (TODO) for DDL and data-level audit | Medium |
+<!-- TRACKING: pgaudit extension requires PostgreSQL superuser access — tracked as infra/oncall task -->
+| Database-level audit gap | Medium | Medium | PostgreSQL `pgaudit` extension (TODO, requires superuser) for DDL and data-level audit | Medium |
 
 ### I - Information Disclosure
 
@@ -171,4 +173,5 @@ RLS Bypass
 | Query logging data exposure | LOW | Disabled in production |
 | No pgaudit extension | MEDIUM | No database-level audit trail for DDL/DML |
 
+<!-- TRACKING: Wallet → WalletTransaction cascade still Cascade in schema.prisma. Top priority for next schema migration. -->
 **Top priority:** Fix Wallet → WalletTransaction cascade from `Cascade` to `Restrict` (documented in ADR-011) and implement soft-delete for wallets. Add `pgaudit` extension for database-level audit trail.

@@ -70,6 +70,7 @@
 
 ## Known Limitations (Not Bugs — Tracked for Future Work)
 
+<!-- TRACKING: All items below are genuine future work, not yet implemented -->
 1. **No `/api/search` HTTP route** — search service exists but no frontend-facing endpoint.
 2. **CDC consumer not wired** — `processCDCEvent` exists but no Kafka consumer runs it.
 3. **No SigV4 signing** — Basic auth only; AWS OpenSearch Service requires request signing.
