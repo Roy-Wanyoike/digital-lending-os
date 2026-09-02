@@ -4,7 +4,7 @@ import React from 'react'
 import {
   LayoutDashboard, Network, Shield, ArrowLeftRight, IdCard as PassportIcon,
   Link2, Wallet, ShieldAlert, UserCheck, BellRing, Scale,
-  ArrowUpRight, ArrowDownRight, AlertTriangle, RotateCcw, Gift,
+  ArrowUpRight, ArrowDownRight, AlertTriangle, RotateCcw, Gift, Brain,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -26,6 +26,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'matching', label: 'Matching', icon: UserCheck },
   { id: 'collections', label: 'Collections', icon: BellRing },
   { id: 'compliance', label: 'Compliance', icon: Scale },
+  { id: 'digital-twin', label: 'Digital Twin', icon: Brain },
 ]
 
 // ─── Shared Sub-Components ───────────────────────────────────────────────
