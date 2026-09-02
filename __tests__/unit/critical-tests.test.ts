@@ -1,5 +1,5 @@
 /**
- * Critical financial and security tests for Youngsend platform.
+ * Critical financial and security tests for Digital Lending OS platform.
  * Validates payment state machine idempotency, API response consistency,
  * CSRF protection, ledger type constraints, and auth helper correctness.
  *

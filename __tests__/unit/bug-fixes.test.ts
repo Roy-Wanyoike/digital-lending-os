@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { z } from 'zod'
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Comprehensive tests for 20 bug fixes in Youngsend fintech platform
+// Comprehensive tests for 20 bug fixes in Digital Lending OS fintech platform
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ─── Top-level mocks for auth module dependencies ───────────────────────────

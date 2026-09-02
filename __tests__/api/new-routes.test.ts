@@ -22,7 +22,7 @@ async function login(): Promise<string> {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: allCookies.join('; ') },
-      body: `csrfToken=${encodeURIComponent(csrfToken)}&email=${encodeURIComponent('admin@youngsend.com')}&password=${encodeURIComponent('demo1234')}&callbackUrl=%2F`,
+      body: `csrfToken=${encodeURIComponent(csrfToken)}&email=${encodeURIComponent('admin@digitallendingos.co.ke')}&password=${encodeURIComponent('demo1234')}&callbackUrl=%2F`,
       redirect: 'manual',
     })
     collectCookies(res.headers)

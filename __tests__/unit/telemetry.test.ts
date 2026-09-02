@@ -7,7 +7,7 @@ describe('telemetry/logger', () => {
     vi.resetModules()
   })
 
-  it('exports getLogger, initLogger, shutdownLogger, parseLogLevel, YoungsendLogger, and LogLevel', async () => {
+  it('exports getLogger, initLogger, shutdownLogger, parseLogLevel, YoungsendLogger (DLO Logger), and LogLevel', async () => {
     const mod = await import('@/backend/lib/telemetry/logger')
     expect(typeof mod.getLogger).toBe('function')
     expect(typeof mod.initLogger).toBe('function')
@@ -36,7 +36,7 @@ describe('telemetry/logger', () => {
     expect(parseLogLevel('DEBUG')).toBe(LogLevel.DEBUG)
   })
 
-  it('getLogger returns a YoungsendLogger instance with all log methods', async () => {
+  it('getLogger returns a DLO Logger instance with all log methods', async () => {
     const { getLogger } = await import('@/backend/lib/telemetry/logger')
     const logger = getLogger()
     expect(typeof logger.trace).toBe('function')
@@ -113,7 +113,7 @@ describe('telemetry/tracer', () => {
     vi.resetModules()
   })
 
-  it('exports getTracer, createTracerProvider, startFintechSpan, withFintechSpan, shutdownTracer, YS_ATTRS', async () => {
+  it('exports getTracer, createTracerProvider, startFintechSpan, withFintechSpan, shutdownTracer, DLO_ATTRS', async () => {
     const mod = await import('@/backend/lib/telemetry/tracer')
     expect(typeof mod.getTracer).toBe('function')
     expect(typeof mod.createTracerProvider).toBe('function')
@@ -123,7 +123,7 @@ describe('telemetry/tracer', () => {
     expect(mod.YS_ATTRS).toBeDefined()
   })
 
-  it('YS_ATTRS contains all expected fintech attribute keys', async () => {
+  it('DLO_ATTRS contains all expected fintech attribute keys', async () => {
     const { YS_ATTRS } = await import('@/backend/lib/telemetry/tracer')
     expect(YS_ATTRS.TENANT_ID).toBe('youngsend.tenant.id')
     expect(YS_ATTRS.USER_ID).toBe('youngsend.user.id')
@@ -429,7 +429,7 @@ describe('telemetry/index re-exports', () => {
     expect(typeof mod.withFintechSpan).toBe('function')
     expect(typeof mod.createHttpSpan).toBe('function')
     expect(typeof mod.shutdownTracer).toBe('function')
-    expect(mod.YS_ATTRS).toBeDefined()
+    expect(mod.YS_ATTRS).toBeDefined() // DLO_ATTRS
   })
 
   it('re-exports all metrics functions and types', async () => {
@@ -451,7 +451,7 @@ describe('telemetry/index re-exports', () => {
     expect(typeof mod.getLogger).toBe('function')
     expect(typeof mod.initLogger).toBe('function')
     expect(typeof mod.shutdownLogger).toBe('function')
-    expect(mod.YoungsendLogger).toBeDefined()
+    expect(mod.YoungsendLogger).toBeDefined() // DLO Logger
     expect(mod.LogLevel).toBeDefined()
   })
 

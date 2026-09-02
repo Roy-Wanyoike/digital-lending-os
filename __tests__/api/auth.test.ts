@@ -12,7 +12,7 @@ let cachedCookies: string | null = null
  * Login once and cache the session cookies.
  * All subsequent calls return the cached cookies.
  */
-async function login(email = 'admin@youngsend.com', password = 'demo1234'): Promise<string> {
+async function login(email = 'admin@digitallendingos.co.ke', password = 'demo1234'): Promise<string> {
   if (cachedCookies) return cachedCookies
 
   const csrfRes = await fetch(`${BASE}/api/auth/csrf`)
@@ -77,7 +77,7 @@ describe('Auth API', () => {
       expect(res.status).toBe(200)
       const data = await res.json()
       expect(data.user).toBeDefined()
-      expect(data.user.email).toBe('admin@youngsend.com')
+      expect(data.user.email).toBe('admin@digitallendingos.co.ke')
       expect(data.user.role).toBe('admin')
       expect(data.user.tenantId).toBeTruthy()
       expect(data.user.accountId).toBeTruthy()
