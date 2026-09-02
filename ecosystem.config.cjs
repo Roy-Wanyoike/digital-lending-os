@@ -4,7 +4,7 @@ module.exports = {
       name: 'youngsend-dev',
       script: 'npx',
       args: 'next dev -p 3000 -H 0.0.0.0',
-      cwd: '/home/z/my-project',
+      cwd: process.cwd(),
       env: {
         NODE_OPTIONS: '--max-old-space-size=3072',
         NEXT_TELEMETRY_DISABLED: '1',
@@ -18,7 +18,7 @@ module.exports = {
       name: 'youngsend-prod',
       script: 'node',
       args: '.next/standalone/server.js',
-      cwd: '/home/z/my-project',
+      cwd: process.cwd(),
       env: {
         NODE_ENV: 'production',
         NEXT_TELEMETRY_DISABLED: '1',
