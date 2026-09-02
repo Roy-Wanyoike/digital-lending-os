@@ -24,3 +24,7 @@ export function getRequestBaseUrl(request: NextRequest, fallback = ""): string {
   }
   return fallback
 }
+
+export function generateTxRef(prefix = 'ESC'): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+}

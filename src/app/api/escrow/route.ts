@@ -6,6 +6,7 @@ import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+import { generateTxRef } from '@/backend/lib/utils';
 
 const createEscrowSchema = z.object({
   amount: z.coerce.number().positive('Amount must be a positive number'),
@@ -76,13 +77,6 @@ async function getHandler(req: NextRequest) {
     console.error('Escrow GET error:', error);
     return error('Failed to fetch escrow transactions');
   }
-}
-
-function generateTxRef(): string {
-  const now = new Date();
-  const date = now.toISOString().slice(0, 10).replace(/-/g, '');
-  const random = String(Math.floor(Math.random() * 100000)).padStart(5, '0');
-  return `ESC-${date}-${random}`;
 }
 
 async function postHandler(req: NextRequest) {
