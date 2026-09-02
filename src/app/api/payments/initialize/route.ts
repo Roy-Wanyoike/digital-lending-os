@@ -71,6 +71,8 @@ const postHandler = withErrorHandler(async (request: NextRequest) => {
 
   // ─── Determine reference for provider ─────────────────────
   let providerReference = `YS-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+  let resolvedFromBusinessId = ''
+  let resolvedToBusinessId = ''
 
   if (data.referenceType === 'escrow' && data.referenceId) {
     const escrow = await db.escrowTransaction.findFirst({
@@ -82,15 +84,36 @@ const postHandler = withErrorHandler(async (request: NextRequest) => {
         ],
       },
     })
-    if (escrow) providerReference = escrow.txRef
+    if (escrow) {
+      providerReference = escrow.txRef
+      resolvedFromBusinessId = escrow.buyerId
+      resolvedToBusinessId = escrow.sellerId
+    }
   } else if (data.referenceType === 'payment_link' && data.referenceId) {
     const link = await db.paymentLink.findUnique({ where: { id: data.referenceId } })
     if (link) {
       const biz = await db.business.findUnique({ where: { id: link.businessId }, select: { tenantId: true } })
       if (biz && biz.tenantId === user.tenantId) {
         providerReference = link.linkRef
+        resolvedToBusinessId = link.businessId
       }
     }
+  }
+
+  // ─── Resolve business IDs from tenant context ─────────────
+  if (!resolvedFromBusinessId || !resolvedToBusinessId) {
+    // Try the user's primary business first, then fall back to the tenant's first business
+    let defaultBusinessId = user.businessId || ''
+    if (!defaultBusinessId) {
+      const tenantBusiness = await db.business.findFirst({
+        where: { tenantId: user.tenantId, status: 'active' },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      })
+      defaultBusinessId = tenantBusiness?.id || ''
+    }
+    if (!resolvedFromBusinessId) resolvedFromBusinessId = defaultBusinessId
+    if (!resolvedToBusinessId) resolvedToBusinessId = defaultBusinessId
   }
 
   // ─── Initialize with provider ─────────────────────────────
@@ -125,8 +148,8 @@ const postHandler = withErrorHandler(async (request: NextRequest) => {
   const paymentIntent = await db.paymentIntent.create({
     data: {
       intentRef: `PI-${providerReference}`,
-      fromBusinessId: data.referenceId || '',
-      toBusinessId: data.referenceId || '',
+      fromBusinessId: resolvedFromBusinessId,
+      toBusinessId: resolvedToBusinessId,
       sourceAmount: data.amount / 100,
       sourceCurrency: data.currency,
       targetAmount: (data.amount / 100) - feeBreakdown.totalFee,
