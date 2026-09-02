@@ -1,7 +1,8 @@
 // ─── Idempotency Guard & Middleware ─────────────────────────────────
 //
-// Generic idempotency guard using in-memory Map with TTL support.
-// Production would use Redis (SET NX EX) for distributed locking.
+// Generic idempotency guard that optionally uses Redis (via CacheClient)
+// as the backing store for distributed locking across multiple server instances.
+// Falls back to an in-memory Map when Redis is not available.
 // Includes Next.js API route middleware for Idempotency-Key header.
 //
 
@@ -26,94 +27,168 @@ export interface AcquireResult {
   completedResponse?: IdempotencyEntry
 }
 
+// ── Cache client type (duck-typed to avoid hard import at module level) ──
+
+interface SimpleCacheClient {
+  get(key: string): Promise<string | null>
+  set(key: string, value: string, ttlMs?: number): Promise<void>
+  del(key: string | string[]): Promise<number>
+  isAvailable(): boolean
+}
+
 // ── IdempotencyGuard ───────────────────────────────────────────────
 
+/** Redis key prefix for namespacing idempotency entries */
+const IDEM_KEY_PREFIX = 'idem:'
+
 export class IdempotencyGuard {
+  /** In-memory fallback / local hot cache */
   private cache: Map<string, IdempotencyEntry> = new Map()
+  /** Optional Redis-backed cache client */
+  private redisClient: SimpleCacheClient | null = null
   private cleanupInterval: ReturnType<typeof setInterval> | null = null
 
   /**
    * @param defaultTtlMs Default TTL for entries in milliseconds
-   * @param cleanupIntervalMs How often to purge expired entries
+   * @param cleanupIntervalMs How often to purge expired entries (in-memory only)
    */
   constructor(
     private defaultTtlMs: number = 5 * 60 * 1000, // 5 minutes
     private cleanupIntervalMs: number = 60 * 1000, // 1 minute
   ) {
+    this.initRedis()
     this.startCleanup()
   }
+
+  /**
+   * Attempt to initialise the Redis cache client.
+   * Errors are silently swallowed — the in-memory Map is always available.
+   */
+  private initRedis(): void {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { getCacheClient } = require('../cache/client')
+      const client = getCacheClient()
+      if (client && typeof client.get === 'function' && client.isAvailable()) {
+        this.redisClient = client as unknown as SimpleCacheClient
+      }
+    } catch {
+      // Cache module unavailable — in-memory only
+    }
+  }
+
+  /** Build the namespaced Redis key */
+  private rk(key: string): string {
+    return `${IDEM_KEY_PREFIX}${key}`
+  }
+
+  // ── Public async API (Redis-aware) ────────────────────────────
 
   /**
    * Attempt to acquire a lock for the given key.
    * Returns true if the lock was acquired (first request).
    * Returns false if already processing or a completed response exists.
    */
-  acquire(lockKey: string, ttlMs?: number): AcquireResult {
+  async acquire(lockKey: string, ttlMs?: number): Promise<AcquireResult> {
     const effectiveTtl = ttlMs ?? this.defaultTtlMs
     const now = Date.now()
-    const existing = this.cache.get(lockKey)
 
-    // Check for existing entry
-    if (existing) {
-      // Expired entry — clean up and allow new acquisition
-      if (now > existing.expiresAt) {
-        this.cache.delete(lockKey)
-      } else {
-        // Still active
-        if (existing.status === 'processing') {
-          return { acquired: false, alreadyProcessing: true }
-        }
-        // Completed or failed — return cached result
-        return { acquired: false, alreadyProcessing: false, completedResponse: existing }
+    // ── Try Redis path ──────────────────────────────────────────
+    if (this.redisClient) {
+      try {
+        return await this.acquireRedis(lockKey, effectiveTtl, now)
+      } catch (err) {
+        // Redis error — fall through to in-memory path
+        console.error('[IdempotencyGuard] Redis acquire failed, falling back to in-memory:', err)
       }
     }
 
-    // Acquire lock
-    const entry: IdempotencyEntry = {
-      key: lockKey,
-      status: 'processing',
-      createdAt: now,
-      expiresAt: now + effectiveTtl,
-    }
-    this.cache.set(lockKey, entry)
-    return { acquired: true, alreadyProcessing: false }
+    // ── In-memory fallback (original logic) ─────────────────────
+    return this.acquireLocal(lockKey, effectiveTtl, now)
   }
 
   /**
    * Release a processing lock and store the response for future deduplication.
    */
-  complete<T>(lockKey: string, response: T, status: number = 200, headers?: Record<string, string>): void {
+  async complete<T>(lockKey: string, response: T, status: number = 200, headers?: Record<string, string>): Promise<void> {
     const entry = this.cache.get(lockKey)
-    if (!entry) {
-      return
-    }
+    if (!entry) return
+
+    // Update local cache
     entry.status = 'completed'
     entry.response = response as unknown as undefined
     entry.responseStatus = status
     entry.responseHeaders = headers
+
+    // Persist to Redis
+    if (this.redisClient) {
+      try {
+        const remainingTtl = Math.max(0, entry.expiresAt - Date.now())
+        await this.redisClient.set(this.rk(lockKey), JSON.stringify(entry), remainingTtl)
+      } catch (err) {
+        console.error('[IdempotencyGuard] Redis complete failed:', err)
+      }
+    }
   }
 
   /**
    * Mark a processing entry as failed (allows retry after short TTL).
    */
-  fail(lockKey: string): void {
+  async fail(lockKey: string): Promise<void> {
     const entry = this.cache.get(lockKey)
     if (!entry) return
+
     entry.status = 'failed'
     entry.expiresAt = Date.now() + 30_000 // 30 seconds
+
+    if (this.redisClient) {
+      try {
+        await this.redisClient.set(this.rk(lockKey), JSON.stringify(entry), 30_000)
+      } catch (err) {
+        console.error('[IdempotencyGuard] Redis fail failed:', err)
+      }
+    }
   }
 
   /**
    * Release a lock without storing a response.
    */
-  release(lockKey: string): void {
+  async release(lockKey: string): Promise<void> {
     this.cache.delete(lockKey)
+
+    if (this.redisClient) {
+      try {
+        await this.redisClient.del(this.rk(lockKey))
+      } catch (err) {
+        console.error('[IdempotencyGuard] Redis release failed:', err)
+      }
+    }
   }
 
   /**
    * Check if a key is currently being processed.
    */
-  isProcessing(lockKey: string): boolean {
+  async isProcessing(lockKey: string): Promise<boolean> {
+    // ── Try Redis ───────────────────────────────────────────────
+    if (this.redisClient) {
+      try {
+        const raw = await this.redisClient.get(this.rk(lockKey))
+        if (raw) {
+          const entry: IdempotencyEntry = JSON.parse(raw) as IdempotencyEntry
+          if (Date.now() <= entry.expiresAt && entry.status === 'processing') {
+            // Warm local cache
+            this.cache.set(lockKey, entry)
+            return true
+          }
+        }
+        // Key missing or expired in Redis — not processing
+        return false
+      } catch (err) {
+        console.error('[IdempotencyGuard] Redis isProcessing failed, falling back:', err)
+      }
+    }
+
+    // ── In-memory fallback ───────────────────────────────────────
     const entry = this.cache.get(lockKey)
     if (!entry) return false
     if (Date.now() > entry.expiresAt) {
@@ -126,7 +201,27 @@ export class IdempotencyGuard {
   /**
    * Get cached response for a completed request (or undefined if none).
    */
-  getCachedResponse<T = unknown>(lockKey: string): IdempotencyEntry<T> | undefined {
+  async getCachedResponse<T = unknown>(lockKey: string): Promise<IdempotencyEntry<T> | undefined> {
+    // ── Try Redis ───────────────────────────────────────────────
+    if (this.redisClient) {
+      try {
+        const raw = await this.redisClient.get(this.rk(lockKey))
+        if (raw) {
+          const entry: IdempotencyEntry = JSON.parse(raw) as IdempotencyEntry
+          if (Date.now() <= entry.expiresAt && entry.status === 'completed') {
+            // Warm local cache
+            this.cache.set(lockKey, entry)
+            return entry as IdempotencyEntry<T>
+          }
+        }
+        // Not in Redis or expired
+        return undefined
+      } catch (err) {
+        console.error('[IdempotencyGuard] Redis getCachedResponse failed, falling back:', err)
+      }
+    }
+
+    // ── In-memory fallback ───────────────────────────────────────
     const entry = this.cache.get(lockKey)
     if (!entry) return undefined
     if (Date.now() > entry.expiresAt) {
@@ -136,6 +231,8 @@ export class IdempotencyGuard {
     if (entry.status === 'completed') return entry as IdempotencyEntry<T>
     return undefined
   }
+
+  // ── Static helpers (unchanged) ─────────────────────────────────
 
   /**
    * Generate a payment idempotency key.
@@ -161,7 +258,8 @@ export class IdempotencyGuard {
   }
 
   /**
-   * Get the number of entries currently in the cache.
+   * Get the number of entries currently in the local cache.
+   * (Only reflects in-memory entries, not Redis.)
    */
   get size(): number {
     return this.cache.size
@@ -185,7 +283,73 @@ export class IdempotencyGuard {
     this.cache.clear()
   }
 
-  // ── Private ──────────────────────────────────────────────────
+  // ── Private: Redis acquire path ────────────────────────────────
+
+  private async acquireRedis(lockKey: string, effectiveTtl: number, now: number): Promise<AcquireResult> {
+    const key = this.rk(lockKey)
+    const raw = await this.redisClient!.get(key)
+
+    if (raw) {
+      const entry: IdempotencyEntry = JSON.parse(raw) as IdempotencyEntry
+
+      // Still within TTL
+      if (now <= entry.expiresAt) {
+        // Warm local cache
+        this.cache.set(lockKey, entry)
+
+        if (entry.status === 'processing') {
+          return { acquired: false, alreadyProcessing: true }
+        }
+        // Completed or failed — return cached result
+        return { acquired: false, alreadyProcessing: false, completedResponse: entry }
+      }
+
+      // Expired in Redis — clean it up
+      await this.redisClient!.del(key)
+    }
+
+    // Acquire lock: write 'processing' entry to Redis with TTL
+    const entry: IdempotencyEntry = {
+      key: lockKey,
+      status: 'processing',
+      createdAt: now,
+      expiresAt: now + effectiveTtl,
+    }
+    await this.redisClient!.set(key, JSON.stringify(entry), effectiveTtl)
+
+    // Also keep in local cache for fast access
+    this.cache.set(lockKey, entry)
+
+    return { acquired: true, alreadyProcessing: false }
+  }
+
+  // ── Private: In-memory acquire path ────────────────────────────
+
+  private acquireLocal(lockKey: string, effectiveTtl: number, now: number): AcquireResult {
+    const existing = this.cache.get(lockKey)
+
+    if (existing) {
+      if (now > existing.expiresAt) {
+        this.cache.delete(lockKey)
+      } else {
+        if (existing.status === 'processing') {
+          return { acquired: false, alreadyProcessing: true }
+        }
+        return { acquired: false, alreadyProcessing: false, completedResponse: existing }
+      }
+    }
+
+    const entry: IdempotencyEntry = {
+      key: lockKey,
+      status: 'processing',
+      createdAt: now,
+      expiresAt: now + effectiveTtl,
+    }
+    this.cache.set(lockKey, entry)
+    return { acquired: true, alreadyProcessing: false }
+  }
+
+  // ── Private: Cleanup timer (in-memory only) ────────────────────
 
   private startCleanup(): void {
     this.cleanupInterval = setInterval(() => {
@@ -262,7 +426,7 @@ export function withIdempotency(
     const userId = req.headers.get('x-user-id') ?? 'anonymous'
     const lockKey = `${userId}:${idempotencyKey}`
 
-    const result = guard.acquire(lockKey, ttlMs)
+    const result = await guard.acquire(lockKey, ttlMs)
 
     if (!result.acquired) {
       if (result.alreadyProcessing) {
@@ -310,11 +474,11 @@ export function withIdempotency(
         }
       })
 
-      guard.complete(lockKey, parsedBody, response.status, headersToCache)
+      await guard.complete(lockKey, parsedBody, response.status, headersToCache)
 
       return response
     } catch (error) {
-      guard.fail(lockKey)
+      await guard.fail(lockKey)
       throw error
     }
   }
@@ -328,7 +492,7 @@ export async function withIdempotentOperation<T>(
   guard: IdempotencyGuard = getIdempotencyGuard(),
   ttlMs?: number,
 ): Promise<T> {
-  const acquireResult = guard.acquire(key, ttlMs)
+  const acquireResult = await guard.acquire(key, ttlMs)
 
   if (!acquireResult.acquired) {
     if (acquireResult.completedResponse && acquireResult.completedResponse.response) {
@@ -339,10 +503,10 @@ export async function withIdempotentOperation<T>(
 
   try {
     const result = await operation()
-    guard.complete(key, result)
+    await guard.complete(key, result)
     return result
   } catch (error) {
-    guard.fail(key)
+    await guard.fail(key)
     throw error
   }
 }

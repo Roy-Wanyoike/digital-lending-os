@@ -163,12 +163,12 @@ async function createPaymentIntent(request: NextRequest, _ctx?: { params?: Promi
     const idempotencyKey = request.headers.get('idempotency-key');
     const guard = await getIdempotencyGuard();
     if (idempotencyKey && guard) {
-      const existing = guard.getCachedResponse(idempotencyKey);
+      const existing = await guard.getCachedResponse(idempotencyKey);
       if (existing && existing.status === 'completed') {
         // Return cached response for already-processed request
         return created(existing.response.data);
       }
-      const acquireResult = guard.acquire(idempotencyKey);
+      const acquireResult = await guard.acquire(idempotencyKey);
       if (acquireResult.alreadyProcessing) {
         return conflict('Request already in progress');
       }
@@ -293,7 +293,7 @@ async function createPaymentIntent(request: NextRequest, _ctx?: { params?: Promi
 
     // ── Store response for idempotency ─────────────────────────
     if (idempotencyKey && guard) {
-      guard.complete(idempotencyKey, responseData, 201);
+      await guard.complete(idempotencyKey, responseData, 201);
     }
 
     // ── Publish Kafka event ────────────────────────────────────

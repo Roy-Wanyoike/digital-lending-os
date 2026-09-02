@@ -61,7 +61,7 @@ export function withPaymentIdempotency(handler: RouteHandler): RouteHandler {
       const guard = getIdempotencyGuard()
 
       // Check for a completed (cached) response — fast return for duplicates
-      const cached = guard.getCachedResponse(idempotencyKey)
+      const cached = await guard.getCachedResponse(idempotencyKey)
       if (cached) {
         return new NextResponse(JSON.stringify(cached.response), {
           status: cached.responseStatus ?? 201,
@@ -74,7 +74,7 @@ export function withPaymentIdempotency(handler: RouteHandler): RouteHandler {
       }
 
       // Check if the request is currently in-flight (in-progress dedup)
-      if (guard.isProcessing(idempotencyKey)) {
+      if (await guard.isProcessing(idempotencyKey)) {
         return NextResponse.json(
           {
             error: 'Request with this Idempotency-Key is currently being processed',
