@@ -1,0 +1,3 @@
+{
+  "/api/twin/profiles/[id]/metrics/route": "app/api/twin/profiles/[id]/metrics/route.js"
+}

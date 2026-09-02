@@ -1,0 +1,3 @@
+{
+  "/api/payments/webhooks/paystack/route": "app/api/payments/webhooks/paystack/route.js"
+}

@@ -1,0 +1,11 @@
+var R=require("../../../../../../../chunks/[turbopack]_runtime.js")("server/app/api/escrow/transactions/[id]/disputes/[disputeId]/route.js")
+R.c("server/chunks/_0fec6885._.js")
+R.c("server/chunks/node_modules_next_f2da0d3e._.js")
+R.c("server/chunks/[root-of-the-server]__cf77a283._.js")
+R.c("server/chunks/node_modules_zod_v4_classic_errors_6231ecd5.js")
+R.c("server/chunks/node_modules_zod_v4_classic_external_fa90cebf.js")
+R.c("server/chunks/[root-of-the-server]__b68dcfac._.js")
+R.c("server/chunks/node_modules_next_dist_79f1aee4._.js")
+R.c("server/chunks/bec2d_app_api_escrow_transactions_[id]_disputes_[disputeId]_route_actions_82a35e3a.js")
+R.m(58478)
+module.exports=R.m(58478).exports

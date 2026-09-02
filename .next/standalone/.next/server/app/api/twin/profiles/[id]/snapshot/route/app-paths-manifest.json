@@ -1,0 +1,3 @@
+{
+  "/api/twin/profiles/[id]/snapshot/route": "app/api/twin/profiles/[id]/snapshot/route.js"
+}

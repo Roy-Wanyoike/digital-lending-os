@@ -1,0 +1,3 @@
+module.exports=[96742,e=>{"use strict";async function r(r){try{let t=(await e.A(35493)).getAuditTrail(),a={...r.details??{},tenantId:r.tenantId};r.oldValues&&(a.oldValues=r.oldValues),r.newValues&&(a.newValues=r.newValues);let o=`${r.action}: ${r.resource} ${r.resourceId}`;await t.record({action:r.action,actor:r.userId,resourceId:r.resourceId,resourceType:r.resource,description:o,metadata:a})}catch(e){console.error("[auditLog] Audit trail error:",e)}}e.s(["auditLog",()=>r])}];
+
+//# sourceMappingURL=src_backend_lib_audit-helper_ts_dfb030ca._.js.map

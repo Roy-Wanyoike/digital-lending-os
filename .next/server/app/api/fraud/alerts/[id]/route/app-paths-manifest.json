@@ -1,0 +1,3 @@
+{
+  "/api/fraud/alerts/[id]/route": "app/api/fraud/alerts/[id]/route.js"
+}
