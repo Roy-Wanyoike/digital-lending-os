@@ -8,9 +8,11 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { useApi } from '@/hooks/use-api'
+import { CircularScore, LoadingSkeleton, ErrorState } from '@/frontend/components/dashboard/dashboard-components'
 import {
-  useApi, getCountryFlag, getStatusBadgeVariant, getStatusColor,
-  getTrustScoreColor, ScoreBar, CircularScore, LoadingSkeleton, ErrorState,
+  getCountryFlag, getStatusBadgeVariant, getStatusColor,
+  getTrustScoreColor, ScoreBar,
   type Business,
 } from '@/lib/dashboard-helpers'
 

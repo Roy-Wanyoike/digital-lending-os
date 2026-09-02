@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useApi } from '@/hooks/use-api'
-import { KPICard, formatDate, ErrorState } from '@/lib/dashboard-helpers'
+import { KPICard, ErrorState } from '@/frontend/components/dashboard/dashboard-components'
+import { formatDate } from '@/lib/dashboard-helpers'
 
 interface ReferralData {
   referralCode: string

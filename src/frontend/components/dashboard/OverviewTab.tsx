@@ -1,6 +1,8 @@
 'use client'
 
-import { useApi, LoadingSkeleton, ErrorState, type DashboardStats, formatCurrency, formatDate, getStatusBadgeVariant, ESCROW_STATUSES, KPICard, PipelineCard } from '@/lib/dashboard-helpers'
+import { useApi } from '@/hooks/use-api'
+import { LoadingSkeleton, ErrorState, KPICard } from '@/frontend/components/dashboard/dashboard-components'
+import { type DashboardStats, formatCurrency, formatDate, getStatusBadgeVariant, ESCROW_STATUSES, PipelineCard } from '@/lib/dashboard-helpers'
 import { TrendingUp, Building2, Shield, Star } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
