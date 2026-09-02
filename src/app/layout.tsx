@@ -15,13 +15,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://youngsend.com'),
+  metadataBase: new URL('https://digitallendingos.co.ke'),
   title: {
-    default: "Youngsend — Financial Operating System for Global Commerce",
-    template: "%s — Youngsend",
+    default: "Digital Lending OS — Multi-Tenant SaaS for Kenyan Digital Credit Providers",
+    template: "%s — Digital Lending OS",
   },
-  description: "The Financial Operating System and Trust Network for Global Commerce. Escrow, Wallet, Payment Links, and AI-powered trust.",
-  keywords: ["Youngsend", "escrow", "payment", "trust network", "global commerce", "fintech", "payment links", "digital wallet", "cross-border payments"],
+  description: "Multi-Tenant SaaS Platform for Kenyan Digital Credit Providers. CBK-compliant lending, M-Pesa integration, automated credit scoring, collections, and multi-tenant management.",
+  keywords: ["Digital Lending OS", "Kenya", "digital lending", "CBK", "M-Pesa", "credit scoring", "CRB", "collections", "fintech", "multi-tenant SaaS", "digital credit providers"],
   icons: {
     icon: "/logo.svg",
   },
@@ -31,15 +31,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://youngsend.com',
-    siteName: 'Youngsend',
-    title: 'Youngsend — Financial Operating System for Global Commerce',
-    description: 'Escrow, wallets, payment links, and AI-powered trust — all in one secure platform built for businesses that trade across borders.',
+    url: 'https://digitallendingos.co.ke',
+    siteName: 'Digital Lending OS',
+    title: 'Digital Lending OS — Multi-Tenant SaaS for Kenyan Digital Credit Providers',
+    description: 'CBK-compliant lending, M-Pesa integration, automated credit scoring, collections, and multi-tenant SaaS — built for Kenyan Digital Credit Providers.',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Youngsend — Financial Operating System for Global Commerce',
-    description: 'Escrow, wallets, payment links, and AI-powered trust — all in one secure platform built for businesses that trade across borders.',
+    title: 'Digital Lending OS — Multi-Tenant SaaS for Kenyan Digital Credit Providers',
+    description: 'CBK-compliant lending, M-Pesa integration, automated credit scoring, collections, and multi-tenant SaaS — built for Kenyan Digital Credit Providers.',
   },
   robots: {
     index: true,

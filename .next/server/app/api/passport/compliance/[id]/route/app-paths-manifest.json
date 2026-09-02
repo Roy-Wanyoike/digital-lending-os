@@ -1,0 +1,3 @@
+{
+  "/api/passport/compliance/[id]/route": "app/api/passport/compliance/[id]/route.js"
+}

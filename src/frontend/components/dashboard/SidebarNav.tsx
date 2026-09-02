@@ -40,8 +40,8 @@ export function SidebarNav({ visibleTabs, activeTab, onTabChange }: { visibleTab
   return (
     <div className="flex flex-col h-full">
       <div className="p-4 sm:p-6 border-b border-border">
-        <h1 className="text-xl font-bold text-emerald-500">Youngsend</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">Trust Network</p>
+        <h1 className="text-xl font-bold text-emerald-500">Digital Lending OS</h1>
+        <p className="text-xs text-muted-foreground mt-0.5">Kenyan DCP Platform</p>
       </div>
       <ScrollArea className="flex-1 py-4">
         <nav aria-label="Dashboard navigation" className="space-y-1 px-3">
@@ -62,8 +62,8 @@ export function SidebarNav({ visibleTabs, activeTab, onTabChange }: { visibleTab
       </ScrollArea>
       <div className="p-4 border-t border-border flex items-center justify-between">
         <div>
-          <p className="text-[10px] text-muted-foreground text-center">The Financial Operating System</p>
-          <p className="text-[10px] text-muted-foreground text-center">for Global Commerce</p>
+          <p className="text-[10px] text-muted-foreground text-center">Multi-Tenant SaaS for Kenyan</p>
+          <p className="text-[10px] text-muted-foreground text-center">Digital Credit Providers</p>
         </div>
         <ThemeToggle />
       </div>

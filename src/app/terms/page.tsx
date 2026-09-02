@@ -3,8 +3,8 @@ import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export const metadata = {
-  title: 'Terms of Service — Youngsend',
-  description: 'Youngsend Terms of Service agreement.',
+  title: 'Terms of Service — Digital Lending OS',
+  description: 'Digital Lending OS Terms of Service agreement.',
 }
 
 export default function TermsPage() {
@@ -22,35 +22,35 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold mb-2">1. Acceptance of Terms</h2>
             <p className="text-muted-foreground">
-              By accessing or using Youngsend (&ldquo;the Service&rdquo;), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service.
+              By accessing or using Digital Lending OS (&ldquo;the Service&rdquo;), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold mb-2">2. Description of Service</h2>
             <p className="text-muted-foreground">
-              Youngsend provides a financial operating system for global commerce, including escrow services, digital wallets, payment links, and trust-network features. The Service is provided &ldquo;as is&rdquo; and is intended for business use.
+              Digital Lending OS provides a multi-tenant SaaS platform for Kenyan Digital Credit Providers, including CBK-compliant lending, credit scoring, M-Pesa integration, automated collections, and compliance features. The Service is provided &ldquo;as is&rdquo; and is intended for licensed digital credit providers.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold mb-2">3. Account Responsibilities</h2>
             <p className="text-muted-foreground">
-              You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You must notify Youngsend immediately of any unauthorized use.
+              You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You must notify Digital Lending OS immediately of any unauthorized use.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold mb-2">4. Acceptable Use</h2>
             <p className="text-muted-foreground">
-              You agree not to use the Service for any unlawful purpose, including but not limited to money laundering, fraud, or financing of illegal activities. Youngsend reserves the right to suspend or terminate accounts that violate these terms.
+              You agree not to use the Service for any unlawful purpose, including but not limited to money laundering, fraud, or financing of illegal activities. Digital Lending OS reserves the right to suspend or terminate accounts that violate these terms.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold mb-2">5. Limitation of Liability</h2>
             <p className="text-muted-foreground">
-              Youngsend shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of your use of the Service. Our total liability shall not exceed the fees paid by you in the twelve months preceding the claim.
+              Digital Lending OS shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of your use of the Service. Our total liability shall not exceed the fees paid by you in the twelve months preceding the claim.
             </p>
           </section>
 
@@ -65,8 +65,8 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold mb-2">7. Contact</h2>
             <p className="text-muted-foreground">
               For questions about these Terms, please contact us at{' '}
-              <a href="mailto:legal@youngsend.com" className="text-emerald-600 dark:text-emerald-400 hover:underline">
-                legal@youngsend.com
+              <a href="mailto:legal@digitallendingos.co.ke" className="text-emerald-600 dark:text-emerald-400 hover:underline">
+                legal@digitallendingos.co.ke
               </a>.
             </p>
           </section>

@@ -179,16 +179,16 @@ function PaymentCheckoutInner() {
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-emerald-600 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">YS</span>
+              <span className="text-white font-bold text-sm">DLO</span>
             </div>
             <div>
-              <p className="font-semibold text-sm text-foreground">Youngsend</p>
+              <p className="font-semibold text-sm text-foreground">Digital Lending OS</p>
               <p className="text-xs text-muted-foreground">Secure Payment</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
             <Shield className="h-4 w-4 text-emerald-500" aria-hidden="true" />
-            <span className="text-xs text-muted-foreground">Secured by Youngsend Escrow</span>
+            <span className="text-xs text-muted-foreground">Secured by Digital Lending OS</span>
           </div>
         </div>
       </header>

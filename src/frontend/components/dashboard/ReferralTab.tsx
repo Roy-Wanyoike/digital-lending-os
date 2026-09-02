@@ -73,8 +73,8 @@ export function ReferralTab() {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Join Youngsend - Get $100 Bonus!',
-          text: `Sign up on Youngsend using my referral link and get a $100 bonus when you make your first deposit!`,
+          title: 'Join Digital Lending OS - Get KES 5,000 Bonus!',
+          text: `Sign up on Digital Lending OS using my referral link and get a KES 5,000 bonus when you activate your account!`,
           url: data.referralLink,
         })
       } catch { /* user cancelled */ }
