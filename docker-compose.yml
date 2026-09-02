@@ -47,7 +47,7 @@ services:
     container_name: youngsend-postgres
     environment:
       POSTGRES_USER: youngsend
-      POSTGRES_PASSWORD: youngsend
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-youngsend_dev}
       POSTGRES_DB: youngsend
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -105,7 +105,8 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # NOTE: Production clusters should use replication.factor=3 for fault tolerance
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
     volumes:
       - kafka_data:/var/lib/kafka/data
     restart: unless-stopped
@@ -119,6 +120,9 @@ services:
     environment:
       - discovery.type=single-node
       - DISABLE_SECURITY_PLUGIN=true
+      # WARNING: Security plugin is disabled for dev convenience.
+      # Production MUST enable it: set DISABLE_SECURITY_PLUGIN=false,
+      # configure HTTPS certs, and use strong credentials via env vars.
       - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
       - "127.0.0.1:9200:9200"

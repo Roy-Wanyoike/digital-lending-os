@@ -54,7 +54,6 @@ COPY --from=builder /app/public ./public
 
 # Prisma — schema for runtime migrations, generated client + engine
 COPY --from=builder /app/prisma ./prisma
-COPY --from=deps /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
 
