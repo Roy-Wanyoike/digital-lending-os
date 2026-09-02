@@ -1,5 +1,5 @@
 -- ============================================================
--- Youngsend — Supabase (PostgreSQL) Schema
+-- Digital Lending OS — Supabase (PostgreSQL) Schema
 -- Generated from Prisma schema — 34 tables, 14 modules
 -- Paste this into the Supabase SQL Editor and run it.
 -- ============================================================
