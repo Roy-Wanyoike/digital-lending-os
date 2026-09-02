@@ -147,7 +147,7 @@ const postHandler = withErrorHandler(async (req: NextRequest) => {
       const business = await tx.business.create({
         data: {
           name: `${name} - Main`,
-          country: 'US',
+          country: process.env.DEFAULT_COUNTRY || 'US',
           tenantId: tenant.id,
         },
       });
