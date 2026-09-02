@@ -8,7 +8,8 @@ import { eventBus } from "@/backend/services/event-bus";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { escrowListCache } from '@/backend/lib/response-cache';
-import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+import { badRequest, created, error, forbidden, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+import { evaluateTransactionForFraud } from '@/backend/middleware/fraud-check';
 import { generateTxRef } from '@/backend/lib/utils';
 // ── Zod Schemas ──────────────────────────────────────────────
 const milestoneSchema = z.object({
@@ -213,6 +214,18 @@ async function postHandler(request: NextRequest) {
     }
     if (!sellerBiz || sellerBiz.tenantId !== user.tenantId) {
       return notFound('Seller business not found');
+    }
+
+    // ── Fraud auto-block evaluation ───────────────────────────
+    const fraudResult = await evaluateTransactionForFraud({
+      tenantId: user.tenantId,
+      businessId: data.buyerId,
+      amount: data.amount,
+      currency: data.currency,
+      transactionType: 'escrow',
+    });
+    if (!fraudResult.allowed) {
+      return forbidden(`Transaction blocked by fraud rule: ${fraudResult.blockedBy}`);
     }
 
     const { score, level } = await computeRiskScore({

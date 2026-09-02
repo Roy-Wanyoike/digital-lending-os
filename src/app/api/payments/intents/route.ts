@@ -8,7 +8,8 @@ import { getProvidersForCountry, getProvidersForCurrency, calculateFee, getProvi
 import type { PaymentProviderCode } from "@/backend/lib/payment/types";
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
-import { badRequest, conflict, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+import { badRequest, conflict, created, error, forbidden, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+import { evaluateTransactionForFraud } from '@/backend/middleware/fraud-check';
 // ── Lazy-loaded payment infrastructure (avoids crashes if modules have issues) ──
 let _stateMachine: any = null;
 let _idempotencyGuard: any = null;
@@ -190,6 +191,19 @@ async function createPaymentIntent(request: NextRequest, _ctx?: { params?: Promi
     ]);
     if (!fromBiz || fromBiz.tenantId !== user.tenantId || !toBiz || toBiz.tenantId !== user.tenantId) {
       return notFound("Business not found");
+    }
+
+    // ── Fraud auto-block evaluation ───────────────────────────
+    const fraudResult = await evaluateTransactionForFraud({
+      tenantId: user.tenantId,
+      businessId: data.fromBusinessId,
+      amount: data.sourceAmount,
+      currency: data.sourceCurrency,
+      country: fromBiz.country || undefined,
+      transactionType: 'payment_intent',
+    });
+    if (!fraudResult.allowed) {
+      return forbidden(`Transaction blocked by fraud rule: ${fraudResult.blockedBy}`);
     }
 
     // ── FX rate from database ──────────────────────────────────
