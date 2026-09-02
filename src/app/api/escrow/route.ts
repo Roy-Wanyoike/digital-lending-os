@@ -73,8 +73,8 @@ async function getHandler(req: NextRequest) {
       : await Promise.all([fetchEscrows(), fetchCount()]);
 
     return ok(escrows, { page, limit, total, pages: Math.ceil(total / limit) });
-  } catch (error: any) {
-    console.error('Escrow GET error:', error);
+  } catch (err: any) {
+    console.error('Escrow GET error:', err);
     return error('Failed to fetch escrow transactions');
   }
 }
@@ -128,8 +128,8 @@ async function postHandler(req: NextRequest) {
     });
 
     return created(escrow);
-  } catch (error: any) {
-    console.error('Escrow POST error:', error);return error('Failed to create escrow transaction');
+  } catch (err: any) {
+    console.error('Escrow POST error:', err);return error('Failed to create escrow transaction');
   }
 }
 

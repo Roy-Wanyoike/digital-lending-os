@@ -30,7 +30,7 @@ async function getHandler(
 
     if (!escrow) return notFound('Escrow transaction not found');
     return ok(escrow);
-  } catch (error: any) {console.error('Escrow GET by ID error:', error);
+  } catch (err: any) {console.error('Escrow GET by ID error:', err);
     return error('Failed to fetch escrow transaction');
   }
 }
@@ -114,7 +114,7 @@ async function patchHandler(
     }
 
     return badRequest('Invalid action. Use "release" or "dispute"');
-  } catch (error: any) {console.error('Escrow PATCH error:', error);
+  } catch (err: any) {console.error('Escrow PATCH error:', err);
     return error('Failed to update escrow transaction');
   }
 }
