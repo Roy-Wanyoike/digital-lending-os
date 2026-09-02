@@ -1,12 +1,26 @@
 #!/bin/bash
-# Youngsend production startup script
-# Loads environment variables, runs migrations, and starts the Next.js production server
-# NOTE: next.config.ts sets output='standalone' in production, so we must
-# use node .next/standalone/server.js instead of "npx next start".
+# ──────────────────────────────────────────────────────────────────────
+# start-prod.sh — PRODUCTION server (interactive, foreground)
+# ──────────────────────────────────────────────────────────────────────
+# Loads .env, validates DATABASE_URL, runs Prisma migrations, then
+# starts the Next.js standalone production server via exec.
+#
+# Intended for direct use or as the entrypoint in a container / PM2.
+# For development, use: ./start.sh
+# For backgrounded dev startup with warmup, use: scripts/start.sh
+#
+# Prerequisites:
+#   - NEXTAUTH_SECRET  set in .env or environment
+#   - DATABASE_URL     pointing to a PostgreSQL instance
+#   - npm run build    completed (produces .next/standalone/server.js)
+#
+# Usage: ./start-prod.sh
+# ──────────────────────────────────────────────────────────────────────
 
 set -e
 
-cd /home/z/my-project
+# Resolve project root from script location (not hardcoded)
+cd "$(dirname "$0")"
 
 # Load .env file (standalone server does NOT auto-load .env)
 if [ -f .env ]; then
@@ -15,7 +29,8 @@ if [ -f .env ]; then
   set +a
 fi
 
-# NEXTAUTH_SECRET must be set externally (env file, CI/CD, orchestrator). App will fail if unset — this is intentional for production.
+# NEXTAUTH_SECRET must be set externally (env file, CI/CD, orchestrator).
+# App will fail if unset — this is intentional for production.
 export NEXTAUTH_SECRET="${NEXTAUTH_SECRET}"
 export NEXTAUTH_URL="${NEXTAUTH_URL:-http://localhost:3000}"
 export HOSTNAME="0.0.0.0"
