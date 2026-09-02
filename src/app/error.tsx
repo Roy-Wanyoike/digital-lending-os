@@ -61,7 +61,7 @@ export default function GlobalError({
               </Button>
               <Button variant="outline" className="flex-1" asChild>
                 <Link
-                  href={`mailto:support@youngsend.com?subject=Error Report&body=Error: ${encodeURIComponent(error.message || 'Unknown error')}`}
+                  href={`mailto:support@digitallendingos.co.ke?subject=Error Report&body=Error: ${encodeURIComponent(error.message || 'Unknown error')}`}
                 >
                   <MessageSquare className="h-4 w-4 mr-2" />
                   Report Issue

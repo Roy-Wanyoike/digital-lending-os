@@ -3,8 +3,8 @@ import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export const metadata = {
-  title: 'Privacy Policy — Youngsend',
-  description: 'Youngsend Privacy Policy explaining how we collect, use, and protect your data.',
+  title: 'Privacy Policy — Digital Lending OS',
+  description: 'Digital Lending OS Privacy Policy explaining how we collect, use, and protect your data.',
 }
 
 export default function PrivacyPage() {
@@ -65,8 +65,8 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold mb-2">7. Contact</h2>
             <p className="text-muted-foreground">
               For privacy-related inquiries, contact our Data Protection Officer at{' '}
-              <a href="mailto:privacy@youngsend.com" className="text-emerald-600 dark:text-emerald-400 hover:underline">
-                privacy@youngsend.com
+              <a href="mailto:privacy@digitallendingos.co.ke" className="text-emerald-600 dark:text-emerald-400 hover:underline">
+                privacy@digitallendingos.co.ke
               </a>.
             </p>
           </section>

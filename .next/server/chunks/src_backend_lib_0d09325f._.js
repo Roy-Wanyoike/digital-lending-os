@@ -1,0 +1,3 @@
+module.exports=[96742,e=>{"use strict";async function r(r){try{let t=(await e.A(35493)).getAuditTrail(),a={...r.details??{},tenantId:r.tenantId};r.oldValues&&(a.oldValues=r.oldValues),r.newValues&&(a.newValues=r.newValues);let s=`${r.action}: ${r.resource} ${r.resourceId}`;await t.record({action:r.action,actor:r.userId,resourceId:r.resourceId,resourceType:r.resource,description:s,metadata:a})}catch(e){console.error("[auditLog] Audit trail error:",e)}}e.s(["auditLog",()=>r])},35493,e=>{e.v(r=>Promise.all(["server/chunks/src_backend_lib_payment_audit-trail_ts_59f3f54e._.js"].map(r=>e.l(r))).then(()=>r(66024)))}];
+
+//# sourceMappingURL=src_backend_lib_0d09325f._.js.map

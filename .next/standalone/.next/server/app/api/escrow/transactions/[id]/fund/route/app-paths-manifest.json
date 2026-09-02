@@ -1,0 +1,3 @@
+{
+  "/api/escrow/transactions/[id]/fund/route": "app/api/escrow/transactions/[id]/fund/route.js"
+}

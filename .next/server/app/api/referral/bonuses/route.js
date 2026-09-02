@@ -1,0 +1,10 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/referral/bonuses/route.js")
+R.c("server/chunks/_6642829e._.js")
+R.c("server/chunks/node_modules_next_dist_79f1aee4._.js")
+R.c("server/chunks/[root-of-the-server]__cf77a283._.js")
+R.c("server/chunks/[root-of-the-server]__b68dcfac._.js")
+R.c("server/chunks/node_modules_zod_v4_classic_errors_6231ecd5.js")
+R.c("server/chunks/node_modules_next_f2da0d3e._.js")
+R.c("server/chunks/_next-internal_server_app_api_referral_bonuses_route_actions_4fc702e5.js")
+R.m(58987)
+module.exports=R.m(58987).exports

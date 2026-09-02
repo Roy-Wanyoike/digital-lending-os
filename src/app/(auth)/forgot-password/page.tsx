@@ -64,9 +64,9 @@ function ForgotPasswordForm() {
         <CardHeader className="text-center space-y-4 pb-2">
           <div className="flex items-center justify-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-sm">
-              YS
+              DLO
             </div>
-            <span className="text-2xl font-bold text-foreground">Youngsend</span>
+            <span className="text-2xl font-bold text-foreground">Digital Lending OS</span>
           </div>
           <div>
             <h1 className="text-xl font-semibold leading-none">Check your email</h1>
@@ -104,9 +104,9 @@ function ForgotPasswordForm() {
       <CardHeader className="text-center space-y-4 pb-2">
         <div className="flex items-center justify-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-sm">
-            YS
+            DLO
           </div>
-          <span className="text-2xl font-bold text-foreground">Youngsend</span>
+          <span className="text-2xl font-bold text-foreground">Digital Lending OS</span>
         </div>
         <div>
           <h1 className="text-xl font-semibold leading-none">Reset Password</h1>
@@ -189,7 +189,7 @@ export default function ForgotPasswordPage() {
       </Suspense>
       <p className="mt-8 text-xs text-muted-foreground">
         Need help?{' '}
-        <a href="mailto:support@youngsend.com" className="underline hover:text-foreground transition-colors">
+        <a href="mailto:support@digitallendingos.co.ke" className="underline hover:text-foreground transition-colors">
           Contact support
         </a>
       </p>

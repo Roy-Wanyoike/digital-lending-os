@@ -1,0 +1,3 @@
+{
+  "/api/payments/webhooks/intasend/route": "app/api/payments/webhooks/intasend/route.js"
+}
