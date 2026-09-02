@@ -14,7 +14,9 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "type-check": "tsc --noEmit",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "lint:fix": "next lint --fix",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.11.1",
