@@ -2,6 +2,7 @@ import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { db } from '@/lib/db'
+import { checkLockout, recordFailedAttempt, resetAttempts } from '@/backend/lib/auth/account-lockout'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -16,12 +17,27 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
+        const email = credentials.email.toLowerCase()
+
+        // Check lockout status before checking credentials
+        const lockoutStatus = await checkLockout(email)
+        if (lockoutStatus.locked) {
+          const remainingMs = lockoutStatus.lockedUntil
+            ? lockoutStatus.lockedUntil.getTime() - Date.now()
+            : 0
+          const remainingMin = Math.ceil(remainingMs / 60_000)
+          throw new Error(
+            `Account temporarily locked due to too many failed login attempts. Try again in ${remainingMin} minute(s).`
+          )
+        }
+
         // Find account by email — may be multiple tenants, take first active one
         const account = await db.account.findFirst({
-          where: { email: credentials.email.toLowerCase(), isActive: true },
+          where: { email, isActive: true },
         })
 
         if (!account) {
+          await recordFailedAttempt(email)
           return null
         }
 
@@ -31,8 +47,17 @@ export const authOptions: NextAuthOptions = {
         )
 
         if (!isValidPassword) {
+          const result = await recordFailedAttempt(email)
+          if (result.locked) {
+            throw new Error(
+              'Account temporarily locked due to too many failed login attempts. Try again in 10 minute(s).'
+            )
+          }
           return null
         }
+
+        // Successful login — reset failed attempts
+        await resetAttempts(email)
 
         // Update last login
         await db.account.update({
