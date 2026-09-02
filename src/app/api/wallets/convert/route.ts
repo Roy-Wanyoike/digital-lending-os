@@ -5,31 +5,23 @@ import { getApiUser, requireAuth, AuthError } from '@/lib/auth/api-helpers'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+import { DEFAULT_FIAT_RATES, CONVERSION_FEE_PERCENT } from '@/backend/config/financial-config';
 const convertSchema = z.object({
   fromWalletId: z.string().min(1),
   toWalletId: z.string().min(1),
   fromAmount: z.number().positive('Amount must be greater than 0').max(10000000, 'Amount exceeds maximum limit of 10,000,000'),
 })
 
-// Demo exchange rates (in production, use CurrencyRate table or external API)
-const DEMO_RATES: Record<string, Record<string, number>> = {
-  USD: { EUR: 0.92, GBP: 0.79, NGN: 1550, KES: 153.5, GHS: 15.2, UGX: 3750, TZS: 2650, ZAR: 18.2, JPY: 149.5, CNY: 7.24, INR: 83.5, BRL: 5.0, CAD: 1.37, AUD: 1.53, CHF: 0.88, AED: 3.67, SGD: 1.34 },
-  EUR: { USD: 1.087, GBP: 0.858, NGN: 1685, KES: 167, GHS: 16.5, UGX: 4075, TZS: 2880, ZAR: 19.8, JPY: 162.5, CNY: 7.87, INR: 90.8, BRL: 5.43, CAD: 1.49, AUD: 1.66, CHF: 0.956, AED: 3.99, SGD: 1.46 },
-  GBP: { USD: 1.267, EUR: 1.165, NGN: 1963, KES: 194.5, GHS: 19.25, UGX: 4750, TZS: 3355, ZAR: 23.05, JPY: 189.3, CNY: 9.17, INR: 105.7, BRL: 6.33, CAD: 1.735, AUD: 1.936, CHF: 1.114, AED: 4.65, SGD: 1.70 },
-  KES: { USD: 0.00652, EUR: 0.00599, GBP: 0.00514, NGN: 10.09, UGX: 24.43, TZS: 17.26, ZAR: 0.1185, JPY: 0.974, CNY: 0.0472, INR: 0.544, BRL: 0.0326, CAD: 0.00893, AUD: 0.00996, CHF: 0.00574, AED: 0.0239, SGD: 0.00874 },
-  NGN: { USD: 0.000645, EUR: 0.000593, GBP: 0.000509, KES: 0.0991, UGX: 2.42, TZS: 1.71, ZAR: 0.01174, JPY: 0.0965, CNY: 0.00467, INR: 0.0539, BRL: 0.00323, CAD: 0.000884, AUD: 0.000987, CHF: 0.000568, AED: 0.00237, SGD: 0.000866 },
-}
-
 function getRate(from: string, to: string): number {
   if (from === to) return 1
-  const direct = DEMO_RATES[from]?.[to]
+  const direct = DEFAULT_FIAT_RATES[from]?.[to]
   if (direct) return direct
   // Inverse
-  const inverse = DEMO_RATES[to]?.[from]
+  const inverse = DEFAULT_FIAT_RATES[to]?.[from]
   if (inverse) return 1 / inverse
   // Cross via USD
-  const fromUsd = DEMO_RATES['USD']?.[from]
-  const toUsd = DEMO_RATES['USD']?.[to]
+  const fromUsd = DEFAULT_FIAT_RATES['USD']?.[from]
+  const toUsd = DEFAULT_FIAT_RATES['USD']?.[to]
   if (fromUsd && toUsd) return toUsd / fromUsd
   throw new Error(`No exchange rate available for ${from} → ${to}`)
 }
@@ -71,7 +63,7 @@ async function postHandler(request: NextRequest) {
     }
 
     const exchangeRate = getRate(fromWallet.currency, toWallet.currency)
-    const feePercent = 0.5
+    const feePercent = CONVERSION_FEE_PERCENT
     const grossToAmount = data.fromAmount * exchangeRate
     const feeAmount = Math.round(grossToAmount * (feePercent / 100) * 100) / 100
     const netAmount = Math.round((grossToAmount - feeAmount) * 100) / 100

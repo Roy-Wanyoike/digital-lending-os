@@ -6,6 +6,7 @@ import { processWithdrawal } from '@/backend/services/temporal-bridge'
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+import { WITHDRAWAL_FLAT_FEE, WITHDRAWAL_PERCENT_FEE } from '@/backend/config/financial-config';
 const withdrawalSchema = z.object({
   walletId: z.string().min(1, 'Wallet ID is required'),
   amount: z.number().positive('Amount must be greater than 0').max(10000000, 'Amount exceeds maximum limit of 10,000,000'),
@@ -51,8 +52,8 @@ async function postHandler(request: NextRequest) {
     }
 
     // Calculate fee first to check total debit against available balance
-    const flatFee = 2.5
-    const percentFee = data.amount * 0.005
+    const flatFee = WITHDRAWAL_FLAT_FEE
+    const percentFee = data.amount * (WITHDRAWAL_PERCENT_FEE / 100)
     const feeAmount = Math.max(flatFee, percentFee)
     const totalDebit = Math.round((data.amount + feeAmount) * 100) / 100
 
