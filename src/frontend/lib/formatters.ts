@@ -210,10 +210,10 @@ export const ROLE_LABELS: Record<Role, string> = {
 }
 
 export const ROLE_TABS: Record<Role, string[]> = {
-  admin: ['overview', 'trust-graph', 'escrow', 'payments', 'passport', 'payment-links', 'wallet', 'referral', 'fraud', 'matching', 'collections', 'compliance'],
+  admin: ['overview', 'trust-graph', 'escrow', 'payments', 'passport', 'payment-links', 'wallet', 'referral', 'fraud', 'matching', 'collections', 'compliance', 'digital-twin'],
   buyer: ['overview', 'payments', 'payment-links', 'wallet', 'referral'],
   seller: ['overview', 'trust-graph', 'escrow', 'payment-links', 'wallet', 'referral'],
-  auditor: ['overview', 'trust-graph', 'fraud', 'compliance', 'collections'],
+  auditor: ['overview', 'trust-graph', 'fraud', 'compliance', 'collections', 'digital-twin'],
   viewer: ['overview', 'trust-graph', 'payments'],
 }
 
