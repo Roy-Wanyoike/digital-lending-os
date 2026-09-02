@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Loader2, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { z } from 'zod'
 
@@ -33,6 +34,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof LoginFormData, string>>>({})
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,13 +61,18 @@ function LoginForm() {
       password,
       redirect: false,
       callbackUrl,
+      ...(rememberMe ? { rememberMe: 'true' } : {}),
     })
 
     if (result?.error) {
       // Surface rate-limit errors from authorize(); fall back to generic message
-      setError(result.error === 'CredentialsSignin' || !result.error
-        ? 'Invalid email or password'
-        : result.error)
+      const errorMessages: Record<string, string> = {
+        CredentialsSignin: 'Invalid email or password',
+        'Rate limit exceeded': 'Too many login attempts. Please try again later.',
+        'Account locked': 'Your account has been locked due to too many failed attempts. Please reset your password.',
+        'Email not verified': 'Please verify your email address before signing in.',
+      }
+      setError(errorMessages[result.error] || result.error || 'Invalid email or password')
       setLoading(false)
     } else {
       router.push(callbackUrl)
@@ -95,7 +102,7 @@ function LoginForm() {
             Account created successfully. Please sign in.
           </div>
         )}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" aria-label="Sign in form">
           {error && (
             <div role="alert" aria-live="assertive" className="rounded-md bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-300">
               {error}
@@ -158,6 +165,20 @@ function LoginForm() {
             {fieldErrors.password && (
               <p id="password-error" className="text-sm text-red-600 dark:text-red-400">{fieldErrors.password}</p>
             )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="rememberMe"
+              checked={rememberMe}
+              onCheckedChange={(checked) => setRememberMe(checked === true)}
+              disabled={loading}
+            />
+            <Label
+              htmlFor="rememberMe"
+              className="text-sm font-normal cursor-pointer select-none"
+            >
+              Remember me
+            </Label>
           </div>
           {/* H1: Deeper, authoritative CTA */}
           <Button
