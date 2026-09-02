@@ -1,10 +1,23 @@
 import { NextRequest } from 'next/server';
+import { z } from 'zod';
 import { getApiUser, requireAuth } from '@/lib/auth/api-helpers';
 import { db } from '@/lib/db';
 import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
-import { ok, created, badRequest, unauthorized, notFound, withErrorHandler } from '@/backend/lib/api-response';
+import { ok, created, validationError, unauthorized, notFound, withErrorHandler } from '@/backend/lib/api-response';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+
+const createPaymentLinkSchema = z.object({
+  title: z.string().min(1, 'title is required'),
+  description: z.string().optional(),
+  amount: z.number().positive('amount must be a positive number'),
+  currency: z.string().length(3, 'currency must be a 3-letter code').default('USD'),
+  businessId: z.string().min(1, 'businessId is required'),
+  allowedMethods: z.array(z.string()).optional(),
+  allowedCountries: z.array(z.string()).optional(),
+  maxPayments: z.number().int().positive().optional().default(1),
+  expiresIn: z.number().positive().optional(),
+});
 
 const getHandler = withErrorHandler(async (req: NextRequest) => {
   const user = await getApiUser(req);
@@ -48,15 +61,13 @@ const postHandler = withErrorHandler(async (req: NextRequest) => {
   const user = await requireAuth(req);
 
   const body = await req.json();
-  const { title, description, amount, currency, businessId, allowedMethods, allowedCountries, maxPayments, expiresIn } = body;
+  const parsed = createPaymentLinkSchema.safeParse(body);
 
-  if (!title || !amount) {
-    return badRequest('title and amount are required');
+  if (!parsed.success) {
+    return validationError(parsed.error.issues.map((i) => i.message).join(', '));
   }
 
-  if (!businessId) {
-    return badRequest('businessId is required');
-  }
+  const { title, description, amount, currency, businessId, allowedMethods, allowedCountries, maxPayments, expiresIn } = parsed.data;
 
   // Verify business belongs to tenant
   const business = await db.business.findFirst({
@@ -75,12 +86,12 @@ const postHandler = withErrorHandler(async (req: NextRequest) => {
       businessId,
       title,
       description: description || null,
-      amount: parseFloat(amount),
-      currency: currency || 'USD',
+      amount,
+      currency,
       status: 'active',
       allowedMethods: allowedMethods || null,
       allowedCountries: allowedCountries || null,
-      maxPayments: maxPayments ? parseInt(maxPayments, 10) : 1,
+      maxPayments,
       expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : null,
     },
   });
