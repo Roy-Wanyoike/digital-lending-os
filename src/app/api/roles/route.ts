@@ -24,7 +24,7 @@ const getHandler = withErrorHandler(async (req: NextRequest) => {
     where: { tenantId: user.tenantId },
   });
 
-  const countMap = Object.fromEntries(roleCounts.map((r: any) => [r.role, r._count.id]));
+  const countMap = Object.fromEntries(roleCounts.map((r: { role: string; _count: { id: number } }) => [r.role, r._count.id]));
 
   const roles = ROLE_DEFINITIONS.map(r => ({
     ...r,

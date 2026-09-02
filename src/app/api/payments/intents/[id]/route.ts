@@ -1,10 +1,12 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { getPaymentStateMachine as getSM, recordPaymentTransition } from '@/backend/lib/payment/route-helpers';
 
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
+import type { TransitionGuard } from '@/backend/lib/payment/state-machine';
 import { badRequest, conflict, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
 
 // ── DB ↔ State Machine status mapping ─────────────────────────────
@@ -41,7 +43,7 @@ async function getTenantBusinessIds(tenantId: string): Promise<string[]> {
     where: { tenantId },
     select: { id: true },
   });
-  return businesses.map((b: any) => b.id);
+  return businesses.map((b: { id: string }) => b.id);
 }
 
 // ── GET: Single payment intent ──────────────────────────────
@@ -140,7 +142,7 @@ async function putHandler(
         const actor = user?.email || user?.id || 'authenticated'
 
         if (currentSmState && !sm.canTransition(currentSmState, targetState)) {
-          const legalTargets = sm.getLegalTransitions(currentSmState).map((t: any) => t.to)
+          const legalTargets = sm.getLegalTransitions(currentSmState).map((t: TransitionGuard) => t.to)
           return conflict(`Illegal state transition: ${currentSmState} → ${targetState}`);
         }
 
@@ -161,7 +163,7 @@ async function putHandler(
       }
     }
 
-    const updateData: Record<string, unknown> = {
+    const updateData: Prisma.PaymentIntentUncheckedUpdateInput = {
       status: validatedStatus,
     };
 
