@@ -57,7 +57,8 @@ async function postHandler(request: NextRequest) {
 
     // In production, this would call the payment provider.
     // For demo, if provider is 'demo' we auto-complete the deposit.
-    const isAutoComplete = data.provider === 'demo'
+    const isDemoMode = process.env.WALLET_DEMO_MODE === 'true';
+    const isAutoComplete = data.provider === 'demo' && isDemoMode
 
     // Check if this user has a referrer (for referral bonus)
     const account = await db.account.findUnique({

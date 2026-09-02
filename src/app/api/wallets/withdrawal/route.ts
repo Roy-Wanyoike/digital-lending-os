@@ -66,7 +66,8 @@ async function postHandler(request: NextRequest) {
     const netAmount = Math.round((data.amount - feeAmount) * 100) / 100
 
     // Demo auto-complete
-    const isAutoComplete = data.provider === 'demo'
+    const isDemoMode = process.env.WALLET_DEMO_MODE === 'true';
+    const isAutoComplete = data.provider === 'demo' && isDemoMode
 
     const withdrawal = await db.$transaction(async (tx: any) => {
       // Read wallet inside transaction to get latest balance (prevents race conditions)

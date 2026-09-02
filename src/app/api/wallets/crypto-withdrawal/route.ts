@@ -94,8 +94,8 @@ async function postHandler(request: NextRequest) {
     const netCryptoAmount = Math.max(0, cryptoAmount - networkFee)
     const withdrawalRef = `CRW-${randomUUID().slice(0, 8).toUpperCase()}`
 
-    // Demo: auto-complete
-    const isAutoComplete = true
+    // Demo: auto-complete only when WALLET_DEMO_MODE is enabled
+    const isAutoComplete = process.env.WALLET_DEMO_MODE === 'true'
 
     const cryptoWdr = await db.$transaction(async (tx: any) => {
       // Read wallet inside transaction to get latest balance (prevents race conditions)
