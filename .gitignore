@@ -94,3 +94,5 @@ scripts/qa-*
 .tenv/
 *.pid
 examples/
+*.zip
+download/
