@@ -7,6 +7,7 @@ import { eventBus } from "@/backend/services/event-bus";
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { escrowListCache } from '@/backend/lib/response-cache';
 import { badRequest, created, error, notFound, ok, unauthorized, validationError, withErrorHandler } from '@/backend/lib/api-response';
+import { generateTxRef } from '@/backend/lib/utils';
 // ── Zod Schemas ──────────────────────────────────────────────
 const milestoneSchema = z.object({
   title: z.string().min(1, "Milestone title is required"),
@@ -23,16 +24,6 @@ const createEscrowSchema = z.object({
 });
 
 // ── Helpers ──────────────────────────────────────────────────
-function generateTxRef(): string {
-  const now = new Date();
-  const dateStr =
-    now.getFullYear().toString() +
-    String(now.getMonth() + 1).padStart(2, "0") +
-    String(now.getDate()).padStart(2, "0");
-  const rand = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
-  return `ESC-${dateStr}-${rand}`;
-}
-
 async function computeRiskScore(params: {
   buyerId: string;
   sellerId: string;
