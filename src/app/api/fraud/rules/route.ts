@@ -56,6 +56,93 @@ function injectTenantId(conditionObj: Record<string, unknown>, tenantId: string)
   return JSON.stringify({ ...conditionObj, [TENANT_KEY]: tenantId })
 }
 
+// ---------------------------------------------------------------------------
+// Default fraud rules — seeded automatically for new tenants
+// ---------------------------------------------------------------------------
+const DEFAULT_FRAUD_RULES: Array<{
+  name: string
+  description: string
+  condition: Record<string, unknown>
+  action: 'alert' | 'block' | 'require_review' | 'flag'
+  severity: 'low' | 'medium' | 'high' | 'critical'
+}> = [
+  {
+    name: 'Large Transaction Alert',
+    description: 'Flags transactions exceeding $50,000 for manual review',
+    condition: { field: 'amount', operator: 'greater_than', value: 50000, currency: 'USD' },
+    action: 'require_review',
+    severity: 'high',
+  },
+  {
+    name: 'Velocity Breach',
+    description: 'Alerts when more than 10 transactions are initiated within 1 hour from the same account',
+    condition: { field: 'transaction_count', operator: 'greater_than', value: 10, window_minutes: 60 },
+    action: 'alert',
+    severity: 'high',
+  },
+  {
+    name: 'High-Risk Country',
+    description: 'Blocks transactions involving parties in sanctioned or high-risk countries',
+    condition: { field: 'country', operator: 'in', value: ['KP', 'IR', 'SY', 'CU', 'VE'], list_type: 'sanctions' },
+    action: 'block',
+    severity: 'critical',
+  },
+  {
+    name: 'New Account Large Payment',
+    description: 'Reviews first transactions above $10,000 from accounts less than 30 days old',
+    condition: { field: 'amount', operator: 'greater_than', value: 10000, account_age_days: 30 },
+    action: 'require_review',
+    severity: 'medium',
+  },
+  {
+    name: 'Geo Mismatch Detection',
+    description: 'Flags when account login and transaction initiation originate from different countries',
+    condition: { field: 'login_country', operator: 'not_equals', value: 'transaction_country', time_window_minutes: 30 },
+    action: 'flag',
+    severity: 'medium',
+  },
+]
+
+/**
+ * Ensures a tenant has at least one fraud rule with the correct `_tenantId`
+ * embedded in the condition.  If no scoped rules exist the full set of defaults
+ * is inserted in a single `createMany` call.  The function is idempotent and
+ * safe to call concurrently — a unique-constraint violation on `name` is
+ * treated as a no-op.
+ *
+ * The `_tenantId` embedding is a temporary workaround tracked in ADR-008.
+ * Once the schema migration adds a dedicated `tenantId` column this helper
+ * will be replaced by a first-class tenant field.
+ */
+async function ensureDefaultRules(tenantId: string): Promise<void> {
+  // Fast path: check if any rule already carries this tenant's id.
+  const existing = await db.fraudRule.findFirst({
+    where: { condition: { contains: tenantId } },
+    select: { id: true },
+  })
+  if (existing) return
+
+  // No scoped rules yet — seed the defaults.
+  const data = DEFAULT_FRAUD_RULES.map((rule) => ({
+    name: rule.name,
+    description: rule.description,
+    condition: injectTenantId(rule.condition, tenantId),
+    action: rule.action,
+    severity: rule.severity,
+    isActive: true,
+  }))
+
+  try {
+    await db.fraudRule.createMany({ data, skipDuplicates: true })
+  } catch (err: any) {
+    // Unique constraint violations (e.g. duplicate name from a race) are
+    // acceptable — the rules exist now, which is all we need.
+    if (!err?.code?.startsWith('P2')) {
+      console.error('[ensureDefaultRules] Unexpected error seeding rules:', err)
+    }
+  }
+}
+
 const createFraudRuleSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
@@ -72,6 +159,11 @@ async function getHandler(request: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)))
     const isActive = searchParams.get('isActive')
+
+    // Lazily seed default fraud rules for this tenant if none exist yet.
+    // This is safe to call on every request — it exits immediately when rules
+    // are already present (see ensureDefaultRules docstring).
+    await ensureDefaultRules(user.tenantId)
 
     const where: Record<string, unknown> = {}
     if (isActive !== null && isActive !== '') {
@@ -153,10 +245,8 @@ async function postHandler(request: NextRequest) {
       return badRequest('Condition must be a valid JSON string')
     }
 
-    // Embed tenantId into the condition JSON blob.
-    // TODO: Once the schema migration adds a dedicated `tenantId` column
-    //       (see ADR-008), move this to a first-class field and remove the
-    //       JSON-embedding workaround.
+    // Embed tenantId into the condition JSON blob (temporary workaround;
+    // see ADR-008 — a future migration will add a dedicated `tenantId` column).
     const scopedCondition = injectTenantId(parsedCondition, user.tenantId)
 
     const rule = await db.fraudRule.create({

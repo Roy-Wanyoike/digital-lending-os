@@ -501,12 +501,20 @@ async function main() {
   console.log('  ✓ 6 fraud alerts')
 
   // ─── 19. Fraud Rules (5) ─────────────────────────────────
+  const FRAUD_RULE_CONDITIONS = [
+    { field: 'transaction_count', operator: 'greater_than', value: 5, window_minutes: 60 },
+    { field: 'amount', operator: 'greater_than', value: 50000, currency: 'USD' },
+    { field: 'ip_country', operator: 'not_equals', value: 'account_country' },
+    { field: 'device_fingerprint', operator: 'is_new', value: true },
+    { field: 'action_count', operator: 'greater_than', value: 10, window_minutes: 5 },
+  ]
   for (let i = 0; i < 5; i++) {
+    const condObj = { ...FRAUD_RULE_CONDITIONS[i], _tenantId: tenant.id }
     await db.fraudRule.create({
       data: {
         name: ['Velocity Check','Large Amount Alert','Geo Mismatch','New Device','Rapid Succession'][i],
         description: ['Detect rapid transactions in short window','Flag transactions above threshold','Alert on location/device changes','Flag logins from new devices','Detect multiple rapid actions'][i],
-        condition: ['count > 5 in 1h','amount > 50000','ip_country != account_country','device_fingerprint is new','actions > 10 in 5m'][i],
+        condition: JSON.stringify(condObj),
         action: rand(['block','flag','flag','monitor','require_review']),
         severity: rand(['low','medium','medium','high','high']),
         isActive: i < 4,
