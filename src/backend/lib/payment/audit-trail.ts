@@ -112,7 +112,7 @@ export class AuditTrail {
 
     // Create genesis hash (hash of an empty/seed string)
     this.genesisHash = createHash('sha256')
-      .update('youngsend-audit-genesis')
+      .update('dlo-audit-genesis')
       .digest('hex')
 
     this.persistCallback = options?.persistCallback

@@ -1,5 +1,5 @@
 /**
- * Cache-Control header middleware for Youngsend.
+ * Cache-Control header middleware for Digital Lending OS.
  *
  * Resource types:
  *   - static    → 1 year, immutable (hashed _next/static assets)

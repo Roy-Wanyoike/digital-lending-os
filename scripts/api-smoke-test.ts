@@ -13,7 +13,7 @@ async function test(name, url, validate) {
 }
 
 async function main() {
-  console.log('=== Youngsend API Smoke Test ===\n')
+  console.log('=== Digital Lending OS API Smoke Test ===\n')
   let pass = 0, fail = 0
   const check = async (n, u, v) => { const r = await test(n, u, v); r ? pass++ : fail++ }
 

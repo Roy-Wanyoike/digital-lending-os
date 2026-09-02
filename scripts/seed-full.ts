@@ -49,19 +49,19 @@ async function main() {
   // ─── 1. Tenant ──────────────────────────────────────────────
   console.log('📦 Creating tenant...')
   const tenant = await db.tenant.create({
-    data: { name: 'Youngsend Technologies', slug: 'youngsend', plan: 'enterprise', status: 'active', maxBusinesses: 50, maxUsers: 100, ownerEmail: 'youngsharktechnologies@gmail.com', ownerName: 'Young Shark', features: '{"escrow":true,"payments":true,"wallet":true,"fraud":true,"compliance":true,"matching":true,"collections":true,"referral":true,"digitalTwin":true,"passport":true,"invoices":true,"paymentLinks":true}' },
+    data: { name: 'Digital Lending OS', slug: 'digital-lending-os', plan: 'enterprise', status: 'active', maxBusinesses: 50, maxUsers: 100, ownerEmail: 'admin@digitallendingos.co.ke', ownerName: 'DLO Admin', features: '{"escrow":true,"payments":true,"wallet":true,"fraud":true,"compliance":true,"matching":true,"collections":true,"referral":true,"digitalTwin":true,"passport":true,"invoices":true,"paymentLinks":true}' },
   })
 
   // ─── 2. Account (the demo user) ─────────────────────────────
   console.log('👤 Creating account...')
   const passwordHash = await hash('Demo1234!', 12)
   const account = await db.account.create({
-    data: { email: 'youngsharktechnologies@gmail.com', passwordHash, name: 'Young Shark', role: 'admin', tenantId: tenant.id, businessId: undefined, referralCode: 'YSDISCO100', isActive: true, lastLoginAt: DAYS_AGO(0) },
+    data: { email: 'admin@digitallendingos.co.ke', passwordHash, name: 'DLO Admin', role: 'admin', tenantId: tenant.id, businessId: undefined, referralCode: 'YSDISCO100', isActive: true, lastLoginAt: DAYS_AGO(0) },
   })
 
   // ─── 3. Second user (buyer role) ─────────────────────────────
   const buyerAccount = await db.account.create({
-    data: { email: 'buyer@youngsend.com', passwordHash: await hash('Buyer1234!', 12), name: 'Amara Osei', role: 'buyer', tenantId: tenant.id, referralCode: 'YSBUYER01', referredBy: account.id, isActive: true },
+    data: { email: 'buyer@digital-lending-os.com', passwordHash: await hash('Buyer1234!', 12), name: 'Amara Osei', role: 'buyer', tenantId: tenant.id, referralCode: 'DLOBUYER01', referredBy: account.id, isActive: true },
   })
 
   // ─── 4. Businesses ──────────────────────────────────────────
@@ -370,7 +370,7 @@ async function main() {
   console.log(`   🌍 10 global payment methods + 16 currency rates`) 
   console.log(`   ⚡ 3 disputes`) 
   console.log(`   💱 Wallet transactions + deposits + withdrawals`) 
-  console.log(`\n   🔐 Login: youngsharktechnologies@gmail.com / Demo1234!`)
+  console.log(`\n   🔐 Login: admin@digitallendingos.co.ke / Demo1234!`)
 }
 
 main().catch(e => { console.error(e); process.exit(1) }).finally(() => db.$disconnect())

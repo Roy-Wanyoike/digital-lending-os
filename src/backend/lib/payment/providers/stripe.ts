@@ -36,7 +36,7 @@ export class StripeProvider implements PaymentProvider {
           price_data: {
             currency: input.currency.toLowerCase(),
             product_data: {
-              name: `Youngsend Payment - ${input.reference}`,
+              name: `Digital Lending OS Payment - ${input.reference}`,
               description: `Payment ${input.reference}`,
             },
             unit_amount: input.amount,

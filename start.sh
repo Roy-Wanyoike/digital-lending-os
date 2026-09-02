@@ -25,7 +25,7 @@ pkill -9 -f 'next dev' 2>/dev/null || true
 pkill -9 -f 'next-server' 2>/dev/null || true
 sleep 1
 
-echo 'Starting Youngsend dev server on port 3000...'
+echo 'Starting Digital Lending OS dev server on port 3000...'
 NODE_OPTIONS='--max-old-space-size=2048' \
   NEXT_TELEMETRY_DISABLED=1 \
   npx next dev -p 3000 -H 0.0.0.0

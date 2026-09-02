@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────
-# Youngsend — Cloud-Native Full Stack
+# Digital Lending OS — Cloud-Native Full Stack
 # Usage: docker compose --env-file .env.docker up -d
 # ─────────────────────────────────────────────────────────────────────
 
@@ -19,7 +19,7 @@ services:
     env_file: .env
     environment:
       - DB_PROVIDER=postgresql
-      - DATABASE_POSTGRESQL_URL=postgresql://youngsend:youngsend@postgres:5432/youngsend
+      - DATABASE_POSTGRESQL_URL=postgresql://digital-lending-os:digital-lending-os@postgres:5432/digital_lending_os
       - REDIS_URL=redis://redis:6379/0
       - KAFKA_BROKERS=kafka:9092
       - OPENSEARCH_URL=https://opensearch:9200
@@ -39,33 +39,33 @@ services:
         limits:
           memory: 512M
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── 2. PostgreSQL 16 ────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: youngsend-postgres
+    container_name: dlo-postgres
     environment:
-      POSTGRES_USER: youngsend
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-youngsend_dev}
-      POSTGRES_DB: youngsend
+      POSTGRES_USER: digital-lending-os
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dlo_dev}
+      POSTGRES_DB: digital_lending_os
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U youngsend -d youngsend"]
+      test: ["CMD-SHELL", "pg_isready -U digital-lending-os -d digital_lending_os"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── 3. Redis 7 ──────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: youngsend-redis
+    container_name: dlo-redis
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
@@ -78,24 +78,24 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── 4. Zookeeper ────────────────────────────────────────────────────
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
-    container_name: youngsend-zookeeper
+    container_name: dlo-zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
     volumes:
       - zk_data:/var/lib/zookeeper/data
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── 5. Kafka ────────────────────────────────────────────────────────
   kafka:
     image: confluentinc/cp-kafka:7.5.0
-    container_name: youngsend-kafka
+    container_name: dlo-kafka
     depends_on:
       - zookeeper
     ports:
@@ -111,12 +111,12 @@ services:
       - kafka_data:/var/lib/kafka/data
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── 6. OpenSearch ───────────────────────────────────────────────────
   opensearch:
     image: opensearchproject/opensearch:2.11.0
-    container_name: youngsend-opensearch
+    container_name: dlo-opensearch
     environment:
       - discovery.type=single-node
       - DISABLE_SECURITY_PLUGIN=true
@@ -130,12 +130,12 @@ services:
       - opensearch_data:/usr/share/opensearch/data
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── 7. OpenTelemetry Collector ──────────────────────────────────────
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.91.0
-    container_name: youngsend-otel-collector
+    container_name: dlo-otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./infra/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
@@ -147,12 +147,12 @@ services:
       - jaeger
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
   # ── 8. Jaeger All-in-One ────────────────────────────────────────────
   jaeger:
     image: jaegertracing/all-in-one:1.53
-    container_name: youngsend-jaeger
+    container_name: dlo-jaeger
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
@@ -165,7 +165,7 @@ services:
       - "4317"
     restart: unless-stopped
     networks:
-      - youngsend-net
+      - dlo-net
 
 volumes:
   postgres_data:
@@ -180,5 +180,5 @@ volumes:
     driver: local
 
 networks:
-  youngsend-net:
+  dlo-net:
     driver: bridge

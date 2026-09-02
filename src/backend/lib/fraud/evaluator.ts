@@ -1,5 +1,5 @@
 /**
- * Fraud Rule Evaluator — YoungSend Auto-Block Enforcement
+ * Fraud Rule Evaluator — Digital Lending OS Auto-Block Enforcement
  *
  * Evaluates a transaction against active fraud rules for a tenant.
  * Supports condition operators: greater_than, less_than, equals, not_equals, in, not_in.

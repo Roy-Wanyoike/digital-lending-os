@@ -1,5 +1,5 @@
 // ─── OpenSearch Index Mappings ─────────────────────────────────
-// Central definition of all Youngsend OpenSearch indices.
+// Central definition of all Digital Lending OS OpenSearch indices.
 // Each index uses `tenantId` as a custom routing key for multi-tenant
 // isolation so that queries scoped to a tenant hit a single shard.
 

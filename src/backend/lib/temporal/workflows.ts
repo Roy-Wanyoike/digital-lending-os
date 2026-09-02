@@ -1,4 +1,4 @@
-// Workflow interfaces for Youngsend business processes
+// Workflow interfaces for Digital Lending OS business processes
 
 // ─── Escrow Workflow ─────────────────────────────────────────────────────────
 
@@ -89,5 +89,5 @@ export interface CollectionWorkflowOutput {
 
 // ─── Task Queue ──────────────────────────────────────────────────────────────
 
-/** Temporal task queue name for all Youngsend workflows */
-export const YOUNDSEND_TASK_QUEUE = 'youngsend-queue'
+/** Temporal task queue name for all Digital Lending OS workflows */
+export const DLO_TASK_QUEUE = 'dlo-queue'

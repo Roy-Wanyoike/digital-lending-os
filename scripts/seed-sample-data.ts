@@ -1,5 +1,5 @@
 // ============================================================
-// Comprehensive seed script for Youngsend sample data
+// Comprehensive seed script for Digital Lending OS sample data
 // Creates 20 businesses with full related data across all modules
 // ============================================================
 
@@ -88,7 +88,7 @@ const COMPLIANCE_RULES = [
 // ── Main seed function ────────────────────────────────────────
 
 async function main() {
-  console.log('=== Youngsend Sample Data Seeding ===');
+  console.log('=== Digital Lending OS Sample Data Seeding ===');
   console.log('Clearing existing data...');
 
   // Reset - delete in reverse dependency order
@@ -139,13 +139,13 @@ async function main() {
   const tenant = await prisma.tenant.create({
     data: {
       id: 't_demo_01',
-      name: 'Youngsend Demo',
+      name: 'Digital Lending OS Demo',
       slug: 'demo',
       plan: 'professional',
       status: 'active',
       maxBusinesses: 50,
       maxUsers: 25,
-      ownerEmail: 'admin@youngsend.demo',
+      ownerEmail: 'admin@digitallendingos.co.ke',
       ownerName: 'Demo Admin',
     },
   });
@@ -155,7 +155,7 @@ async function main() {
   const admin = await prisma.account.create({
     data: {
       id: 'a_admin_01',
-      email: 'admin@youngsend.demo',
+      email: 'admin@digitallendingos.co.ke',
       passwordHash: bcryptHash,
       name: 'Demo Admin',
       role: 'admin',
@@ -871,7 +871,7 @@ async function main() {
 
   console.log('=== Seeding Complete ===');
   console.log(`Tenant: ${tenant.id}`);
-  console.log(`Admin email: admin@youngsend.demo`);
+  console.log(`Admin email: admin@digitallendingos.co.ke`);
   console.log(`Admin password: demo1234`);
   console.log(`Businesses: ${businessIds.length}`);
   console.log(`Escrow Transactions: ${escrowCount}`);

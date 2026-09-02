@@ -1,5 +1,5 @@
 #!/bin/bash
-# Youngsend Smoke Test — runs immediately after server start
+# Digital Lending OS Smoke Test — runs immediately after server start
 # Usage: bash scripts/smoke-test.sh
 set -e
 
@@ -32,7 +32,7 @@ check_header() {
 }
 
 echo "═══════════════════════════════════════════"
-echo " Youngsend Smoke Test"
+echo " Digital Lending OS Smoke Test"
 echo "═══════════════════════════════════════════"
 
 # Wait for server
@@ -146,7 +146,7 @@ for hop in 1 2 3 4 5; do
     -b /tmp/ys-cookies \
     -c /tmp/ys-cookies \
     --data-urlencode "csrfToken=$CSRF_TOKEN" \
-    --data-urlencode 'email=admin@youngsend.com' \
+    --data-urlencode 'email=admin@digitallendingos.co.ke' \
     --data-urlencode 'password=demo1234' \
     --data-urlencode 'callbackUrl=/' \
     "$URL" 2>&1)
@@ -178,7 +178,7 @@ fi
 # Verify session
 SESSION_DATA=$(curl -s -H "$UA" -b /tmp/ys-cookies $BASE/api/auth/session 2>/dev/null)
 EMAIL=$(echo "$SESSION_DATA" | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).user?.email || ''" 2>/dev/null)
-if [ "$EMAIL" = "admin@youngsend.com" ]; then
+if [ "$EMAIL" = "admin@digitallendingos.co.ke" ]; then
   echo "  ✅ Session verified: $EMAIL"
   PASSED=$((PASSED+1))
 else

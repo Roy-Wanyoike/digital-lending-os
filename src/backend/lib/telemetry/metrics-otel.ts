@@ -1,5 +1,5 @@
 /**
- * OpenTelemetry Metrics for Youngsend Fintech Platform
+ * OpenTelemetry Metrics for Digital Lending OS
  *
  * Provides a `metrics` object that:
  * - Uses real OTel instruments when the SDK is configured
@@ -77,7 +77,7 @@ export const metrics = {
    */
   counter(name: string, description?: string, unit?: string): AnyCounter {
     if (useOtel) {
-      const meter = otelMetrics.getMeter('youngsend-api');
+      const meter = otelMetrics.getMeter('dlo-api');
       return meter.createCounter(name, {
         description: description || '',
         unit: unit || '1',
@@ -92,7 +92,7 @@ export const metrics = {
    */
   histogram(name: string, description?: string, unit?: string, buckets?: number[]): AnyHistogram {
     if (useOtel) {
-      const meter = otelMetrics.getMeter('youngsend-api');
+      const meter = otelMetrics.getMeter('dlo-api');
       return meter.createHistogram(name, {
         description: description || '',
         unit: unit || 'ms',
@@ -108,11 +108,11 @@ export const metrics = {
    */
   gauge(name: string, description?: string, unit?: string): AnyObservableGauge {
     const meter = useOtel
-      ? otelMetrics.getMeter('youngsend-api')
+      ? otelMetrics.getMeter('dlo-api')
       : getInMemoryMeter() as unknown as { createObservableGauge(n: string, o?: Record<string, unknown>): AnyObservableGauge };
 
     if (useOtel) {
-      return otelMetrics.getMeter('youngsend-api').createObservableGauge(name, {
+      return otelMetrics.getMeter('dlo-api').createObservableGauge(name, {
         description: description || '',
         unit: unit || '1',
         valueType: ValueType.DOUBLE,

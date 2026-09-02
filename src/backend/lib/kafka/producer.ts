@@ -220,7 +220,7 @@ export async function sendEvent(params: SendEventParams): Promise<void> {
     eventType: params.eventType,
     timestamp: new Date().toISOString(),
     version: '1.0.0',
-    source: 'youngsend-api',
+    source: 'dlo-api',
     tenantId: params.tenantId,
     traceId: params.traceId,
     data: params.data,

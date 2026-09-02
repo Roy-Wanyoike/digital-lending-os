@@ -1,8 +1,8 @@
-# Youngsend Caching Layer
+# Digital Lending OS Caching Layer
 
 ## Architecture
 
-The caching layer provides a multi-tiered, production-grade caching system for the Youngsend fintech platform.
+The caching layer provides a multi-tiered, production-grade caching system for the Digital Lending OS platform.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -275,4 +275,4 @@ console.log(metrics);
 
 ### Key Naming Convention
 
-All cache keys use the prefix `ys:cache:{namespace}:{key}`. Tag indices use `ys:tag:{tag}:keys`. Rate limiters use `ys:rl:{type}:{identifier}:{endpoint}`. Pub/Sub channels use `cache:invalidate:{prefix}`.
+All cache keys use the prefix `dlo:cache:{namespace}:{key}`. Tag indices use `dlo:tag:{tag}:keys`. Rate limiters use `dlo:rl:{type}:{identifier}:{endpoint}`. Pub/Sub channels use `cache:invalidate:{prefix}`.

@@ -1,5 +1,5 @@
 // ─── High-Level Search Service ──────────────────────────────────────
-// Typed search functions for each Youngsend entity. Supports full-text
+// Typed search functions for each Digital Lending OS entity. Supports full-text
 // search, term filters, range filters, aggregations, and cursor-based
 // pagination via search_after.
 //

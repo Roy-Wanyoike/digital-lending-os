@@ -3,7 +3,7 @@ set -euo pipefail
 # Migration script: SQLite → PostgreSQL
 # Usage: ./scripts/migrate-to-postgresql.sh
 
-echo "=== Youngsend Database Migration: SQLite → PostgreSQL ==="
+echo "=== Digital Lending OS Database Migration: SQLite → PostgreSQL ==="
 
 # 1. Backup current SQLite database
 echo "[1/4] Backing up SQLite database..."
@@ -14,7 +14,7 @@ echo "[2/4] Generating Prisma client for PostgreSQL..."
 
 # 3. Create PostgreSQL database (requires psql)
 echo "[3/4] Creating PostgreSQL database..."
-echo "    Run: CREATE DATABASE youngsend;"
+echo "    Run: CREATE DATABASE digital_lending_os;"
 echo "    Then update .env: DB_PROVIDER=postgresql"
 
 # 4. Push schema

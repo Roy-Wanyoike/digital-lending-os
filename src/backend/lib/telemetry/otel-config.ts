@@ -1,5 +1,5 @@
 /**
- * OpenTelemetry SDK Configuration for Youngsend Fintech Platform
+ * OpenTelemetry SDK Configuration for Digital Lending OS
  *
  * Initializes the full OTel NodeSDK with:
  * - TraceExporter: OTLP gRPC (falls back to console/no-op when no endpoint)
@@ -51,7 +51,7 @@ export async function setupOpenTelemetry(): Promise<void> {
   }
 
   const resource = resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'youngsend-api',
+    [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || 'dlo-api',
     [ATTR_SERVICE_VERSION]: process.env.npm_package_version || pkgVersion,
     [ATTR_DEPLOYMENT_ENVIRONMENT_NAME]: process.env.NODE_ENV || 'development',
   });
@@ -93,7 +93,7 @@ export async function setupOpenTelemetry(): Promise<void> {
   }
 
   console.log(
-    `[otel] SDK initialized — service=youngsend-api version=${pkgVersion} env=${process.env.NODE_ENV || 'development'} endpoint=${otlpEndpoint || 'none'}`
+    `[otel] SDK initialized — service=dlo-api version=${pkgVersion} env=${process.env.NODE_ENV || 'development'} endpoint=${otlpEndpoint || 'none'}`
   );
 }
 

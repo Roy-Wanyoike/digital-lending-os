@@ -4,9 +4,9 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import {
-  LayoutDashboard, Network, Shield, ArrowLeftRight, IdCard as PassportIcon,
-  Brain, Link2, Wallet, ShieldAlert, UserCheck, BellRing, Scale,
-  TrendingUp, Building2, ArrowUpRight, ArrowDownRight, Zap, Star, Gift,
+  LayoutDashboard, Users, FileText, ArrowLeftRight, ArrowDownLeft,
+  Brain, Wallet, ShieldAlert, BellRing, Scale,
+  ArrowUpRight, ArrowDownRight,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -32,7 +32,7 @@ export const PAYMENT_METHOD_TYPES = ['All', 'Mobile Money', 'Digital Wallet', 'R
 
 // ─── Type Definitions ────────────────────────────────────────────────────────
 
-export type Role = 'admin' | 'buyer' | 'seller' | 'auditor' | 'viewer'
+export type Role = 'admin' | 'credit_officer' | 'collections_officer' | 'compliance_officer' | 'underwriter' | 'viewer'
 
 export interface NavItem {
   id: string
@@ -466,32 +466,31 @@ export function Toast({ message, visible }: { message: string; visible: boolean 
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Admin',
-  buyer: 'Buyer',
-  seller: 'Seller',
-  auditor: 'Auditor',
+  credit_officer: 'Credit Officer',
+  collections_officer: 'Collections Officer',
+  compliance_officer: 'Compliance Officer',
+  underwriter: 'Underwriter',
   viewer: 'Viewer',
 }
 
 export const ROLE_TABS: Record<Role, string[]> = {
-  admin: ['overview', 'trust-graph', 'escrow', 'payments', 'passport', 'digital-twin', 'payment-links', 'wallet', 'referral', 'fraud', 'matching', 'collections', 'compliance'],
-  buyer: ['overview', 'payments', 'payment-links', 'wallet', 'referral'],
-  seller: ['overview', 'trust-graph', 'escrow', 'payment-links', 'wallet', 'referral'],
-  auditor: ['overview', 'trust-graph', 'fraud', 'compliance', 'collections'],
-  viewer: ['overview', 'trust-graph', 'payments'],
+  admin: ['overview', 'borrowers', 'loans', 'disbursements', 'repayments', 'collections', 'credit-scoring', 'fraud', 'compliance', 'wallet'],
+  credit_officer: ['overview', 'borrowers', 'loans', 'disbursements', 'repayments', 'credit-scoring'],
+  collections_officer: ['overview', 'borrowers', 'loans', 'repayments', 'collections'],
+  compliance_officer: ['overview', 'borrowers', 'fraud', 'compliance'],
+  underwriter: ['overview', 'borrowers', 'credit-scoring', 'loans'],
+  viewer: ['overview', 'borrowers', 'loans', 'collections'],
 }
 
 export const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'trust-graph', label: 'Trust Graph', icon: Network },
-  { id: 'escrow', label: 'Escrow', icon: Shield },
-  { id: 'payments', label: 'Payments', icon: ArrowLeftRight },
-  { id: 'passport', label: 'Passport', icon: PassportIcon },
-  { id: 'digital-twin', label: 'Digital Twin', icon: Brain },
-  { id: 'payment-links', label: 'Payment Links', icon: Link2 },
-  { id: 'wallet', label: 'Wallet', icon: Wallet },
-  { id: 'referral', label: 'Referral', icon: Gift },
-  { id: 'fraud', label: 'Fraud', icon: ShieldAlert },
-  { id: 'matching', label: 'Matching', icon: UserCheck },
+  { id: 'borrowers', label: 'Borrowers', icon: Users },
+  { id: 'loans', label: 'Loans', icon: FileText },
+  { id: 'disbursements', label: 'Disbursements', icon: ArrowLeftRight },
+  { id: 'repayments', label: 'Repayments', icon: ArrowDownLeft },
   { id: 'collections', label: 'Collections', icon: BellRing },
+  { id: 'credit-scoring', label: 'Credit Scoring', icon: Brain },
+  { id: 'fraud', label: 'Fraud & Risk', icon: ShieldAlert },
   { id: 'compliance', label: 'Compliance', icon: Scale },
+  { id: 'wallet', label: 'Wallet', icon: Wallet },
 ]

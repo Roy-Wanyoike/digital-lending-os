@@ -52,7 +52,7 @@ export class IntaSendProvider implements PaymentProvider {
       redirect_url: input.redirectUrl,
       webhook_url: input.callbackUrl,
       method: this.mapMethod(input.paymentMethods?.[0]),
-      comment: input.metadata?.referenceType || 'Youngsend Payment',
+      comment: input.metadata?.referenceType || 'Digital Lending OS Payment',
     })
 
     if (!response.invoice_id && !response.url) {

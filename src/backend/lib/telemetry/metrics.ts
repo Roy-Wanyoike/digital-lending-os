@@ -1,15 +1,15 @@
 /**
- * Custom Metrics for Youngsend Fintech Platform
+ * Custom Metrics for Digital Lending OS
  *
  * In-process in-memory metrics implementation (no @opentelemetry/sdk-metrics dependency).
  * Metrics:
- * - youngsend_payment_total: Counter (provider, status, currency)
- * - youngsend_payment_amount: Histogram (provider, currency, custom buckets)
- * - youngsend_request_duration: Histogram (route, method, status)
- * - youngsend_active_sessions: UpDownCounter
- * - youngsend_cache_hit_ratio: Gauge
- * - youngsend_kafka_consumer_lag: Gauge (topic, consumer_group)
- * - youngsend_fraud_alerts: Counter (severity, type)
+ * - dlo_payment_total: Counter (provider, status, currency)
+ * - dlo_payment_amount: Histogram (provider, currency, custom buckets)
+ * - dlo_request_duration: Histogram (route, method, status)
+ * - dlo_active_sessions: UpDownCounter
+ * - dlo_cache_hit_ratio: Gauge
+ * - dlo_kafka_consumer_lag: Gauge (topic, consumer_group)
+ * - dlo_fraud_alerts: Counter (severity, type)
  *
  * Provides getMetricsSnapshot() / resetMetrics() for testing and debugging.
  */
@@ -158,7 +158,7 @@ export interface MetricsConfig {
 
 // ─── Metric Instruments ────────────────────────────────────────────────────
 
-export interface YoungsendMetrics {
+export interface DigitalLendingOsMetrics {
   /** Counter: Total payment count by provider, status, currency */
   paymentTotal: Counter;
   /** Histogram: Payment amounts with fintech-aware buckets */
@@ -175,7 +175,7 @@ export interface YoungsendMetrics {
   fraudAlerts: Counter;
 }
 
-let _metrics: YoungsendMetrics | null = null;
+let _metrics: DigitalLendingOsMetrics | null = null;
 
 // ─── Observable Gauge Callbacks ─────────────────────────────────────────────
 
@@ -209,7 +209,7 @@ export function createMeterProvider(config: MetricsConfig = {}): MeterProvider {
     return _meterProvider;
   }
 
-  const serviceName = config.serviceName || process.env.OTEL_SERVICE_NAME || 'youngsend-api';
+  const serviceName = config.serviceName || process.env.OTEL_SERVICE_NAME || 'dlo-api';
   const serviceVersion = config.serviceVersion || process.env.npm_package_version || '0.1.0';
   const environment = config.environment || process.env.NODE_ENV || 'development';
   const otlpEndpoint = config.otlpEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
@@ -218,13 +218,13 @@ export function createMeterProvider(config: MetricsConfig = {}): MeterProvider {
   _meter = new InMemoryMeter();
 
   _metrics = {
-    paymentTotal: _meter.createCounter('youngsend_payment_total'),
-    paymentAmount: _meter.createHistogram('youngsend_payment_amount'),
-    requestDuration: _meter.createHistogram('youngsend_request_duration'),
-    activeSessions: _meter.createUpDownCounter('youngsend_active_sessions'),
-    cacheHitRatio: _meter.createObservableGauge('youngsend_cache_hit_ratio'),
-    kafkaConsumerLag: _meter.createObservableGauge('youngsend_kafka_consumer_lag'),
-    fraudAlerts: _meter.createCounter('youngsend_fraud_alerts'),
+    paymentTotal: _meter.createCounter('dlo_payment_total'),
+    paymentAmount: _meter.createHistogram('dlo_payment_amount'),
+    requestDuration: _meter.createHistogram('dlo_request_duration'),
+    activeSessions: _meter.createUpDownCounter('dlo_active_sessions'),
+    cacheHitRatio: _meter.createObservableGauge('dlo_cache_hit_ratio'),
+    kafkaConsumerLag: _meter.createObservableGauge('dlo_kafka_consumer_lag'),
+    fraudAlerts: _meter.createCounter('dlo_fraud_alerts'),
   };
 
   _meterProvider = { shutdown: async () => { allMetrics.clear(); } } as MeterProvider;
@@ -248,7 +248,7 @@ export function getMeter(): Meter {
   return _meter!;
 }
 
-export function getMetrics(): YoungsendMetrics {
+export function getMetrics(): DigitalLendingOsMetrics {
   if (!_metrics) {
     createMeterProvider();
   }

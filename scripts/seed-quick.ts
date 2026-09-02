@@ -63,8 +63,8 @@ async function main() {
   // 1. Tenant + Account + Business
   const tenant = await db.tenant.create({
     data: {
-      name: 'Youngsend Demo',
-      slug: 'youngsend-demo',
+      name: 'Digital Lending OS Demo',
+      slug: 'dlo-demo',
       plan: 'professional',
       ownerEmail: 'youngsharktechnologies@gmail.com',
       ownerName: 'Young Shark',
@@ -85,7 +85,7 @@ async function main() {
   })
 
   const business = await db.business.create({
-    data: { name: 'Youngsend Demo Co.', country: 'US', city: 'San Francisco', industry: 'Technology Services', status: 'verified', verifiedAt: new Date(), tenantId: tenant.id },
+    data: { name: 'Digital Lending OS Demo Co.', country: 'US', city: 'San Francisco', industry: 'Technology Services', status: 'verified', verifiedAt: new Date(), tenantId: tenant.id },
   })
   await db.account.update({ where: { id: account.id }, data: { businessId: business.id } })
 

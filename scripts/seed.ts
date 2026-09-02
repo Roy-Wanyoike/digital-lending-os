@@ -56,7 +56,7 @@ function generateRef(prefix: string) {
 }
 
 async function seed() {
-  console.log('🌱 Seeding Youngsend database...')
+  console.log('🌱 Seeding Digital Lending OS database...')
 
   // Create businesses with passports and trust scores
   const businessIds: string[] = []
@@ -82,7 +82,7 @@ async function seed() {
         verifiedAt: Math.random() > 0.2 ? new Date() : null,
         passport: {
           create: {
-            passportHash: createHash('sha256').update(id + 'youngsend').digest('hex'),
+            passportHash: createHash('sha256').update(id + 'dlo').digest('hex'),
             credentialLevel: ['basic', 'standard', 'enhanced', 'premium'][randomInt(0, 3)],
             kycStatus: Math.random() > 0.3 ? 'verified' : 'in_progress',
             kycVerifiedAt: Math.random() > 0.3 ? new Date() : null,
@@ -474,7 +474,7 @@ async function seed() {
         fromCurrency: r.from,
         toCurrency: r.to,
         rate: r.rate + randomFloat(-0.01, 0.01),
-        provider: 'youngsend_ai',
+        provider: 'dlo_ai',
         source: 'composite_market_feed',
         expiresAt: new Date(Date.now() + 3600000),
       },

@@ -2,9 +2,9 @@
 
 import React from 'react'
 import {
-  LayoutDashboard, Network, Shield, ArrowLeftRight, IdCard as PassportIcon,
-  Link2, Wallet, ShieldAlert, UserCheck, BellRing, Scale,
-  ArrowUpRight, ArrowDownRight, AlertTriangle, RotateCcw, Gift, Brain,
+  LayoutDashboard, Users, FileText, ArrowLeftRight, ArrowDownLeft,
+  Brain, Wallet, ShieldAlert, BellRing, Scale,
+  ArrowUpRight, ArrowDownRight, AlertTriangle, RotateCcw,
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -15,18 +15,15 @@ import type { NavItem } from '@/frontend/lib/formatters'
 
 export const NAV_ITEMS: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { id: 'trust-graph', label: 'Trust Graph', icon: Network },
-  { id: 'escrow', label: 'Escrow', icon: Shield },
-  { id: 'payments', label: 'Payments', icon: ArrowLeftRight },
-  { id: 'passport', label: 'Passport', icon: PassportIcon },
-  { id: 'payment-links', label: 'Payment Links', icon: Link2 },
-  { id: 'wallet', label: 'Wallet', icon: Wallet },
-  { id: 'referral', label: 'Referral', icon: Gift },
-  { id: 'fraud', label: 'Fraud', icon: ShieldAlert },
-  { id: 'matching', label: 'Matching', icon: UserCheck },
+  { id: 'borrowers', label: 'Borrowers', icon: Users },
+  { id: 'loans', label: 'Loans', icon: FileText },
+  { id: 'disbursements', label: 'Disbursements', icon: ArrowLeftRight },
+  { id: 'repayments', label: 'Repayments', icon: ArrowDownLeft },
   { id: 'collections', label: 'Collections', icon: BellRing },
+  { id: 'credit-scoring', label: 'Credit Scoring', icon: Brain },
+  { id: 'fraud', label: 'Fraud & Risk', icon: ShieldAlert },
   { id: 'compliance', label: 'Compliance', icon: Scale },
-  { id: 'digital-twin', label: 'Digital Twin', icon: Brain },
+  { id: 'wallet', label: 'Wallet', icon: Wallet },
 ]
 
 // ─── Shared Sub-Components ───────────────────────────────────────────────

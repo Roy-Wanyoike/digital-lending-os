@@ -1,7 +1,7 @@
-# Youngsend Payment Security Module
+# Digital Lending OS Payment Security Module
 
 > Idempotent payment state machine, cryptographic utilities, input validation,
-> security middleware, and tamper-proof audit trail for the Youngsend payment
+> security middleware, and tamper-proof audit trail for the Digital Lending OS payment
 > processing pipeline.
 
 ```
@@ -485,7 +485,7 @@ console.log(result.valid) // true
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                    Youngsend Payment Flow                        │
+│                    Digital Lending OS Payment Flow                        │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  Client                                                           │
@@ -613,7 +613,7 @@ AUDIT_SIGNING_KEY=your-audit-hmac-secret
 
 # Security
 BLOCKED_IPS=1.2.3.4,5.6.7.8
-NEXT_PUBLIC_APP_URL=https://app.youngsend.com
+NEXT_PUBLIC_APP_URL=https://app.digitallendingos.co.ke
 ```
 
 ### File Reference

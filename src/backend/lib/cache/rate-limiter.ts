@@ -1,5 +1,5 @@
 /**
- * Distributed Rate Limiter — Youngsend Caching Layer
+ * Distributed Rate Limiter — Digital Lending OS Caching Layer
  *
  * Three algorithms:
  *  1. Sliding Window Counter (default) — accurate, memory-efficient
@@ -146,7 +146,7 @@ export class RateLimiter {
       maxRequests: config.maxRequests,
       windowMs: config.windowMs,
       algorithm: config.algorithm || 'sliding-window',
-      keyPrefix: config.keyPrefix || 'ys:rl',
+      keyPrefix: config.keyPrefix || 'dlo:rl',
     };
     // Check if we have a real Redis client (not in-memory fallback)
     this.useLua = this.client.isAvailable() && !!process.env.REDIS_URL;
@@ -378,7 +378,7 @@ export function createApiLimiter(maxPerMinute = 100): RateLimiter {
     maxRequests: maxPerMinute,
     windowMs: 60_000,
     algorithm: 'sliding-window',
-    keyPrefix: 'ys:rl:api',
+    keyPrefix: 'dlo:rl:api',
   });
 }
 
@@ -388,7 +388,7 @@ export function createAuthLimiter(maxPerMinute = 5): RateLimiter {
     maxRequests: maxPerMinute,
     windowMs: 60_000,
     algorithm: 'fixed-window',
-    keyPrefix: 'ys:rl:auth',
+    keyPrefix: 'dlo:rl:auth',
   });
 }
 
@@ -398,7 +398,7 @@ export function createPaymentLimiter(maxPerMinute = 30): RateLimiter {
     maxRequests: maxPerMinute,
     windowMs: 60_000,
     algorithm: 'sliding-window',
-    keyPrefix: 'ys:rl:payment',
+    keyPrefix: 'dlo:rl:payment',
   });
 }
 
@@ -408,7 +408,7 @@ export function createWebhookLimiter(maxPerMinute = 1000): RateLimiter {
     maxRequests: maxPerMinute,
     windowMs: 60_000,
     algorithm: 'token-bucket',
-    keyPrefix: 'ys:rl:webhook',
+    keyPrefix: 'dlo:rl:webhook',
   });
 }
 
@@ -418,6 +418,6 @@ export function createGlobalLimiter(maxPerMinute = 10_000): RateLimiter {
     maxRequests: maxPerMinute,
     windowMs: 60_000,
     algorithm: 'sliding-window',
-    keyPrefix: 'ys:rl:global',
+    keyPrefix: 'dlo:rl:global',
   });
 }

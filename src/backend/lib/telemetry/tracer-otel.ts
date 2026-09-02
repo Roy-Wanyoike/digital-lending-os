@@ -1,5 +1,5 @@
 /**
- * OpenTelemetry Tracer for Youngsend Fintech Platform
+ * OpenTelemetry Tracer for Digital Lending OS
  *
  * Provides a `tracer` object that:
  * - Uses real OTel spans when the SDK is configured (OTEL_EXPORTER_OTLP_ENDPOINT set)
@@ -72,7 +72,7 @@ export const tracer = {
    */
   startSpan(name: string, options?: StartSpanOptions): AnySpan {
     if (useOtel) {
-      const otelTracer: OTelTracer = trace.getTracer('youngsend-api');
+      const otelTracer: OTelTracer = trace.getTracer('dlo-api');
       const spanOptions: SpanOptions = {};
       if (options?.attributes) {
         spanOptions.attributes = options.attributes;
@@ -188,7 +188,7 @@ export const tracer = {
    */
   createChildSpan(parent: AnySpan, name: string): AnySpan {
     if (useOtel) {
-      const otelTracer: OTelTracer = trace.getTracer('youngsend-api');
+      const otelTracer: OTelTracer = trace.getTracer('dlo-api');
       const ctx = trace.setSpan(context.active(), parent);
       return otelTracer.startSpan(name, undefined, ctx);
     }

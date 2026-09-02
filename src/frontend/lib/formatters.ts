@@ -26,7 +26,7 @@ export const PAYMENT_METHOD_TYPES = ['All', 'Mobile Money', 'Digital Wallet', 'R
 
 // ─── Type Definitions ────────────────────────────────────────────────────────
 
-export type Role = 'admin' | 'buyer' | 'seller' | 'auditor' | 'viewer'
+export type Role = 'admin' | 'credit_officer' | 'collections_officer' | 'compliance_officer' | 'underwriter' | 'viewer'
 
 export interface NavItem {
   id: string
@@ -203,18 +203,20 @@ export interface TwinProfile {
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: 'Admin',
-  buyer: 'Buyer',
-  seller: 'Seller',
-  auditor: 'Auditor',
+  credit_officer: 'Credit Officer',
+  collections_officer: 'Collections Officer',
+  compliance_officer: 'Compliance Officer',
+  underwriter: 'Underwriter',
   viewer: 'Viewer',
 }
 
 export const ROLE_TABS: Record<Role, string[]> = {
-  admin: ['overview', 'trust-graph', 'escrow', 'payments', 'passport', 'payment-links', 'wallet', 'referral', 'fraud', 'matching', 'collections', 'compliance', 'digital-twin'],
-  buyer: ['overview', 'payments', 'payment-links', 'wallet', 'referral'],
-  seller: ['overview', 'trust-graph', 'escrow', 'payment-links', 'wallet', 'referral'],
-  auditor: ['overview', 'trust-graph', 'fraud', 'compliance', 'collections', 'digital-twin'],
-  viewer: ['overview', 'trust-graph', 'payments'],
+  admin: ['overview', 'borrowers', 'loans', 'disbursements', 'repayments', 'collections', 'credit-scoring', 'fraud', 'compliance', 'wallet'],
+  credit_officer: ['overview', 'borrowers', 'loans', 'disbursements', 'repayments', 'credit-scoring'],
+  collections_officer: ['overview', 'borrowers', 'loans', 'repayments', 'collections'],
+  compliance_officer: ['overview', 'borrowers', 'fraud', 'compliance'],
+  underwriter: ['overview', 'borrowers', 'credit-scoring', 'loans'],
+  viewer: ['overview', 'borrowers', 'loans', 'collections'],
 }
 
 // ─── Formatter Functions ──────────────────────────────────────────────────────

@@ -1,13 +1,13 @@
 /**
  * OpenTelemetry Observability — Re-exports & Initialization
  *
- * Single entrypoint for the Youngsend telemetry stack.
+ * Single entrypoint for the Digital Lending OS telemetry stack.
  * Call `initTelemetry()` once at application startup (e.g., instrumentation.ts).
  *
  * Re-exports:
  * - Tracer: getTracer(), createTracerProvider(), startFintechSpan(), withFintechSpan(), createHttpSpan(), shutdownTracer()
  * - Metrics: getMeter(), getMeterProvider(), getMetrics(), recordPayment(), recordRequestDuration(), recordSessionDelta(), recordFraudAlert(), shutdownMetrics()
- * - Logger: getLogger(), initLogger(), YoungsendLogger, shutdownLogger()
+ * - Logger: getLogger(), initLogger(), DigitalLendingOsLogger, shutdownLogger()
  * - Middleware: telemetryMiddleware(), withTelemetry()
  * - Health: performHealthChecks(), healthCheckHandler(), markStartupComplete()
  */
@@ -41,7 +41,7 @@ export {
   recordFraudAlert,
   shutdownMetrics,
   type MetricsConfig,
-  type YoungsendMetrics,
+  type DigitalLendingOsMetrics,
 } from './metrics';
 
 // ─── Logger ──────────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ export {
 export {
   getLogger,
   initLogger,
-  YoungsendLogger,
+  DigitalLendingOsLogger,
   shutdownLogger,
   LogLevel,
   type LoggerConfig,
@@ -86,7 +86,7 @@ import { markStartupComplete } from './health';
 import { parseLogLevel } from './logger';
 
 export interface TelemetryInitConfig {
-  /** Service name (default: youngsend-api) */
+  /** Service name (default: dlo-api) */
   serviceName?: string;
   /** Service version */
   serviceVersion?: string;
@@ -123,7 +123,7 @@ export function initTelemetry(config: TelemetryInitConfig = {}): () => Promise<v
     return async () => {};
   }
 
-  const serviceName = config.serviceName || process.env.OTEL_SERVICE_NAME || 'youngsend-api';
+  const serviceName = config.serviceName || process.env.OTEL_SERVICE_NAME || 'dlo-api';
   const serviceVersion = config.serviceVersion || process.env.npm_package_version || '0.1.0';
   const environment = config.environment || process.env.NODE_ENV || 'development';
   const otlpEndpoint = config.otlpEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT || '';

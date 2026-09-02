@@ -38,7 +38,7 @@ function getBrokerList(): string[] {
   return raw.split(',').map((b) => b.trim()).filter(Boolean)
 }
 
-const CLIENT_ID = process.env.KAFKA_CLIENT_ID || 'youngsend-api'
+const CLIENT_ID = process.env.KAFKA_CLIENT_ID || 'dlo-api'
 
 // ── Lazy State ───────────────────────────────────────────────────────────────
 

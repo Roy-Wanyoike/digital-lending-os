@@ -1,5 +1,5 @@
 /**
- * Tracer Setup for Youngsend Fintech Platform
+ * Tracer Setup for Digital Lending OS
  *
  * In-process in-memory tracing implementation (no @opentelemetry/sdk-node dependency).
  * Provides:
@@ -172,14 +172,14 @@ class InMemoryTracer implements Tracer {
 // ─── Custom Fintech Semantic Conventions ────────────────────────────────────
 
 export const YS_ATTRS = {
-  TENANT_ID: 'youngsend.tenant.id',
-  USER_ID: 'youngsend.user.id',
-  PAYMENT_ID: 'youngsend.payment.id',
-  WALLET_ID: 'youngsend.wallet.id',
-  ESCROW_ID: 'youngsend.escrow.id',
-  PROVIDER: 'youngsend.payment.provider',
-  CURRENCY: 'youngsend.payment.currency',
-  COUNTRY: 'youngsend.user.country',
+  TENANT_ID: 'dlo.tenant.id',
+  USER_ID: 'dlo.user.id',
+  PAYMENT_ID: 'dlo.payment.id',
+  WALLET_ID: 'dlo.wallet.id',
+  ESCROW_ID: 'dlo.escrow.id',
+  PROVIDER: 'dlo.payment.provider',
+  CURRENCY: 'dlo.payment.currency',
+  COUNTRY: 'dlo.user.country',
 } as const;
 
 // ─── Provider Singleton ─────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ export interface TracerConfig {
 }
 
 export function createTracerProvider(config: TracerConfig = {}): unknown {
-  const serviceName = config.serviceName || process.env.OTEL_SERVICE_NAME || 'youngsend-api';
+  const serviceName = config.serviceName || process.env.OTEL_SERVICE_NAME || 'dlo-api';
   const serviceVersion = config.serviceVersion || process.env.npm_package_version || '0.1.0';
   const environment = config.environment || process.env.NODE_ENV || 'development';
   const otlpEndpoint = config.otlpEndpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
@@ -232,7 +232,7 @@ export interface FintechSpanOptions {
 }
 
 /**
- * Start a span with Youngsend fintech attributes pre-bound.
+ * Start a span with Digital Lending OS fintech attributes pre-bound.
  */
 export function startFintechSpan(name: string, options: FintechSpanOptions = {}): Span {
   const tracer = getTracer();

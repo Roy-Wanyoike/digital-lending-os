@@ -1,5 +1,5 @@
 /**
- * Cache Pub/Sub — Youngsend Caching Layer
+ * Cache Pub/Sub — Digital Lending OS Caching Layer
  *
  * Distributed cache invalidation across multiple instances using Redis Pub/Sub.
  * When one instance invalidates a cache entry, all instances receive the message

@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'youngsend-dev',
+      name: 'digital-lending-os-dev',
       script: 'npx',
       args: 'next dev -p 3000 -H 0.0.0.0',
       cwd: process.cwd(),
@@ -15,7 +15,7 @@ module.exports = {
       max_restarts: 10,
     },
     {
-      name: 'youngsend-prod',
+      name: 'digital-lending-os-prod',
       script: 'node',
       args: '.next/standalone/server.js',
       cwd: process.cwd(),

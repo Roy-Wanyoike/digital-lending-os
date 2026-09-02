@@ -1,5 +1,5 @@
 import { getTemporalClient, isTemporalAvailable } from './client'
-import { YOUNDSEND_TASK_QUEUE } from './workflows'
+import { DLO_TASK_QUEUE } from './workflows'
 import * as activities from './activities'
 
 /**
@@ -19,7 +19,7 @@ export async function runWorkflow<T>(
       const client = await getTemporalClient()
       if (client) {
         const result = await client.workflow.start(workflowName, {
-          taskQueue: YOUNDSEND_TASK_QUEUE,
+          taskQueue: DLO_TASK_QUEUE,
           args: [input],
           workflowId: `${workflowName}-${Date.now()}`,
         })

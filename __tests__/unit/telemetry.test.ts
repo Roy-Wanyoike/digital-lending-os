@@ -7,13 +7,13 @@ describe('telemetry/logger', () => {
     vi.resetModules()
   })
 
-  it('exports getLogger, initLogger, shutdownLogger, parseLogLevel, YoungsendLogger, and LogLevel', async () => {
+  it('exports getLogger, initLogger, shutdownLogger, parseLogLevel, DigitalLendingOsLogger, and LogLevel', async () => {
     const mod = await import('@/backend/lib/telemetry/logger')
     expect(typeof mod.getLogger).toBe('function')
     expect(typeof mod.initLogger).toBe('function')
     expect(typeof mod.shutdownLogger).toBe('function')
     expect(typeof mod.parseLogLevel).toBe('function')
-    expect(typeof mod.YoungsendLogger).toBe('function')
+    expect(typeof mod.DigitalLendingOsLogger).toBe('function')
     expect(mod.LogLevel).toBeDefined()
   })
 
@@ -36,7 +36,7 @@ describe('telemetry/logger', () => {
     expect(parseLogLevel('DEBUG')).toBe(LogLevel.DEBUG)
   })
 
-  it('getLogger returns a YoungsendLogger instance with all log methods', async () => {
+  it('getLogger returns a DigitalLendingOsLogger instance with all log methods', async () => {
     const { getLogger } = await import('@/backend/lib/telemetry/logger')
     const logger = getLogger()
     expect(typeof logger.trace).toBe('function')
@@ -125,14 +125,14 @@ describe('telemetry/tracer', () => {
 
   it('YS_ATTRS contains all expected fintech attribute keys', async () => {
     const { YS_ATTRS } = await import('@/backend/lib/telemetry/tracer')
-    expect(YS_ATTRS.TENANT_ID).toBe('youngsend.tenant.id')
-    expect(YS_ATTRS.USER_ID).toBe('youngsend.user.id')
-    expect(YS_ATTRS.PAYMENT_ID).toBe('youngsend.payment.id')
-    expect(YS_ATTRS.WALLET_ID).toBe('youngsend.wallet.id')
-    expect(YS_ATTRS.ESCROW_ID).toBe('youngsend.escrow.id')
-    expect(YS_ATTRS.PROVIDER).toBe('youngsend.payment.provider')
-    expect(YS_ATTRS.CURRENCY).toBe('youngsend.payment.currency')
-    expect(YS_ATTRS.COUNTRY).toBe('youngsend.user.country')
+    expect(YS_ATTRS.TENANT_ID).toBe('dlo.tenant.id')
+    expect(YS_ATTRS.USER_ID).toBe('dlo.user.id')
+    expect(YS_ATTRS.PAYMENT_ID).toBe('dlo.payment.id')
+    expect(YS_ATTRS.WALLET_ID).toBe('dlo.wallet.id')
+    expect(YS_ATTRS.ESCROW_ID).toBe('dlo.escrow.id')
+    expect(YS_ATTRS.PROVIDER).toBe('dlo.payment.provider')
+    expect(YS_ATTRS.CURRENCY).toBe('dlo.payment.currency')
+    expect(YS_ATTRS.COUNTRY).toBe('dlo.user.country')
   })
 
   it('getTracer returns a tracer with startSpan method', async () => {
@@ -167,11 +167,11 @@ describe('telemetry/tracer', () => {
     const completed = getCompletedSpans()
     expect(completed).toHaveLength(1)
     expect(completed[0].name).toBe('payment.process')
-    expect(completed[0].attributes['youngsend.tenant.id']).toBe('tenant-abc')
-    expect(completed[0].attributes['youngsend.user.id']).toBe('user-123')
-    expect(completed[0].attributes['youngsend.payment.id']).toBe('pay-456')
-    expect(completed[0].attributes['youngsend.payment.provider']).toBe('stripe')
-    expect(completed[0].attributes['youngsend.payment.currency']).toBe('USD')
+    expect(completed[0].attributes['dlo.tenant.id']).toBe('tenant-abc')
+    expect(completed[0].attributes['dlo.user.id']).toBe('user-123')
+    expect(completed[0].attributes['dlo.payment.id']).toBe('pay-456')
+    expect(completed[0].attributes['dlo.payment.provider']).toBe('stripe')
+    expect(completed[0].attributes['dlo.payment.currency']).toBe('USD')
   })
 
   it('withFintechSpan executes the callback and returns its value', async () => {
@@ -251,7 +251,7 @@ describe('telemetry/metrics', () => {
     recordPayment({ provider: 'paystack', status: 'failed', currency: 'NGN', amount: 5000 })
 
     const snapshot = getMetricsSnapshot()
-    const paymentTotal = snapshot.find(s => s.name === 'youngsend_payment_total' && s.type === 'counter')!
+    const paymentTotal = snapshot.find(s => s.name === 'dlo_payment_total' && s.type === 'counter')!
     expect(paymentTotal).toBeDefined()
 
     // Find the stripe/completed/USD entry
@@ -276,7 +276,7 @@ describe('telemetry/metrics', () => {
     recordPayment({ provider: 'flutterwave', status: 'completed', currency: 'KES', amount: 7500 })
 
     const snapshot = getMetricsSnapshot()
-    const amountHist = snapshot.find(s => s.name === 'youngsend_payment_amount' && s.type === 'histogram')!
+    const amountHist = snapshot.find(s => s.name === 'dlo_payment_amount' && s.type === 'histogram')!
     expect(amountHist).toBeDefined()
 
     const fwEntry = amountHist.values.find(
@@ -294,7 +294,7 @@ describe('telemetry/metrics', () => {
     recordRequestDuration({ route: '/api/test', method: 'GET', status: 200, durationSeconds: 0.12 })
 
     const snapshot = getMetricsSnapshot()
-    const durHist = snapshot.find(s => s.name === 'youngsend_request_duration')!
+    const durHist = snapshot.find(s => s.name === 'dlo_request_duration')!
     expect(durHist).toBeDefined()
     expect(durHist.type).toBe('histogram')
 
@@ -315,7 +315,7 @@ describe('telemetry/metrics', () => {
     recordSessionDelta(-1)
 
     const snapshot = getMetricsSnapshot()
-    const sessions = snapshot.find(s => s.name === 'youngsend_active_sessions' && s.type === 'up_down_counter')!
+    const sessions = snapshot.find(s => s.name === 'dlo_active_sessions' && s.type === 'up_down_counter')!
     expect(sessions).toBeDefined()
     expect(sessions.values[0].value).toBe(2)
   })
@@ -329,7 +329,7 @@ describe('telemetry/metrics', () => {
     recordFraudAlert({ severity: 'low', type: 'velocity' })
 
     const snapshot = getMetricsSnapshot()
-    const fraudCounter = snapshot.find(s => s.name === 'youngsend_fraud_alerts')!
+    const fraudCounter = snapshot.find(s => s.name === 'dlo_fraud_alerts')!
     expect(fraudCounter).toBeDefined()
 
     const highVelocity = fraudCounter.values.find(
@@ -451,7 +451,7 @@ describe('telemetry/index re-exports', () => {
     expect(typeof mod.getLogger).toBe('function')
     expect(typeof mod.initLogger).toBe('function')
     expect(typeof mod.shutdownLogger).toBe('function')
-    expect(mod.YoungsendLogger).toBeDefined()
+    expect(mod.DigitalLendingOsLogger).toBeDefined()
     expect(mod.LogLevel).toBeDefined()
   })
 
