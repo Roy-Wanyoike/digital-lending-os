@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { eventBus } from "@/backend/services/event-bus";
@@ -32,7 +33,7 @@ async function postHandler(
     const now = new Date();
 
     // Wrap fetch, validation, and all DB mutations in a single transaction for atomicity
-    const updatedEscrow = await db.$transaction(async (tx: any) => {
+    const updatedEscrow = await db.$transaction(async (tx: Prisma.TransactionClient) => {
       // Fetch escrow inside transaction for serializable read
       const escrow = await tx.escrowTransaction.findFirst({
         where: {
@@ -59,7 +60,7 @@ async function postHandler(
       }
 
       // Find the milestone
-      const milestone = escrow.milestones.find((m: any) => m.id === milestoneId);
+      const milestone = escrow.milestones.find((m) => m.id === milestoneId);
       if (!milestone) throw new Error('Milestone not found for this escrow');
       if (milestone.status === 'released') throw new Error('Milestone has already been released');
 
@@ -88,10 +89,10 @@ async function postHandler(
       const allMilestones = await tx.escrowMilestone.findMany({
         where: { escrowId: id },
       });
-      const allReleased = allMilestones.every((m: any) => m.status === "released");
+      const allReleased = allMilestones.every((m) => m.status === "released");
       const totalReleased = allMilestones
-        .filter((m: any) => m.status === "released")
-        .reduce((sum: any, m: any) => sum + m.amount, 0);
+        .filter((m) => m.status === "released")
+        .reduce((sum, m) => sum + m.amount, 0);
 
       const updateData: Record<string, unknown> = {
         releasedAmount: totalReleased,

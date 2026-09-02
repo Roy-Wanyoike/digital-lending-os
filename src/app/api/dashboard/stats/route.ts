@@ -5,9 +5,10 @@ import { getTenantBusinessIds } from '@/backend/lib/tenant-cache';
 import { withApiTelemetry } from '@/backend/lib/telemetry/api-wrapper';
 import { dashboardStatsCache } from '@/backend/lib/response-cache';
 import { badRequest, error, ok, unauthorized, withErrorHandler } from '@/backend/lib/api-response';
+import type { CacheManager } from '@/backend/lib/cache/cache-manager';
 
 // Lazy-load cache manager — graceful fallback if Redis/OTel not installed
-let _cacheManager: any = undefined;
+let _cacheManager: CacheManager | undefined = undefined;
 let _cacheAttempted = false;
 async function getCache() {
   if (_cacheAttempted) return _cacheManager;
@@ -164,7 +165,8 @@ async function getHandler(request: NextRequest) {
       }
 
       // Build recentTransactions (flatten for API response)
-      const recentTransactionsFlat = recentTransactions.map((tx: any) => ({
+      type RecentTx = { id: string; txRef: string; amount: number; currency: string; status: string; createdAt: Date; buyer: { name: string }; seller: { name: string } };
+      const recentTransactionsFlat = recentTransactions.map((tx: RecentTx) => ({
         id: tx.id,
         txRef: tx.txRef,
         amount: tx.amount,
@@ -188,7 +190,7 @@ async function getHandler(request: NextRequest) {
       const averageTrustScore =
         trustScores.length > 0
           ? Math.round(
-              (trustScores.reduce((sum: any, ts: any) => sum + (ts.overallScore ?? 0), 0) / trustScores.length) * 100
+              (trustScores.reduce((sum: number, ts: { overallScore: number | null }) => sum + (ts.overallScore ?? 0), 0) / trustScores.length) * 100
             ) / 100
           : 0;
 

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';import { z } from 'zod'
 import { db } from '@/lib/db'
-import { providerRegistry, type PaymentProviderCode } from '@/lib/payment'
+import { Prisma } from '@prisma/client'
+import { providerRegistry, type PaymentProviderCode, type VerifyPaymentResult } from '@/lib/payment'
 import { requireAuth, AuthError } from '@/lib/auth/api-helpers'
 import { getPaymentStateMachine as getSM, recordPaymentTransition } from '@/backend/lib/payment/route-helpers'
 
@@ -55,7 +56,7 @@ async function postHandler(request: NextRequest) {
       const bizIds = (await db.business.findMany({
         where: { tenantId: user.tenantId },
         select: { id: true },
-      })).map((b: any) => b.id)
+      })).map((b: { id: string }) => b.id)
 
       const intent = await db.paymentIntent.findFirst({
         where: {
@@ -167,7 +168,7 @@ async function postHandler(request: NextRequest) {
         ? stateMachineStateToDbStatus(smFinalState)
         : (result.status === 'completed' ? 'completed' : result.status === 'failed' ? 'failed' : 'processing')
 
-      const updateData: Record<string, unknown> = {
+      const updateData: Prisma.PaymentIntentUncheckedUpdateInput = {
         status: resolvedStatus,
       }
       if (result.fee) updateData.actualFee = result.fee / 100
@@ -201,7 +202,7 @@ async function postHandler(request: NextRequest) {
 }
 
 // ─── Post-payment processing ────────────────────────────────
-async function handleSuccessfulPayment(paymentIntentId: string, result: any) {
+async function handleSuccessfulPayment(paymentIntentId: string, result: VerifyPaymentResult) {
   try {
     const intent = await db.paymentIntent.findUnique({
       where: { id: paymentIntentId },

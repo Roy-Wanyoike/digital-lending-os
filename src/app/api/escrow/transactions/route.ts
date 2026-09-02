@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
+import type { EscrowStatus } from "@prisma/client";
 import { z } from "zod";
 import { getApiUser, requireAuth, AuthError } from "@/lib/auth/api-helpers";
 import { eventBus } from "@/backend/services/event-bus";
@@ -125,7 +127,7 @@ async function getHandler(request: NextRequest) {
     const status = searchParams.get("status") || undefined;
     const currency = searchParams.get("currency") || undefined;
 
-    const where: Record<string, unknown> = {
+    const where: Prisma.EscrowTransactionWhereInput = {
       OR: [
         { buyer: { tenantId: user.tenantId } },
         { seller: { tenantId: user.tenantId } },
@@ -133,7 +135,7 @@ async function getHandler(request: NextRequest) {
     };
     if (buyerId) where.buyerId = buyerId;
     if (sellerId) where.sellerId = sellerId;
-    if (status) where.status = status;
+    if (status) where.status = status as EscrowStatus;
     if (currency) where.currency = currency;
 
     // Fast in-memory cache (3s TTL)
