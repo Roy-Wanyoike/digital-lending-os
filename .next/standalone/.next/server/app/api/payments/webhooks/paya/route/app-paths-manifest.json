@@ -1,0 +1,3 @@
+{
+  "/api/payments/webhooks/paya/route": "app/api/payments/webhooks/paya/route.js"
+}

@@ -197,7 +197,7 @@ export function DashboardShell({ session }: { session: Session }) {
                         <span className={`text-[10px] font-medium hidden sm:inline ${sseConnected ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>{sseConnected ? 'Live' : 'Offline'}</span>
                       </div>
                     </TooltipTrigger>
-                    <TooltipContent><p>Trust Network {sseConnected ? 'connected' : 'disconnected'}</p></TooltipContent>
+                    <TooltipContent><p>Digital Lending OS {sseConnected ? 'connected' : 'disconnected'}</p></TooltipContent>
                   </Tooltip>
                   <ThemeToggle />
                   <DropdownMenu>
@@ -233,7 +233,7 @@ export function DashboardShell({ session }: { session: Session }) {
               </Suspense>
             </main>
             <footer className="flex-shrink-0 border-t px-4 sm:px-6 py-4">
-              <p className="text-xs text-muted-foreground text-center">Youngsend Trust Network — The Financial Operating System for Global Commerce</p>
+              <p className="text-xs text-muted-foreground text-center">Digital Lending OS — Multi-Tenant SaaS for Kenyan Digital Credit Providers</p>
             </footer>
           </div>
       </div>

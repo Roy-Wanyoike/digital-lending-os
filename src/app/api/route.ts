@@ -5,7 +5,7 @@ import { ok, withErrorHandler } from '@/backend/lib/api-response'
 async function getHandler(_req: NextRequest) {
   return ok(
     {
-      name: 'Youngsend API',
+      name: 'Digital Lending OS API',
       version: '1.0.0',
       status: 'operational',
       timestamp: new Date().toISOString(),
