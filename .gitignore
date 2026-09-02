@@ -14,12 +14,12 @@ out/
 .env.*.local
 
 # === Database Files ===
-db/*.db
-db/*.db-shm
-db/*.db-wal
+db/
 *.db-journal
 *.db
 prisma/*.db
+*.db-shm
+*.db-wal
 
 # === Generated / Runtime ===
 download/
@@ -89,6 +89,11 @@ scripts/youngsend_*
 scripts/gen_report*
 scripts/generate-*
 scripts/qa-*
+
+# === ADR Report Variants (keep only core ADR docs) ===
+docs/adr/*-benchmarks.md
+docs/adr/*-review-checklist.md
+docs/adr/*-threat-model.md
 
 # === Misc ===
 .tenv/
