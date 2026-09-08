@@ -1,2 +1,86 @@
-skills/
+# Dependencies
 node_modules/
+.pnp
+.pnp.js
+
+# Build output
+.next/
+out/
+dist/
+standalone/
+
+# Database files
+db/
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+prisma/*.db
+
+# Environment files
+.env
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Testing and coverage
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# Cache and temp
+.cache/
+.temp/
+tmp/
+tool-results/
+upload/
+
+# Project-specific: skills SDK (internal)
+skills/
+
+# Project-specific: worklog (local agent scratch)
+worklog.md
+
+# Project-specific: agent context (local)
+agent-ctx/
+
+# Project-specific: dev artifacts
+scripts/paya_dev_page.json
+test.txt
+instrumentation.ts.bak
+
+# ADR report variants (generated benchmarks/checklists/threat-models)
+docs/adr/*-benchmarks.md
+docs/adr/*-review-checklist.md
+docs/adr/*-threat-model.md
+
+# Lock files (keep package-lock.json, ignore bun.lock)
+bun.lock
+
+# TypeScript build info
+tsconfig.tsbuildinfo
+
+# Vercel
+.vercel
+
+# Docker volumes
+docker-data/

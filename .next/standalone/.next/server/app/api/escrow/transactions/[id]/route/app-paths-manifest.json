@@ -1,3 +1,0 @@
-{
-  "/api/escrow/transactions/[id]/route": "app/api/escrow/transactions/[id]/route.js"
-}
