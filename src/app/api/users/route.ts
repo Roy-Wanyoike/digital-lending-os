@@ -51,15 +51,17 @@ const getHandler = withErrorHandler(async (req: NextRequest) => {
   };
 
   if (user.role === 'admin') {
-    // Admin can see all users across tenants
+    // Tenant admin sees only users in their own tenant
+    // Super-admin cross-tenant access requires a dedicated 'super_admin' role
     const [users, total] = await Promise.all([
       db.account.findMany({
+        where: { tenantId: user.tenantId },
         select: selectFields,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      db.account.count(),
+      db.account.count({ where: { tenantId: user.tenantId } }),
     ]);
     return ok({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
   }

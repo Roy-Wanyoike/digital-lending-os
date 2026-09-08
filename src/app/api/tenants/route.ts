@@ -38,8 +38,10 @@ const getHandler = withErrorHandler(async (req: NextRequest) => {
   if (!user) return unauthorized();
 
   if (user.role === 'admin') {
-    // Admin can see all tenants
-    const tenants = await db.tenant.findMany({
+    // Tenant admin sees only their own tenant
+    // Super-admin cross-tenant access requires a dedicated 'super_admin' role
+    const tenant = await db.tenant.findUnique({
+      where: { id: user.tenantId },
       include: {
         _count: {
           select: {
@@ -48,9 +50,10 @@ const getHandler = withErrorHandler(async (req: NextRequest) => {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
     });
-    return ok({ tenants });
+
+    if (!tenant) return notFound('Tenant not found');
+    return ok({ tenants: [tenant] });
   }
 
   // Regular users see their own tenant only
