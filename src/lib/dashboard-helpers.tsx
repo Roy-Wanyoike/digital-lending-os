@@ -73,6 +73,7 @@ export interface Business {
   digitalTwin?: { healthScore?: number; growthTrajectory?: string; riskAppetite?: string } | null
 }
 
+
 // Matches /api/escrow/transactions response
 export interface EscrowTransaction {
   id: string; txRef: string; buyerId: string; sellerId: string;

@@ -62,6 +62,7 @@ export interface Business {
   status: string; verifiedAt?: string; createdAt: string; updatedAt: string;
   passport?: { credentialLevel?: string; kycStatus?: string; amlStatus?: string; riskRating?: string } | null
   trustScore?: { overallScore?: number } | null
+  digitalTwin?: { healthScore?: number; growthTrajectory?: string; riskAppetite?: string } | null
 }
 
 export interface EscrowTransaction {
