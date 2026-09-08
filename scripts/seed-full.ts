@@ -56,7 +56,7 @@ async function main() {
   console.log('👤 Creating account...')
   const passwordHash = await hash('Demo1234!', 12)
   const account = await db.account.create({
-    data: { email: 'admin@digitallendingos.co.ke', passwordHash, name: 'DLO Admin', role: 'admin', tenantId: tenant.id, businessId: undefined, referralCode: 'YSDISCO100', isActive: true, lastLoginAt: DAYS_AGO(0) },
+    data: { email: 'admin@digitallendingos.co.ke', passwordHash, name: 'DLO Admin', role: 'admin', tenantId: tenant.id, businessId: undefined, referralCode: 'DLODISCO100', isActive: true, lastLoginAt: DAYS_AGO(0) },
   })
 
   // ─── 3. Second user (buyer role) ─────────────────────────────

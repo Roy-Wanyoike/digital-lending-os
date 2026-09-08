@@ -198,12 +198,12 @@ export function generateSecureToken(
 
 /**
  * Generate a payment reference token suitable for external use.
- * Format: YS + timestamp(6 chars) + random(8 chars)
+ * Format: DLO + timestamp(6 chars) + random(8 chars)
  */
 export function generatePaymentReference(): string {
   const timestamp = Date.now().toString(36).toUpperCase().slice(-6)
   const random = randomBytes(4).toString('hex').toUpperCase()
-  return `YS${timestamp}${random}`
+  return `DLO${timestamp}${random}`
 }
 
 // ── Bcrypt Wrapper ─────────────────────────────────────────────────

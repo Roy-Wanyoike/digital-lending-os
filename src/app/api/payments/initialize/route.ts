@@ -70,7 +70,7 @@ const postHandler = withErrorHandler(async (request: NextRequest) => {
   }
 
   // ─── Determine reference for provider ─────────────────────
-  let providerReference = `YS-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+  let providerReference = `DLO-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
   let resolvedFromBusinessId = ''
   let resolvedToBusinessId = ''
 

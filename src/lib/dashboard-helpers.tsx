@@ -59,6 +59,11 @@ export interface DashboardStats {
     buyerName: string; sellerName: string;
   }>,
   trustScoreDistribution: Record<string, number>
+  // ─── Lending-specific KPIs (optional until backend exposes them) ───
+  parRatio?: number                // Portfolio at Risk (>30 days), as percentage
+  nplRate?: number                 // Non-Performing Loan rate, as percentage
+  disbursementThisMonth?: number   // Total disbursed this month in KES
+  collectionRate?: number          // Collection rate as percentage
 }
 
 // Matches /api/businesses response (includes nested passport + trustScore)

@@ -80,7 +80,7 @@ async function main() {
       role: 'admin',
       tenantId: tenant.id,
       isActive: true,
-      referralCode: 'YSD3MO7X',
+      referralCode: 'DLOD3MO7X',
     },
   })
 

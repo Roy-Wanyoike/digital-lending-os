@@ -143,7 +143,7 @@ async function main() {
   // Create a payment link
   const paymentLink = await db.paymentLink.create({
     data: {
-      linkRef: 'YS-DEMO-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
+      linkRef: 'DLO-DEMO-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
       businessId: business.id,
       title: 'Invoice #INV-2024-001',
       description: 'Payment for consulting services',
