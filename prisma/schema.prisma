@@ -13,10 +13,11 @@ datasource db {
 
 enum AccountRole {
   admin
+  credit_officer
+  collections_officer
+  compliance_officer
+  underwriter
   viewer
-  buyer
-  seller
-  auditor
 }
 
 enum TenantStatus {
@@ -191,6 +192,8 @@ model Business {
   matchesAsSeeker             BusinessMatch[]              @relation("MatchSeeker")
   matchesAsCandidate          BusinessMatch[]              @relation("MatchCandidate")
   complianceScreenings        ComplianceScreening[]
+  loanApplications             LoanApplication[]
+  loans                       Loan[]
 
   @@index([tenantId])
   @@index([country])
@@ -1337,4 +1340,139 @@ model Subscription {
   @@index([currentPeriodEnd])
   @@index([businessId, status])
   @@index([status, currentPeriodEnd])
+}
+
+// ─── Lending Models ───────────────────────────────────────────────
+
+model LoanProduct {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+  productType String   // personal, business, asset_finance, emergency, chama
+  minAmount   Float
+  maxAmount   Float
+  interestRate Float    // Annual percentage rate (e.g., 12.5 for 12.5%)
+  interestType String   @default("reducing_balance") // reducing_balance, flat_rate
+  tenureMonths Int
+  processingFeePercent Float @default(0)
+  latePaymentPenaltyPercent Float @default(0)
+  isActive    Boolean  @default(true)
+  requiresCollateral Boolean @default(false)
+  maxConcurrentLoans Int @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  applications LoanApplication[]
+  loans       Loan[]
+
+  @@index([tenantId, isActive])
+  @@map("loan_products")
+}
+
+model LoanApplication {
+  id            String   @id @default(cuid())
+  tenantId      String
+  applicantId   String   // Business ID (borrower)
+  productId     String
+  requestedAmount Float
+  requestedTenure Int    // months
+  purpose       String?
+  status        String   @default("submitted") // submitted, under_review, approved, rejected, withdrawn
+  riskScore     Float?
+  riskLevel     String?  // low, moderate, high, very_high
+  reviewedBy    String?  // User ID
+  reviewedAt    DateTime?
+  rejectionReason String?
+  approvedAmount Float?
+  approvedTenure  Int?
+  approvedRate    Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  applicant     Business @relation(fields: [applicantId], references: [id])
+  product       LoanProduct @relation(fields: [productId], references: [id])
+  loan          Loan?
+
+  @@index([tenantId, status])
+  @@index([applicantId])
+  @@map("loan_applications")
+}
+
+model Loan {
+  id              String   @id @default(cuid())
+  tenantId        String
+  loanRef         String   @unique
+  applicationId   String   @unique
+  borrowerId      String
+  productId       String
+  principalAmount Float
+  interestRate    Float
+  interestType    String   @default("reducing_balance")
+  tenureMonths    Int
+  disbursedAmount Float    @default(0)
+  disbursedAt     DateTime?
+  outstandingBalance Float
+  totalInterest   Float
+  totalRepayment  Float
+  monthlyPayment  Float
+  status          String   @default("approved") // approved, active, completed, defaulted, written_off
+  nextPaymentDate DateTime?
+  lastPaymentDate DateTime?
+  paidInstallments Int     @default(0)
+  totalPaid       Float    @default(0)
+  daysPastDue     Int      @default(0)
+  parBucket       String?  // current, 1_30, 31_60, 61_90, 90_plus
+  writtenOffAt    DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  application     LoanApplication @relation(fields: [applicationId], references: [id])
+  borrower       Business @relation(fields: [borrowerId], references: [id])
+  product        LoanProduct @relation(fields: [productId], references: [id])
+  repaymentSchedule RepaymentSchedule[]
+  loanAuditLogs  LoanAuditLog[]
+
+  @@index([tenantId, status])
+  @@index([borrowerId])
+  @@index([loanRef])
+  @@map("loans")
+}
+
+model RepaymentSchedule {
+  id          String   @id @default(cuid())
+  loanId      String
+  installment Int      // 1, 2, 3...
+  dueDate     DateTime
+  amount      Float    // total due
+  principal   Float    // principal component
+  interest    Float    // interest component
+  balance     Float    // remaining balance after this payment
+  status      String   @default("pending") // pending, paid, partial, overdue, waived
+  paidAmount  Float    @default(0)
+  paidDate    DateTime?
+  channel     String?  // mpesa, bank_transfer, auto_deduct, manual
+  txRef       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  loan        Loan @relation(fields: [loanId], references: [id])
+
+  @@index([loanId, status])
+  @@index([dueDate])
+  @@map("repayment_schedules")
+}
+
+model LoanAuditLog {
+  id          String   @id @default(cuid())
+  loanId      String
+  action      String   // created, disbursed, payment_received, overdue, defaulted, written_off, restructured
+  performedBy String?
+  details     String?  // JSON string with action details
+  createdAt   DateTime @default(now())
+
+  loan        Loan @relation(fields: [loanId], references: [id])
+
+  @@index([loanId])
+  @@map("loan_audit_logs")
 }
