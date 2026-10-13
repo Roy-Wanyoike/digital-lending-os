@@ -1,17 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { Providers } from "@/components/providers";
 
-const geistSans = Geist({
+// Self-hosted variable fonts (latin subset) — replaces next/font/google so
+// cold builds are hermetic. next/font/google fetches fonts.googleapis.com at
+// build time; that fetch is the only network-dependent step in `next build`
+// and intermittently fails Vercel cold builds ("Deployment has failed" with
+// no compile error — observed 2026-10-13; reproduced on a sibling repo).
+// Same CSS variables, zero fetch.
+
+const geistSans = localFont({
+  src: "./fonts/geist-latin-var.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  weight: "100 900",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
+  src: "./fonts/geist-mono-latin-var.woff2",
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: "100 900",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
