@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "NODE_OPTIONS='--max-old-space-size=3072' NEXT_TELEMETRY_DISABLED=1 next dev -p 3000 -H 0.0.0.0",
-    "build": "NEXT_TELEMETRY_DISABLED=1 next build && cp -r public .next/standalone/public && mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/static",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
     "start": "NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000 node .next/standalone/server.js",
     "lint": "eslint .",
     "test": "vitest run",
@@ -16,7 +16,8 @@
     "type-check": "tsc --noEmit",
     "test:watch": "vitest --watch",
     "lint:fix": "next lint --fix",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "build:standalone": "NEXT_TELEMETRY_DISABLED=1 next build && cp -r public .next/standalone/public && mkdir -p .next/standalone/.next && cp -r .next/static .next/standalone/.next/static"
   },
   "dependencies": {
     "@prisma/client": "^6.11.1",
